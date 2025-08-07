@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { renderHook } from '@testing-library/react';
-import { useSunsetPosition } from './useSunsetPosition';
+import { useSunsetWebcams } from './useSunsetPosition';
 
 // Mock the sunset calculator functions
 vi.mock('../lib/sunset-calculator', () => ({

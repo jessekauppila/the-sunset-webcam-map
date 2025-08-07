@@ -1,18 +1,26 @@
-// useSunsetPosition.ts - SIMPLIFIED VERSION
 import { useState, useEffect } from 'react';
-import { getWebcamsAtSunset } from '../lib/simple-sunset';
-import { getMockWebcams } from '../lib/webcam-api';
+import { findNearestSunsetWest } from '../lib/simple-sunset';
+import type { Location } from '../lib/types';
 
-export function useSunsetWebcams() {
-  const [sunsetWebcams, setSunsetWebcams] = useState([]);
+export function useSunsetPosition(userLocation: Location) {
+  const [sunsetLocation, setSunsetLocation] =
+    useState<Location | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const allWebcams = getMockWebcams();
-    const webcamsAtSunset = getWebcamsAtSunset(allWebcams);
-    setSunsetWebcams(webcamsAtSunset);
-    setIsLoading(false);
-  }, []);
+    try {
+      setIsLoading(true);
+      setError(null);
 
-  return { sunsetWebcams, isLoading };
+      const nearestSunset = findNearestSunsetWest(userLocation);
+      setSunsetLocation(nearestSunset);
+    } catch (err) {
+      setError('Failed to find nearest sunset');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [userLocation.lat, userLocation.lng]);
+
+  return { sunsetLocation, isLoading, error };
 }

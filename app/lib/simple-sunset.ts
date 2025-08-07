@@ -31,3 +31,31 @@ export function getWebcamsAtSunset<T extends Location>(
 ): T[] {
   return webcams.filter((webcam) => isLocationAtSunset(webcam, date));
 }
+
+/**
+ * Find the nearest sunset location directly west of user's position
+ * This is the most intuitive way people think about sunsets!
+ */
+export function findNearestSunsetWest(
+  userLocation: Location,
+  date: Date = new Date()
+): Location | null {
+  const { lat } = userLocation;
+
+  // Check every degree of longitude going west from user
+  for (let lngOffset = 0; lngOffset <= 180; lngOffset += 1) {
+    const sunsetLng = userLocation.lng - lngOffset;
+
+    // Wrap around the globe if necessary
+    const normalizedLng =
+      sunsetLng < -180 ? sunsetLng + 360 : sunsetLng;
+
+    const checkLocation = { lat, lng: normalizedLng };
+
+    if (isLocationAtSunset(checkLocation, date)) {
+      return checkLocation;
+    }
+  }
+
+  return null; // No sunset found (shouldn't happen in practice)
+}
