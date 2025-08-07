@@ -61,4 +61,21 @@ describe('useSunsetPosition Hook', () => {
     // Should still have a sunset location
     expect(result.current.sunsetLocation).toBeDefined();
   });
+
+  it('should auto-refresh sunset location', async () => {
+    vi.useFakeTimers();
+
+    const userLocation = { lat: 40.7128, lng: -74.006 };
+    const { result } = renderHook(
+      () => useSunsetPosition(userLocation, 1000) // 1 second for testing
+    );
+
+    // Fast-forward time
+    vi.advanceTimersByTime(1000);
+
+    // Should have called findNearestSunsetWest again
+    expect(vi.mocked(findNearestSunsetWest)).toHaveBeenCalledTimes(2);
+
+    vi.useRealTimers();
+  });
 });
