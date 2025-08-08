@@ -3,8 +3,8 @@ import SunCalc from 'suncalc';
 import type { Location } from './types';
 
 /**
- * The ONLY function you really need!
  * Check if a location is experiencing sunset right now
+ * Used in the webcam list to filter webcams for one's experiencing sunset
  */
 export function isLocationAtSunset(
   location: Location,
