@@ -4,6 +4,29 @@ import { render, screen } from '@testing-library/react';
 import SimpleSunsetMap from './SunsetMap';
 import { useSunsetPosition } from '../../hooks/useSunsetPosition';
 
+// Mock mapbox-gl CSS
+vi.mock('mapbox-gl/dist/mapbox-gl.css', () => ({}));
+
+// Mock mapbox-gl entirely for tests
+vi.mock('mapbox-gl', () => ({
+  default: {
+    accessToken: '',
+    Map: vi.fn(() => ({
+      on: vi.fn(),
+      remove: vi.fn(),
+      flyTo: vi.fn(),
+    })),
+    Marker: vi.fn(() => ({
+      setLngLat: vi.fn().mockReturnThis(),
+      setPopup: vi.fn().mockReturnThis(),
+      addTo: vi.fn().mockReturnThis(),
+    })),
+    Popup: vi.fn(() => ({
+      setHTML: vi.fn().mockReturnThis(),
+    })),
+  },
+}));
+
 vi.mock('../../hooks/useSunsetPosition');
 
 describe('SimpleSunsetMap Component', () => {

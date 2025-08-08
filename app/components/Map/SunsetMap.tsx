@@ -3,6 +3,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { useSunsetPosition } from '../../hooks/useSunsetPosition';
 import type { Location } from '../../lib/types';
+import mapboxgl from 'mapbox-gl';
+import 'mapbox-gl/dist/mapbox-gl.css';
+
+// Set Mapbox token
+mapboxgl.accessToken =
+  process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN || '';
 
 interface SimpleSunsetMapProps {
   userLocation: Location;
@@ -14,20 +20,66 @@ export default function SimpleSunsetMap({
   className = '',
 }: SimpleSunsetMapProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
-  const [map, setMap] = useState<any>(null);
+  const map = useRef<mapboxgl.Map | null>(null);
+  const [mapLoaded, setMapLoaded] = useState(false);
 
   // Get sunset location
   const { sunsetLocation, isLoading, error } =
     useSunsetPosition(userLocation);
 
-  // Initialize map (without Mapbox for now - let's use a simple placeholder)
+  // Initialize map
   useEffect(() => {
-    if (!mapContainer.current || map) return;
+    if (!mapContainer.current || map.current) return;
 
-    // For MVP, let's just show coordinates instead of a real map
-    // You can add Mapbox later when you get the API key
-    console.log('Map would center on:', sunsetLocation);
-  }, [sunsetLocation]);
+    map.current = new mapboxgl.Map({
+      container: mapContainer.current,
+      style: 'mapbox://styles/mapbox/satellite-v9', // Satellite view for sunset!
+      center: [userLocation.lng, userLocation.lat], // Start at user location
+      zoom: 6,
+    });
+
+    map.current.on('load', () => {
+      setMapLoaded(true);
+    });
+
+    // Cleanup
+    return () => {
+      if (map.current) {
+        map.current.remove();
+        map.current = null;
+      }
+    };
+  }, [userLocation]);
+
+  // Center map on sunset location when it updates
+  useEffect(() => {
+    if (!map.current || !mapLoaded || !sunsetLocation) return;
+
+    console.log('Centering map on sunset:', sunsetLocation);
+
+    // Smoothly fly to sunset location
+    map.current.flyTo({
+      center: [sunsetLocation.lng, sunsetLocation.lat],
+      zoom: 8,
+      duration: 2000, // 2 second animation
+    });
+
+    // Add a marker at sunset location
+    new mapboxgl.Marker({ color: '#ff6b35' }) // Orange sunset marker
+      .setLngLat([sunsetLocation.lng, sunsetLocation.lat])
+      .setPopup(
+        new mapboxgl.Popup().setHTML(
+          `<div class="text-center">
+              <div class="text-lg">🌅</div>
+              <div><strong>Sunset Location</strong></div>
+              <div class="text-sm">${sunsetLocation.lat.toFixed(
+                4
+              )}, ${sunsetLocation.lng.toFixed(4)}</div>
+            </div>`
+        )
+      )
+      .addTo(map.current);
+  }, [sunsetLocation, mapLoaded]);
 
   if (isLoading) {
     return (
@@ -75,6 +127,7 @@ export default function SimpleSunsetMap({
                 Lng: {sunsetLocation.lng.toFixed(4)}
               </p>
             )}
+            <div ref={mapContainer} className="w-full h-full" />
           </div>
         </div>
       </div>
