@@ -27,24 +27,43 @@ export default function SimpleSunsetMap({
   const { sunsetLocation, isLoading, error } =
     useSunsetPosition(userLocation);
 
+  // Debug logs
+  console.log('🏠 User Location:', userLocation);
+  console.log('🌅 Sunset Location:', sunsetLocation);
+  // console.log('⏳ Loading:', isLoading);
+  // console.log('❌ Error:', error);
+  // console.log('🗺️ Map Loaded:', mapLoaded);
+  // console.log(
+  //   '🔑 Mapbox Token:',
+  //   mapboxgl.accessToken ? 'Present' : 'Missing'
+  // );
+
   // Initialize map
   useEffect(() => {
     if (!mapContainer.current || map.current) return;
 
+    console.log('🚀 Initializing map...');
+
     map.current = new mapboxgl.Map({
       container: mapContainer.current,
-      style: 'mapbox://styles/mapbox/satellite-v9', // Satellite view for sunset!
-      center: [userLocation.lng, userLocation.lat], // Start at user location
+      style: 'mapbox://styles/mapbox/satellite-v9',
+      center: [userLocation.lng, userLocation.lat],
       zoom: 6,
     });
 
     map.current.on('load', () => {
+      console.log('✅ Map loaded successfully!');
       setMapLoaded(true);
+    });
+
+    map.current.on('error', (e) => {
+      console.error('🚨 Map error:', e);
     });
 
     // Cleanup
     return () => {
       if (map.current) {
+        console.log('🧹 Cleaning up map...');
         map.current.remove();
         map.current = null;
       }
@@ -53,33 +72,49 @@ export default function SimpleSunsetMap({
 
   // Center map on sunset location when it updates
   useEffect(() => {
-    if (!map.current || !mapLoaded || !sunsetLocation) return;
+    if (!map.current || !mapLoaded || !sunsetLocation) {
+      console.log('⚠️ Skipping map center - missing requirements:', {
+        hasMap: !!map.current,
+        mapLoaded,
+        hasSunsetLocation: !!sunsetLocation,
+      });
+      return;
+    }
 
-    console.log('Centering map on sunset:', sunsetLocation);
+    console.log('🎯 Centering map on sunset:', sunsetLocation);
+
+    // Calculate distance for logging
+    const distance = Math.abs(userLocation.lng - sunsetLocation.lng);
+    console.log(`📏 Distance west: ${distance.toFixed(1)}°`);
 
     // Smoothly fly to sunset location
     map.current.flyTo({
       center: [sunsetLocation.lng, sunsetLocation.lat],
       zoom: 8,
-      duration: 2000, // 2 second animation
+      duration: 2000,
     });
 
     // Add a marker at sunset location
-    new mapboxgl.Marker({ color: '#ff6b35' }) // Orange sunset marker
+    const marker = new mapboxgl.Marker({ color: '#ff6b35' })
       .setLngLat([sunsetLocation.lng, sunsetLocation.lat])
       .setPopup(
         new mapboxgl.Popup().setHTML(
           `<div class="text-center">
-              <div class="text-lg">🌅</div>
-              <div><strong>Sunset Location</strong></div>
-              <div class="text-sm">${sunsetLocation.lat.toFixed(
-                4
-              )}, ${sunsetLocation.lng.toFixed(4)}</div>
-            </div>`
+            <div class="text-lg">🌅</div>
+            <div><strong>Sunset Location</strong></div>
+            <div class="text-sm">${sunsetLocation.lat.toFixed(
+              4
+            )}, ${sunsetLocation.lng.toFixed(4)}</div>
+            <div class="text-xs">Distance: ${distance.toFixed(
+              1
+            )}° west</div>
+          </div>`
         )
       )
       .addTo(map.current);
-  }, [sunsetLocation, mapLoaded]);
+
+    console.log('📍 Added sunset marker');
+  }, [sunsetLocation, mapLoaded, userLocation]);
 
   if (isLoading) {
     return (
@@ -106,31 +141,26 @@ export default function SimpleSunsetMap({
     );
   }
 
-  return (
-    <div
-      className={`h-96 bg-white border border-gray-300 rounded ${className}`}
-    >
-      <div className="p-4">
-        <div
-          ref={mapContainer}
-          className="mt-4 h-64 bg-gray-100 border border-gray-200 rounded flex items-center justify-center"
-        >
-          <div className="text-center">
-            <div className="text-2xl mb-2">🗺️</div>
-            <p className="text-sm text-gray-800">
-              Map will center here
-            </p>
-            {sunsetLocation && (
-              <p className="text-xs mt-1 text-black">
-                Lat: {sunsetLocation.lat.toFixed(4)}
-                <br />
-                Lng: {sunsetLocation.lng.toFixed(4)}
-              </p>
-            )}
-            <div ref={mapContainer} className="w-full h-full" />
-          </div>
+  if (!mapboxgl.accessToken) {
+    return (
+      <div
+        className={`h-96 bg-yellow-50 flex items-center justify-center ${className}`}
+      >
+        <div className="text-center text-yellow-800">
+          <p>⚠️ Mapbox token required</p>
+          <p className="text-sm mt-2">
+            Add NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN to .env.local
+          </p>
         </div>
       </div>
+    );
+  }
+
+  return (
+    <div
+      className={`h-96 bg-white border border-gray-300 rounded overflow-hidden ${className}`}
+    >
+      <div ref={mapContainer} className="w-full h-full" />
     </div>
   );
 }
