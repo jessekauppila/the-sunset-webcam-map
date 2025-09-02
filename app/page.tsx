@@ -1,4 +1,7 @@
 import SimpleSunsetMap from './components/Map/SunsetMap';
+import TestWebcamFetch from './components/TestWebcamFetch';
+
+//Key for Windy API...1wv9Q9Az1pdk4XGAAw6xzvolzyohzhlO
 
 export default function Home() {
   // Example user location (NYC)
@@ -11,7 +14,7 @@ export default function Home() {
           userLocation={userLocation}
           className="mb-8"
         />
-
+        <TestWebcamFetch />
         <div className="text-center text-gray-600">
           <p>
             This map will automatically center on the nearest sunset

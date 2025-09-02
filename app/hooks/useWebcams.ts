@@ -1,3 +1,5 @@
+//Early version, may not be best...
+
 import { useState, useEffect, useCallback } from 'react';
 import {
   fetchWebcamsNearSunset,

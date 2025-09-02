@@ -141,21 +141,6 @@ export default function SimpleSunsetMap({
     );
   }
 
-  if (!mapboxgl.accessToken) {
-    return (
-      <div
-        className={`h-96 bg-yellow-50 flex items-center justify-center ${className}`}
-      >
-        <div className="text-center text-yellow-800">
-          <p>⚠️ Mapbox token required</p>
-          <p className="text-sm mt-2">
-            Add NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN to .env.local
-          </p>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div
       className={`h-96 bg-white border border-gray-300 rounded overflow-hidden ${className}`}
