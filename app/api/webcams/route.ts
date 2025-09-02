@@ -28,11 +28,26 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
 
-    // Get coordinates from query params or use defaults (Eastern US - within Windy's limits)
-    const northLat = searchParams.get('northLat') || '47.0'; // Northern US
-    const southLat = searchParams.get('southLat') || '25.0'; // Florida Keys
-    const eastLon = searchParams.get('eastLon') || '-65.0'; // Atlantic coast
-    const westLon = searchParams.get('westLon') || '-100.0'; // Central US
+    // 🎯 Get center coordinates from URL parameters
+    const centerLat = parseFloat(
+      searchParams.get('centerLat') || '40.7128'
+    );
+    const centerLng = parseFloat(
+      searchParams.get('centerLng') || '-74.006'
+    );
+    const boxSize = parseFloat(searchParams.get('boxSize') || '11');
+
+    // 🎯 Create bounding box around center point
+    const northLat = (centerLat + boxSize).toString();
+    const southLat = (centerLat - boxSize).toString();
+    const eastLon = (centerLng + boxSize).toString();
+    const westLon = (centerLng - boxSize).toString();
+
+    console.log(`📍 Center: ${centerLat}, ${centerLng}`);
+    console.log(
+      `📦 Box: N:${northLat} S:${southLat} E:${eastLon} W:${westLon}`
+    );
+
     const zoom = searchParams.get('zoom') || '4'; // Minimum zoom level required by Windy
 
     console.log('🌐 Fetching webcams from Windy API...');

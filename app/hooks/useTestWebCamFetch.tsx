@@ -33,8 +33,18 @@ export function useTestWebCamFetch() {
         setIsLoading(true);
         setError(null);
 
-        // 🌐 Call our own API route
-        const response = await fetch('/api/webcams');
+        // 🎯 Pass center coordinates and box size
+        const centerLat = 40.7128; // NYC latitude
+        const centerLng = -74.006; // NYC longitude
+        const boxSize = 5; // degrees in each direction
+
+        console.log(`Hook Latitude: ${centerLat}`);
+        console.log(`Hook Longitude: (${centerLng}`);
+
+        // 🌐 Call our API route WITH coordinates
+        const response = await fetch(
+          `/api/webcams?centerLat=${centerLat}&centerLng=${centerLng}&boxSize=${boxSize}`
+        );
 
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
