@@ -1,11 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
-import type { Location } from '../lib/types';
+import type { Location } from '../../../lib/types';
 import mapboxgl from 'mapbox-gl';
 
 export function useMap(userLocation: Location) {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
   const [mapLoaded, setMapLoaded] = useState(false);
+
+  // Set Mapbox token
+  mapboxgl.accessToken =
+    process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN || '';
 
   // Initialize map
   useEffect(() => {

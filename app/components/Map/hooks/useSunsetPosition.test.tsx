@@ -1,10 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook } from '@testing-library/react';
 import { useSunsetPosition } from './useSunsetPosition'; // Fix: correct import
-import { findNearestSunsetWest } from '../lib/simple-sunset';
+import { findNearestSunsetWest } from '../../../lib/simple-sunset';
 
 // Mock the simple-sunset functions (not sunset-calculator)
-vi.mock('../lib/simple-sunset', () => ({
+vi.mock('../../../lib/simple-sunset', () => ({
   findNearestSunsetWest: vi.fn(),
 }));
 

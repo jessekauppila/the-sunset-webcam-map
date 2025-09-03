@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { useSunsetPosition } from '../../hooks/useSunsetPosition';
+import { useSunsetPosition } from './hooks/useSunsetPosition';
 import type { Location } from '../../lib/types';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';

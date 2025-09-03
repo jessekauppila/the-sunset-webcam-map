@@ -1,4 +1,4 @@
-import SimpleSunsetMap from './components/Map/SunsetMap';
+//import SimpleSunsetMap from './components/Map/SunsetMap';
 import TestWebcamFetch from './components/SimpleWebcamFetch';
 import SimpleMap from './components/Map/SimpleMap';
 
@@ -12,7 +12,7 @@ export default function Home() {
     <div className="min-h-screen p-8">
       <main className="max-w-4xl mx-auto">
         <SimpleMap userLocation={userLocation} />
-        <SimpleSunsetMap userLocation={userLocation} />
+        {/* <SimpleSunsetMap userLocation={userLocation} /> */}
         <TestWebcamFetch />
         <div className="text-center text-gray-600">
           <p>

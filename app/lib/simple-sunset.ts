@@ -22,17 +22,6 @@ export function isLocationAtSunset(
 }
 
 /**
- * Filter webcams to only those experiencing sunset
- * This is what you'll use with your webcam list!
- */
-export function getWebcamsAtSunset<T extends Location>(
-  webcams: T[],
-  date: Date = new Date()
-): T[] {
-  return webcams.filter((webcam) => isLocationAtSunset(webcam, date));
-}
-
-/**
  * Find the nearest sunset location directly west of user's position
  * This is the most intuitive way people think about sunsets!
  */
