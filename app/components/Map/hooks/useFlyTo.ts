@@ -19,7 +19,7 @@ export function useFlyTo(
       return;
     }
 
-    console.log('🎯 Setting marker:', sunsetLocation);
+    console.log('🎯 Set fly to:', sunsetLocation);
 
     // Smoothly fly to sunset location
     map.flyTo({

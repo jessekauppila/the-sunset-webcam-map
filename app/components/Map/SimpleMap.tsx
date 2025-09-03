@@ -14,6 +14,7 @@ interface SimpleMapProps {
 export default function SimpleMap({ userLocation }: SimpleMapProps) {
   const { mapContainer, map, mapLoaded, hasToken } =
     useMap(userLocation);
+  useSetMarker(map, mapLoaded, userLocation);
   const { sunsetLocation, isLoading, error } =
     useSunsetPosition(userLocation);
   useFlyTo(map, mapLoaded, sunsetLocation);

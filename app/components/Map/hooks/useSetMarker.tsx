@@ -10,37 +10,43 @@ export function useSetMarker(
 ) {
   useEffect(() => {
     if (!map || !mapLoaded || !location) {
-      console.log('⚠️ Skipping map center - missing requirements:', {
-        hasMap: !!map,
-        mapLoaded,
-        hasSunsetLocation: !!location,
-      });
+      console.log(
+        '⚠️ Skipping marker setting - missing requirements:',
+        {
+          hasMap: !!map,
+          mapLoaded,
+          hasLocation: !!location,
+        }
+      );
       return;
     }
 
-    console.log('📍 Setting marker at:', location);
+    console.log('📍 Setting marker:', location);
 
-    const marker = new mapboxgl.Marker({ color: '#ff6b35' })
-      .setLngLat([location.lng, location.lat])
-      .setPopup(
-        new mapboxgl.Popup().setHTML(
-          `<div class="text-center">
-            <div class="text-lg">🌅</div>
-            <div><strong>Sunset Location</strong></div>
-            <div class="text-sm">${location.lat.toFixed(
-              4
-            )}, ${location.lng.toFixed(4)}</div>
-          </div>`
+    // Remove the setTimeout temporarily for debugging
+    try {
+      const marker = new mapboxgl.Marker({ color: '#ff6b35' })
+        .setLngLat([location.lng, location.lat])
+        .setPopup(
+          new mapboxgl.Popup().setHTML(
+            `<div class="text-center">
+              <div class="text-lg">🌅</div>
+              <div><strong>Sunset Location</strong></div>
+
+            </div>`
+          )
         )
-      )
-      .addTo(map);
+        .addTo(map);
 
-    console.log('📍 Added sunset marker');
+      console.log('📍 Added sunset marker successfully');
 
-    return () => {
-      if (marker) {
-        marker.remove();
-      }
-    };
+      return () => {
+        if (marker) {
+          marker.remove();
+        }
+      };
+    } catch (error) {
+      console.error('❌ Error creating marker:', error);
+    }
   }, [map, mapLoaded, location]);
 }
