@@ -11,9 +11,13 @@ interface SimpleMapProps {
 }
 
 export default function SimpleMap({ userLocation }: SimpleMapProps) {
-  const { mapContainer, mapLoaded, hasToken } = useMap(userLocation);
-  const { sunsetLocation, lastUpdated, isLoading, error } =
+  const { mapContainer, map, mapLoaded, hasToken } =
+    useMap(userLocation);
+  const { sunsetLocation, isLoading, error } =
     useSunsetPosition(userLocation);
+  useFlyTo(map, mapLoaded, sunsetLocation);
+
+  //now use useToFly to fly to the Sunset Location and set that as the location that the
 
   if (!hasToken) {
     return (
@@ -64,10 +68,20 @@ export default function SimpleMap({ userLocation }: SimpleMapProps) {
 
       {/* Sunset Info Overlay */}
       {sunsetLocation && !isLoading && !error && (
-        <div className="absolute top-2 left-2 bg-green-50 border border-green-200 rounded p-2">
+        <div className="absolute top-14 left-2 bg-green-50 border border-green-200 rounded p-2">
           <p className="text-sm text-green-700">
             🌅 Sunset: {sunsetLocation.lat.toFixed(2)},{' '}
             {sunsetLocation.lng.toFixed(2)}
+          </p>
+        </div>
+      )}
+
+      {/* Sunset Info Overlay */}
+      {userLocation && !isLoading && !error && (
+        <div className="absolute top-2 left-2 bg-green-50 border border-green-200 rounded p-2">
+          <p className="text-sm text-green-700">
+            🌅 User: {userLocation.lat.toFixed(2)},{' '}
+            {userLocation.lng.toFixed(2)}
           </p>
         </div>
       )}

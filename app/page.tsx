@@ -6,7 +6,7 @@ import SimpleMap from './components/Map/SimpleMap';
 
 export default function Home() {
   // Example user location (NYC)
-  const userLocation = { lat: 40.7128, lng: -74.006 };
+  const userLocation = { lat: 40.7128, lng: -84.006 };
 
   return (
     <div className="min-h-screen p-8">
