@@ -42,6 +42,12 @@ export function findNearestSunsetWest(
 ): Location | null {
   const { lat } = userLocation;
 
+  console.log(
+    `🔍 Searching for sunset west of (${lat}, ${
+      userLocation.lng
+    }) at ${date.toISOString()}`
+  );
+
   // Check every degree of longitude going west from user
   for (let lngOffset = 0; lngOffset <= 180; lngOffset += 1) {
     const sunsetLng = userLocation.lng - lngOffset;
@@ -53,9 +59,11 @@ export function findNearestSunsetWest(
     const checkLocation = { lat, lng: normalizedLng };
 
     if (isLocationAtSunset(checkLocation, date)) {
+      console.log(`🌅 Found sunset at: ${lat}, ${normalizedLng}`);
       return checkLocation;
     }
   }
 
-  return null; // No sunset found (shouldn't happen in practice)
+  console.log('❌ No sunset found in 180° west search');
+  return null;
 }

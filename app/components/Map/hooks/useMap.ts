@@ -1,0 +1,53 @@
+import { useEffect, useRef, useState } from 'react';
+import type { Location } from '../lib/types';
+import mapboxgl from 'mapbox-gl';
+
+export function useMap(userLocation: Location) {
+  const mapContainer = useRef<HTMLDivElement>(null);
+  const map = useRef<mapboxgl.Map | null>(null);
+  const [mapLoaded, setMapLoaded] = useState(false);
+
+  // Initialize map
+  useEffect(() => {
+    if (!mapContainer.current || map.current) return;
+
+    if (!mapboxgl.accessToken) {
+      console.error('❌ No Mapbox access token found!');
+      return;
+    }
+
+    console.log('🚀 Initializing map...');
+
+    map.current = new mapboxgl.Map({
+      container: mapContainer.current,
+      style: 'mapbox://styles/mapbox/satellite-v9',
+      center: [userLocation.lng, userLocation.lat],
+      zoom: 6,
+    });
+
+    map.current.on('load', () => {
+      console.log('✅ Map loaded successfully!');
+      setMapLoaded(true);
+    });
+
+    map.current.on('error', (e) => {
+      console.error('🚨 Map error:', e);
+    });
+
+    // Cleanup
+    return () => {
+      if (map.current) {
+        console.log('🧹 Cleaning up map...');
+        map.current.remove();
+        map.current = null;
+      }
+    };
+  }, [userLocation]);
+
+  return {
+    mapContainer,
+    map: map.current,
+    mapLoaded,
+    hasToken: !!mapboxgl.accessToken,
+  };
+}

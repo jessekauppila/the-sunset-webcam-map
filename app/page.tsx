@@ -1,5 +1,6 @@
 import SimpleSunsetMap from './components/Map/SunsetMap';
 import TestWebcamFetch from './components/SimpleWebcamFetch';
+import SimpleMap from './components/Map/SimpleMap';
 
 //Key for Windy API...1wv9Q9Az1pdk4XGAAw6xzvolzyohzhlO
 
@@ -10,10 +11,8 @@ export default function Home() {
   return (
     <div className="min-h-screen p-8">
       <main className="max-w-4xl mx-auto">
-        <SimpleSunsetMap
-          userLocation={userLocation}
-          className="mb-8"
-        />
+        <SimpleMap userLocation={userLocation} />
+        <SimpleSunsetMap userLocation={userLocation} />
         <TestWebcamFetch />
         <div className="text-center text-gray-600">
           <p>
