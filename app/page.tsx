@@ -1,5 +1,5 @@
 import SimpleSunsetMap from './components/Map/SunsetMap';
-import TestWebcamFetch from './components/TestWebcamFetch';
+import TestWebcamFetch from './components/SimpleWebcamFetch';
 
 //Key for Windy API...1wv9Q9Az1pdk4XGAAw6xzvolzyohzhlO
 

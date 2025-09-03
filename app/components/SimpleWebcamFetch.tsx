@@ -1,10 +1,10 @@
 'use client';
 
-import { useTestWebCamFetch } from '../hooks/useTestWebCamFetch';
+import { useSimpleWebCamFetch } from '../hooks/useSimpleWebCamFetch';
 
 export default function TestWebcamFetch() {
   const { webcams, isLoading, error, totalCount } =
-    useTestWebCamFetch();
+    useSimpleWebCamFetch();
 
   if (isLoading) {
     return (
