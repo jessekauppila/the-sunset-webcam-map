@@ -8,15 +8,18 @@ export function useFlyTo(
 ) {
   useEffect(() => {
     if (!map || !mapLoaded || !sunsetLocation) {
-      console.log('⚠️ Skipping map center - missing requirements:', {
-        hasMap: !!map,
-        mapLoaded,
-        hasSunsetLocation: !!sunsetLocation,
-      });
+      console.log(
+        '⚠️ Skipping marker setting - missing requirements:',
+        {
+          hasMap: !!map,
+          mapLoaded,
+          hasSunsetLocation: !!sunsetLocation,
+        }
+      );
       return;
     }
 
-    console.log('🎯 Centering map on sunset:', sunsetLocation);
+    console.log('🎯 Setting marker:', sunsetLocation);
 
     // Smoothly fly to sunset location
     map.flyTo({
@@ -44,6 +47,6 @@ export function useFlyTo(
     //   )
     //   .addTo(map.current);
 
-    console.log('📍 Added sunset marker');
-  }, [sunsetLocation, mapLoaded, sunsetLocation]);
+    //console.log('📍 Added sunset marker');
+  }, [map, mapLoaded, sunsetLocation]);
 }

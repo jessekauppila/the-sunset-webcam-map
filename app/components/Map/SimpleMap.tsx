@@ -3,6 +3,7 @@
 import { useMap } from './hooks/useMap';
 import { useFlyTo } from './hooks/useFlyTo';
 import { useSunsetPosition } from './hooks/useSunsetPosition';
+import { useSetMarker } from './hooks/useSetMarker';
 
 import type { Location } from '../../lib/types';
 
@@ -16,6 +17,7 @@ export default function SimpleMap({ userLocation }: SimpleMapProps) {
   const { sunsetLocation, isLoading, error } =
     useSunsetPosition(userLocation);
   useFlyTo(map, mapLoaded, sunsetLocation);
+  useSetMarker(map, mapLoaded, sunsetLocation);
 
   //now use useToFly to fly to the Sunset Location and set that as the location that the
 
