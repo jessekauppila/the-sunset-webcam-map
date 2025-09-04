@@ -4,8 +4,6 @@ import { useMap } from './hooks/useMap';
 import { useFlyTo } from './hooks/useFlyTo';
 import { useSunsetPosition } from './hooks/useSunsetPosition';
 import { useSetMarker } from './hooks/useSetMarker';
-// import mapboxgl from 'mapbox-gl';
-import { useEffect } from 'react';
 
 import 'mapbox-gl/dist/mapbox-gl.css';
 
@@ -16,7 +14,7 @@ interface SimpleMapProps {
 }
 
 export default function SimpleMap({ userLocation }: SimpleMapProps) {
-  const { mapContainer, map, mapLoaded, hasToken } =
+  const { mapContainer, map, mapLoaded, mapReady hasToken } =
     useMap(userLocation);
   const { sunsetLocation, isLoading, error } =
     useSunsetPosition(userLocation);
