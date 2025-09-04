@@ -7,6 +7,8 @@ import { useSetMarker } from './hooks/useSetMarker';
 import mapboxgl from 'mapbox-gl';
 import { useEffect } from 'react';
 
+import 'mapbox-gl/dist/mapbox-gl.css';
+
 import type { Location } from '../../lib/types';
 
 interface SimpleMapProps {
@@ -29,22 +31,14 @@ export default function SimpleMap({ userLocation }: SimpleMapProps) {
       try {
         const center = map.getCenter();
         const zoom = map.getZoom();
-        const bounds = map.getBounds();
 
         console.log('🗺️ Map state:', {
           center: { lng: center.lng, lat: center.lat },
           zoom,
-          bounds: bounds
-            ? {
-                north: bounds.getNorth(),
-                south: bounds.getSouth(),
-                east: bounds.getEast(),
-                west: bounds.getWest(),
-              }
-            : null,
+          userLocation,
         });
 
-        // Test: Add marker using the EXACT same coordinates as map center
+        // Test: Add marker at map center (should be visible)
         const centerEl = document.createElement('div');
         centerEl.style.width = '40px';
         centerEl.style.height = '40px';
@@ -53,30 +47,31 @@ export default function SimpleMap({ userLocation }: SimpleMapProps) {
         centerEl.style.border = '4px solid black';
         centerEl.style.boxShadow = '0 0 15px rgba(0,0,0,0.8)';
 
-        // Use the exact coordinates from map.getCenter()
+        // Use map center coordinates
         new mapboxgl.Marker(centerEl)
           .setLngLat([center.lng, center.lat])
           .addTo(map);
         console.log('✅ Yellow marker added at map center!');
 
-        // Test: Add marker at user location (should be NYC)
-        const userEl = document.createElement('div');
-        userEl.style.width = '40px';
-        userEl.style.height = '40px';
-        userEl.style.backgroundColor = 'red';
-        userEl.style.borderRadius = '50%';
-        userEl.style.border = '4px solid white';
-        userEl.style.boxShadow = '0 0 15px rgba(0,0,0,0.8)';
+        // Test: Add marker using different coordinate format
+        const testEl = document.createElement('div');
+        testEl.style.width = '40px';
+        testEl.style.height = '40px';
+        testEl.style.backgroundColor = 'blue';
+        testEl.style.borderRadius = '50%';
+        testEl.style.border = '4px solid white';
+        testEl.style.boxShadow = '0 0 15px rgba(0,0,0,0.8)';
 
-        new mapboxgl.Marker(userEl)
-          .setLngLat([userLocation.lng, userLocation.lat])
+        // Try using the exact same coordinates as the map center
+        new mapboxgl.Marker(testEl)
+          .setLngLat([center.lng, center.lat]) // Same as yellow marker
           .addTo(map);
-        console.log('✅ Red marker added at user location!');
+        console.log('✅ Blue marker added at same location!');
       } catch (error) {
         console.error('❌ Error adding test marker:', error);
       }
     }
-  }, [map, mapLoaded, hasToken, userLocation]);
+  }, [map, mapLoaded, hasToken]);
 
   //now use useToFly to fly to the Sunset Location and set that as the location that the
 
