@@ -39,7 +39,7 @@ export default function SimpleMap({ userLocation }: SimpleMapProps) {
   }
 
   return (
-    <div className="h-96 relative">
+    <div className="h-96 bg-white border border-gray-300 rounded overflow-hidden mb-8 relative">
       {' '}
       {/* Remove extra styling */}
       {/* Main Map */}

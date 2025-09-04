@@ -12,7 +12,7 @@ export default function Home() {
       <main className="max-w-4xl mx-auto">
         <SimpleMap userLocation={userLocation} />
         {/* <SunsetMap userLocation={userLocation} /> */}
-        {/* <TestWebcamFetch /> */}
+        <TestWebcamFetch />
         {/* <div className="text-center text-gray-600">
           <p>
             This map will automatically center on the nearest sunset
