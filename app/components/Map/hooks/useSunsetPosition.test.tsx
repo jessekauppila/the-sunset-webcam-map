@@ -76,6 +76,8 @@ describe('useSunsetPosition Hook', () => {
     // Should have called findNearestSunsetWest again
     expect(vi.mocked(findNearestSunsetWest)).toHaveBeenCalledTimes(2);
 
+    expect(result.current.sunsetLocation).toBeDefined();
+
     vi.useRealTimers();
   });
 });

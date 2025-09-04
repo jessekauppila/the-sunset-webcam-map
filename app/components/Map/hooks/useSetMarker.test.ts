@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { renderHook } from '@testing-library/react';
+import type { Map } from 'mapbox-gl';
 
 // More complete mock
 const mockMarker = {
@@ -21,7 +22,7 @@ describe('useSetMarker', () => {
     const map = {};
     const location = { lat: 40, lng: -74 };
 
-    renderHook(() => useSetMarker(map as any, true, location));
+    renderHook(() => useSetMarker(map as Map, true, location));
 
     expect(mockMarker.setLngLat).toHaveBeenCalled();
   });

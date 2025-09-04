@@ -1,5 +1,3 @@
-import WebcamFetchDisplay from './components/WebcamFetchDisplay';
-
 import SimpleMap from './components/Map/SimpleMap';
 
 export default function Home() {

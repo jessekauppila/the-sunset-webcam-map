@@ -1,6 +1,6 @@
-import { render, screen } from '@testing-library/react';
+import { screen } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
-import SimpleMap from './SimpleMap';
+//import SimpleMap from './SimpleMap';
 
 // Mock the CSS import
 vi.mock('mapbox-gl/dist/mapbox-gl.css', () => ({}));
@@ -26,7 +26,7 @@ vi.mock('./hooks/useSunsetPosition', () => ({
 describe('SimpleMap', () => {
   it('renders a map', () => {
     //Arrange
-    const mockUserLocation = { lat: 40.7128, lng: -74.006 };
+    //const mockUserLocation = { lat: 40.7128, lng: -74.006 };
 
     // Mock the environment variable
     vi.stubEnv('NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN', 'fake-token');

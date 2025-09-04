@@ -2,11 +2,17 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook } from '@testing-library/react';
 import { useFlyTo } from './useFlyTo';
 import type { Location } from '@/app/lib/types';
+import type { Map } from 'mapbox-gl';
 
-// Mock mapboxgl
-const mockMap = {
+type MockMap = {
+  flyTo: ReturnType<typeof vi.fn>;
+} & Partial<Map>;
+
+// Then update the mock
+const mockMap: MockMap = {
   flyTo: vi.fn(),
 };
+
 describe('useFlyTo Hook', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -14,7 +20,7 @@ describe('useFlyTo Hook', () => {
 
   it('should fly to sunset location when all requirements are met', () => {
     // 🎯 ARRANGE
-    const map = mockMap as any;
+    const map = mockMap as unknown as Map;
     const mapLoaded = true;
     const sunsetLocation: Location = { lat: 40, lng: -80 };
 
@@ -30,7 +36,7 @@ describe('useFlyTo Hook', () => {
   });
 
   it('should NOT fly when map is not loaded', () => {
-    const map = mockMap as any;
+    const map = mockMap as mockMap;
     const mapLoaded = false;
     const sunsetLocation: Location = { lat: 40.7128, lng: -80.0 };
 
@@ -41,7 +47,7 @@ describe('useFlyTo Hook', () => {
   });
 
   it('should NOT fly when sunset location is null', () => {
-    const map = mockMap as any;
+    const map = mockMap as mockMap;
     const mapLoaded = true;
     const sunsetLocation = null;
 
@@ -52,7 +58,7 @@ describe('useFlyTo Hook', () => {
   });
 
   it('should fly to new location when sunset location changes', () => {
-    const map = mockMap as any;
+    const map = mockMap as mockMap;
     const mapLoaded = true;
     const initialSunsetLocation: Location = {
       lat: 40.7128,
