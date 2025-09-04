@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
-import { useWebcamFetch } from './useWebcamFetch';
+import { useWebcamFetch } from './useWebCamFetch';
 
 // Mock fetch globally
 global.fetch = vi.fn();

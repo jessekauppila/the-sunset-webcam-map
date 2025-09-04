@@ -1,5 +1,7 @@
 import SimpleMap from './components/Map/SimpleMap';
 
+//import
+
 export default function Home() {
   // Example user location (NYC)
   const userLocation = { lat: 40.7128, lng: 74.006 };

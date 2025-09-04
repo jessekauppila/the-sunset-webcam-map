@@ -1,6 +1,6 @@
 'use client';
 
-import { useWebcamFetch } from '../hooks/useWebcamFetch';
+import { useWebcamFetch } from './hooks/useWebCamFetch';
 import type { Location } from '../lib/types';
 
 interface SimpleMapProps {
