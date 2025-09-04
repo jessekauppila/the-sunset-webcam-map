@@ -27,4 +27,3 @@ describe('useSetMarker', () => {
     expect(mockMarker.setLngLat).toHaveBeenCalled();
   });
 });
-``;
