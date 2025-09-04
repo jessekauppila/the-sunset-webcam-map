@@ -1,14 +1,19 @@
 'use client';
 
 import { useWebCamFetch } from '../hooks/useWebCamFetch';
+import type { Location } from '../lib/types';
 
-export default function TestWebcamFetch(
-  sunsetWestLatitude: number,
-  sunsetWestLongitude: number
-) {
+interface SimpleMapProps {
+  userLocation: Location;
+}
+
+//export default function SimpleMap({ userLocation }: SimpleMapProps)
+export default function WebcamFetch({
+  userLocation,
+}: SimpleMapProps) {
   const { webcams, isLoading, error, totalCount } = useWebCamFetch(
-    sunsetWestLatitude,
-    sunsetWestLongitude
+    userLocation.lat,
+    userLocation.lng
   );
 
   if (isLoading) {
