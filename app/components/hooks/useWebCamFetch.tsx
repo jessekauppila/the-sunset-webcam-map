@@ -67,7 +67,7 @@ export function useWebcamFetch(latitude: number, longitude: number) {
     };
 
     fetchWindyWebcams();
-  }, []); // Empty array = run once on mount
+  }, [latitude, longitude]); // Empty array = run once on mount
 
   // 🎯 RETURN: What do we want other components to use?
   return {
