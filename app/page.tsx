@@ -6,14 +6,14 @@ import SimpleMap from './components/Map/SimpleMap';
 
 export default function Home() {
   // Example user location (NYC)
-  const userLocation = { lat: 40.7128, lng: -84.006 };
+  const userLocation = { lat: 40.7128, lng: -74.006 };
 
   return (
     <div className="min-h-screen p-8">
       <main className="max-w-4xl mx-auto">
         <SimpleMap userLocation={userLocation} />
         {/* <SimpleSunsetMap userLocation={userLocation} /> */}
-        <TestWebcamFetch />
+        {/* <TestWebcamFetch /> */}
         <div className="text-center text-gray-600">
           <p>
             This map will automatically center on the nearest sunset

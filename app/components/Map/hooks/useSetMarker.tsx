@@ -25,18 +25,24 @@ export function useSetMarker(
 
     // Remove the setTimeout temporarily for debugging
     try {
-      const marker = new mapboxgl.Marker({ color: '#ff6b35' })
+      // Create a default Marker and add it to the map.
+      const marker = new mapboxgl.Marker()
         .setLngLat([location.lng, location.lat])
-        .setPopup(
-          new mapboxgl.Popup().setHTML(
-            `<div class="text-center">
-              <div class="text-lg">🌅</div>
-              <div><strong>Sunset Location</strong></div>
-
-            </div>`
-          )
-        )
         .addTo(map);
+
+      //const marker = new mapboxgl.Marker({ color: '#ff6b35' })
+
+      //     .setLngLat([location.lng, location.lat])
+      //     .setPopup(
+      //       new mapboxgl.Popup().setHTML(
+      //         `<div class="text-center">
+      //           <div class="text-lg">🌅</div>
+      //           <div><strong>Sunset Location</strong></div>
+
+      //         </div>`
+      //       )
+      //     )
+      //     .addTo(map);
 
       console.log('📍 Added sunset marker successfully');
 
