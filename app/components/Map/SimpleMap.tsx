@@ -141,9 +141,19 @@ export default function SimpleMap({ userLocation }: SimpleMapProps) {
           </div>
         )}
       </div>
-      <WebcamFetchDisplay
-        userLocation={sunsetLocation || userLocation}
-      />
+      {/* Only show webcam display when we have a sunset location */}
+      {sunsetLocation && (
+        <WebcamFetchDisplay userLocation={sunsetLocation} />
+      )}
+
+      {/* Show message when no sunset location yet */}
+      {!sunsetLocation && !isLoading && (
+        <div className="p-4 bg-yellow-50 rounded-lg">
+          <p className="text-yellow-700">
+            Waiting for sunset location...
+          </p>
+        </div>
+      )}
     </div>
   );
 }
