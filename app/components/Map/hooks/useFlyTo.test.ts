@@ -36,7 +36,7 @@ describe('useFlyTo Hook', () => {
   });
 
   it('should NOT fly when map is not loaded', () => {
-    const map = mockMap as mockMap;
+    const map = mockMap as unknown as Map;
     const mapLoaded = false;
     const sunsetLocation: Location = { lat: 40.7128, lng: -80.0 };
 
@@ -47,7 +47,7 @@ describe('useFlyTo Hook', () => {
   });
 
   it('should NOT fly when sunset location is null', () => {
-    const map = mockMap as mockMap;
+    const map = mockMap as unknown as Map;
     const mapLoaded = true;
     const sunsetLocation = null;
 
@@ -58,7 +58,7 @@ describe('useFlyTo Hook', () => {
   });
 
   it('should fly to new location when sunset location changes', () => {
-    const map = mockMap as mockMap;
+    const map = mockMap as unknown as Map;
     const mapLoaded = true;
     const initialSunsetLocation: Location = {
       lat: 40.7128,
