@@ -4,7 +4,7 @@ import { useMap } from './hooks/useMap';
 import { useFlyTo } from './hooks/useFlyTo';
 import { useSunsetPosition } from './hooks/useSunsetPosition';
 import { useSetMarker } from './hooks/useSetMarker';
-import mapboxgl from 'mapbox-gl';
+// import mapboxgl from 'mapbox-gl';
 import { useEffect } from 'react';
 
 import 'mapbox-gl/dist/mapbox-gl.css';
@@ -21,59 +21,9 @@ export default function SimpleMap({ userLocation }: SimpleMapProps) {
   const { sunsetLocation, isLoading, error } =
     useSunsetPosition(userLocation);
 
+  useSetMarker(map, mapLoaded, userLocation);
   useFlyTo(map, mapLoaded, sunsetLocation);
-  //useSetMarker(map, mapLoaded, sunsetLocation);
-
-  // Simple test marker with useEffect
-  useEffect(() => {
-    if (map && mapLoaded && hasToken) {
-      console.log('🎯 Adding test marker...');
-      try {
-        const center = map.getCenter();
-        const zoom = map.getZoom();
-
-        console.log('🗺️ Map state:', {
-          center: { lng: center.lng, lat: center.lat },
-          zoom,
-          userLocation,
-        });
-
-        // Test: Add marker at map center (should be visible)
-        const centerEl = document.createElement('div');
-        centerEl.style.width = '40px';
-        centerEl.style.height = '40px';
-        centerEl.style.backgroundColor = 'yellow';
-        centerEl.style.borderRadius = '50%';
-        centerEl.style.border = '4px solid black';
-        centerEl.style.boxShadow = '0 0 15px rgba(0,0,0,0.8)';
-
-        // Use map center coordinates
-        new mapboxgl.Marker(centerEl)
-          .setLngLat([center.lng, center.lat])
-          .addTo(map);
-        console.log('✅ Yellow marker added at map center!');
-
-        // Test: Add marker using different coordinate format
-        const testEl = document.createElement('div');
-        testEl.style.width = '40px';
-        testEl.style.height = '40px';
-        testEl.style.backgroundColor = 'blue';
-        testEl.style.borderRadius = '50%';
-        testEl.style.border = '4px solid white';
-        testEl.style.boxShadow = '0 0 15px rgba(0,0,0,0.8)';
-
-        // Try using the exact same coordinates as the map center
-        new mapboxgl.Marker(testEl)
-          .setLngLat([center.lng, center.lat]) // Same as yellow marker
-          .addTo(map);
-        console.log('✅ Blue marker added at same location!');
-      } catch (error) {
-        console.error('❌ Error adding test marker:', error);
-      }
-    }
-  }, [map, mapLoaded, hasToken]);
-
-  //now use useToFly to fly to the Sunset Location and set that as the location that the
+  useSetMarker(map, mapLoaded, sunsetLocation);
 
   if (!hasToken) {
     return (
