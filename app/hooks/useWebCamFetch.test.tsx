@@ -1,11 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
-import { useWebCamFetch } from './useWebCamFetch';
+import { useWebcamFetch } from './useWebcamFetch';
 
 // Mock fetch globally
 global.fetch = vi.fn();
 
-describe('useWebCamFetch Hook', () => {
+describe('useWebcamFetch Hook', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -19,7 +19,7 @@ describe('useWebCamFetch Hook', () => {
       json: async () => ({ webcams: [], total: 0, source: 'windy' }),
     } as Response);
 
-    renderHook(() => useWebCamFetch(testLat, testLng));
+    renderHook(() => useWebcamFetch(testLat, testLng));
 
     await waitFor(() => {
       expect(fetch).toHaveBeenCalledWith(
@@ -47,7 +47,7 @@ describe('useWebCamFetch Hook', () => {
     } as Response);
 
     const { result } = renderHook(() =>
-      useWebCamFetch(testLat, testLng)
+      useWebcamFetch(testLat, testLng)
     );
 
     // Initially loading
@@ -71,7 +71,7 @@ describe('useWebCamFetch Hook', () => {
       json: async () => ({ webcams: [], total: 0, source: 'windy' }),
     } as Response);
 
-    renderHook(() => useWebCamFetch(testLat, testLng));
+    renderHook(() => useWebcamFetch(testLat, testLng));
 
     await waitFor(() => {
       expect(fetch).toHaveBeenCalledWith(

@@ -18,7 +18,7 @@ interface WindyResponse {
   webcams: WindyWebcam[];
 }
 
-export function useWebCamFetch(latitude: number, longitude: number) {
+export function useWebcamFetch(latitude: number, longitude: number) {
   // 🎯 STATE: What data do we want to track?
   const [webcams, setWebcams] = useState<WindyWebcam[]>([]);
   const [isLoading, setIsLoading] = useState(true);

@@ -1,6 +1,6 @@
 'use client';
 
-import { useWebCamFetch } from '../hooks/useWebCamFetch';
+import { useWebcamFetch } from '../hooks/useWebcamFetch';
 import type { Location } from '../lib/types';
 
 interface SimpleMapProps {
@@ -8,10 +8,10 @@ interface SimpleMapProps {
 }
 
 //export default function SimpleMap({ userLocation }: SimpleMapProps)
-export default function WebcamFetch({
+export default function WebcamFetchDisplay({
   userLocation,
 }: SimpleMapProps) {
-  const { webcams, isLoading, error, totalCount } = useWebCamFetch(
+  const { webcams, isLoading, error, totalCount } = useWebcamFetch(
     userLocation.lat,
     userLocation.lng
   );

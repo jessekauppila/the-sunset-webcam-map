@@ -1,4 +1,4 @@
-import WebcamFetch from './components/WebcamFetch';
+import WebcamFetchDisplay from './components/WebcamFetchDisplay';
 
 import SimpleMap from './components/Map/SimpleMap';
 
@@ -10,7 +10,6 @@ export default function Home() {
     <div className="min-h-screen p-8">
       <main className="max-w-4xl mx-auto">
         <SimpleMap userLocation={userLocation} />
-        <WebcamFetch userLocation={userLocation} />
         <div className="text-center text-gray-600">
           <p>
             This map will automatically center on the nearest sunset
