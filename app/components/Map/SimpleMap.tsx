@@ -25,6 +25,21 @@ export default function SimpleMap({ userLocation }: SimpleMapProps) {
   useFlyTo(map, mapLoaded, sunsetLocation);
   useSetMarker(map, mapLoaded, sunsetLocation);
 
+  //I need to bring in the WebCamFetch into here.
+
+  // I might need to make something that finds Multiple Sunsets along the sunset band...
+
+  //Put all these sunset location markers on the map...
+
+  //Then I need to hook up sunsetLocation to the WebcamFetch
+
+  //I need to destructure the WebCamFetch and take the webcam locations
+
+  // I need to take those webcam locations and put locations for them on the map.
+  // These should have tooltips or pop ups or something so that you can see an image of the sunset...
+
+  // I need to find the closest location to the users location and then this needs to be some sort of pop up.
+
   if (!hasToken) {
     return (
       <div className="h-96 bg-red-50 flex items-center justify-center mb-8">
