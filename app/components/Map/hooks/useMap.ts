@@ -6,6 +6,7 @@ export function useMap(userLocation: Location) {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
   const [mapLoaded, setMapLoaded] = useState(false);
+  const [mapReady, setMapReady] = useState(false); // New state
 
   // Set Mapbox token
   mapboxgl.accessToken =
@@ -34,6 +35,11 @@ export function useMap(userLocation: Location) {
       setMapLoaded(true);
     });
 
+    map.current.on('style.load', () => {
+      console.log('✅ Map style loaded!');
+      setMapReady(true); // Map is fully ready
+    });
+
     map.current.on('error', (e) => {
       console.error('🚨 Map error:', e);
     });
@@ -52,6 +58,7 @@ export function useMap(userLocation: Location) {
     mapContainer,
     map: map.current,
     mapLoaded,
+    mapReady,
     hasToken: !!mapboxgl.accessToken,
   };
 }
