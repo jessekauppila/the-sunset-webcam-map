@@ -2,6 +2,18 @@
 import SunCalc from 'suncalc';
 import type { Location } from './types';
 
+// Ok this goes west until it finds a sunset west, but what
+//  if I wanted to find the whole band of where sunsets are
+// on the globe. I guess I could basically go west on the
+// longitude and then have a newst for loop saying to go up
+// and down on the latitude and see if that was it... The
+// trick is that I'd basically want all areas around the globe
+//  where this is happening so there'd basically be a crescent
+// across the globe showing where all the sunsets are occuring.
+//  We'd also want to use altitude to create basically an inside
+//  and outside of this crescent so it's 2d rather than a one
+//  dimensional curve.  Does this all make sense?
+
 /**
  * Check if a location is experiencing sunset right now
  * Used in the webcam list to filter webcams for one's experiencing sunset
