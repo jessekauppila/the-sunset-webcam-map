@@ -39,7 +39,7 @@ export function useWebcamFetch(latitude: number, longitude: number) {
         const boxSize = 5; // degrees in each direction
 
         console.log(`Hook Latitude: ${centerLat}`);
-        console.log(`Hook Longitude: (${centerLng}`);
+        console.log(`Hook Longitude: ${centerLng}`);
 
         // 🌐 Call our API route WITH coordinates
         const response = await fetch(
@@ -67,7 +67,7 @@ export function useWebcamFetch(latitude: number, longitude: number) {
     };
 
     fetchWindyWebcams();
-  }, []); // Empty array = run once on mount
+  }, [latitude, longitude]); // Was empty array = run once on mount
 
   // 🎯 RETURN: What do we want other components to use?
   return {
