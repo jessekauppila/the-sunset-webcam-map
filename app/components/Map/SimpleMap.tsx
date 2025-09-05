@@ -27,7 +27,22 @@ export default function SimpleMap({ userLocation }: SimpleMapProps) {
   useFlyTo(map, mapLoaded, sunsetLocation);
   useSetMarker(map, mapLoaded, sunsetLocation);
 
-  //subsolar point calculation
+  //subsolar point and termination ring calculation...
+
+  //This whole thing needs to be put into a useEffect that runs every minute
+
+  //That will pull the subpolar point and get the ra and gmsthours info
+
+  //That will come bck into the terminatorRing function and return data points
+
+  //Those same points will be used to either create markers or something else
+  //that can be used by a deck GL heatmap.
+
+  //Those same data points can be used by WebCamFetch to search for webcams
+
+  //Need to set up custom Markers that will take the WebCamFetch webcams
+  //these need to show little thumbnail images
+
   const date = new Date(); // Today's date
 
   const { lat, lng, raHours, gmstHours } = subsolarPoint(date);
@@ -47,15 +62,7 @@ export default function SimpleMap({ userLocation }: SimpleMapProps) {
 
   const sunrisePoints = terminators.sunrise.geometry.coordinates;
   console.log('Sunrise coordinates', sunrisePoints);
-
-  //   const {
-  //     webcams,
-  //     isLoading,
-  //     error,
-  //     selectedWebcam,
-  //     selectWebcam,
-  //     refresh,
-  //   } = useWebcamFetch(sunsetLocation?.lat ?? 0, sunsetLocation?.lng ?? 0);
+  //
 
   //Ok, let's start be hooking up sunsetLocation to the WebcamFetch,
   // then we can fetch web cam's near where the nearest sunset west is...
