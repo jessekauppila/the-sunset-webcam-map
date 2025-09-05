@@ -66,7 +66,7 @@ export default function WebcamFetchDisplay({
                 <img
                   src={webcam.images.current.preview}
                   alt={webcam.title}
-                  className="w-full h-20 object-cover rounded mt-2"
+                  className="w-full h-48 object-contain rounded mt-2"
                 />
               )}
             </div>

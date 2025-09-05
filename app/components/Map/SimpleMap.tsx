@@ -30,6 +30,10 @@ export default function SimpleMap({ userLocation }: SimpleMapProps) {
   //subsolar point calculation
   const date = new Date(); // Today's date
   const { lat, lng, raHours, gmstHours } = subsolarPoint(date);
+
+  console.log('raHours: ' + raHours);
+  console.log('gmstHours: ' + gmstHours);
+
   const subsolarLocation = { lat, lng };
   console.log('Subsolar location: ' + subsolarLocation);
   console.log(subsolarLocation);
