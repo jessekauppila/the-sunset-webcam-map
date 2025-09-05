@@ -7,7 +7,7 @@ import { useSetMarker } from './hooks/useSetMarker';
 // import { useWebcamFetch } from '@/app/hooks/useWebcamFetch';
 import WebcamFetchDisplay from '../WebcamFetchDisplay';
 import { subsolarPoint } from './lib/subsolarLocation';
-import { terminatorPolygon } from './lib/terminatorRing';
+import { splitTerminatorSunriseSunset } from './lib/terminatorRing';
 
 import 'mapbox-gl/dist/mapbox-gl.css';
 
@@ -34,6 +34,8 @@ export default function SimpleMap({ userLocation }: SimpleMapProps) {
   console.log('Subsolar location: ' + subsolarLocation);
   console.log(subsolarLocation);
   useSetMarker(map, mapLoaded, subsolarLocation);
+
+  splitTerminatorSunriseSunset(date, raHours, gmstHours);
 
   //   const {
   //     webcams,

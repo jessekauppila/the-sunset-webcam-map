@@ -20,9 +20,9 @@ export function terminatorPolygon(
   date = new Date(),
   precisionDeg = 0.5
 ) {
-  const { lon, lat } = subsolarPoint(date);
+  const { lat, lng } = subsolarPoint(date);
   return geoCircle()
-    .center([lon, lat])
+    .center([lng, lat])
     .radius(90)
     .precision(precisionDeg)();
 }
@@ -30,8 +30,12 @@ export function terminatorPolygon(
 /** Split the terminator ring into sunrise/sunset LineStrings.
  * Returns { sunrise, sunset } as GeoJSON LineStrings.
  */
-export function splitTerminatorSunriseSunset(date = new Date()) {
-  const { raHours: RA, gmstHours: GMST } = subsolarPoint(date);
+export function splitTerminatorSunriseSunset(
+  date: Date,
+  RA: number,
+  GMST: number
+) {
+  //const { raHours: RA, gmstHours: GMST } = subsolarPoint(date);
   const ring = terminatorPolygon(date).coordinates[0]; // [ [lon,lat], ... , first point repeats ]
   // We’ll traverse segments and allocate them into sunrise/sunset by HA sign.
   const sunriseCoords: number[][] = [];
