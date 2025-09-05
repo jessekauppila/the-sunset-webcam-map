@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 //import { render, screen } from "@testing-library/react";
-import { subsolarPoint } from './subsolar-location';
+import { subsolarPoint } from './subsolarLocation';
 
 describe('Subsolar-location', () => {
   it('results in a location', () => {
