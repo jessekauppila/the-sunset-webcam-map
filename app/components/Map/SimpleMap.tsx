@@ -6,6 +6,7 @@ import { useSunsetPosition } from './hooks/useSunsetPosition';
 import { useSetMarker } from './hooks/useSetMarker';
 // import { useWebcamFetch } from '@/app/hooks/useWebcamFetch';
 import WebcamFetchDisplay from '../WebcamFetchDisplay';
+import { subsolarPoint } from './lib/subsolar-location';
 
 import 'mapbox-gl/dist/mapbox-gl.css';
 
@@ -24,6 +25,13 @@ export default function SimpleMap({ userLocation }: SimpleMapProps) {
   useSetMarker(map, mapLoaded, userLocation);
   useFlyTo(map, mapLoaded, sunsetLocation);
   useSetMarker(map, mapLoaded, sunsetLocation);
+
+  //subsolar point calculation
+  const date = new Date(); // Today's date
+  const subsolarLocation = subsolarPoint(date);
+  console.log('Subsolar location: ' + subsolarLocation);
+  console.log(subsolarLocation);
+  useSetMarker(map, mapLoaded, subsolarLocation);
 
   //   const {
   //     webcams,
