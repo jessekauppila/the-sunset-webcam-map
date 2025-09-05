@@ -1,5 +1,5 @@
 // npm i solar-calculator
-// @ts-ignore
+// @ts-expect-error - solar-calculator has no type definitions
 import * as solar from 'solar-calculator';
 
 // ---------- tiny math helpers ----------
