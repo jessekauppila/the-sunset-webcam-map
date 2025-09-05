@@ -4,11 +4,11 @@ import { geoCircle } from 'd3-geo';
 import { subsolarPoint } from './subsolarLocation';
 
 // ---------- tiny math helpers ----------
-const DEG = Math.PI / 180;
-const RAD = 1 / DEG;
+//const DEG = Math.PI / 180;
+//const RAD = 1 / DEG;
 const normHours = (h: number) => ((h % 24) + 24) % 24;
-const normDeg = (d: number) =>
-  ((((d + 180) % 360) + 360) % 360) - 180;
+//const normDeg = (d: number) =>
+// ((((d + 180) % 360) + 360) % 360) - 180;
 const normSignedHours = (h: number) => {
   // Normalize to (-12, +12]
   const x = normHours(h);

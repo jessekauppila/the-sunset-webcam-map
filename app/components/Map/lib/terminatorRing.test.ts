@@ -20,10 +20,10 @@ describe('Terminator ring', () => {
     expect(result).toHaveProperty('sunset.geometry.coordinates');
     expect(Array.isArray(result.sunrise.geometry.coordinates)).toBe(
       true
-    ); // ✅ Correct    expect(typeof result.sunset.geometry.coordinates).toBe('array');
+    );
     expect(Array.isArray(result.sunset.geometry.coordinates)).toBe(
       true
-    ); // ✅ Correct    expect(typeof result.sunset.geometry.coordinates).toBe('array');
+    );
     expect(
       result.sunrise.geometry.coordinates.length
     ).toBeGreaterThan(0);
