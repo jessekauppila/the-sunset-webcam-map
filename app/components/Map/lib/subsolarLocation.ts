@@ -38,8 +38,8 @@ function raHours(
 export function subsolarPoint(date = new Date()): {
   lat: number;
   lng: number;
-  // raHours: number;
-  // gmstHours: number;
+  raHours: number;
+  gmstHours: number;
 } {
   // 1) J2000 centuries
   const t = solar.century(date);
@@ -61,7 +61,7 @@ export function subsolarPoint(date = new Date()): {
   return {
     lat,
     lng,
-    // raHours: alpha,
-    // gmstHours: gmst,
+    raHours: alpha,
+    gmstHours: gmst,
   };
 }
