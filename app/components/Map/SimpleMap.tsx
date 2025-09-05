@@ -34,6 +34,9 @@ export default function SimpleMap({ userLocation }: SimpleMapProps) {
   const subsolarLocation = { lat, lng };
   useSetMarker(map, mapLoaded, subsolarLocation);
 
+  console.log('raHours: ', raHours);
+  console.log('gmstHours: ', gmstHours);
+
   const terminators = splitTerminatorSunriseSunset(
     date,
     raHours,

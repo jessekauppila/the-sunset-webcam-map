@@ -13,5 +13,7 @@ describe('Subsolar-location', () => {
     //assert
     expect(result).toHaveProperty('lat');
     expect(result).toHaveProperty('lng');
+    expect(typeof result.lat).toBe('number');
+    expect(typeof result.lng).toBe('number');
   });
 });
