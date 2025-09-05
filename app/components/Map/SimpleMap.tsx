@@ -29,17 +29,20 @@ export default function SimpleMap({ userLocation }: SimpleMapProps) {
 
   //subsolar point calculation
   const date = new Date(); // Today's date
+
   const { lat, lng, raHours, gmstHours } = subsolarPoint(date);
-
-  console.log('raHours: ' + raHours);
-  console.log('gmstHours: ' + gmstHours);
-
   const subsolarLocation = { lat, lng };
-  console.log('Subsolar location: ' + subsolarLocation);
-  console.log(subsolarLocation);
   useSetMarker(map, mapLoaded, subsolarLocation);
 
-  splitTerminatorSunriseSunset(date, raHours, gmstHours);
+  const terminators = splitTerminatorSunriseSunset(
+    date,
+    raHours,
+    gmstHours
+  );
+  console.log('Terminator Data: ', terminators);
+
+  const sunrisePoints = terminators.sunrise.geometry.coordinates;
+  console.log('Sunrise coordinates', sunrisePoints);
 
   //   const {
   //     webcams,
