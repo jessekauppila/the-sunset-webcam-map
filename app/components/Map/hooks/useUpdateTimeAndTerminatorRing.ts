@@ -47,5 +47,6 @@ export function useUpdateTimeAndTerminatorRing() {
     sunsetCoords,
     sunrise,
     sunset,
+    terminatorRingLineLayer,
   };
 }

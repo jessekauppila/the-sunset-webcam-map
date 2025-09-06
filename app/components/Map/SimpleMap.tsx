@@ -1,5 +1,6 @@
 'use client';
 
+import DeckGL from '@deck.gl/react';
 import { useMap } from './hooks/useMap';
 import { useFlyTo } from './hooks/useFlyTo';
 import { useSunsetPosition } from './hooks/useSunsetPosition';
@@ -28,6 +29,7 @@ export default function SimpleMap({ userLocation }: SimpleMapProps) {
     sunsetCoords,
     sunrise,
     sunset,
+    terminatorRingLineLayer,
   } = useUpdateTimeAndTerminatorRing();
 
   useSetMarker(map, mapLoaded, userLocation);
@@ -89,14 +91,24 @@ export default function SimpleMap({ userLocation }: SimpleMapProps) {
       <div className="h-96 bg-white border border-gray-300 rounded overflow-hidden mb-8 relative">
         {' '}
         {/* Remove extra styling */}
-        {/* Main Map */}
-        <div
+        {/* ORIIGINGAL Main Map */}
+        {/* <div
           ref={mapContainer}
           className="w-full h-full"
           style={{
             position: 'relative',
             zIndex: 1,
           }}
+        /> */}
+        <DeckGL
+          initialViewState={{
+            longitude: userLocation.lng,
+            latitude: userLocation.lat,
+            zoom: 2,
+          }}
+          controller={true}
+          layers={terminatorRingLineLayer}
+          style={{ width: '100%', height: '100%' }}
         />
         {/* Loading Overlay */}
         {!mapLoaded && (
