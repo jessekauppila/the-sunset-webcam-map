@@ -1,7 +1,43 @@
+//subsolar point and termination ring calculation...
+
+//This whole thing needs to be put into a useEffect that runs every minute
+
+//That will pull the subpolar point and get the ra and gmsthours info
+
+//That will come bck into the terminatorRing function and return data points
+
+//Those same points will be used to either create markers or something else
+//that can be used by a deck GL heatmap.
+
+//Those same data points can be used by WebCamFetch to search for webcams
+
+//Need to set up custom Markers that will take the WebCamFetch webcams
+//these need to show little thumbnail images
+
+//Ok, let's start be hooking up sunsetLocation to the WebcamFetch,
+// then we can fetch web cam's near where the nearest sunset west is...
+
+//--------------------------------------------
+
+//I need to bring in the WebCamFetch into here.
+
+// I might need to make something that finds Multiple Sunsets along the sunset band...
+
+//Put all these sunset location markers on the map...
+
+//Then I need to hook up sunsetLocation to the WebcamFetch
+
+//I need to destructure the WebCamFetch and take the webcam locations
+
+// I need to take those webcam locations and put locations for them on the map.
+// These should have tooltips or pop ups or something so that you can see an image of the sunset...
+
+// I need to find the closest location to the users location and then this needs to be some sort of pop up.
+
 'use client';
 
 import DeckGL from '@deck.gl/react';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useMap } from './hooks/useMap';
 import { useFlyTo } from './hooks/useFlyTo';
 import { useSunsetPosition } from './hooks/useSunsetPosition';
@@ -9,7 +45,7 @@ import { useSetMarker } from './hooks/useSetMarker';
 import WebcamFetchDisplay from '../WebcamFetchDisplay';
 import { useUpdateTimeAndTerminatorRing } from './hooks/useUpdateTimeAndTerminatorRing';
 import 'mapbox-gl/dist/mapbox-gl.css';
-
+import { MapboxOverlay } from '@deck.gl/mapbox';
 import type { Location } from '../../lib/types';
 
 interface SimpleMapProps {
@@ -17,11 +53,13 @@ interface SimpleMapProps {
 }
 
 export default function SimpleMap({ userLocation }: SimpleMapProps) {
-  const [deckGLViewState, setDeckGLViewState] = useState({
-    longitude: userLocation.lng,
-    latitude: userLocation.lat,
-    zoom: 6,
-  });
+  //   const [deckGLViewState, setDeckGLViewState] = useState({
+  //     longitude: userLocation.lng,
+  //     latitude: userLocation.lat,
+  //     zoom: 6,
+  //   });
+
+  // Add to Mapbox when map loads
 
   const { mapContainer, map, mapLoaded, hasToken } =
     useMap(userLocation);
@@ -36,81 +74,25 @@ export default function SimpleMap({ userLocation }: SimpleMapProps) {
     terminatorRingLineLayer,
   } = useUpdateTimeAndTerminatorRing();
 
-  useEffect(() => {
-    if (map && mapLoaded) {
-      const handleMove = () => {
-        const center = map.getCenter();
-        const zoom = map.getZoom();
-        setDeckGLViewState({
-          longitude: center.lng,
-          latitude: center.lat,
-          zoom: zoom,
-        });
-      };
-
-      map.on('move', handleMove);
-      map.on('moveend', handleMove);
-      map.on('zoom', handleMove);
-
-      return () => {
-        map.off('move', handleMove);
-        map.off('moveend', handleMove);
-        map.off('zoom', handleMove);
-      };
-    }
-  }, [map, mapLoaded]);
-
-  //   useEffect(() => {
-  //     if (sunsetLocation) {
-  //       setViewState(prev => ({
-  //         ...prev,
-  //         longitude: sunsetLocation.lng,
-  //         latitude: sunsetLocation.lat,
-  //         zoom: 8,
-  //       }));
-  //     }
-  //   }, [sunsetLocation]);
-
   useSetMarker(map, mapLoaded, userLocation);
   useFlyTo(map, mapLoaded, sunsetLocation);
   useSetMarker(map, mapLoaded, sunsetLocation);
   useSetMarker(map, mapLoaded, subsolarLocation);
 
-  //subsolar point and termination ring calculation...
+  // Add DeckGL as a Mapbox layer instead of overlay
+  const deckOverlay = new MapboxOverlay({
+    layers: terminatorRingLineLayer,
+  });
 
-  //This whole thing needs to be put into a useEffect that runs every minute
+  useEffect(() => {
+    if (map && mapLoaded) {
+      map.addControl(deckOverlay);
 
-  //That will pull the subpolar point and get the ra and gmsthours info
-
-  //That will come bck into the terminatorRing function and return data points
-
-  //Those same points will be used to either create markers or something else
-  //that can be used by a deck GL heatmap.
-
-  //Those same data points can be used by WebCamFetch to search for webcams
-
-  //Need to set up custom Markers that will take the WebCamFetch webcams
-  //these need to show little thumbnail images
-
-  //Ok, let's start be hooking up sunsetLocation to the WebcamFetch,
-  // then we can fetch web cam's near where the nearest sunset west is...
-
-  //--------------------------------------------
-
-  //I need to bring in the WebCamFetch into here.
-
-  // I might need to make something that finds Multiple Sunsets along the sunset band...
-
-  //Put all these sunset location markers on the map...
-
-  //Then I need to hook up sunsetLocation to the WebcamFetch
-
-  //I need to destructure the WebCamFetch and take the webcam locations
-
-  // I need to take those webcam locations and put locations for them on the map.
-  // These should have tooltips or pop ups or something so that you can see an image of the sunset...
-
-  // I need to find the closest location to the users location and then this needs to be some sort of pop up.
+      return () => {
+        map.removeControl(deckOverlay);
+      };
+    }
+  }, [map, mapLoaded]);
 
   if (!hasToken) {
     return (
@@ -139,20 +121,6 @@ export default function SimpleMap({ userLocation }: SimpleMapProps) {
           }}
         />
         {/* Data layers for top of  Main Map */}
-        <DeckGL
-          viewState={deckGLViewState}
-          controller={false}
-          layers={terminatorRingLineLayer}
-          style={{
-            position: 'absolute',
-            top: '0',
-            left: '0',
-            width: '100%',
-            height: '100%',
-            zIndex: '2',
-            pointerEvents: 'none',
-          }}
-        />
         {/* Loading Overlay */}
         {!mapLoaded && (
           <div
