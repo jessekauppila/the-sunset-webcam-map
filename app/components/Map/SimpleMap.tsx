@@ -22,8 +22,13 @@ export default function SimpleMap({ userLocation }: SimpleMapProps) {
     useMap(userLocation);
   const { sunsetLocation, isLoading, error } =
     useSunsetPosition(userLocation);
-  const { subsolarLocation, sunrisePoints } =
-    useUpdateTimeAndTerminatorRing();
+  const {
+    subsolarLocation,
+    sunriseCoords,
+    sunsetCoords,
+    sunrise,
+    sunset,
+  } = useUpdateTimeAndTerminatorRing();
 
   useSetMarker(map, mapLoaded, userLocation);
   useFlyTo(map, mapLoaded, sunsetLocation);

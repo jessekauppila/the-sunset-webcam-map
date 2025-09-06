@@ -89,15 +89,21 @@ export function splitTerminatorSunriseSunset(
 
   // Build GeoJSON LineStrings
   const sunrise = {
-    type: 'Feature',
+    type: 'Feature' as const,
     properties: { type: 'sunrise' as const },
-    geometry: { type: 'LineString', coordinates: sunriseCoords },
+    geometry: {
+      type: 'LineString' as const,
+      coordinates: sunriseCoords,
+    },
   };
   const sunset = {
-    type: 'Feature',
+    type: 'Feature' as const,
     properties: { type: 'sunset' as const },
-    geometry: { type: 'LineString', coordinates: sunsetCoords },
+    geometry: {
+      type: 'LineString' as const,
+      coordinates: sunsetCoords,
+    },
   };
 
-  return { sunrise, sunset };
+  return { sunriseCoords, sunsetCoords, sunrise, sunset };
 }

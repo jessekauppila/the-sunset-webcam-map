@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { subsolarPoint } from '../lib/subsolarLocation';
 import { splitTerminatorSunriseSunset } from '../lib/terminatorRing';
+import { makeTerminatorLayers } from '../lib/terminatorRingLineLayer';
 
 export function useUpdateTimeAndTerminatorRing() {
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -31,15 +32,20 @@ export function useUpdateTimeAndTerminatorRing() {
   console.log('raHours: ', raHours);
   console.log('gmstHours: ', gmstHours);
 
-  const terminators = splitTerminatorSunriseSunset(
-    currentTime,
-    raHours,
-    gmstHours
-  );
-  console.log('Terminator Data: ', terminators);
+  const { sunriseCoords, sunsetCoords, sunrise, sunset } =
+    splitTerminatorSunriseSunset(currentTime, raHours, gmstHours);
+  console.log('Sunrise coordinates', sunsetCoords);
 
-  const sunrisePoints = terminators.sunrise.geometry.coordinates;
-  console.log('Sunrise coordinates', sunrisePoints);
+  const terminatorRingLineLayer = makeTerminatorLayers({
+    sunrise,
+    sunset,
+  });
 
-  return { subsolarLocation, sunrisePoints };
+  return {
+    subsolarLocation,
+    sunriseCoords,
+    sunsetCoords,
+    sunrise,
+    sunset,
+  };
 }
