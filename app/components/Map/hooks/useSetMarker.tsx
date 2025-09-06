@@ -30,20 +30,6 @@ export function useSetMarker(
         .setLngLat([location.lng, location.lat])
         .addTo(map);
 
-      //const marker = new mapboxgl.Marker({ color: '#ff6b35' })
-
-      //     .setLngLat([location.lng, location.lat])
-      //     .setPopup(
-      //       new mapboxgl.Popup().setHTML(
-      //         `<div class="text-center">
-      //           <div class="text-lg">🌅</div>
-      //           <div><strong>Sunset Location</strong></div>
-
-      //         </div>`
-      //       )
-      //     )
-      //     .addTo(map);
-
       console.log('📍 Added sunset marker successfully');
 
       return () => {
@@ -56,3 +42,17 @@ export function useSetMarker(
     }
   }, [map, mapLoaded, location]);
 }
+
+//const marker = new mapboxgl.Marker({ color: '#ff6b35' })
+
+//     .setLngLat([location.lng, location.lat])
+//     .setPopup(
+//       new mapboxgl.Popup().setHTML(
+//         `<div class="text-center">
+//           <div class="text-lg">🌅</div>
+//           <div><strong>Sunset Location</strong></div>
+
+//         </div>`
+//       )
+//     )
+//     .addTo(map);
