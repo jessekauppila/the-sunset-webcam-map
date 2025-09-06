@@ -6,9 +6,9 @@ import { useSunsetPosition } from './hooks/useSunsetPosition';
 import { useSetMarker } from './hooks/useSetMarker';
 // import { useWebcamFetch } from '@/app/hooks/useWebcamFetch';
 import WebcamFetchDisplay from '../WebcamFetchDisplay';
-import { subsolarPoint } from './lib/subsolarLocation';
-import { splitTerminatorSunriseSunset } from './lib/terminatorRing';
-
+// import { subsolarPoint } from './lib/subsolarLocation';
+// import { splitTerminatorSunriseSunset } from './lib/terminatorRing';
+import { useUpdateTimeAndTerminatorRing } from './hooks/useUpdateTimeAndTerminatorRing';
 import 'mapbox-gl/dist/mapbox-gl.css';
 
 import type { Location } from '../../lib/types';
@@ -22,10 +22,13 @@ export default function SimpleMap({ userLocation }: SimpleMapProps) {
     useMap(userLocation);
   const { sunsetLocation, isLoading, error } =
     useSunsetPosition(userLocation);
+  const { subsolarLocation, sunrisePoints } =
+    useUpdateTimeAndTerminatorRing();
 
   useSetMarker(map, mapLoaded, userLocation);
   useFlyTo(map, mapLoaded, sunsetLocation);
   useSetMarker(map, mapLoaded, sunsetLocation);
+  useSetMarker(map, mapLoaded, subsolarLocation);
 
   //subsolar point and termination ring calculation...
 
@@ -42,27 +45,6 @@ export default function SimpleMap({ userLocation }: SimpleMapProps) {
 
   //Need to set up custom Markers that will take the WebCamFetch webcams
   //these need to show little thumbnail images
-
-  const date = new Date(); // Today's date
-
-  const { lat, lng, raHours, gmstHours } = subsolarPoint(date);
-  const subsolarLocation = { lat, lng };
-  useSetMarker(map, mapLoaded, subsolarLocation);
-
-  console.log('🔍 Subsolar location:', subsolarLocation);
-  console.log('raHours: ', raHours);
-  console.log('gmstHours: ', gmstHours);
-
-  const terminators = splitTerminatorSunriseSunset(
-    date,
-    raHours,
-    gmstHours
-  );
-  console.log('Terminator Data: ', terminators);
-
-  const sunrisePoints = terminators.sunrise.geometry.coordinates;
-  console.log('Sunrise coordinates', sunrisePoints);
-  //
 
   //Ok, let's start be hooking up sunsetLocation to the WebcamFetch,
   // then we can fetch web cam's near where the nearest sunset west is...

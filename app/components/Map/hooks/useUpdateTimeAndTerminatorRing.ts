@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
+import { subsolarPoint } from '../lib/subsolarLocation';
+import { splitTerminatorSunriseSunset } from '../lib/terminatorRing';
 
-export function useUpdateDate() {
+export function useUpdateTimeAndTerminatorRing() {
   const [currentTime, setCurrentTime] = useState(new Date());
 
   useEffect(() => {
@@ -22,5 +24,22 @@ export function useUpdateDate() {
     };
   }, []); // 📋 DEPENDENCIES: Empty array = run once on mount
 
-  return currentTime;
+  const { lat, lng, raHours, gmstHours } = subsolarPoint(currentTime);
+  const subsolarLocation = { lat, lng };
+
+  console.log('🔍 Subsolar location:', subsolarLocation);
+  console.log('raHours: ', raHours);
+  console.log('gmstHours: ', gmstHours);
+
+  const terminators = splitTerminatorSunriseSunset(
+    currentTime,
+    raHours,
+    gmstHours
+  );
+  console.log('Terminator Data: ', terminators);
+
+  const sunrisePoints = terminators.sunrise.geometry.coordinates;
+  console.log('Sunrise coordinates', sunrisePoints);
+
+  return { subsolarLocation, sunrisePoints };
 }
