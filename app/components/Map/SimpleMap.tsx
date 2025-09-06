@@ -1,14 +1,12 @@
 'use client';
 
 import DeckGL from '@deck.gl/react';
+import { useEffect, useState } from 'react';
 import { useMap } from './hooks/useMap';
 import { useFlyTo } from './hooks/useFlyTo';
 import { useSunsetPosition } from './hooks/useSunsetPosition';
 import { useSetMarker } from './hooks/useSetMarker';
-// import { useWebcamFetch } from '@/app/hooks/useWebcamFetch';
 import WebcamFetchDisplay from '../WebcamFetchDisplay';
-// import { subsolarPoint } from './lib/subsolarLocation';
-// import { splitTerminatorSunriseSunset } from './lib/terminatorRing';
 import { useUpdateTimeAndTerminatorRing } from './hooks/useUpdateTimeAndTerminatorRing';
 import 'mapbox-gl/dist/mapbox-gl.css';
 
@@ -19,6 +17,12 @@ interface SimpleMapProps {
 }
 
 export default function SimpleMap({ userLocation }: SimpleMapProps) {
+  const [deckGLViewState, setDeckGLViewState] = useState({
+    longitude: userLocation.lng,
+    latitude: userLocation.lat,
+    zoom: 6,
+  });
+
   const { mapContainer, map, mapLoaded, hasToken } =
     useMap(userLocation);
   const { sunsetLocation, isLoading, error } =
@@ -31,6 +35,41 @@ export default function SimpleMap({ userLocation }: SimpleMapProps) {
     sunset,
     terminatorRingLineLayer,
   } = useUpdateTimeAndTerminatorRing();
+
+  useEffect(() => {
+    if (map && mapLoaded) {
+      const handleMove = () => {
+        const center = map.getCenter();
+        const zoom = map.getZoom();
+        setDeckGLViewState({
+          longitude: center.lng,
+          latitude: center.lat,
+          zoom: zoom,
+        });
+      };
+
+      map.on('move', handleMove);
+      map.on('moveend', handleMove);
+      map.on('zoom', handleMove);
+
+      return () => {
+        map.off('move', handleMove);
+        map.off('moveend', handleMove);
+        map.off('zoom', handleMove);
+      };
+    }
+  }, [map, mapLoaded]);
+
+  //   useEffect(() => {
+  //     if (sunsetLocation) {
+  //       setViewState(prev => ({
+  //         ...prev,
+  //         longitude: sunsetLocation.lng,
+  //         latitude: sunsetLocation.lat,
+  //         zoom: 8,
+  //       }));
+  //     }
+  //   }, [sunsetLocation]);
 
   useSetMarker(map, mapLoaded, userLocation);
   useFlyTo(map, mapLoaded, sunsetLocation);
@@ -90,25 +129,29 @@ export default function SimpleMap({ userLocation }: SimpleMapProps) {
     <div className="max-w-4xl mx-auto">
       <div className="h-96 bg-white border border-gray-300 rounded overflow-hidden mb-8 relative">
         {' '}
-        {/* Remove extra styling */}
         {/* ORIIGINGAL Main Map */}
-        {/* <div
+        <div
           ref={mapContainer}
           className="w-full h-full"
           style={{
             position: 'relative',
             zIndex: 1,
           }}
-        /> */}
+        />
+        {/* Data layers for top of  Main Map */}
         <DeckGL
-          initialViewState={{
-            longitude: userLocation.lng,
-            latitude: userLocation.lat,
-            zoom: 2,
-          }}
-          controller={true}
+          viewState={deckGLViewState}
+          controller={false}
           layers={terminatorRingLineLayer}
-          style={{ width: '100%', height: '100%' }}
+          style={{
+            position: 'absolute',
+            top: '0',
+            left: '0',
+            width: '100%',
+            height: '100%',
+            zIndex: '2',
+            pointerEvents: 'none',
+          }}
         />
         {/* Loading Overlay */}
         {!mapLoaded && (
