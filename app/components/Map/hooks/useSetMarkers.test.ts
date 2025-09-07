@@ -27,6 +27,7 @@ describe('useSetMarker', () => {
     ];
 
     renderHook(() => useSetMarkers(map as Map, true, locations));
+
+    expect(mockMarker.setLngLat).toHaveBeenCalled();
   });
-  expect(mockMarker.setLngLat).toHaveBeenCalled(3);
 });
