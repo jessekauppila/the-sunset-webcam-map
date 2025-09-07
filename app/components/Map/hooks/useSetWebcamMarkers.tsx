@@ -46,7 +46,7 @@ export function useSetWebcamMarkers(
     return () => {
       markers.forEach((marker) => marker.remove());
     };
-  }, [map, mapLoaded, location]);
+  }, [map, mapLoaded, webcams]);
 }
 
 //const marker = new mapboxgl.Marker({ color: '#ff6b35' })

@@ -41,7 +41,7 @@ export function useSetMarkers(
     return () => {
       markers.forEach((marker) => marker.remove());
     };
-  }, [map, mapLoaded, location]);
+  }, [map, mapLoaded, locations]);
 }
 
 //const marker = new mapboxgl.Marker({ color: '#ff6b35' })
