@@ -36,8 +36,8 @@
 
 'use client';
 
-import DeckGL from '@deck.gl/react';
-import { useEffect, useState, useCallback } from 'react';
+//import DeckGL from '@deck.gl/react';
+//import { useEffect, useState, useCallback } from 'react';
 import { useMap } from './hooks/useMap';
 import { useFlyTo } from './hooks/useFlyTo';
 import { useSunsetPosition } from './hooks/useSunsetPosition';
@@ -46,7 +46,7 @@ import { useSetWebcamMarkers } from './hooks/useSetWebcamMarkers';
 import WebcamFetchDisplay from '../WebcamFetchDisplay';
 import { useUpdateTimeAndTerminatorRing } from './hooks/useUpdateTimeAndTerminatorRing';
 import 'mapbox-gl/dist/mapbox-gl.css';
-import { MapboxOverlay } from '@deck.gl/mapbox';
+//import { MapboxOverlay } from '@deck.gl/mapbox';
 import type { Location } from '../../lib/types';
 import { useWebcamFetch } from '../hooks/useWebCamFetch';
 
@@ -55,14 +55,6 @@ interface SimpleMapProps {
 }
 
 export default function SimpleMap({ userLocation }: SimpleMapProps) {
-  //   const [deckGLViewState, setDeckGLViewState] = useState({
-  //     longitude: userLocation.lng,
-  //     latitude: userLocation.lat,
-  //     zoom: 6,
-  //   });
-
-  // Add to Mapbox when map loads
-
   const { mapContainer, map, mapLoaded, hasToken } =
     useMap(userLocation);
 
@@ -82,29 +74,18 @@ export default function SimpleMap({ userLocation }: SimpleMapProps) {
     sunrise,
     sunset,
     terminatorRingLineLayer,
-  } = useUpdateTimeAndTerminatorRing();
+  } = useUpdateTimeAndTerminatorRing(map, mapLoaded);
 
   useSetMarker(map, mapLoaded, userLocation);
   useSetMarker(map, mapLoaded, sunsetLocation);
+
+  console.log('Sunset Location: ', sunsetLocation);
+
   useSetMarker(map, mapLoaded, subsolarLocation);
-  useSetWebcamMarkers(map, mapLoaded, webcams);
+
+  //useSetWebcamMarkers(map, mapLoaded, webcams);
 
   useFlyTo(map, mapLoaded, sunsetLocation);
-
-  // Add DeckGL as a Mapbox layer instead of overlay
-  const deckGLOverlay = new MapboxOverlay({
-    layers: terminatorRingLineLayer,
-  });
-
-  useEffect(() => {
-    if (map && mapLoaded) {
-      map.addControl(deckGLOverlay);
-
-      return () => {
-        map.removeControl(deckGLOverlay);
-      };
-    }
-  }, [map, mapLoaded]);
 
   if (!hasToken) {
     return (
