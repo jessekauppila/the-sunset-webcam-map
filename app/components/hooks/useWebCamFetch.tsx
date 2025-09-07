@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
-
-interface WindyWebcam {
+export interface WindyWebcam {
   webcamId: number;
   title: string;
   viewCount: number;
@@ -48,8 +47,8 @@ export function useWebcamFetch(latitude: number, longitude: number) {
         setError(null);
 
         // 🎯 Pass center coordinates and box size
-        const centerLat = latitude; // NYC latitude
-        const centerLng = longitude; // NYC longitude
+        const centerLat = latitude;
+        const centerLng = longitude;
         const boxSize = 5; // degrees in each direction
 
         console.log(`Hook Latitude: ${centerLat}`);

@@ -42,11 +42,13 @@ import { useMap } from './hooks/useMap';
 import { useFlyTo } from './hooks/useFlyTo';
 import { useSunsetPosition } from './hooks/useSunsetPosition';
 import { useSetMarker } from './hooks/useSetMarker';
+import { useSetWebcamMarkers } from './hooks/useSetWebcamMarkers';
 import WebcamFetchDisplay from '../WebcamFetchDisplay';
 import { useUpdateTimeAndTerminatorRing } from './hooks/useUpdateTimeAndTerminatorRing';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { MapboxOverlay } from '@deck.gl/mapbox';
 import type { Location } from '../../lib/types';
+import { useWebcamFetch } from '../hooks/useWebCamFetch';
 
 interface SimpleMapProps {
   userLocation: Location;
@@ -67,6 +69,12 @@ export default function SimpleMap({ userLocation }: SimpleMapProps) {
   const { sunsetLocation, isLoading, error } =
     useSunsetPosition(userLocation);
 
+  //maye should be using these for error correction: isLoading, error,
+  const { webcams } = useWebcamFetch(
+    sunsetLocation?.lat ?? 0,
+    sunsetLocation?.lng ?? 0
+  );
+
   const {
     subsolarLocation,
     sunriseCoords,
@@ -79,6 +87,7 @@ export default function SimpleMap({ userLocation }: SimpleMapProps) {
   useSetMarker(map, mapLoaded, userLocation);
   useSetMarker(map, mapLoaded, sunsetLocation);
   useSetMarker(map, mapLoaded, subsolarLocation);
+  useSetWebcamMarkers(map, mapLoaded, webcams);
 
   useFlyTo(map, mapLoaded, sunsetLocation);
 
