@@ -37,8 +37,6 @@ export function useWebcamFetch(latitude: number, longitude: number) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  console.log('🌐 Fetching webcams via our API route...');
-
   // 🎯 EFFECT: When do we want to fetch data?
   useEffect(() => {
     const fetchWindyWebcams = async () => {
@@ -51,9 +49,6 @@ export function useWebcamFetch(latitude: number, longitude: number) {
         const centerLng = longitude;
         const boxSize = 5; // degrees in each direction
 
-        console.log(`Hook Latitude: ${centerLat}`);
-        console.log(`Hook Longitude: ${centerLng}`);
-
         // 🌐 Call our API route WITH coordinates
         const response = await fetch(
           `/api/webcams?centerLat=${centerLat}&centerLng=${centerLng}&boxSize=${boxSize}`
@@ -64,7 +59,6 @@ export function useWebcamFetch(latitude: number, longitude: number) {
         }
 
         const data: WindyResponse = await response.json();
-        console.log('🌐 Windy API Response:', data);
 
         setWebcams(data.webcams || []);
       } catch (err) {

@@ -58,15 +58,6 @@ export default function SimpleMap({ userLocation }: SimpleMapProps) {
   const { mapContainer, map, mapLoaded, hasToken } =
     useMap(userLocation);
 
-  const { sunsetLocation, isLoading, error } =
-    useSunsetPosition(userLocation);
-
-  //maye should be using these for error correction: isLoading, error,
-  const { webcams } = useWebcamFetch(
-    sunsetLocation?.lat ?? 0,
-    sunsetLocation?.lng ?? 0
-  );
-
   const {
     subsolarLocation,
     sunriseCoords,
@@ -76,6 +67,15 @@ export default function SimpleMap({ userLocation }: SimpleMapProps) {
     terminatorRingLineLayer,
   } = useUpdateTimeAndTerminatorRing(map, mapLoaded);
 
+  const { sunsetLocation, isLoading, error } =
+    useSunsetPosition(userLocation);
+
+  //maybe should be using these for error correction: isLoading, error,
+  const { webcams } = useWebcamFetch(
+    sunsetLocation?.lat ?? 0,
+    sunsetLocation?.lng ?? 0
+  );
+
   useSetMarker(map, mapLoaded, userLocation);
   useSetMarker(map, mapLoaded, sunsetLocation);
 
@@ -83,7 +83,7 @@ export default function SimpleMap({ userLocation }: SimpleMapProps) {
 
   useSetMarker(map, mapLoaded, subsolarLocation);
 
-  //useSetWebcamMarkers(map, mapLoaded, webcams);
+  useSetWebcamMarkers(map, mapLoaded, webcams);
 
   useFlyTo(map, mapLoaded, sunsetLocation);
 

@@ -21,16 +21,12 @@ export function useSetMarker(
       return;
     }
 
-    console.log('📍 Setting marker:', location);
-
     // Remove the setTimeout temporarily for debugging
     try {
       // Create a default Marker and add it to the map.
       const marker = new mapboxgl.Marker()
         .setLngLat([location.lng, location.lat])
         .addTo(map);
-
-      console.log('📍 Added sunset marker successfully');
 
       return () => {
         if (marker) {
