@@ -18,13 +18,23 @@ const normSignedHours = (h: number) => {
 /** Build the terminator ring (GeoJSON Polygon) centered on subsolar point. */
 export function terminatorPolygon(
   date = new Date(),
-  precisionDeg = 0.5
+  precisionDeg = 0.5,
+  sunAltitudeDegrees = -6 // this is used to calculate the angle/altitude of the sun in the sky
 ) {
   const { lat, lng } = subsolarPoint(date);
-  return geoCircle()
-    .center([lng, lat])
-    .radius(90)
-    .precision(precisionDeg)();
+  const radius = 90 - sunAltitudeDegrees;
+
+  return (
+    geoCircle()
+      .center([lng, lat])
+      .radius(radius)
+
+      // 90° = Sunset/sunrise (0° altitude)
+      // 84° = Sun 6° above horizon (golden hour)
+      // 78° = Sun 12° above horizon (good lighting)
+      // 72° = Sun 18° above horizon (civil twilight)
+      .precision(precisionDeg)()
+  );
 }
 
 /** Split the terminator ring into sunrise/sunset LineStrings.

@@ -80,16 +80,16 @@ export default function SimpleMap({ userLocation }: SimpleMapProps) {
   useSetMarker(map, mapLoaded, subsolarLocation);
 
   // Add DeckGL as a Mapbox layer instead of overlay
-  const deckOverlay = new MapboxOverlay({
+  const deckGLOverlay = new MapboxOverlay({
     layers: terminatorRingLineLayer,
   });
 
   useEffect(() => {
     if (map && mapLoaded) {
-      map.addControl(deckOverlay);
+      map.addControl(deckGLOverlay);
 
       return () => {
-        map.removeControl(deckOverlay);
+        map.removeControl(deckGLOverlay);
       };
     }
   }, [map, mapLoaded]);
