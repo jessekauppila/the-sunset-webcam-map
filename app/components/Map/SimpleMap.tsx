@@ -63,8 +63,10 @@ export default function SimpleMap({ userLocation }: SimpleMapProps) {
 
   const { mapContainer, map, mapLoaded, hasToken } =
     useMap(userLocation);
+
   const { sunsetLocation, isLoading, error } =
     useSunsetPosition(userLocation);
+
   const {
     subsolarLocation,
     sunriseCoords,
@@ -75,9 +77,10 @@ export default function SimpleMap({ userLocation }: SimpleMapProps) {
   } = useUpdateTimeAndTerminatorRing();
 
   useSetMarker(map, mapLoaded, userLocation);
-  useFlyTo(map, mapLoaded, sunsetLocation);
   useSetMarker(map, mapLoaded, sunsetLocation);
   useSetMarker(map, mapLoaded, subsolarLocation);
+
+  useFlyTo(map, mapLoaded, sunsetLocation);
 
   // Add DeckGL as a Mapbox layer instead of overlay
   const deckGLOverlay = new MapboxOverlay({

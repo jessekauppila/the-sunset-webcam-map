@@ -55,6 +55,13 @@ export default function WebcamFetchDisplay({
               <h4 className="font-semibold text-sm mb-1">
                 {webcam.title}
               </h4>
+
+              {/* Location Info */}
+              <p className="text-xs text-gray-600 mb-1">
+                📍 {webcam.location?.city}, {webcam.location?.country}
+              </p>
+
+              {/* Views and Status */}
               <p className="text-xs text-gray-600">
                 📊 Views:{' '}
                 {webcam.viewCount?.toLocaleString() || 'N/A'}
@@ -62,6 +69,33 @@ export default function WebcamFetchDisplay({
               <p className="text-xs text-gray-500">
                 🎥 Status: {webcam.status || 'Unknown'}
               </p>
+
+              {/* Categories */}
+              {webcam.categories && webcam.categories.length > 0 && (
+                <p className="text-xs text-blue-600">
+                  🏷️{' '}
+                  {webcam.categories
+                    .map((cat) => cat.name)
+                    .join(', ')}
+                </p>
+              )}
+
+              {/* Last Updated */}
+              <p className="text-xs text-gray-400">
+                🕒 Updated:{' '}
+                {webcam.lastUpdatedOn
+                  ? new Date(
+                      webcam.lastUpdatedOn
+                    ).toLocaleDateString()
+                  : 'Unknown'}
+              </p>
+
+              {/* ID */}
+              <p className="text-xs text-gray-400">
+                ID: {webcam.webcamId}
+              </p>
+
+              {/* Webcam Image */}
               {webcam.images?.current?.preview && (
                 <img
                   src={webcam.images.current.preview}

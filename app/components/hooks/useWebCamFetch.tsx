@@ -12,6 +12,20 @@ interface WindyWebcam {
       icon?: string;
     };
   };
+  location: {
+    city: string;
+    region: string;
+    longitude: number;
+    latitude: number;
+    country: string;
+    continent: string;
+  };
+
+  categories: Array<{
+    id: string;
+    name: string;
+  }>;
+  lastUpdatedOn?: string;
 }
 
 interface WindyResponse {
