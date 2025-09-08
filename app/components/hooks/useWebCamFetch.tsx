@@ -1,51 +1,59 @@
 import { useState, useEffect } from 'react';
-import type { WindyWebcam, Location } from '../../lib/types';
+
+interface WindyWebcam {
+  webcamId: number;
+  title: string;
+  viewCount: number;
+  status: string;
+  images?: {
+    current?: {
+      preview?: string;
+      thumbnail?: string;
+      icon?: string;
+    };
+  };
+}
 
 interface WindyResponse {
   webcams: WindyWebcam[];
 }
 
-export function useWebcamFetch(locations: Location[]) {
+export function useWebcamFetch(latitude: number, longitude: number) {
   // 🎯 STATE: What data do we want to track?
   const [webcams, setWebcams] = useState<WindyWebcam[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  console.log('🌐 Fetching webcams via our API route...');
+
   // 🎯 EFFECT: When do we want to fetch data?
   useEffect(() => {
-    if (locations.length === 0) {
-      setWebcams([]);
-      setIsLoading(false);
-      return;
-    }
     const fetchWindyWebcams = async () => {
       try {
         setIsLoading(true);
         setError(null);
 
-        const allWebcams: WindyWebcam[] = [];
+        // 🎯 Pass center coordinates and box size
+        const centerLat = latitude; // NYC latitude
+        const centerLng = longitude; // NYC longitude
+        const boxSize = 5; // degrees in each direction
 
-        for (let i = 0; i < locations.length; i++) {
-          const location = locations[i];
+        console.log(`Hook Latitude: ${centerLat}`);
+        console.log(`Hook Longitude: ${centerLng}`);
 
-          // 🎯 Pass center coordinates and box size
-          const centerLat = location.lat;
-          const centerLng = location.lng;
-          const boxSize = 5; // degrees in each direction
+        // 🌐 Call our API route WITH coordinates
+        const response = await fetch(
+          `/api/webcams?centerLat=${centerLat}&centerLng=${centerLng}&boxSize=${boxSize}`
+        );
 
-          // 🌐 Call our API route WITH coordinates
-          const response = await fetch(
-            `/api/webcams?centerLat=${centerLat}&centerLng=${centerLng}&boxSize=${boxSize}`
-          );
-
-          if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-          }
-
-          const data: WindyResponse = await response.json();
-
-          allWebcams.push(...(data.webcams || []));
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
         }
+
+        const data: WindyResponse = await response.json();
+        console.log('🌐 Windy API Response:', data);
+
+        setWebcams(data.webcams || []);
       } catch (err) {
         console.error('❌ Windy API Error:', err);
         setError(
@@ -59,7 +67,7 @@ export function useWebcamFetch(locations: Location[]) {
     };
 
     fetchWindyWebcams();
-  }, [locations]); // Re-run when coordinates change
+  }, [latitude, longitude]); // Re-run when coordinates change
 
   // 🎯 RETURN: What do we want other components to use?
   return {

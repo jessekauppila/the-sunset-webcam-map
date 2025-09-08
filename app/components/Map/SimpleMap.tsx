@@ -48,6 +48,7 @@ import { useUpdateTimeAndTerminatorRing } from './hooks/useUpdateTimeAndTerminat
 import 'mapbox-gl/dist/mapbox-gl.css';
 import type { Location } from '../../lib/types';
 import { useWebcamFetch } from '../hooks/useWebCamFetch';
+import { useWebcamFetchArray } from '../hooks/useWebCamFetchArray';
 
 interface SimpleMapProps {
   userLocation: Location;
@@ -72,13 +73,13 @@ export default function SimpleMap({ userLocation }: SimpleMapProps) {
     useSunsetPosition(userLocation);
 
   //this needs to change to accept an array of locations
-  // const { webcams } = useWebcamFetch(
-  //   sunsetLocation?.lat ?? 0,
-  //   sunsetLocation?.lng ?? 0
-  // );
+  const { webcams } = useWebcamFetch(
+    sunsetLocation?.lat ?? 0,
+    sunsetLocation?.lng ?? 0
+  );
 
-  const sunsetLocations = sunsetLocation ? [sunsetLocation] : [];
-  const { webcams } = useWebcamFetch(sunsetLocations);
+  const { webcamArray } = useWebcamFetchArray(sunsetCoords);
+  console.log('Array of webcam data', webcamArray);
 
   useSetMarker(map, mapLoaded, userLocation);
   useSetMarker(map, mapLoaded, sunsetLocation);

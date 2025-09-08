@@ -2,6 +2,8 @@
 //import * as solar from "solar-calculator";
 import { geoCircle } from 'd3-geo';
 import { subsolarPoint } from './subsolarLocation';
+import type { Location } from '../../../lib/types';
+import type { Feature, LineString } from 'geojson';
 
 // ---------- tiny math helpers ----------
 //const DEG = Math.PI / 180;
@@ -44,21 +46,26 @@ export function splitTerminatorSunriseSunset(
   date: Date,
   RA: number,
   GMST: number
-) {
+): {
+  sunriseCoords: Location[];
+  sunsetCoords: Location[];
+  sunrise: Feature<LineString>;
+  sunset: Feature<LineString>;
+} {
   //const { raHours: RA, gmstHours: GMST } = subsolarPoint(date);
   const ring = terminatorPolygon(date).coordinates[0]; // [ [lon,lat], ... , first point repeats ]
   // We’ll traverse segments and allocate them into sunrise/sunset by HA sign.
-  const sunriseCoords: number[][] = [];
-  const sunsetCoords: number[][] = [];
+  const sunriseCoords: Location[] = [];
+  const sunsetCoords: Location[] = [];
 
-  const pushTo = (arr: number[][], pt: number[]) => {
+  const pushTo = (arr: Location[], pt: number[]) => {
     // Avoid duplicating back-to-back identical points
     if (
       arr.length === 0 ||
-      arr[arr.length - 1][0] !== pt[0] ||
-      arr[arr.length - 1][1] !== pt[1]
+      arr[arr.length - 1].lat !== pt[1] ||
+      arr[arr.length - 1].lng !== pt[0]
     ) {
-      arr.push(pt);
+      arr.push({ lat: pt[1], lng: pt[0] }); // Transform to Location
     }
   };
 
@@ -103,7 +110,7 @@ export function splitTerminatorSunriseSunset(
     properties: { type: 'sunrise' as const },
     geometry: {
       type: 'LineString' as const,
-      coordinates: sunriseCoords,
+      coordinates: sunriseCoords.map((loc) => [loc.lng, loc.lat]), // Convert back for GeoJSON
     },
   };
   const sunset = {
@@ -111,7 +118,7 @@ export function splitTerminatorSunriseSunset(
     properties: { type: 'sunset' as const },
     geometry: {
       type: 'LineString' as const,
-      coordinates: sunsetCoords,
+      coordinates: sunsetCoords.map((loc) => [loc.lng, loc.lat]), // Convert back for GeoJSON
     },
   };
 
