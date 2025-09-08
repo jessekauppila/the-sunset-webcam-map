@@ -92,7 +92,20 @@ export function useWebcamFetchArray(locations: Location[]) {
             await new Promise((resolve) => setTimeout(resolve, 1000));
           }
         }
-        setWebcams(allWebcams);
+
+        // Remove duplicates based on webcamId
+        const uniqueWebcams = allWebcams.filter(
+          (webcam, index, self) =>
+            index ===
+            self.findIndex((w) => w.webcamId === webcam.webcamId)
+        );
+
+        console.log(
+          `🔄 Removed ${
+            allWebcams.length - uniqueWebcams.length
+          } duplicate webcams`
+        );
+        setWebcams(uniqueWebcams);
       } catch (err) {
         console.error('❌ Windy API Error:', err);
         setError(

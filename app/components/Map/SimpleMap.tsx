@@ -88,7 +88,7 @@ export default function SimpleMap({ userLocation }: SimpleMapProps) {
   useSetMarker(map, mapLoaded, userLocation);
   useSetMarker(map, mapLoaded, sunsetLocation);
   useSetMarker(map, mapLoaded, subsolarLocation);
-  useSetWebcamMarkers(map, mapLoaded, webcams);
+  //useSetWebcamMarkers(map, mapLoaded, webcams);
 
   useSetWebcamMarkers(map, mapLoaded, moreWebcams);
 
