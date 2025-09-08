@@ -2,19 +2,11 @@
 
 import type { WindyWebcam } from '@/app/lib/types';
 
-//export default function SimpleMap({ userLocation }: SimpleMapProps)
 export default function WebcamDisplay({
   webcams,
 }: {
   webcams: WindyWebcam[];
 }) {
-  //we don't need this as we are importing the webcams directly.
-
-  // const { webcams, isLoading, error, totalCount } = useWebcamFetch(
-  //   userLocation.lat,
-  //   userLocation.lng
-  // );
-
   return (
     <div className="p-4 bg-green-50 rounded-lg">
       <h3 className="text-lg font-bold text-green-800 mb-2">
@@ -27,7 +19,7 @@ export default function WebcamDisplay({
         </p>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-          {webcams.slice(0, 6).map((webcam) => (
+          {webcams.map((webcam) => (
             <div
               key={webcam.webcamId}
               className="bg-white p-3 rounded border"
@@ -86,12 +78,6 @@ export default function WebcamDisplay({
             </div>
           ))}
         </div>
-      )}
-
-      {webcams.length > 6 && (
-        <p className="text-sm text-green-600 mt-2">
-          ...and {webcams.length - 6} more webcams
-        </p>
       )}
     </div>
   );

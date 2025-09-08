@@ -106,7 +106,7 @@ export function useWebcamFetchArray(locations: Location[]) {
     };
 
     fetchWindyWebcams();
-  }, []); // Re-run when coordinates change
+  }, [locations]); // Re-run when coordinates change
 
   console.log('📊 Hook returning:', {
     webcams: webcams.length,

@@ -80,16 +80,10 @@ export default function SimpleMap({ userLocation }: SimpleMapProps) {
     sunsetLocation?.lng ?? 0
   );
 
-  console.log('Sunset Coordinates', sunsetCoords);
-  console.log('Num Sunset Coordinates', sunsetCoords.length);
-
   const {
     webcams: moreWebcams,
     totalCount: totalCountSunsetWebcams,
   } = useWebcamFetchArray(sunsetCoords);
-
-  console.log('Many more webcams', moreWebcams);
-  console.log('Total # webcams', totalCountSunsetWebcams);
 
   useSetMarker(map, mapLoaded, userLocation);
   useSetMarker(map, mapLoaded, sunsetLocation);
@@ -188,9 +182,10 @@ export default function SimpleMap({ userLocation }: SimpleMapProps) {
         )}
       </div>
       {/* Only show webcam display when we have a sunset location */}
-      {sunsetLocation && (
+      {/* {sunsetLocation && (
         <WebcamFetchDisplay userLocation={sunsetLocation} />
-      )}
+      )} */}
+
       <WebcamDisplay webcams={moreWebcams || []} />
 
       {/* Show message when no sunset location yet */}
