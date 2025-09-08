@@ -59,16 +59,6 @@ export default function SimpleMap({ userLocation }: SimpleMapProps) {
   const { mapContainer, map, mapLoaded, hasToken } =
     useMap(userLocation);
 
-  //this is used to get subsolar location as well as many more webcams...
-  const {
-    subsolarLocation,
-    sunriseCoords,
-    sunsetCoords,
-    sunrise,
-    sunset,
-    terminatorRingLineLayer,
-  } = useUpdateTimeAndTerminatorRing(map, mapLoaded);
-
   //this is used as a point to get ONE location to then search for webcams at...
   //this might not be correct now...
   const { sunsetLocation, isLoading, error } =
@@ -79,6 +69,16 @@ export default function SimpleMap({ userLocation }: SimpleMapProps) {
     sunsetLocation?.lat ?? 0,
     sunsetLocation?.lng ?? 0
   );
+
+  //this is used to get subsolar location as well as many more webcams...
+  const {
+    subsolarLocation,
+    sunriseCoords,
+    sunsetCoords,
+    sunrise,
+    sunset,
+    terminatorRingLineLayer,
+  } = useUpdateTimeAndTerminatorRing(map, mapLoaded);
 
   const {
     webcams: moreWebcams,
