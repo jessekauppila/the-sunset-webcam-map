@@ -79,8 +79,26 @@ export default function SimpleMap({ userLocation }: SimpleMapProps) {
     sunsetLocation?.lng ?? 0
   );
 
-  // const { webcamArray } = useWebcamFetchArray(sunsetCoords);
-  // console.log('Array of webcam data', webcamArray);
+  console.log('Sunset Coordinates', sunsetCoords);
+  console.log('Num Sunset Coordinates', sunsetCoords.length);
+
+  // console.log(
+  //   '🔍 About to call useWebcamFetchArray with:',
+  //   sunsetCoords.length,
+  //   'locations'
+  // );
+  // console.log(
+  //   '🔍 useWebcamFetchArray function:',
+  //   typeof useWebcamFetchArray
+  // );
+
+  const {
+    webcams: moreWebcams,
+    totalCount: totalCountSunsetWebcams,
+  } = useWebcamFetchArray(sunsetCoords);
+
+  console.log('Many more webcams', moreWebcams);
+  console.log('Total # webcams', totalCountSunsetWebcams);
 
   useSetMarker(map, mapLoaded, userLocation);
   useSetMarker(map, mapLoaded, sunsetLocation);

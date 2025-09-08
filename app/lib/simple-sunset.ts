@@ -60,7 +60,7 @@ export function findNearestSunsetWest(
     const checkLocation = { lat, lng: normalizedLng };
 
     if (isLocationAtSunset(checkLocation, date)) {
-      console.log(`🌅 Found sunset at: ${lat}, ${normalizedLng}`);
+      // console.log(`🌅 Found sunset at: ${lat}, ${normalizedLng}`);
       return checkLocation;
     }
   }
