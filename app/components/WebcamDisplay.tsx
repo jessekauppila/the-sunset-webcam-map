@@ -30,7 +30,8 @@ export default function WebcamDisplay({
 
               {/* Location Info */}
               <p className="text-xs text-gray-600 mb-1">
-                📍 {webcam.location?.city}, {webcam.location?.country}
+                📍 {webcam.location?.city}, {webcam.location?.region}{' '}
+                {webcam.location?.country}
               </p>
 
               {/* Views and Status */}
