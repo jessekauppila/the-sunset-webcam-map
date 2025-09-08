@@ -82,16 +82,6 @@ export default function SimpleMap({ userLocation }: SimpleMapProps) {
   console.log('Sunset Coordinates', sunsetCoords);
   console.log('Num Sunset Coordinates', sunsetCoords.length);
 
-  // console.log(
-  //   '🔍 About to call useWebcamFetchArray with:',
-  //   sunsetCoords.length,
-  //   'locations'
-  // );
-  // console.log(
-  //   '🔍 useWebcamFetchArray function:',
-  //   typeof useWebcamFetchArray
-  // );
-
   const {
     webcams: moreWebcams,
     totalCount: totalCountSunsetWebcams,
@@ -103,8 +93,8 @@ export default function SimpleMap({ userLocation }: SimpleMapProps) {
   useSetMarker(map, mapLoaded, userLocation);
   useSetMarker(map, mapLoaded, sunsetLocation);
   useSetMarker(map, mapLoaded, subsolarLocation);
-
   useSetWebcamMarkers(map, mapLoaded, webcams);
+  useSetWebcamMarkers(map, mapLoaded, moreWebcams);
 
   useFlyTo(map, mapLoaded, sunsetLocation);
 
