@@ -46,7 +46,6 @@ import { useSetWebcamMarkers } from './hooks/useSetWebcamMarkers';
 import WebcamFetchDisplay from '../WebcamFetchDisplay';
 import { useUpdateTimeAndTerminatorRing } from './hooks/useUpdateTimeAndTerminatorRing';
 import 'mapbox-gl/dist/mapbox-gl.css';
-//import { MapboxOverlay } from '@deck.gl/mapbox';
 import type { Location } from '../../lib/types';
 import { useWebcamFetch } from '../hooks/useWebCamFetch';
 
@@ -58,6 +57,7 @@ export default function SimpleMap({ userLocation }: SimpleMapProps) {
   const { mapContainer, map, mapLoaded, hasToken } =
     useMap(userLocation);
 
+  //this is used to get subsolar location as well as many more webcams...
   const {
     subsolarLocation,
     sunriseCoords,
@@ -67,20 +67,21 @@ export default function SimpleMap({ userLocation }: SimpleMapProps) {
     terminatorRingLineLayer,
   } = useUpdateTimeAndTerminatorRing(map, mapLoaded);
 
+  //this is used as a point to get ONE location to then search for webcams at...
   const { sunsetLocation, isLoading, error } =
     useSunsetPosition(userLocation);
 
-  //maybe should be using these for error correction: isLoading, error,
-  const { webcams } = useWebcamFetch(
-    sunsetLocation?.lat ?? 0,
-    sunsetLocation?.lng ?? 0
-  );
+  //this needs to change to accept an array of locations
+  // const { webcams } = useWebcamFetch(
+  //   sunsetLocation?.lat ?? 0,
+  //   sunsetLocation?.lng ?? 0
+  // );
+
+  const sunsetLocations = sunsetLocation ? [sunsetLocation] : [];
+  const { webcams } = useWebcamFetch(sunsetLocations);
 
   useSetMarker(map, mapLoaded, userLocation);
   useSetMarker(map, mapLoaded, sunsetLocation);
-
-  console.log('Sunset Location: ', sunsetLocation);
-
   useSetMarker(map, mapLoaded, subsolarLocation);
 
   useSetWebcamMarkers(map, mapLoaded, webcams);

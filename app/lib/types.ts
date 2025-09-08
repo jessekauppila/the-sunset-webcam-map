@@ -2,6 +2,34 @@
  * Core types for the Sunset Webcam Map application
  */
 
+export interface WindyWebcam {
+  webcamId: number;
+  title: string;
+  viewCount: number;
+  status: string;
+  images?: {
+    current?: {
+      preview?: string;
+      thumbnail?: string;
+      icon?: string;
+    };
+  };
+  location: {
+    city: string;
+    region: string;
+    longitude: number;
+    latitude: number;
+    country: string;
+    continent: string;
+  };
+
+  categories: Array<{
+    id: string;
+    name: string;
+  }>;
+  lastUpdatedOn?: string;
+}
+
 export interface Location {
   lat: number;
   lng: number;
