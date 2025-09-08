@@ -69,6 +69,7 @@ export default function SimpleMap({ userLocation }: SimpleMapProps) {
   } = useUpdateTimeAndTerminatorRing(map, mapLoaded);
 
   //this is used as a point to get ONE location to then search for webcams at...
+  //this might not be correct now...
   const { sunsetLocation, isLoading, error } =
     useSunsetPosition(userLocation);
 
@@ -78,8 +79,8 @@ export default function SimpleMap({ userLocation }: SimpleMapProps) {
     sunsetLocation?.lng ?? 0
   );
 
-  const { webcamArray } = useWebcamFetchArray(sunsetCoords);
-  console.log('Array of webcam data', webcamArray);
+  // const { webcamArray } = useWebcamFetchArray(sunsetCoords);
+  // console.log('Array of webcam data', webcamArray);
 
   useSetMarker(map, mapLoaded, userLocation);
   useSetMarker(map, mapLoaded, sunsetLocation);
