@@ -44,6 +44,7 @@ import { useSunsetPosition } from './hooks/useSunsetPosition';
 import { useSetMarker } from './hooks/useSetMarker';
 import { useSetWebcamMarkers } from './hooks/useSetWebcamMarkers';
 import WebcamFetchDisplay from '../WebcamFetchDisplay';
+import WebcamDisplay from '../WebcamDisplay';
 import { useUpdateTimeAndTerminatorRing } from './hooks/useUpdateTimeAndTerminatorRing';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import type { Location } from '../../lib/types';
@@ -94,6 +95,7 @@ export default function SimpleMap({ userLocation }: SimpleMapProps) {
   useSetMarker(map, mapLoaded, sunsetLocation);
   useSetMarker(map, mapLoaded, subsolarLocation);
   useSetWebcamMarkers(map, mapLoaded, webcams);
+
   useSetWebcamMarkers(map, mapLoaded, moreWebcams);
 
   useFlyTo(map, mapLoaded, sunsetLocation);
@@ -189,6 +191,7 @@ export default function SimpleMap({ userLocation }: SimpleMapProps) {
       {sunsetLocation && (
         <WebcamFetchDisplay userLocation={sunsetLocation} />
       )}
+      <WebcamDisplay webcams={moreWebcams || []} />
 
       {/* Show message when no sunset location yet */}
       {!sunsetLocation && !isLoading && (

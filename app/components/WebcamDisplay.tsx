@@ -1,14 +1,13 @@
 'use client';
 
-import { useWebcamFetch } from './hooks/useWebCamFetch';
-import type { Location } from '../lib/types';
-
-interface SimpleMapProps {
-  userLocation: Location;
-}
+import type { WindyWebcam } from '@/app/lib/types';
 
 //export default function SimpleMap({ userLocation }: SimpleMapProps)
-export default function WebcamDisplay({ webcams }: SimpleMapProps) {
+export default function WebcamDisplay({
+  webcams,
+}: {
+  webcams: WindyWebcam[];
+}) {
   //we don't need this as we are importing the webcams directly.
 
   // const { webcams, isLoading, error, totalCount } = useWebcamFetch(
@@ -19,7 +18,7 @@ export default function WebcamDisplay({ webcams }: SimpleMapProps) {
   return (
     <div className="p-4 bg-green-50 rounded-lg">
       <h3 className="text-lg font-bold text-green-800 mb-2">
-        🌐 Windy API Results ({totalCount} webcams)
+        🌐 Windy API Results ({webcams.length} webcams)
       </h3>
 
       {webcams.length === 0 ? (

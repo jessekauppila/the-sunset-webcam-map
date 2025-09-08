@@ -1,18 +1,5 @@
 import { useState, useEffect } from 'react';
-
-interface WindyWebcam {
-  webcamId: number;
-  title: string;
-  viewCount: number;
-  status: string;
-  images?: {
-    current?: {
-      preview?: string;
-      thumbnail?: string;
-      icon?: string;
-    };
-  };
-}
+import type { WindyWebcam } from '@/app/lib/types';
 
 interface WindyResponse {
   webcams: WindyWebcam[];

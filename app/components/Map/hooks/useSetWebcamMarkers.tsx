@@ -2,7 +2,7 @@
 //import type { Location } from '../../../lib/types';
 import mapboxgl from 'mapbox-gl';
 import { useEffect } from 'react';
-import type { WindyWebcam } from '../../hooks/useWebCamFetch';
+import type { WindyWebcam } from '../../../lib/types';
 
 export function useSetWebcamMarkers(
   map: mapboxgl.Map | null,
