@@ -25,6 +25,8 @@ export function useWebcamFetchArray(locations: Location[]) {
       return;
     }
 
+    let cancelled = false;
+
     const fetchWindyWebcams = async () => {
       console.log(
         '🚀 Starting to fetch webcams for',
@@ -39,6 +41,15 @@ export function useWebcamFetchArray(locations: Location[]) {
 
         //LIMITS LOCATIONS
         const limitedLocations = locations.slice(0);
+
+        setWebcams([]); // reset before new run
+
+        const uniqueById = (arr: WindyWebcam[]) =>
+          arr.filter(
+            (w, i, self) =>
+              i === self.findIndex((v) => v.webcamId === w.webcamId)
+          );
+
         for (let i = 0; i < limitedLocations.length; i++) {
           const location = limitedLocations[i];
 
@@ -78,6 +89,12 @@ export function useWebcamFetchArray(locations: Location[]) {
             );
 
             allWebcams.push(...(data.webcams || []));
+
+            if (!cancelled) {
+              setWebcams((prev) =>
+                uniqueById([...(prev || []), ...(data.webcams || [])])
+              );
+            }
           } catch (err) {
             console.log(
               `❌ Error fetching webcams for location ${
@@ -89,7 +106,7 @@ export function useWebcamFetchArray(locations: Location[]) {
 
           // Add delay between requests
           if (i < limitedLocations.length - 1) {
-            await new Promise((resolve) => setTimeout(resolve, 1000));
+            await new Promise((r) => setTimeout(r, 600)); // small stagger
           }
         }
 
@@ -119,6 +136,10 @@ export function useWebcamFetchArray(locations: Location[]) {
     };
 
     fetchWindyWebcams();
+
+    return () => {
+      cancelled = true;
+    };
   }, [locations]); // Re-run when coordinates change
 
   console.log('📊 Hook returning:', {
