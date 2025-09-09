@@ -9,29 +9,30 @@ export function useSetWebcamMarkers(
   mapLoaded: boolean,
   webcams: WindyWebcam[]
 ) {
-  const webcamsRef = useRef<WindyWebcam[]>([]);
-  const markersRef = useRef<mapboxgl.Marker[]>([]);
-
-  // Update ref when webcams change
-  useEffect(() => {
-    webcamsRef.current = webcams;
-  }, [webcams]);
+  const markersRef = useRef<Map<number, mapboxgl.Marker>>(new Map());
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     if (!map || !mapLoaded) return;
 
-    // Clear existing markers
-    markersRef.current.forEach((marker) => marker.remove());
-    markersRef.current = [];
+    // Clear any existing timeout
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+    }
 
-    const currentWebcams = webcamsRef.current;
-    if (!currentWebcams || currentWebcams.length === 0) return;
+    // Debounce marker updates
+    timeoutRef.current = setTimeout(() => {
+      const existing = markersRef.current;
+      const incomingIds = new Set(webcams.map((w) => w.webcamId));
 
-    console.log('📍 Setting markers:', currentWebcams);
+      // Only add markers for webcams that don't exist yet
+      webcams.forEach((webcam, index) => {
+        if (existing.has(webcam.webcamId)) {
+          // Marker already exists, skip (no blinking!)
+          return;
+        }
 
-    for (let i = 0; i < currentWebcams.length; i++) {
-      const webcam = currentWebcams[i];
-      try {
+        // Create new marker
         const markerElement = document.createElement('div');
         markerElement.className = 'webcam-marker';
         markerElement.style.cssText = `
@@ -89,23 +90,46 @@ export function useSetWebcamMarkers(
           .setPopup(popup)
           .addTo(map);
 
-        markersRef.current.push(marker);
+        // Store in ref
+        existing.set(webcam.webcamId, marker);
 
-        // Fade in
+        // Fade in new marker
         setTimeout(() => {
           markerElement.style.opacity = '1';
-        }, i * 50); // Staggered fade-in
-      } catch (error) {
-        console.error('❌ Error creating marker:', error);
+        }, index * 30);
+      });
+
+      // Remove markers that are no longer in the webcams list
+      [...existing.keys()].forEach((webcamId) => {
+        if (!incomingIds.has(webcamId)) {
+          const marker = existing.get(webcamId)!;
+          const element = marker.getElement();
+
+          // Fade out
+          element.style.opacity = '0';
+          setTimeout(() => {
+            marker.remove();
+            existing.delete(webcamId);
+          }, 300);
+        }
+      });
+    }, 500);
+
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
       }
-    }
-  }, [map, mapLoaded]); // Only depend on map and mapLoaded
+    };
+  }, [map, mapLoaded, webcams]);
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
       markersRef.current.forEach((marker) => marker.remove());
-      markersRef.current = [];
+      markersRef.current.clear();
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
     };
   }, [map]);
 }
