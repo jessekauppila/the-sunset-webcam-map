@@ -43,11 +43,11 @@ export function findNearestSunsetWest(
 ): Location | null {
   const { lat } = userLocation;
 
-  console.log(
-    `🔍 Searching for sunset west of (${lat}, ${
-      userLocation.lng
-    }) at ${date.toISOString()}`
-  );
+  // console.log(
+  //   `🔍 Searching for sunset west of (${lat}, ${
+  //     userLocation.lng
+  //   }) at ${date.toISOString()}`
+  // );
 
   // Check every degree of longitude going west from user
   for (let lngOffset = 0; lngOffset <= 180; lngOffset += 1) {

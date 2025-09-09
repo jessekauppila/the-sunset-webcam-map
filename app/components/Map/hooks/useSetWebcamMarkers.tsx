@@ -11,6 +11,9 @@ export function useSetWebcamMarkers(
 ) {
   const markersRef = useRef<Map<number, mapboxgl.Marker>>(new Map());
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  //const firstBatchAppliedRef = useRef(false);
+  const INITIAL_IMMEDIATE_BATCHES = 17; // or pass this in from caller later
+  const immediateBatchesLeftRef = useRef(INITIAL_IMMEDIATE_BATCHES);
 
   useEffect(() => {
     if (!map || !mapLoaded) return;
@@ -20,10 +23,12 @@ export function useSetWebcamMarkers(
       clearTimeout(timeoutRef.current);
     }
 
-    // Debounce marker updates
-    timeoutRef.current = setTimeout(() => {
+    const updateMarkers = () => {
       const existing = markersRef.current;
       const incomingIds = new Set(webcams.map((w) => w.webcamId));
+
+      let added = 0;
+      let removed = 0;
 
       // Only add markers for webcams that don't exist yet
       webcams.forEach((webcam, index) => {
@@ -97,6 +102,7 @@ export function useSetWebcamMarkers(
         setTimeout(() => {
           markerElement.style.opacity = '1';
         }, index * 30);
+        added++;
       });
 
       // Remove markers that are no longer in the webcams list
@@ -111,9 +117,40 @@ export function useSetWebcamMarkers(
             marker.remove();
             existing.delete(webcamId);
           }, 300);
+          removed++;
         }
       });
-    }, 1000);
+
+      console.log(
+        '[markers] update applied: +',
+        added,
+        ' -',
+        removed,
+        ' total=',
+        existing.size
+      );
+    };
+
+    // immediate first non-empty batch
+    if (webcams.length > 0 && immediateBatchesLeftRef.current > 0) {
+      console.log(
+        `[markers] immediate batch ${
+          INITIAL_IMMEDIATE_BATCHES -
+          immediateBatchesLeftRef.current +
+          1
+        }/${INITIAL_IMMEDIATE_BATCHES}:`,
+        webcams.length
+      );
+      updateMarkers();
+      immediateBatchesLeftRef.current -= 1;
+    } else if (webcams.length > 0) {
+      // debounced subsequent updates
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      timeoutRef.current = setTimeout(() => {
+        console.log('[markers] debounced update:', webcams.length);
+        updateMarkers();
+      }, 800);
+    }
 
     return () => {
       if (timeoutRef.current) {
