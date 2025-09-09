@@ -64,33 +64,66 @@ export function useSetWebcamMarkers(
 
         // Create popup content with proper interpolation
         const popupContent = `
-          <div style="text-align: center; padding: 10px; max-width: 200px;">
-            <div style="font-size: 18px; margin-bottom: 8px;">🌅</div>
-            <div style="font-weight: bold; margin-bottom: 4px;">${
-              webcam.title
-            }</div>
-            <div style="font-size: 12px; color: #666; margin-bottom: 4px;">
-              📍 ${webcam.location?.city || 'Unknown'}, ${
-          webcam.location?.region || ''
-        } ${webcam.location?.country || 'Unknown'}
-            </div>
-            <div style="font-size: 11px; color: #888;">
-              📊 Views: ${webcam.viewCount?.toLocaleString() || 'N/A'}
-            </div>
-            <div style="font-size: 11px; color: #888;">
-              🎥 Status: ${webcam.status || 'Unknown'}
-            </div>
+          <div style="position:  background:rgb(50, 50, 50); relative; width: 200px; height: 150px; overflow: hidden; margin: 0; padding: 0; border: none; outline: none; box-shadow: none;">
+            ${
+              webcam.images?.current?.preview
+                ? `<img src="${webcam.images.current.preview}" alt="${webcam.title}" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; margin: 0; padding: 0; display: block; border: none; outline: none;" />`
+                : '<div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(135deg, #ff6b35, #f7931e); display: flex; align-items: center; justify-content: center; font-size: 48px; margin: 0; padding: 0; border: none; outline: none;">🌅</div>'
+            }
           </div>
         `;
+
+        const popup = new mapboxgl.Popup({
+          offset: 25,
+          // closeButton: false,
+          // closeOnClick: false,
+        }).setHTML(popupContent);
+
+        // Attempt to  Override popup styles to remove borders
+        // popup.on('open', () => {
+        //   const popupElement = popup.getElement();
+        //   if (popupElement) {
+        //     // Remove all borders, padding, margins
+        //     popupElement.style.border = 'none !important';
+        //     popupElement.style.outline = 'none !important';
+        //     popupElement.style.boxShadow = 'none !important';
+        //     popupElement.style.padding = '0 !important';
+        //     popupElement.style.margin = '0 !important';
+        //     popupElement.style.background = 'transparent !important';
+        //     popupElement.style.borderRadius = '0 !important';
+
+        //     // Target Mapbox's specific classes
+        //     const mapboxPopup = popupElement.querySelector(
+        //       '.mapboxgl-popup-content'
+        //     ) as HTMLElement;
+        //     if (mapboxPopup) {
+        //       mapboxPopup.style.border = 'none !important';
+        //       mapboxPopup.style.outline = 'none !important';
+        //       mapboxPopup.style.boxShadow = 'none !important';
+        //       mapboxPopup.style.padding = '0 !important';
+        //       mapboxPopup.style.margin = '0 !important';
+        //       mapboxPopup.style.background = 'transparent !important';
+        //       mapboxPopup.style.borderRadius = '0 !important';
+        //     }
+
+        //     // Target the tip/arrow
+        //     const mapboxTip = popupElement.querySelector(
+        //       '.mapboxgl-popup-tip'
+        //     ) as HTMLElement;
+        //     if (mapboxTip) {
+        //       mapboxTip.style.border = 'none !important';
+        //       mapboxTip.style.outline = 'none !important';
+        //       mapboxTip.style.background = 'transparent !important';
+        //     }
+        //   }
+        // });
 
         const marker = new mapboxgl.Marker(markerElement)
           .setLngLat([
             webcam.location.longitude,
             webcam.location.latitude,
           ])
-          .setPopup(
-            new mapboxgl.Popup({ offset: 25 }).setHTML(popupContent)
-          )
+          .setPopup(popup)
           .addTo(map);
 
         markers.push(marker);
