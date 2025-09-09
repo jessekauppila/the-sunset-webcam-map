@@ -113,7 +113,7 @@ export function useSetWebcamMarkers(
           }, 300);
         }
       });
-    }, 500);
+    }, 1000);
 
     return () => {
       if (timeoutRef.current) {
