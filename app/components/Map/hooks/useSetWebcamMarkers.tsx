@@ -36,11 +36,11 @@ export function useSetWebcamMarkers(
           width: 60px;
           height: 60px;
           border-radius: 50%;
-          border: 1px solid #fff;
-          box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+          border: 1px solid rgba(87, 87, 87, 0.64);
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0);
           overflow: hidden;
           cursor: pointer;
-          background: #ff6b35;
+          background:rgba(0, 0, 0, 0);
           display: flex;
           align-items: center;
           justify-content: center;
@@ -68,7 +68,7 @@ export function useSetWebcamMarkers(
             ${
               webcam.images?.current?.preview
                 ? `<img src="${webcam.images.current.preview}" alt="${webcam.title}" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; margin: 0; padding: 0; display: block; border: none; outline: none;" />`
-                : '<div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(135deg, #ff6b35, #f7931e); display: flex; align-items: center; justify-content: center; font-size: 48px; margin: 0; padding: 0; border: none; outline: none;">🌅</div>'
+                : '<div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(135deg,rgba(255, 255, 255, 0),rgba(0, 0, 0, 0)); display: flex; align-items: center; justify-content: center; font-size: 48px; margin: 0; padding: 0; border: none; outline: none;">🌅</div>'
             }
           </div>
         `;
