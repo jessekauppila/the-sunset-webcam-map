@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { useMap } from './hooks/useMap';
 import { useFlyTo } from './hooks/useFlyTo';
 import { useSetMarker } from './hooks/useSetMarker';
@@ -12,34 +13,28 @@ import type { Location, WindyWebcam } from '../../lib/types';
 import { useWebcamFetchArray } from '../hooks/useWebCamFetchArray';
 import { useClosestWebcams } from './hooks/useClosestWebcams';
 import { useCyclingWebcams } from './hooks/useCyclingWebcams';
+import GlobeMap from './GlobeMap';
 
 interface SimpleMapProps {
   userLocation: Location;
 }
 
 export default function SimpleMap({ userLocation }: SimpleMapProps) {
+  const [mode, setMode] = useState<'map' | 'globe'>('map');
   const { mapContainer, map, mapLoaded, hasToken } =
     useMap(userLocation);
 
   //this is used to get subsolar location as well as many more webcams...
-  const {
-    subsolarLocation,
-    sunriseCoords,
-    sunsetCoords,
-    sunrise,
-    sunset,
-    terminatorRingLineLayer,
-  } = useUpdateTimeAndTerminatorRing(map, mapLoaded);
+  const { currentTime, sunsetCoords, sunrise, sunset } =
+    useUpdateTimeAndTerminatorRing(map, mapLoaded, {
+      attachToMap: mode === 'map',
+    });
 
-  const {
-    webcams: moreWebcams,
-    totalCount: totalCountSunsetWebcams,
-  } = useWebcamFetchArray(sunsetCoords);
+  const { webcams: moreWebcams } = useWebcamFetchArray(sunsetCoords);
 
   //Create a new element that holds a canvas image of the webcam or a canvas video
 
-  const { closestWebcam, webcamsWithDistance, closestLocation } =
-    useClosestWebcams(userLocation, moreWebcams);
+  useClosestWebcams(userLocation, moreWebcams);
 
   const {
     currentWebcam: nextLatitudeNorthSunsetWebCam,
@@ -56,38 +51,47 @@ export default function SimpleMap({ userLocation }: SimpleMapProps) {
     nextLatitudeNorthSunsetWebCam
   );
 
-  useSetMarker(map, mapLoaded, userLocation);
-
-  useSetWebcamMarkers(map, mapLoaded, moreWebcams);
-
-  useFlyTo(map, mapLoaded, nextLatitudeNorthSunsetLocation ?? null);
-
-  if (!hasToken) {
-    return (
-      <div className="h-96 bg-red-50 flex items-center justify-center mb-8">
-        <div className="text-center text-red-600">
-          <p>❌ Mapbox access token not found!</p>
-          <p className="text-sm">
-            Add NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN to .env.local
-          </p>
-        </div>
-      </div>
-    );
-  }
-
+  useSetMarker(map, mapLoaded, mode === 'map' ? userLocation : null);
+  useSetWebcamMarkers(
+    map,
+    mapLoaded,
+    mode === 'map' ? moreWebcams : []
+  );
+  useFlyTo(
+    map,
+    mapLoaded,
+    mode === 'map' ? nextLatitudeNorthSunsetLocation ?? null : null
+  );
   return (
     <div className="max-w-4xl mx-auto">
       <div className="map-container">
-        {' '}
-        {/* ORIIGINGAL Main Map */}
-        <div
-          ref={mapContainer}
-          className="w-full h-full"
-          style={{
-            position: 'relative',
-            zIndex: 1,
-          }}
-        />
+        {mode === 'map' ? (
+          <div
+            ref={mapContainer}
+            className="w-full h-full"
+            style={{
+              position: 'relative',
+              zIndex: 1,
+            }}
+          />
+        ) : (
+          <div
+            className="w-full h-full"
+            style={{ position: 'relative', zIndex: 1 }}
+          >
+            <GlobeMap
+              webcams={moreWebcams || []}
+              sunrise={sunrise}
+              sunset={sunset}
+              currentTime={currentTime}
+              initialViewState={{
+                longitude: userLocation.lng,
+                latitude: userLocation.lat,
+                zoom: 0,
+              }}
+            />
+          </div>
+        )}
         {/* User Location Overlay */}
         {userLocation && (
           <div
@@ -100,9 +104,35 @@ export default function SimpleMap({ userLocation }: SimpleMapProps) {
             </p>
           </div>
         )}
+        {/* Mode Toggle */}
+        <div
+          className="absolute top-2 right-2 flex gap-2"
+          style={{ zIndex: 3 }}
+        >
+          <button
+            onClick={() => setMode('map')}
+            className={`px-2 py-1 border rounded ${
+              mode === 'map'
+                ? 'bg-blue-600 text-white'
+                : 'bg-gray-100'
+            }`}
+          >
+            2D Map
+          </button>
+          <button
+            onClick={() => setMode('globe')}
+            className={`px-2 py-1 border rounded ${
+              mode === 'globe'
+                ? 'bg-blue-600 text-white'
+                : 'bg-gray-100'
+            }`}
+          >
+            3D Globe
+          </button>
+        </div>
         {/* Data layers for top of  Main Map */}
         {/* Loading Overlay */}
-        {!mapLoaded && (
+        {mode === 'map' && !mapLoaded && (
           <div
             className="absolute inset-0 bg-gray-500 flex items-center justify-center"
             style={{ zIndex: 2 }}

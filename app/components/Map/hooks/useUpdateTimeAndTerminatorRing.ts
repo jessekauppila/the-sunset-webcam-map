@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import { subsolarPoint } from '../lib/subsolarLocation';
 import { splitTerminatorSunriseSunset } from '../lib/terminatorRing';
 import { makeTerminatorLayers } from '../lib/terminatorRingLineLayer';
@@ -6,9 +6,12 @@ import { MapboxOverlay } from '@deck.gl/mapbox';
 
 export function useUpdateTimeAndTerminatorRing(
   map: mapboxgl.Map | null,
-  mapLoaded: boolean
+  mapLoaded: boolean,
+  options?: { attachToMap?: boolean }
 ) {
   const [currentTime, setCurrentTime] = useState(new Date());
+  const overlayRef = useRef<MapboxOverlay | null>(null);
+  const attachToMap = options?.attachToMap ?? true;
 
   useEffect(() => {
     // 🎯 SETUP: What happens when the component mounts
@@ -52,20 +55,41 @@ export function useUpdateTimeAndTerminatorRing(
 
   // Move overlay management here
   useEffect(() => {
-    if (!map || !mapLoaded) return;
+    if (!map || !mapLoaded || !attachToMap) {
+      // detach if exists
+      if (overlayRef.current && map) {
+        try {
+          map.removeControl(overlayRef.current);
+        } catch {}
+      }
+      overlayRef.current = null;
+      return;
+    }
 
-    const deckGLOverlay = new MapboxOverlay({
-      layers: terminatorRingLineLayer,
-    });
-
-    map.addControl(deckGLOverlay);
+    if (!overlayRef.current) {
+      overlayRef.current = new MapboxOverlay({
+        interleaved: true,
+        layers: terminatorRingLineLayer,
+      });
+      map.addControl(overlayRef.current);
+    } else {
+      overlayRef.current.setProps({
+        layers: terminatorRingLineLayer,
+      });
+    }
 
     return () => {
-      map.removeControl(deckGLOverlay);
+      if (overlayRef.current) {
+        try {
+          map.removeControl(overlayRef.current);
+        } catch {}
+        overlayRef.current = null;
+      }
     };
-  }, [map, mapLoaded, terminatorRingLineLayer]); // Add terminatorRingLineLayer as dependency
+  }, [map, mapLoaded, attachToMap, terminatorRingLineLayer]);
 
   return {
+    currentTime,
     subsolarLocation,
     sunriseCoords,
     sunsetCoords,

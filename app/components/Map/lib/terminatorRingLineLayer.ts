@@ -20,23 +20,23 @@ export function makeTerminatorLayers(opts: {
   } = opts;
 
   return [
-    // new GeoJsonLayer({
-    //   id: 'terminator-sunrise',
-    //   data: sunrise,
-    //   stroked: true,
-    //   filled: false,
-    //   lineWidthMinPixels: lineWidth,
-    //   getLineColor: sunriseColor,
-    //   pickable: false,
-    // }),
-    // new GeoJsonLayer({
-    //   id: 'terminator-sunset',
-    //   data: sunset,
-    //   stroked: true,
-    //   filled: false,
-    //   lineWidthMinPixels: lineWidth,
-    //   getLineColor: sunsetColor,
-    //   pickable: false,
-    // }),
+    new GeoJsonLayer({
+      id: 'terminator-sunrise',
+      data: sunrise,
+      stroked: true,
+      filled: false,
+      lineWidthMinPixels: lineWidth,
+      getLineColor: sunriseColor,
+      pickable: false,
+    }),
+    new GeoJsonLayer({
+      id: 'terminator-sunset',
+      data: sunset,
+      stroked: true,
+      filled: false,
+      lineWidthMinPixels: lineWidth,
+      getLineColor: sunsetColor,
+      pickable: false,
+    }),
   ];
 }
