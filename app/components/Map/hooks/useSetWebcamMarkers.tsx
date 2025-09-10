@@ -3,6 +3,7 @@
 import mapboxgl from 'mapbox-gl';
 import { useEffect, useRef } from 'react';
 import type { WindyWebcam } from '../../../lib/types';
+import { createWebcamPopupContent } from '../lib/webcamPopup';
 
 export function useSetWebcamMarkers(
   map: mapboxgl.Map | null,
@@ -72,19 +73,9 @@ export function useSetWebcamMarkers(
           markerElement.textContent = '🌅';
         }
 
-        // Create popup
-        const popupContent = `
-          <div style="position: relative; width: 200px; height: 150px; overflow: hidden; margin: 0; padding: 0;">
-            ${
-              webcam.images?.current?.preview
-                ? `<img src="${webcam.images.current.preview}" alt="${webcam.title}" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover;" />`
-                : '<div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(135deg, #ff6b35, #f7931e); display: flex; align-items: center; justify-content: center; font-size: 48px;">🌅</div>'
-            }
-          </div>
-        `;
-
+        // Create POPUP
         const popup = new mapboxgl.Popup({ offset: 25 }).setHTML(
-          popupContent
+          createWebcamPopupContent(webcam)
         );
 
         const marker = new mapboxgl.Marker(markerElement)
@@ -144,7 +135,6 @@ export function useSetWebcamMarkers(
 
       // Apply staggered fade-in for immediate batches too
       const existing = markersRef.current;
-      const incomingIds = new Set(webcams.map((w) => w.webcamId));
 
       webcams.forEach((webcam, index) => {
         if (existing.has(webcam.webcamId)) return;
@@ -185,18 +175,8 @@ export function useSetWebcamMarkers(
         }
 
         // Create popup
-        const popupContent = `
-          <div style="position: relative; width: 200px; height: 150px; overflow: hidden; margin: 0; padding: 0;">
-            ${
-              webcam.images?.current?.preview
-                ? `<img src="${webcam.images.current.preview}" alt="${webcam.title}" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover;" />`
-                : '<div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(135deg, #ff6b35, #f7931e); display: flex; align-items: center; justify-content: center; font-size: 48px;">🌅</div>'
-            }
-          </div>
-        `;
-
         const popup = new mapboxgl.Popup({ offset: 25 }).setHTML(
-          popupContent
+          createWebcamPopupContent(webcam)
         );
 
         const marker = new mapboxgl.Marker(markerElement)
@@ -235,11 +215,14 @@ export function useSetWebcamMarkers(
 
   // Cleanup on unmount
   useEffect(() => {
+    const markers = markersRef.current;
+    const timeout = timeoutRef.current;
+
     return () => {
-      markersRef.current.forEach((marker) => marker.remove());
-      markersRef.current.clear();
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
+      markers.forEach((marker) => marker.remove());
+      markers.clear();
+      if (timeout) {
+        clearTimeout(timeout);
       }
     };
   }, [map]);
