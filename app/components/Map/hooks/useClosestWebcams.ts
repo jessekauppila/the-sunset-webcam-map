@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
-import type { WindyWebcam, Location } from '@/app/lib/types';
-import { windyWebcamToLocation } from '@/app/lib/types';
+import type { WindyWebcam, Location } from '../../../lib/types';
+import { windyWebcamToLocation } from '../../../lib/types';
 
 function calculateDistance(
   lat1: number,

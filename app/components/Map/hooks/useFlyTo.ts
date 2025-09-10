@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import type { Location } from '@/app/lib/types';
+import type { Location } from '../../../lib/types';
 
 export function useFlyTo(
   map: mapboxgl.Map | null,

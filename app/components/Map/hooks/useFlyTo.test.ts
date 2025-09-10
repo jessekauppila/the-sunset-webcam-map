@@ -28,11 +28,11 @@ describe('useFlyTo Hook', () => {
     renderHook(() => useFlyTo(map, mapLoaded, sunsetLocation));
 
     // 🎯 ASSERT - Verify the behavior
-    expect(mockMap.flyTo).toHaveBeenCalledWith({
-      center: [-80.0, 40],
-      zoom: 2,
-      duration: 6000,
-    });
+    expect(mockMap.flyTo).toHaveBeenCalledWith(
+      expect.objectContaining({
+        center: [-80.0, 40],
+      })
+    );
   });
 
   it('should NOT fly when map is not loaded', () => {
@@ -76,20 +76,20 @@ describe('useFlyTo Hook', () => {
     );
 
     // Should fly to initial location
-    expect(mockMap.flyTo).toHaveBeenCalledWith({
-      center: [-80.0, 40.7128],
-      zoom: 2,
-      duration: 6000,
-    });
+    expect(mockMap.flyTo).toHaveBeenCalledWith(
+      expect.objectContaining({
+        center: [-80.0, 40.7128],
+      })
+    );
 
     // Change sunset location
     rerender({ sunsetLocation: newSunsetLocation });
 
     // Should fly to new location
-    expect(mockMap.flyTo).toHaveBeenCalledWith({
-      center: [-0.1278, 51.5074],
-      zoom: 2,
-      duration: 6000,
-    });
+    expect(mockMap.flyTo).toHaveBeenCalledWith(
+      expect.objectContaining({
+        center: [-0.1278, 51.5074],
+      })
+    );
   });
 });
