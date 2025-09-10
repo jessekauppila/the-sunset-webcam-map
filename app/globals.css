@@ -1,4 +1,4 @@
-@import "tailwindcss";
+@import 'tailwindcss';
 
 :root {
   --background: #ffffff;
@@ -14,7 +14,7 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
+    --background: #252525;
     --foreground: #ededed;
   }
 }
@@ -23,4 +23,9 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+}
+
+/* Reusable map container styles */
+.map-container {
+  @apply h-96 bg-black border border-gray-800 rounded overflow-hidden mb-15 relative shadow-xl;
 }

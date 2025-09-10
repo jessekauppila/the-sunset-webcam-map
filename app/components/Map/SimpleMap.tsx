@@ -44,7 +44,7 @@ import { useSunsetPosition } from './hooks/useSunsetPosition';
 import { useSetMarker } from './hooks/useSetMarker';
 import { useSetWebcamMarkers } from './hooks/useSetWebcamMarkers';
 //import WebcamFetchDisplay from '../WebcamFetchDisplay';
-import WebcamDisplay from '../WebcamDisplay';
+import WebcamConsole from '../WebcamConsole';
 import { useUpdateTimeAndTerminatorRing } from './hooks/useUpdateTimeAndTerminatorRing';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import type { Location } from '../../lib/types';
@@ -106,7 +106,7 @@ export default function SimpleMap({ userLocation }: SimpleMapProps) {
 
   return (
     <div className="max-w-4xl mx-auto">
-      <div className="h-96 bg-white border border-gray-300 rounded overflow-hidden mb-8 relative">
+      <div className="map-container">
         {' '}
         {/* ORIIGINGAL Main Map */}
         <div
@@ -120,11 +120,11 @@ export default function SimpleMap({ userLocation }: SimpleMapProps) {
         {/* User Location Overlay */}
         {userLocation && (
           <div
-            className="absolute top-2 left-2 bg-green-50 border border-green-200 rounded p-2"
+            className="absolute top-2 left-2 bg-gray-300 border border-gray-800 rounded p-2"
             style={{ zIndex: 3 }}
           >
             <p className="text-sm text-green-700">
-              🌅 User: {userLocation.lat.toFixed(2)},{' '}
+              User: {userLocation.lat.toFixed(2)},{' '}
               {userLocation.lng.toFixed(2)}
             </p>
           </div>
@@ -144,7 +144,11 @@ export default function SimpleMap({ userLocation }: SimpleMapProps) {
         )}
       </div>
 
-      <WebcamDisplay webcams={moreWebcams || []} />
+      <div className="map-container">
+        {/* <WebcamConsole webcam={closestWebcam}></WebcamConsole> */}
+      </div>
+
+      <WebcamConsole webcams={moreWebcams || []} />
     </div>
   );
 }

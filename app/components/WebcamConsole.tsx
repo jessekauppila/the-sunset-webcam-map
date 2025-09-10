@@ -2,15 +2,15 @@
 
 import type { WindyWebcam } from '@/app/lib/types';
 
-export default function WebcamDisplay({
+export default function WebcamConsole({
   webcams,
 }: {
   webcams: WindyWebcam[];
 }) {
   return (
-    <div className="p-4 bg-green-50 rounded-lg">
-      <h3 className="text-lg font-bold text-green-800 mb-2">
-        🌐 Windy API Results ({webcams.length} webcams)
+    <div className="p-4 bg-gray-200 rounded-lg">
+      <h3 className="text-lg font-bold text-gray-700 mb-2">
+        Windy API Results ({webcams.length} webcams)
       </h3>
 
       {webcams.length === 0 ? (
