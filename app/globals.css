@@ -29,3 +29,20 @@ body {
 .map-container {
   @apply h-96 bg-black border border-gray-800 rounded overflow-hidden mb-15 relative shadow-xl;
 }
+
+/* Mapbox popup close button styling */
+.mapboxgl-popup-close-button {
+  color: #374151 !important; /* Darker gray color */
+  font-size: 12px !important;
+  font-weight: bold !important;
+  opacity: 0.8 !important;
+  transition: opacity 0.2s ease !important;
+  top: -6px !important; /* Move closer to top */
+  right: 2px !important; /* Move closer to right corner */
+  padding: 1px !important; /* Reduce padding for tighter positioning */
+}
+
+.mapboxgl-popup-close-button:hover {
+  opacity: 1 !important;
+  color: #1f2937 !important; /* Even darker on hover */
+}

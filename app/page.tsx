@@ -3,8 +3,8 @@ import SimpleMap from './components/Map/SimpleMap';
 //import
 
 export default function Home() {
-  // Example user location (NYC)
-  const userLocation = { lat: 40.7128, lng: 74.006 };
+  // Bellingham, Washington location
+  const userLocation = { lat: 48.7519, lng: -122.4787 };
 
   return (
     <div className="min-h-screen p-8">
