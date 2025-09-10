@@ -130,69 +130,9 @@ export default function SimpleMap({ userLocation }: SimpleMapProps) {
             </div>
           </div>
         )}
-        {/* Sunset Loading Overlay */}
-        {isLoading && (
-          <div
-            className="absolute top-2 left-2 bg-blue-50 border border-blue-200 rounded p-2"
-            style={{ zIndex: 3 }}
-          >
-            <div className="flex items-center gap-2">
-              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
-              <span className="text-sm text-blue-700">
-                Finding sunset...
-              </span>
-            </div>
-          </div>
-        )}
-        {/* Error Overlay */}
-        {error && (
-          <div
-            className="absolute top-2 right-2 bg-red-50 border border-red-200 rounded p-2 max-w-xs"
-            style={{ zIndex: 3 }}
-          >
-            <p className="text-sm text-red-700">⚠️ {error}</p>
-          </div>
-        )}
-        {/* Sunset Info Overlay */}
-        {sunsetLocation && !isLoading && !error && (
-          <div
-            className="absolute top-14 left-2 bg-green-50 border border-green-200 rounded p-2"
-            style={{ zIndex: 3 }}
-          >
-            <p className="text-sm text-green-700">
-              🌅 Sunset: {sunsetLocation.lat.toFixed(2)},{' '}
-              {sunsetLocation.lng.toFixed(2)}
-            </p>
-          </div>
-        )}
-        {/* User Location Overlay */}
-        {userLocation && !isLoading && !error && (
-          <div
-            className="absolute top-2 left-2 bg-green-50 border border-green-200 rounded p-2"
-            style={{ zIndex: 3 }}
-          >
-            <p className="text-sm text-green-700">
-              🌅 User: {userLocation.lat.toFixed(2)},{' '}
-              {userLocation.lng.toFixed(2)}
-            </p>
-          </div>
-        )}
       </div>
-      {/* Only show webcam display when we have a sunset location */}
-      {/* {sunsetLocation && (
-        <WebcamFetchDisplay userLocation={sunsetLocation} />
-      )} */}
 
       <WebcamDisplay webcams={moreWebcams || []} />
-
-      {/* Show message when no sunset location yet */}
-      {!sunsetLocation && !isLoading && (
-        <div className="p-4 bg-yellow-50 rounded-lg">
-          <p className="text-yellow-700">
-            Waiting for sunset location...
-          </p>
-        </div>
-      )}
     </div>
   );
 }
