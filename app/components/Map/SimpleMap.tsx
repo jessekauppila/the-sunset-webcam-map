@@ -20,7 +20,7 @@ interface SimpleMapProps {
 }
 
 export default function SimpleMap({ userLocation }: SimpleMapProps) {
-  const [mode, setMode] = useState<'map' | 'globe'>('map');
+  const [mode, setMode] = useState<'map' | 'globe'>('gobe');
   const { mapContainer, map, mapLoaded, hasToken } =
     useMap(userLocation);
 
@@ -65,33 +65,23 @@ export default function SimpleMap({ userLocation }: SimpleMapProps) {
   return (
     <div className="max-w-4xl mx-auto">
       <div className="map-container">
-        {mode === 'map' ? (
-          <div
-            ref={mapContainer}
-            className="w-full h-full"
-            style={{
-              position: 'relative',
-              zIndex: 1,
+        <div
+          className="w-full h-full"
+          style={{ position: 'relative', zIndex: 1 }}
+        >
+          <GlobeMap
+            webcams={moreWebcams || []}
+            sunrise={sunrise}
+            sunset={sunset}
+            currentTime={currentTime}
+            initialViewState={{
+              longitude: userLocation.lng,
+              latitude: userLocation.lat,
+              zoom: 0,
             }}
           />
-        ) : (
-          <div
-            className="w-full h-full"
-            style={{ position: 'relative', zIndex: 1 }}
-          >
-            <GlobeMap
-              webcams={moreWebcams || []}
-              sunrise={sunrise}
-              sunset={sunset}
-              currentTime={currentTime}
-              initialViewState={{
-                longitude: userLocation.lng,
-                latitude: userLocation.lat,
-                zoom: 0,
-              }}
-            />
-          </div>
-        )}
+        </div>
+
         {/* User Location Overlay */}
         {userLocation && (
           <div
