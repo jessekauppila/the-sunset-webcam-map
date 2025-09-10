@@ -26,41 +26,6 @@ A real-time webcam mapping application that shows live webcam feeds from locatio
 - npm or yarn
 - Mapbox access token
 
-### Installation
-
-1. Clone the repository:
-
-```bash
-git clone https://github.com/jessekauppila/the-sunset-webcam-map.git
-cd the-sunset-webcam-map
-```
-
-2. Install dependencies:
-
-```bash
-npm install
-```
-
-3. Create environment file:
-
-```bash
-cp .env.example .env.local
-```
-
-4. Add your Mapbox access token to `.env.local`:
-
-```
-NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN=your_mapbox_token_here
-```
-
-5. Run the development server:
-
-```bash
-npm run dev
-```
-
-6. Open [http://localhost:3000](http://localhost:3000) in your browser.
-
 ## Project Structure
 
 ```
@@ -81,14 +46,28 @@ app/
 - **SimpleMap**: Main map component with sunset tracking
 - **WebcamConsole**: Displays webcam data in a console-like interface
 - **WebcamDisplay**: Canvas-based webcam image renderer
-- **useClosestWebcams**: Hook for finding nearest webcams
-- **useFlyTo**: Hook for smooth map navigation
 
-######################
+########################################
 
-## Key Features
+### Guide To Future Use
 
-######################
+## Terminator Ring Layer
+
+useSetWebCamMarkers: "const INITIAL_IMMEDIATE_BATCHES = 17; // or pass this in from caller later"
+
+- needs to be adjust for greater terminator ring fidelity down the road.
+
+terminatorRing: precisionDeg = 10
+
+- also needs to be adjust for greater terminator ring fidelity down the road.
+
+## Terminator Ring Layer
+
+terminatorRingLineLayer: can uncommment layer to show terminator ring line on map
+
+########################################
+
+### Installation
 
 ## Development
 
@@ -103,14 +82,6 @@ npm test
 ```bash
 npm run build
 ```
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add some amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
 
 ## Author
 

@@ -43,17 +43,3 @@ export function useSetMarkers(
     };
   }, [map, mapLoaded, locations]);
 }
-
-//const marker = new mapboxgl.Marker({ color: '#ff6b35' })
-
-//     .setLngLat([location.lng, location.lat])
-//     .setPopup(
-//       new mapboxgl.Popup().setHTML(
-//         `<div class="text-center">
-//           <div class="text-lg">🌅</div>
-//           <div><strong>Sunset Location</strong></div>
-
-//         </div>`
-//       )
-//     )
-//     .addTo(map);

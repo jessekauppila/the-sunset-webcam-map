@@ -57,7 +57,6 @@ export default function SimpleMap({ userLocation }: SimpleMapProps) {
   );
 
   useSetMarker(map, mapLoaded, userLocation);
-  //useSetWebcamMarkers(map, mapLoaded, webcams);
 
   useSetWebcamMarkers(map, mapLoaded, moreWebcams);
 
