@@ -28,6 +28,18 @@ export interface WindyWebcam {
     name: string;
   }>;
   lastUpdatedOn?: string;
+  player?: {
+    live?: string;
+    day?: string;
+    month?: string;
+    year?: string;
+    lifetime?: string;
+  };
+  urls?: {
+    detail?: string;
+    edit?: string;
+    provider?: string;
+  };
 }
 
 export function windyWebcamToLocation(

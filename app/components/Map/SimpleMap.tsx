@@ -1,39 +1,3 @@
-//subsolar point and termination ring calculation...
-
-//This whole thing needs to be put into a useEffect that runs every minute
-
-//That will pull the subpolar point and get the ra and gmsthours info
-
-//That will come bck into the terminatorRing function and return data points
-
-//Those same points will be used to either create markers or something else
-//that can be used by a deck GL heatmap.
-
-//Those same data points can be used by WebCamFetch to search for webcams
-
-//Need to set up custom Markers that will take the WebCamFetch webcams
-//these need to show little thumbnail images
-
-//Ok, let's start be hooking up sunsetLocation to the WebcamFetch,
-// then we can fetch web cam's near where the nearest sunset west is...
-
-//--------------------------------------------
-
-//I need to bring in the WebCamFetch into here.
-
-// I might need to make something that finds Multiple Sunsets along the sunset band...
-
-//Put all these sunset location markers on the map...
-
-//Then I need to hook up sunsetLocation to the WebcamFetch
-
-//I need to destructure the WebCamFetch and take the webcam locations
-
-// I need to take those webcam locations and put locations for them on the map.
-// These should have tooltips or pop ups or something so that you can see an image of the sunset...
-
-// I need to find the closest location to the users location and then this needs to be some sort of pop up.
-
 'use client';
 
 //import DeckGL from '@deck.gl/react';
@@ -44,7 +8,9 @@ import { useSunsetPosition } from './hooks/useSunsetPosition';
 import { useSetMarker } from './hooks/useSetMarker';
 import { useSetWebcamMarkers } from './hooks/useSetWebcamMarkers';
 //import WebcamFetchDisplay from '../WebcamFetchDisplay';
-import WebcamConsole from '../WebcamConsole';
+import { WebcamConsole } from '../WebcamConsole';
+import { WebcamDisplay } from '../WebcamDisplay';
+
 import { useUpdateTimeAndTerminatorRing } from './hooks/useUpdateTimeAndTerminatorRing';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import type { Location } from '../../lib/types';
@@ -145,7 +111,7 @@ export default function SimpleMap({ userLocation }: SimpleMapProps) {
       </div>
 
       <div className="map-container">
-        {/* <WebcamConsole webcam={closestWebcam}></WebcamConsole> */}
+        {closestWebcam && <WebcamDisplay webcam={closestWebcam} />}
       </div>
 
       <WebcamConsole webcams={moreWebcams || []} />

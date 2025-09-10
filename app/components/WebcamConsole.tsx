@@ -2,7 +2,7 @@
 
 import type { WindyWebcam } from '@/app/lib/types';
 
-export default function WebcamConsole({
+export function WebcamConsole({
   webcams,
 }: {
   webcams: WindyWebcam[];
