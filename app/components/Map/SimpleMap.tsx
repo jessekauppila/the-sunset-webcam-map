@@ -117,6 +117,18 @@ export default function SimpleMap({ userLocation }: SimpleMapProps) {
             zIndex: 1,
           }}
         />
+        {/* User Location Overlay */}
+        {userLocation && (
+          <div
+            className="absolute top-2 left-2 bg-green-50 border border-green-200 rounded p-2"
+            style={{ zIndex: 3 }}
+          >
+            <p className="text-sm text-green-700">
+              🌅 User: {userLocation.lat.toFixed(2)},{' '}
+              {userLocation.lng.toFixed(2)}
+            </p>
+          </div>
+        )}
         {/* Data layers for top of  Main Map */}
         {/* Loading Overlay */}
         {!mapLoaded && (
