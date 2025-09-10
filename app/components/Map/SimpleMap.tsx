@@ -43,13 +43,14 @@ import { useFlyTo } from './hooks/useFlyTo';
 import { useSunsetPosition } from './hooks/useSunsetPosition';
 import { useSetMarker } from './hooks/useSetMarker';
 import { useSetWebcamMarkers } from './hooks/useSetWebcamMarkers';
-import WebcamFetchDisplay from '../WebcamFetchDisplay';
+//import WebcamFetchDisplay from '../WebcamFetchDisplay';
 import WebcamDisplay from '../WebcamDisplay';
 import { useUpdateTimeAndTerminatorRing } from './hooks/useUpdateTimeAndTerminatorRing';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import type { Location } from '../../lib/types';
-import { useWebcamFetch } from '../hooks/useWebCamFetch';
+//import { useWebcamFetch } from '../hooks/useWebCamFetch';
 import { useWebcamFetchArray } from '../hooks/useWebCamFetchArray';
+import { useClosestWebcams } from './hooks/useClosestWebcams';
 
 interface SimpleMapProps {
   userLocation: Location;
@@ -58,17 +59,6 @@ interface SimpleMapProps {
 export default function SimpleMap({ userLocation }: SimpleMapProps) {
   const { mapContainer, map, mapLoaded, hasToken } =
     useMap(userLocation);
-
-  //this is used as a point to get ONE location to then search for webcams at...
-  //this might not be correct now...
-  const { sunsetLocation, isLoading, error } =
-    useSunsetPosition(userLocation);
-
-  //this needs to change to accept an array of locations
-  const { webcams } = useWebcamFetch(
-    sunsetLocation?.lat ?? 0,
-    sunsetLocation?.lng ?? 0
-  );
 
   //this is used to get subsolar location as well as many more webcams...
   const {
@@ -85,14 +75,21 @@ export default function SimpleMap({ userLocation }: SimpleMapProps) {
     totalCount: totalCountSunsetWebcams,
   } = useWebcamFetchArray(sunsetCoords);
 
+  //Create a new element that holds a canvas image of the webcam or a canvas video
+
+  const { closestWebcam, webcamsWithDistance, closestLocation } =
+    useClosestWebcams(userLocation, moreWebcams);
+
+  console.log('📹 Closet webcam: ', closestWebcam);
+  console.log('📍 Closet webcam location: ', webcamsWithDistance);
+  console.log('Closet webcam with distance: ', closestLocation);
+
   useSetMarker(map, mapLoaded, userLocation);
-  useSetMarker(map, mapLoaded, sunsetLocation);
-  useSetMarker(map, mapLoaded, subsolarLocation);
   //useSetWebcamMarkers(map, mapLoaded, webcams);
 
   useSetWebcamMarkers(map, mapLoaded, moreWebcams);
 
-  useFlyTo(map, mapLoaded, sunsetLocation);
+  useFlyTo(map, mapLoaded, closestLocation ?? null);
 
   if (!hasToken) {
     return (

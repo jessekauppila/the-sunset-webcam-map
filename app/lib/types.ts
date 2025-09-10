@@ -30,6 +30,17 @@ export interface WindyWebcam {
   lastUpdatedOn?: string;
 }
 
+export function windyWebcamToLocation(
+  webcam: WindyWebcam | undefined
+): Location | undefined {
+  if (!webcam) return undefined;
+
+  return {
+    lat: webcam.location.latitude,
+    lng: webcam.location.longitude,
+  };
+}
+
 export interface Location {
   lat: number;
   lng: number;
