@@ -1,41 +1,39 @@
 // Add a marker at sunset location
 import type { Location } from '../../../lib/types';
 import mapboxgl from 'mapbox-gl';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 
 export function useSetMarker(
   map: mapboxgl.Map | null,
   mapLoaded: boolean,
   location: Location | null
 ) {
+  const markerRef = useRef<mapboxgl.Marker | null>(null);
+
   useEffect(() => {
-    if (!map || !mapLoaded || !location) {
-      console.log(
-        '⚠️ Skipping marker setting - missing requirements:',
-        {
-          hasMap: !!map,
-          mapLoaded,
-          hasLocation: !!location,
-        }
-      );
-      return;
-    }
+    if (!map || !mapLoaded || !location) return;
 
-    // Remove the setTimeout temporarily for debugging
+    const container = (map as any).getContainer?.();
+    if (!container || !container.isConnected) return; // map is tearing down
+
     try {
-      // Create a default Marker and add it to the map.
-      const marker = new mapboxgl.Marker()
-        .setLngLat([location.lng, location.lat])
-        .addTo(map);
-
-      return () => {
-        if (marker) {
-          marker.remove();
-        }
-      };
-    } catch (error) {
-      console.error('❌ Error creating marker:', error);
+      if (!markerRef.current) {
+        markerRef.current = new mapboxgl.Marker()
+          .setLngLat([location.lng, location.lat])
+          .addTo(map);
+      } else {
+        markerRef.current.setLngLat([location.lng, location.lat]);
+      }
+    } catch {
+      // ignore if map is being torn down
     }
+
+    return () => {
+      try {
+        markerRef.current?.remove();
+      } catch {}
+      markerRef.current = null;
+    };
   }, [map, mapLoaded, location]);
 }
 
