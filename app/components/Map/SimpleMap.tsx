@@ -32,12 +32,14 @@ export default function SimpleMap({ userLocation }: SimpleMapProps) {
       attachToMap: mode === 'map',
     });
 
+  //Zustand state management
   const setMoreWebcams = useWebcamsStore((s) => s.setMoreWebcams);
   const setNextWebcam = useWebcamsStore((s) => s.setNextWebcam);
   const setNextLocation = useWebcamsStore((s) => s.setNextLocation);
 
   const { webcams: moreWebcams } = useWebcamFetchArray(sunsetCoords);
 
+  //Zustand state management
   useEffect(() => {
     setMoreWebcams(moreWebcams || []);
   }, [moreWebcams, setMoreWebcams]);
@@ -52,6 +54,7 @@ export default function SimpleMap({ userLocation }: SimpleMapProps) {
     wrap: true,
   });
 
+  //Zustand state management
   useEffect(() => {
     setNextWebcam(nextLatitudeNorthSunsetWebCam ?? null);
     setNextLocation(nextLatitudeNorthSunsetLocation ?? null);
@@ -68,15 +71,18 @@ export default function SimpleMap({ userLocation }: SimpleMapProps) {
   );
 
   useSetMarker(map, mapLoaded, mode === 'map' ? userLocation : null);
+
   useSetWebcamMarkers(
     map,
     mapLoaded,
     mode === 'map' ? moreWebcams : []
   );
+
   useFlyTo(
     map,
     mapLoaded,
-    mode === 'map' ? nextLatitudeNorthSunsetLocation ?? null : null
+    mode === 'map' ? nextLatitudeNorthSunsetLocation ?? null : null,
+    { minKm: 500, cooldownMs: 10000 }
   );
   return (
     <div className="max-w-4xl mx-auto">
