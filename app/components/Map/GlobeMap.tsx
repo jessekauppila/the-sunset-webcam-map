@@ -126,7 +126,34 @@ export default function GlobeMap({
     () =>
       new IconLayer<WindyWebcam>({
         id: 'webcams',
-        data: webcams,
+        data: webcams.filter((webcam) => {
+          // 3D culling: hide webcams that are on the far side of the globe
+          const webcamLat = webcam.location.latitude;
+          const webcamLng = webcam.location.longitude;
+          const cameraLat = viewState.latitude;
+          const cameraLng = viewState.longitude;
+
+          // Convert to radians
+          const lat1 = (cameraLat * Math.PI) / 180;
+          const lng1 = (cameraLng * Math.PI) / 180;
+          const lat2 = (webcamLat * Math.PI) / 180;
+          const lng2 = (webcamLng * Math.PI) / 180;
+
+          // Calculate angular distance using haversine formula
+          const dLat = lat2 - lat1;
+          const dLng = lng2 - lng1;
+          const a =
+            Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(lat1) *
+              Math.cos(lat2) *
+              Math.sin(dLng / 2) *
+              Math.sin(dLng / 2);
+          const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+          const angularDistance = c * (180 / Math.PI); // Convert to degrees
+
+          // Hide webcams that are more than 120 degrees away
+          return angularDistance < 120;
+        }),
         getIcon: (w) => {
           const fallback =
             'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48"><rect width="48" height="48" rx="8" ry="8" fill="%23eee"/><text x="8" y="36" font-size="24">🌅</text></svg>';
@@ -151,8 +178,14 @@ export default function GlobeMap({
         loadOptions: { image: { crossOrigin: 'anonymous' } },
         pickable: true,
         billboard: true, // Always face the camera
+        //these eliminate the intersection of the icons with the globe,
+        //but then you can also see them on the otherside of the globe
+        parameters: {
+          depthTest: false, // Disable depth testing completely
+          //depthMask: false,
+        },
       }),
-    [webcams]
+    [webcams, viewState.longitude, viewState.latitude]
   );
 
   return (
