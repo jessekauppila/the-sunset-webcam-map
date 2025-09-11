@@ -146,7 +146,7 @@ export default function GlobeMap({
         getPosition: (w) => [
           w.location.longitude,
           w.location.latitude,
-          10000, // Add elevation to lift icons above the sphere
+          50000, // Higher elevation to ensure icons are above everything
         ],
         loadOptions: { image: { crossOrigin: 'anonymous' } },
         pickable: true,
