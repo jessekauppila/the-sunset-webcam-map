@@ -20,9 +20,8 @@ interface SimpleMapProps {
 }
 
 export default function SimpleMap({ userLocation }: SimpleMapProps) {
-  const [mode, setMode] = useState<'map' | 'globe'>('gobe');
-  const { mapContainer, map, mapLoaded, hasToken } =
-    useMap(userLocation);
+  const [mode, setMode] = useState<'map' | 'globe'>('globe');
+  const { mapContainer, map, mapLoaded } = useMap(userLocation);
 
   //this is used to get subsolar location as well as many more webcams...
   const { currentTime, sunsetCoords, sunrise, sunset } =
@@ -65,22 +64,41 @@ export default function SimpleMap({ userLocation }: SimpleMapProps) {
   return (
     <div className="max-w-4xl mx-auto">
       <div className="map-container">
-        <div
-          className="w-full h-full"
-          style={{ position: 'relative', zIndex: 1 }}
-        >
-          <GlobeMap
-            webcams={moreWebcams || []}
-            sunrise={sunrise}
-            sunset={sunset}
-            currentTime={currentTime}
-            initialViewState={{
-              longitude: userLocation.lng,
-              latitude: userLocation.lat,
-              zoom: 0,
+        {mode === 'map' ? (
+          <div
+            ref={mapContainer}
+            className="w-full h-full"
+            style={{
+              position: 'relative',
+              zIndex: 1,
             }}
           />
-        </div>
+        ) : (
+          <div
+            className="w-full h-full"
+            style={{ position: 'relative', zIndex: 1 }}
+          >
+            <GlobeMap
+              webcams={moreWebcams || []}
+              sunrise={sunrise}
+              sunset={sunset}
+              currentTime={currentTime}
+              initialViewState={{
+                longitude: userLocation.lng,
+                latitude: userLocation.lat,
+                zoom: 0,
+              }}
+              targetLocation={
+                nextLatitudeNorthSunsetLocation
+                  ? {
+                      longitude: nextLatitudeNorthSunsetLocation.lng,
+                      latitude: nextLatitudeNorthSunsetLocation.lat,
+                    }
+                  : null
+              }
+            />
+          </div>
+        )}
 
         {/* User Location Overlay */}
         {userLocation && (

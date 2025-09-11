@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { DeckGL } from '@deck.gl/react';
 import {
   COORDINATE_SYSTEM,
@@ -7,6 +7,7 @@ import {
   AmbientLight,
   _SunLight as SunLight,
   type GlobeViewState,
+  FlyToInterpolator,
 } from '@deck.gl/core';
 import { GeoJsonLayer, IconLayer } from '@deck.gl/layers';
 import { SimpleMeshLayer } from '@deck.gl/mesh-layers';
@@ -33,6 +34,7 @@ interface GlobeMapProps {
   sunset: GeoJSON.FeatureCollection | GeoJSON.Feature;
   currentTime: Date;
   initialViewState?: GlobeViewState;
+  targetLocation?: { longitude: number; latitude: number } | null;
 }
 
 export default function GlobeMap({
@@ -41,9 +43,30 @@ export default function GlobeMap({
   sunset,
   currentTime,
   initialViewState = { longitude: 0, latitude: 20, zoom: 0 },
+  targetLocation = null,
 }: GlobeMapProps) {
   // Sync lighting with current time
   sunLight.timestamp = currentTime;
+
+  const [viewState, setViewState] =
+    useState<GlobeViewState>(initialViewState);
+
+  useEffect(() => {
+    setViewState((vs) => ({ ...vs, ...initialViewState }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (!targetLocation) return;
+    setViewState((prev) => ({
+      ...prev,
+      longitude: targetLocation.longitude,
+      latitude: targetLocation.latitude,
+      zoom: Math.max(prev.zoom ?? 0, 0.8),
+      transitionDuration: 2000,
+      transitionInterpolator: new FlyToInterpolator(),
+    }));
+  }, [targetLocation]);
 
   const backgroundLayers = useMemo(
     () => [
@@ -100,18 +123,19 @@ export default function GlobeMap({
       new IconLayer<WindyWebcam>({
         id: 'webcams',
         data: webcams,
-        getIcon: () => ({
-          url: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32"><text x="0" y="24">🌅</text></svg>',
-          width: 32,
-          height: 32,
-          anchorY: 32,
-        }),
+        getIcon: (w) => {
+          const fallback =
+            'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64"><rect width="64" height="64" rx="8" ry="8" fill="%23eee"/><text x="10" y="44" font-size="32">🌅</text></svg>';
+          const url = w.images?.current?.preview || fallback;
+          return { url, width: 64, height: 64, anchorY: 64 };
+        },
         sizeUnits: 'pixels',
-        getSize: 28,
+        getSize: 72,
         getPosition: (w) => [
           w.location.longitude,
           w.location.latitude,
         ],
+        loadOptions: { image: { crossOrigin: 'anonymous' } },
         pickable: true,
       }),
     [webcams]
@@ -120,7 +144,10 @@ export default function GlobeMap({
   return (
     <DeckGL
       views={new GlobeView()}
-      initialViewState={initialViewState}
+      viewState={viewState}
+      onViewStateChange={({ viewState }) =>
+        setViewState(viewState as GlobeViewState)
+      }
       controller={true}
       effects={[lightingEffect]}
       layers={[...backgroundLayers, ...terminatorLayers, webcamLayer]}
