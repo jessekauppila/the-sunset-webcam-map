@@ -2,7 +2,10 @@ import { useEffect, useRef, useState } from 'react';
 import type { Location } from '../../../lib/types';
 import mapboxgl from 'mapbox-gl';
 
-export function useMap(userLocation: Location) {
+export function useMap(
+  userLocation: Location,
+  enabled: boolean = true
+) {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
   const [mapLoaded, setMapLoaded] = useState(false);
@@ -14,6 +17,18 @@ export function useMap(userLocation: Location) {
 
   // Initialize map
   useEffect(() => {
+    if (!enabled) {
+      // Clean up existing map when disabled
+      if (map.current) {
+        console.log('🧹 Cleaning up map (disabled)...');
+        map.current.remove();
+        map.current = null;
+        setMapLoaded(false);
+        setMapReady(false);
+      }
+      return;
+    }
+
     if (!mapContainer.current || map.current) return;
 
     if (!mapboxgl.accessToken) {
@@ -50,9 +65,11 @@ export function useMap(userLocation: Location) {
         console.log('🧹 Cleaning up map...');
         map.current.remove();
         map.current = null;
+        setMapLoaded(false);
+        setMapReady(false);
       }
     };
-  }, [userLocation]);
+  }, [userLocation, enabled]);
 
   return {
     mapContainer,
