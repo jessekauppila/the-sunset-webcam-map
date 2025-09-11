@@ -20,7 +20,7 @@ interface SimpleMapProps {
 }
 
 export default function SimpleMap({ userLocation }: SimpleMapProps) {
-  const [mode, setMode] = useState<'map' | 'globe'>('globe');
+  const [mode, setMode] = useState<'map' | 'globe'>('map');
   const { mapContainer, map, mapLoaded } = useMap(userLocation);
 
   //this is used to get subsolar location as well as many more webcams...
