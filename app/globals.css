@@ -51,3 +51,20 @@ body {
   opacity: 1 !important;
   color: #1f2937 !important; /* Even darker on hover */
 }
+
+/* Mode toggle buttons */
+.mode-toggle-btn {
+  @apply px-2 py-1 border rounded text-xs;
+  min-width: 60px;
+  height: 24px;
+  font-size: 11px;
+  line-height: 1.2;
+}
+
+.mode-toggle-btn.active {
+  @apply bg-gray-600 text-gray-300;
+}
+
+.mode-toggle-btn.inactive {
+  @apply bg-gray-700 text-gray-900;
+}

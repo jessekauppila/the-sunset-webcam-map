@@ -103,19 +103,6 @@ export default function SimpleMap({ userLocation }: SimpleMapProps) {
           </div>
         )}
 
-        {/* User Location Overlay */}
-        {userLocation && (
-          <div
-            className="absolute top-2 left-2 bg-gray-300 border border-gray-800 rounded p-2"
-            style={{ zIndex: 3 }}
-          >
-            <p className="text-sm text-green-700">
-              User: {userLocation.lat.toFixed(2)},{' '}
-              {userLocation.lng.toFixed(2)}
-            </p>
-          </div>
-        )}
-
         {/* Mode Toggle */}
         <div
           className="absolute top-2 right-2 flex gap-2"
@@ -123,20 +110,16 @@ export default function SimpleMap({ userLocation }: SimpleMapProps) {
         >
           <button
             onClick={() => setMode('map')}
-            className={`px-2 py-1 border rounded ${
-              mode === 'map'
-                ? 'bg-blue-600 text-white'
-                : 'bg-gray-100'
+            className={`mode-toggle-btn ${
+              mode === 'map' ? 'active' : 'inactive'
             }`}
           >
             2D Map
           </button>
           <button
             onClick={() => setMode('globe')}
-            className={`px-2 py-1 border rounded ${
-              mode === 'globe'
-                ? 'bg-blue-600 text-white'
-                : 'bg-gray-100'
+            className={`mode-toggle-btn ${
+              mode === 'globe' ? 'active' : 'inactive'
             }`}
           >
             3D Globe
