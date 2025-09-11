@@ -129,12 +129,20 @@ export default function GlobeMap({
         data: webcams,
         getIcon: (w) => {
           const fallback =
-            'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64"><rect width="64" height="64" rx="8" ry="8" fill="%23eee"/><text x="10" y="44" font-size="32">🌅</text></svg>';
+            'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48"><rect width="48" height="48" rx="8" ry="8" fill="%23eee"/><text x="8" y="36" font-size="24">🌅</text></svg>';
           const url = w.images?.current?.preview || fallback;
-          return { url, width: 64, height: 64, anchorY: 64 };
+
+          // For webcam previews, use a more rectangular aspect ratio
+          // Most webcam images are wider than tall (16:9 or 4:3)
+          if (w.images?.current?.preview) {
+            return { url, width: 64, height: 36, anchorY: 40 }; // 16:9 aspect ratio
+          }
+
+          // Fallback emoji stays square
+          return { url, width: 48, height: 48, anchorY: 24 };
         },
         sizeUnits: 'pixels',
-        getSize: 72,
+        getSize: 48,
         getPosition: (w) => [
           w.location.longitude,
           w.location.latitude,
