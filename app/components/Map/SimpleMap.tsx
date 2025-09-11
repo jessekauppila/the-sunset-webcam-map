@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useMap } from './hooks/useMap';
 import { useFlyTo } from './hooks/useFlyTo';
 import { useSetMarker } from './hooks/useSetMarker';
@@ -14,6 +14,7 @@ import { useWebcamFetchArray } from '../hooks/useWebCamFetchArray';
 import { useClosestWebcams } from './hooks/useClosestWebcams';
 import { useCyclingWebcams } from './hooks/useCyclingWebcams';
 import GlobeMap from './GlobeMap';
+import { useWebcamsStore } from '../../store/webcams';
 
 interface SimpleMapProps {
   userLocation: Location;
@@ -25,18 +26,21 @@ export default function SimpleMap({ userLocation }: SimpleMapProps) {
     userLocation,
     mode === 'map'
   );
-
-  //this is used to get subsolar location as well as many more webcams...
+  //this is used to get sunset locations as well as many more webcams...
   const { currentTime, sunsetCoords, sunrise, sunset } =
     useUpdateTimeAndTerminatorRing(map, mapLoaded, {
       attachToMap: mode === 'map',
     });
 
+  const setMoreWebcams = useWebcamsStore((s) => s.setMoreWebcams);
+  const setNextWebcam = useWebcamsStore((s) => s.setNextWebcam);
+  const setNextLocation = useWebcamsStore((s) => s.setNextLocation);
+
   const { webcams: moreWebcams } = useWebcamFetchArray(sunsetCoords);
 
-  //Create a new element that holds a canvas image of the webcam or a canvas video
-
-  useClosestWebcams(userLocation, moreWebcams);
+  useEffect(() => {
+    setMoreWebcams(moreWebcams || []);
+  }, [moreWebcams, setMoreWebcams]);
 
   const {
     currentWebcam: nextLatitudeNorthSunsetWebCam,
@@ -47,6 +51,16 @@ export default function SimpleMap({ userLocation }: SimpleMapProps) {
     intervalMs: 5000,
     wrap: true,
   });
+
+  useEffect(() => {
+    setNextWebcam(nextLatitudeNorthSunsetWebCam ?? null);
+    setNextLocation(nextLatitudeNorthSunsetLocation ?? null);
+  }, [
+    nextLatitudeNorthSunsetWebCam,
+    nextLatitudeNorthSunsetLocation,
+    setNextWebcam,
+    setNextLocation,
+  ]);
 
   console.log(
     '📹 Next Latitude webcam: ',
@@ -156,14 +170,6 @@ export default function SimpleMap({ userLocation }: SimpleMapProps) {
           </div>
         )}
       </div>
-
-      <div className="canvas-container">
-        {nextLatitudeNorthSunsetWebCam && (
-          <WebcamDisplay webcam={nextLatitudeNorthSunsetWebCam} />
-        )}
-      </div>
-
-      <WebcamConsole webcams={moreWebcams || []} />
     </div>
   );
 }

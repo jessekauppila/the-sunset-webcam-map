@@ -180,10 +180,10 @@ export default function GlobeMap({
         billboard: true, // Always face the camera
         //these eliminate the intersection of the icons with the globe,
         //but then you can also see them on the otherside of the globe
-        parameters: {
-          depthTest: false, // Disable depth testing completely
-          //depthMask: false,
-        },
+        // parameters: {
+        //   depthTest: false, // Disable depth testing completely
+        //   //depthMask: false,
+        // },
       }),
     [webcams, viewState.longitude, viewState.latitude]
   );
