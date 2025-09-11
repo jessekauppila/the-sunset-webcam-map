@@ -146,9 +146,11 @@ export default function GlobeMap({
         getPosition: (w) => [
           w.location.longitude,
           w.location.latitude,
+          10000, // Add elevation to lift icons above the sphere
         ],
         loadOptions: { image: { crossOrigin: 'anonymous' } },
         pickable: true,
+        billboard: true, // Always face the camera
       }),
     [webcams]
   );
