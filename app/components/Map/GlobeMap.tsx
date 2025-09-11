@@ -30,8 +30,12 @@ const lightingEffect = new LightingEffect({ ambientLight, sunLight });
 
 interface GlobeMapProps {
   webcams: WindyWebcam[];
-  sunrise: GeoJSON.FeatureCollection | GeoJSON.Feature;
-  sunset: GeoJSON.FeatureCollection | GeoJSON.Feature;
+  sunrise:
+    | GeoJSON.FeatureCollection<GeoJSON.LineString>
+    | GeoJSON.Feature<GeoJSON.LineString>;
+  sunset:
+    | GeoJSON.FeatureCollection<GeoJSON.LineString>
+    | GeoJSON.Feature<GeoJSON.LineString>;
   currentTime: Date;
   initialViewState?: GlobeViewState;
   targetLocation?: { longitude: number; latitude: number } | null;
@@ -98,7 +102,7 @@ export default function GlobeMap({
     () => [
       new GeoJsonLayer({
         id: 'terminator-sunrise',
-        data: sunrise as any,
+        data: sunrise,
         stroked: true,
         filled: false,
         lineWidthMinPixels: 2,
@@ -107,7 +111,7 @@ export default function GlobeMap({
       }),
       new GeoJsonLayer({
         id: 'terminator-sunset',
-        data: sunset as any,
+        data: sunset,
         stroked: true,
         filled: false,
         lineWidthMinPixels: 2,

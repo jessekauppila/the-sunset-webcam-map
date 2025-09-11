@@ -112,6 +112,7 @@ export default function SimpleMap({ userLocation }: SimpleMapProps) {
             </p>
           </div>
         )}
+
         {/* Mode Toggle */}
         <div
           className="absolute top-2 right-2 flex gap-2"
@@ -153,7 +154,7 @@ export default function SimpleMap({ userLocation }: SimpleMapProps) {
         )}
       </div>
 
-      <div className="map-container">
+      <div className="canvas-container">
         {nextLatitudeNorthSunsetWebCam && (
           <WebcamDisplay webcam={nextLatitudeNorthSunsetWebCam} />
         )}

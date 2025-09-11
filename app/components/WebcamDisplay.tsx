@@ -47,12 +47,10 @@ export function WebcamDisplay({ webcam }: WebcamDisplayProps) {
   }, [webcam.images?.current?.preview]);
 
   return (
-    <div className="w-full h-48 rounded mt-2 overflow-hidden">
-      <canvas
-        ref={canvasRef}
-        className="w-full h-full object-contain rounded"
-        style={{ maxWidth: '100%', maxHeight: '100%' }}
-      />
-    </div>
+    <canvas
+      ref={canvasRef}
+      className="w-full h-full object-contain rounded"
+      style={{ maxWidth: '100%', maxHeight: '100%' }}
+    />
   );
 }

@@ -30,6 +30,11 @@ body {
   @apply h-96 bg-black border border-gray-800 rounded overflow-hidden mb-15 relative shadow-xl;
 }
 
+/* Reusable map canvas styles */
+.canvas-container {
+  @apply overflow-hidden mb-15 relative shadow-xl;
+}
+
 /* Mapbox popup close button styling */
 .mapboxgl-popup-close-button {
   color: #374151 !important; /* Darker gray color */
