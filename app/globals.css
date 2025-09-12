@@ -27,7 +27,7 @@ body {
 
 /* Reusable map container styles */
 .map-container {
-  @apply h-96 bg-black border border-gray-800 rounded overflow-hidden mb-15 relative shadow-xl;
+  @apply bg-black overflow-hidden relative shadow-xl;
 }
 
 /* Reusable map canvas styles */
