@@ -7,27 +7,64 @@ type LineStringFC =
 export function makeTerminatorLayers(opts: {
   sunrise: LineStringFC;
   sunset: LineStringFC;
+  entireTerminatorRing: LineStringFC;
   sunriseColor?: [number, number, number, number];
   sunsetColor?: [number, number, number, number];
+  terminatorColor?: [number, number, number, number];
   lineWidth?: number;
 }) {
   const {
     sunrise,
     sunset,
+    entireTerminatorRing,
     sunriseColor = [120, 170, 255, 200], // blue-ish
     sunsetColor = [255, 170, 120, 200], // orange-ish
-    lineWidth = 2,
+    terminatorColor = [187, 170, 120, 200],
+    lineWidth = 3,
   } = opts;
 
-  return [
+  const getCoordLength = (feature: LineStringFC) => {
+    if ('geometry' in feature) {
+      return feature.geometry?.coordinates?.length || 0;
+    } else if ('features' in feature) {
+      return feature.features?.length || 0;
+    }
+    return 0;
+  };
+
+  console.log('🎨 Making terminator layers with data:', {
+    sunrise: getCoordLength(sunrise),
+    sunset: getCoordLength(sunset),
+    entireTerminatorRing: getCoordLength(entireTerminatorRing),
+  });
+
+  const layers = [
+    new GeoJsonLayer({
+      id: 'entire-terminator',
+      data: entireTerminatorRing,
+      stroked: true,
+      filled: false,
+      lineWidthMinPixels: lineWidth,
+      lineWidthMaxPixels: lineWidth * 2,
+      getLineColor: terminatorColor,
+      pickable: false,
+      updateTriggers: {
+        getLineColor: [terminatorColor],
+      },
+    }),
+
     new GeoJsonLayer({
       id: 'terminator-sunrise',
       data: sunrise,
       stroked: true,
       filled: false,
       lineWidthMinPixels: lineWidth,
+      lineWidthMaxPixels: lineWidth * 2,
       getLineColor: sunriseColor,
       pickable: false,
+      updateTriggers: {
+        getLineColor: [sunriseColor],
+      },
     }),
     new GeoJsonLayer({
       id: 'terminator-sunset',
@@ -35,8 +72,15 @@ export function makeTerminatorLayers(opts: {
       stroked: true,
       filled: false,
       lineWidthMinPixels: lineWidth,
+      lineWidthMaxPixels: lineWidth * 2,
       getLineColor: sunsetColor,
       pickable: false,
+      updateTriggers: {
+        getLineColor: [sunsetColor],
+      },
     }),
   ];
+
+  console.log('🎯 Created', layers.length, 'GeoJsonLayers');
+  return layers;
 }
