@@ -21,7 +21,7 @@ interface SimpleMapProps {
 }
 
 export default function SimpleMap({ userLocation }: SimpleMapProps) {
-  const [mode, setMode] = useState<'map' | 'globe'>('map');
+  const [mode, setMode] = useState<'map' | 'globe'>('globe');
   const { mapContainer, map, mapLoaded } = useMap(
     userLocation,
     mode === 'map'
@@ -167,6 +167,8 @@ export default function SimpleMap({ userLocation }: SimpleMapProps) {
       </div>
 
       <WebcamConsole webcams={sunsetWebcams || []} />
+
+      <WebcamConsole webcams={sunriseWebcams || []} />
     </div>
   );
 }

@@ -197,7 +197,7 @@ export default function GlobeMap({
       }
       controller={true}
       effects={[lightingEffect]}
-      layers={[...backgroundLayers, ...terminatorLayers, webcamLayer]}
+      layers={[...backgroundLayers, webcamLayer]} //...terminatorLayers
       getTooltip={({ object }) =>
         object
           ? {
