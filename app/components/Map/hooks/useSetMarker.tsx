@@ -14,7 +14,7 @@ export function useSetMarker(
       mapLoaded,
       hasLocation: !!location,
       mapType: typeof map,
-      mapConstructor: map?.constructor?.name
+      mapConstructor: map?.constructor?.name,
     });
 
     if (!map || !mapLoaded || !location) {
