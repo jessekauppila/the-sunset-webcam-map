@@ -10,9 +10,10 @@ import { WebcamDisplay } from '../WebcamDisplay';
 import { useUpdateTerminatorRing } from './hooks/useUpdateTerminatorRing';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import type { Location, WindyWebcam } from '../../lib/types';
-import { useWebcamFetchArray } from '../hooks/useWebCamFetchArray';
-import { useClosestWebcams } from './hooks/useClosestWebcams';
+//import { useWebcamFetchArray } from '../hooks/useWebCamFetchArray';
+//import { useClosestWebcams } from './hooks/useClosestWebcams';
 import { useCyclingWebcams } from './hooks/useCyclingWebcams';
+import { useCombineSunriseSunsetWebcams } from './hooks/useCombinedSunriseSunsetWebcams';
 import GlobeMap from './GlobeMap';
 
 interface SimpleMapProps {
@@ -26,27 +27,44 @@ export default function SimpleMap({ userLocation }: SimpleMapProps) {
     mode === 'map'
   );
 
-  //this is used to get subsolar location as well as many more webcams...
-  const { currentTime, sunsetCoords, sunrise, sunset } =
-    useUpdateTerminatorRing(map, mapLoaded, {
-      attachToMap: mode === 'map',
-    });
+  const {
+    currentTime,
+    sunsetCoords,
+    sunriseCoords,
+    allTerminatorCoords,
+    sunrise,
+    sunset,
+  } = useUpdateTerminatorRing(map, mapLoaded, {
+    attachToMap: mode === 'map',
+  });
 
-  const { webcams: moreWebcams } = useWebcamFetchArray(sunsetCoords);
-
-  //Create a new element that holds a canvas image of the webcam or a canvas video
-
-  useClosestWebcams(userLocation, moreWebcams);
+  const {
+    combinedWebcams,
+    sunriseWebcams,
+    sunsetWebcams,
+    isLoading: webcamsLoading,
+    sunriseCount,
+    sunsetCount,
+  } = useCombineSunriseSunsetWebcams(sunriseCoords, sunsetCoords);
 
   const {
     currentWebcam: nextLatitudeNorthSunsetWebCam,
     currentWebcamLocation: nextLatitudeNorthSunsetLocation,
-  } = useCyclingWebcams(moreWebcams, {
-    getValue: (webcam: WindyWebcam) => webcam.location.latitude,
+  } = useCyclingWebcams(combinedWebcams, {
+    getValue: (webcam: WindyWebcam) => {
+      // Find the index of this webcam in the combinedWebcams array
+      return combinedWebcams.findIndex(
+        (w) => w.webcamId === webcam.webcamId
+      );
+    },
     direction: 'asc',
     intervalMs: 5000,
     wrap: true,
   });
+
+  console.log(
+    `🌅 Sunrise webcams: ${sunriseCount}, 🌅 Sunset webcams: ${sunsetCount}, 📹 Total: ${combinedWebcams.length}`
+  );
 
   console.log(
     '📹 Next Latitude webcam: ',
@@ -54,11 +72,13 @@ export default function SimpleMap({ userLocation }: SimpleMapProps) {
   );
 
   useSetMarker(map, mapLoaded, mode === 'map' ? userLocation : null);
+
   useSetWebcamMarkers(
     map,
     mapLoaded,
-    mode === 'map' ? moreWebcams : []
+    mode === 'map' ? sunsetWebcams : []
   );
+
   useFlyTo(
     map,
     mapLoaded,
@@ -82,7 +102,7 @@ export default function SimpleMap({ userLocation }: SimpleMapProps) {
             style={{ position: 'relative', zIndex: 1 }}
           >
             <GlobeMap
-              webcams={moreWebcams || []}
+              webcams={combinedWebcams || []}
               sunrise={sunrise}
               sunset={sunset}
               currentTime={currentTime}
@@ -146,7 +166,7 @@ export default function SimpleMap({ userLocation }: SimpleMapProps) {
         )}
       </div>
 
-      <WebcamConsole webcams={moreWebcams || []} />
+      <WebcamConsole webcams={sunsetWebcams || []} />
     </div>
   );
 }
