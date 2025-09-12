@@ -1,10 +1,10 @@
 import { useEffect, useState, useMemo, useRef } from 'react';
 import { subsolarPoint } from '../lib/subsolarLocation';
-import { splitTerminatorSunriseSunset } from '../lib/terminatorRing';
+import { createTerminatorRing } from '../lib/terminatorRing';
 import { makeTerminatorLayers } from '../lib/terminatorRingLineLayer';
 import { MapboxOverlay } from '@deck.gl/mapbox';
 
-export function useUpdateTimeAndTerminatorRing(
+export function useUpdateTerminatorRing(
   map: mapboxgl.Map | null,
   mapLoaded: boolean,
   options?: { attachToMap?: boolean }
@@ -41,14 +41,10 @@ export function useUpdateTimeAndTerminatorRing(
 
   const { sunriseCoords, sunsetCoords, sunrise, sunset } =
     useMemo(() => {
-      return splitTerminatorSunriseSunset(
-        currentTime,
-        raHours,
-        gmstHours
-      );
+      return createTerminatorRing(currentTime, raHours, gmstHours);
     }, [currentTime, raHours, gmstHours]);
 
-  const terminatorRingLineLayer = makeTerminatorLayers({
+  const sunSetRiseRingLineLayer = makeTerminatorLayers({
     sunrise,
     sunset,
   });
@@ -69,12 +65,12 @@ export function useUpdateTimeAndTerminatorRing(
     if (!overlayRef.current) {
       overlayRef.current = new MapboxOverlay({
         interleaved: true,
-        layers: terminatorRingLineLayer,
+        layers: sunSetRiseRingLineLayer,
       });
       map.addControl(overlayRef.current);
     } else {
       overlayRef.current.setProps({
-        layers: terminatorRingLineLayer,
+        layers: sunSetRiseRingLineLayer,
       });
     }
 
@@ -86,7 +82,7 @@ export function useUpdateTimeAndTerminatorRing(
         overlayRef.current = null;
       }
     };
-  }, [map, mapLoaded, attachToMap, terminatorRingLineLayer]);
+  }, [map, mapLoaded, attachToMap, sunSetRiseRingLineLayer]);
 
   return {
     currentTime,
@@ -95,6 +91,6 @@ export function useUpdateTimeAndTerminatorRing(
     sunsetCoords,
     sunrise,
     sunset,
-    terminatorRingLineLayer,
+    sunSetRiseRingLineLayer,
   };
 }

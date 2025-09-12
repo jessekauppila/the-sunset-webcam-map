@@ -6,13 +6,8 @@ import type { Location } from '../../../lib/types';
 import type { Feature, LineString } from 'geojson';
 
 // ---------- tiny math helpers ----------
-//const DEG = Math.PI / 180;
-//const RAD = 1 / DEG;
 const normHours = (h: number) => ((h % 24) + 24) % 24;
-//const normDeg = (d: number) =>
-// ((((d + 180) % 360) + 360) % 360) - 180;
 const normSignedHours = (h: number) => {
-  // Normalize to (-12, +12]
   const x = normHours(h);
   return x > 12 ? x - 24 : x;
 };
@@ -42,18 +37,21 @@ export function terminatorPolygon(
 /** Split the terminator ring into sunrise/sunset LineStrings.
  * Returns { sunrise, sunset } as GeoJSON LineStrings.
  */
-export function splitTerminatorSunriseSunset(
+export function createTerminatorRing(
   date: Date,
   RA: number,
   GMST: number
 ): {
   sunriseCoords: Location[];
   sunsetCoords: Location[];
+  allTerminatorCoords: Location[];
   sunrise: Feature<LineString>;
   sunset: Feature<LineString>;
+  entireTerminatorRing: Feature<LineString>;
 } {
   //const { raHours: RA, gmstHours: GMST } = subsolarPoint(date);
   const ring = terminatorPolygon(date).coordinates[0]; // [ [lon,lat], ... , first point repeats ]
+
   // We’ll traverse segments and allocate them into sunrise/sunset by HA sign.
   const sunriseCoords: Location[] = [];
   const sunsetCoords: Location[] = [];
@@ -104,7 +102,25 @@ export function splitTerminatorSunriseSunset(
     }
   }
 
+  // Convert ring to Location objects for consistency
+  const allTerminatorCoords: Location[] = ring.map((coord) => ({
+    lng: coord[0],
+    lat: coord[1],
+  }));
+
   // Build GeoJSON LineStrings
+  const entireTerminatorRing = {
+    type: 'Feature' as const,
+    properties: { type: 'entireTerminatorRing' as const },
+    geometry: {
+      type: 'LineString' as const,
+      coordinates: allTerminatorCoords.map((loc) => [
+        loc.lng,
+        loc.lat,
+      ]),
+    },
+  };
+
   const sunrise = {
     type: 'Feature' as const,
     properties: { type: 'sunrise' as const },
@@ -113,6 +129,7 @@ export function splitTerminatorSunriseSunset(
       coordinates: sunriseCoords.map((loc) => [loc.lng, loc.lat]), // Convert back for GeoJSON
     },
   };
+
   const sunset = {
     type: 'Feature' as const,
     properties: { type: 'sunset' as const },
@@ -122,5 +139,12 @@ export function splitTerminatorSunriseSunset(
     },
   };
 
-  return { sunriseCoords, sunsetCoords, sunrise, sunset };
+  return {
+    sunriseCoords,
+    sunsetCoords,
+    allTerminatorCoords,
+    sunrise,
+    sunset,
+    entireTerminatorRing,
+  };
 }

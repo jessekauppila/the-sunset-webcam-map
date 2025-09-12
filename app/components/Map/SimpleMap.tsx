@@ -7,7 +7,7 @@ import { useSetMarker } from './hooks/useSetMarker';
 import { useSetWebcamMarkers } from './hooks/useSetWebcamMarkers';
 import { WebcamConsole } from '../WebcamConsole';
 import { WebcamDisplay } from '../WebcamDisplay';
-import { useUpdateTimeAndTerminatorRing } from './hooks/useUpdateTimeAndTerminatorRing';
+import { useUpdateTerminatorRing } from './hooks/useUpdateTerminatorRing';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import type { Location, WindyWebcam } from '../../lib/types';
 import { useWebcamFetchArray } from '../hooks/useWebCamFetchArray';
@@ -28,7 +28,7 @@ export default function SimpleMap({ userLocation }: SimpleMapProps) {
 
   //this is used to get subsolar location as well as many more webcams...
   const { currentTime, sunsetCoords, sunrise, sunset } =
-    useUpdateTimeAndTerminatorRing(map, mapLoaded, {
+    useUpdateTerminatorRing(map, mapLoaded, {
       attachToMap: mode === 'map',
     });
 
