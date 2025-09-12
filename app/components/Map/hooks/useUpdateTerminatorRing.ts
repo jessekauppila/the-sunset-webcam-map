@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo, useRef } from 'react';
 import { subsolarPoint } from '../lib/subsolarLocation';
 import { createTerminatorRing } from '../lib/terminatorRing';
+import { createTerminatorRingHiRes } from '../lib/terminatorRingHiRes';
 import { makeTerminatorLayers } from '../lib/terminatorRingLineLayer';
 import { MapboxOverlay } from '@deck.gl/mapbox';
 
@@ -27,6 +28,10 @@ export function useUpdateTerminatorRing(
   const { lat, lng, raHours, gmstHours } = subsolarPoint(currentTime);
   const subsolarLocation = { lat, lng };
 
+  const { entireHiResTerminatorRing } = useMemo(() => {
+    return createTerminatorRingHiRes(currentTime);
+  }, [currentTime, raHours, gmstHours]);
+
   const {
     sunriseCoords,
     sunsetCoords,
@@ -42,6 +47,7 @@ export function useUpdateTerminatorRing(
     sunrise,
     sunset,
     entireTerminatorRing,
+    entireHiResTerminatorRing,
   });
 
   // Move overlay management here
@@ -88,6 +94,7 @@ export function useUpdateTerminatorRing(
     sunrise,
     sunset,
     entireTerminatorRing,
+    entireHiResTerminatorRing,
     sunSetRiseRingLineLayer,
   };
 }

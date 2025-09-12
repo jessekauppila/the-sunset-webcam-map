@@ -1,5 +1,3 @@
-// npm i solar-calculator d3-geo
-//import * as solar from "solar-calculator";
 import { geoCircle } from 'd3-geo';
 import { subsolarPoint } from './subsolarLocation';
 import type { Location } from '../../../lib/types';

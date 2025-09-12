@@ -8,6 +8,7 @@ export function makeTerminatorLayers(opts: {
   sunrise: LineStringFC;
   sunset: LineStringFC;
   entireTerminatorRing: LineStringFC;
+  entireHiResTerminatorRing: LineStringFC;
   sunriseColor?: [number, number, number, number];
   sunsetColor?: [number, number, number, number];
   terminatorColor?: [number, number, number, number];
@@ -17,6 +18,7 @@ export function makeTerminatorLayers(opts: {
     sunrise,
     sunset,
     entireTerminatorRing,
+    entireHiResTerminatorRing,
     sunriseColor = [120, 170, 255, 200], // blue-ish
     sunsetColor = [255, 170, 120, 200], // orange-ish
     terminatorColor = [187, 170, 120, 200],
@@ -36,9 +38,26 @@ export function makeTerminatorLayers(opts: {
     sunrise: getCoordLength(sunrise),
     sunset: getCoordLength(sunset),
     entireTerminatorRing: getCoordLength(entireTerminatorRing),
+    entireHiResTerminatorRing: getCoordLength(
+      entireHiResTerminatorRing
+    ),
   });
 
   const layers = [
+    new GeoJsonLayer({
+      id: 'entire-terminator',
+      data: entireHiResTerminatorRing,
+      stroked: true,
+      filled: false,
+      lineWidthMinPixels: lineWidth,
+      lineWidthMaxPixels: lineWidth * 2,
+      getLineColor: terminatorColor,
+      pickable: false,
+      updateTriggers: {
+        getLineColor: [terminatorColor],
+      },
+    }),
+
     new GeoJsonLayer({
       id: 'entire-terminator',
       data: entireTerminatorRing,
@@ -66,6 +85,7 @@ export function makeTerminatorLayers(opts: {
         getLineColor: [sunriseColor],
       },
     }),
+
     new GeoJsonLayer({
       id: 'terminator-sunset',
       data: sunset,

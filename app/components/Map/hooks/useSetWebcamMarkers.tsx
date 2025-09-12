@@ -17,7 +17,27 @@ export function useSetWebcamMarkers(
   const immediateBatchesLeftRef = useRef(INITIAL_IMMEDIATE_BATCHES);
 
   useEffect(() => {
-    if (!map || !mapLoaded) return;
+    console.log('🔍 useSetWebcamMarkers effect running:', {
+      hasMap: !!map,
+      mapLoaded,
+      webcamsCount: webcams.length,
+      mapType: typeof map,
+      mapConstructor: map?.constructor?.name
+    });
+
+    if (!map || !mapLoaded) {
+      console.log('⚠️ Skipping webcam markers - missing requirements:', {
+        hasMap: !!map,
+        mapLoaded,
+      });
+      return;
+    }
+
+    // Additional safety check to ensure map is a valid Mapbox map
+    if (!map || typeof (map as any).addTo !== 'function') {
+      console.error('❌ Map object is not a valid Mapbox map:', map);
+      return;
+    }
 
     // Clear any existing timeout
     if (timeoutRef.current) {

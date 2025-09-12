@@ -7,15 +7,29 @@ export function useFlyTo(
   location: Location | null
 ) {
   useEffect(() => {
+    console.log('🔍 useFlyTo effect running:', {
+      hasMap: !!map,
+      mapLoaded,
+      hasLocation: !!location,
+      mapType: typeof map,
+      mapConstructor: map?.constructor?.name
+    });
+
     if (!map || !mapLoaded || !location) {
       console.log(
-        '⚠️ Skipping marker setting - missing requirements:',
+        '⚠️ Skipping fly to - missing requirements:',
         {
           hasMap: !!map,
           mapLoaded,
-          haslocation: !!location,
+          hasLocation: !!location,
         }
       );
+      return;
+    }
+
+    // Additional safety check to ensure map is a valid Mapbox map
+    if (!map || typeof (map as any).flyTo !== 'function') {
+      console.error('❌ Map object is not a valid Mapbox map:', map);
       return;
     }
 
