@@ -20,6 +20,7 @@ import type { Location } from '../../lib/types';
 import { useCyclingWebcams } from './hooks/useCyclingWebcams';
 import { useCombineSunriseSunsetWebcams } from './hooks/useCombinedSunriseSunsetWebcams';
 import GlobeMap from './GlobeMap';
+import type { WindyWebcam } from '../../lib/types';
 
 interface SimpleMapProps {
   userLocation: Location;
