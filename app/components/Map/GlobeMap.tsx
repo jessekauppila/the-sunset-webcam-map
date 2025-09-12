@@ -151,8 +151,8 @@ export default function GlobeMap({
           const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
           const angularDistance = c * (180 / Math.PI); // Convert to degrees
 
-          // Hide webcams that are more than 120 degrees away
-          return angularDistance < 120;
+          //This controls the angle at which webcams on the other side of the world disappear
+          return angularDistance < 100;
         }),
         getIcon: (w) => {
           const fallback =
