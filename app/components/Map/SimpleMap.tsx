@@ -83,7 +83,7 @@ export default function SimpleMap({ userLocation }: SimpleMapProps) {
   useSetWebcamMarkers(
     map,
     mapLoaded,
-    mode === 'map' ? sunsetWebcams : []
+    mode === 'map' ? combinedWebcams : []
   );
 
   useFlyTo(
@@ -91,6 +91,7 @@ export default function SimpleMap({ userLocation }: SimpleMapProps) {
     mapLoaded,
     mode === 'map' ? nextLatitudeNorthSunsetLocation ?? null : null
   );
+
   return (
     <div>
       {/* First Section - Full Screen Map */}
