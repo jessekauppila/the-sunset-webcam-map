@@ -24,29 +24,28 @@ export function WebcamConsole({
               key={webcam.webcamId}
               className="bg-white p-3 rounded border"
             >
-              <h4 className="font-semibold text-sm mb-1">
+              <h4 className="font-semibold text-gray-900 text-sm mb-1">
                 {webcam.title}
               </h4>
 
               {/* Location Info */}
-              <p className="text-xs text-gray-600 mb-1">
-                📍 {webcam.location?.city}, {webcam.location?.region}{' '}
+              <p className="webcam-console-details">
+                {webcam.location?.city}, {webcam.location?.region}{' '}
                 {webcam.location?.country}
               </p>
 
               {/* Views and Status */}
-              <p className="text-xs text-gray-600">
-                📊 Views:{' '}
-                {webcam.viewCount?.toLocaleString() || 'N/A'}
+              <p className="webcam-console-details">
+                Views: {webcam.viewCount?.toLocaleString() || 'N/A'}
               </p>
-              <p className="text-xs text-gray-500">
-                🎥 Status: {webcam.status || 'Unknown'}
+              <p className="webcam-console-details">
+                Status: {webcam.status || 'Unknown'}
               </p>
 
               {/* Categories */}
               {webcam.categories && webcam.categories.length > 0 && (
-                <p className="text-xs text-blue-600">
-                  🏷️{' '}
+                <p className="webcam-console-details">
+                  {' '}
                   {webcam.categories
                     .map((cat) => cat.name)
                     .join(', ')}
@@ -54,8 +53,8 @@ export function WebcamConsole({
               )}
 
               {/* Last Updated */}
-              <p className="text-xs text-gray-400">
-                🕒 Updated:{' '}
+              <p className="webcam-console-details">
+                Updated:{' '}
                 {webcam.lastUpdatedOn
                   ? new Date(
                       webcam.lastUpdatedOn
@@ -64,7 +63,7 @@ export function WebcamConsole({
               </p>
 
               {/* ID */}
-              <p className="text-xs text-gray-400">
+              <p className="webcam-console-details">
                 ID: {webcam.webcamId}
               </p>
 

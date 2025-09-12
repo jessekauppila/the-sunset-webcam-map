@@ -68,3 +68,8 @@ body {
 .mode-toggle-btn.inactive {
   @apply bg-gray-700 text-gray-900;
 }
+
+/* Terminator ring styling */
+.webcam-console-details {
+  @apply text-xs text-gray-500;
+}
