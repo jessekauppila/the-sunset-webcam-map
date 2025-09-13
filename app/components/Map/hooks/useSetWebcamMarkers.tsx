@@ -22,20 +22,17 @@ export function useSetWebcamMarkers(
       mapLoaded,
       webcamsCount: webcams.length,
       mapType: typeof map,
-      mapConstructor: map?.constructor?.name
+      mapConstructor: map?.constructor?.name,
     });
 
     if (!map || !mapLoaded) {
-      console.log('⚠️ Skipping webcam markers - missing requirements:', {
-        hasMap: !!map,
-        mapLoaded,
-      });
-      return;
-    }
-
-    // Additional safety check to ensure map is a valid Mapbox map
-    if (!map || typeof (map as any).addTo !== 'function') {
-      console.error('❌ Map object is not a valid Mapbox map:', map);
+      console.log(
+        '⚠️ Skipping webcam markers - missing requirements:',
+        {
+          hasMap: !!map,
+          mapLoaded,
+        }
+      );
       return;
     }
 

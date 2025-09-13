@@ -12,24 +12,15 @@ export function useFlyTo(
       mapLoaded,
       hasLocation: !!location,
       mapType: typeof map,
-      mapConstructor: map?.constructor?.name
+      mapConstructor: map?.constructor?.name,
     });
 
     if (!map || !mapLoaded || !location) {
-      console.log(
-        '⚠️ Skipping fly to - missing requirements:',
-        {
-          hasMap: !!map,
-          mapLoaded,
-          hasLocation: !!location,
-        }
-      );
-      return;
-    }
-
-    // Additional safety check to ensure map is a valid Mapbox map
-    if (!map || typeof (map as any).flyTo !== 'function') {
-      console.error('❌ Map object is not a valid Mapbox map:', map);
+      console.log('⚠️ Skipping fly to - missing requirements:', {
+        hasMap: !!map,
+        mapLoaded,
+        hasLocation: !!location,
+      });
       return;
     }
 
