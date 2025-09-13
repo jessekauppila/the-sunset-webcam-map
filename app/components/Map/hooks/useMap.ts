@@ -2,23 +2,48 @@ import { useEffect, useRef, useState } from 'react';
 import type { Location } from '../../../lib/types';
 import mapboxgl from 'mapbox-gl';
 
-export function useMap(
-  userLocation: Location,
-  enabled: boolean = true
-) {
+export function useMap(userLocation: Location, enabled: boolean = true) {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
   const [mapLoaded, setMapLoaded] = useState(false);
-  const [mapReady, setMapReady] = useState(false); // New state
+  const [mapReady, setMapReady] = useState(false);
 
   // Set Mapbox token
   mapboxgl.accessToken =
     process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN || '';
 
+  // Function to calculate sun position and update map lighting
+  const updateSunLighting = (date: Date = new Date()) => {
+    if (!map.current || !map.current.isStyleLoaded()) return;
+
+    // Calculate sun position (simplified - you can use a more accurate calculation)
+    const sunPosition = calculateSunPosition(date);
+    
+    // Update the map's light source
+    map.current.setLight({
+      anchor: 'map',
+      color: '#ffffff',
+      intensity: 1,
+      position: sunPosition,
+    });
+  };
+
+  // Simple sun position calculation (you can make this more accurate)
+  const calculateSunPosition = (date: Date) => {
+    consconds
+ const dayOfYear = Math.floor((date.getTime()   // Simplified sun position calculation
+    const declination = 23.45 * Math.sin((284 + dayOfYear) * Math.PI / 180);
+    const hourAngle = (time % 86400) / 3600 - 12; // Hours from noon
+    
+    const lat = declination;
+    const lng = hourAngle * 15; // Convert hours to degrees
+    
+    return [lng, lat, 1]; // [longitude, latitude, altitude]
+  };
+
   // Initialize map
   useEffect(() => {
     if (!enabled) {
-      // Clean up existing map when disabled
       if (map.current) {
         console.log('🧹 Cleaning up map (disabled)...');
         map.current.remove();
@@ -41,7 +66,6 @@ export function useMap(
     map.current = new mapboxgl.Map({
       container: mapContainer.current,
       style: 'mapbox://styles/mapbox/dark-v11',
-      // style: 'mapbox://styles/mapbox/satellite-v9',
       center: [userLocation.lng, userLocation.lat],
       zoom: 6,
     });
@@ -49,11 +73,17 @@ export function useMap(
     map.current.on('load', () => {
       console.log('✅ Map loaded successfully!');
       setMapLoaded(true);
+      
+      // Set initial sun lighting
+      updateSunLighting();
     });
 
     map.current.on('style.load', () => {
       console.log('✅ Map style loaded!');
-      setMapReady(true); // Map is fully ready
+      setMapReady(true);
+      
+      // Update sun lighting when style loads
+      updateSunLighting();
     });
 
     map.current.on('error', (e) => {
@@ -72,11 +102,17 @@ export function useMap(
     };
   }, [userLocation, enabled]);
 
+  // Function to update sun lighting (can be called from parent components)
+  const updateSunPosition = (date: Date) => {
+    updateSunLighting(date);
+  };
+
   return {
     mapContainer,
     map: map.current,
     mapLoaded,
     mapReady,
     hasToken: !!mapboxgl.accessToken,
+    updateSunPosition, // Export this function
   };
 }
