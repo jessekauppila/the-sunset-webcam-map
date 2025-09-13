@@ -45,12 +45,13 @@ export function createWebcamPopupContent(
 
   if (hasImage) {
     return `
+    <div style="width: 200px; background: #374151; border-radius: 2px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.3);">
         <!-- Image Section -->
-        <div style="position: relative; width: 100%; height: 120px; overflow: hidden;">
+        <div style="position: relative; width: 100%; height: 120px; padding: 8px; overflow: hidden;">
           <img 
             src="${webcam.images!.current!.preview}" 
             alt="${webcam.title}" 
-            style="width: 100%; height: 100%; object-fit: cover; transition: opacity 0.3s ease;" 
+            style="width: 100%; height: 100%; object-fit: contain; transition: opacity 0.3s ease;" 
             crossorigin="anonymous"
             onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';"
           />
@@ -60,54 +61,36 @@ export function createWebcamPopupContent(
         </div>
         
         <!-- Details Section -->
-        <div style="padding: 12px;">
+        <div style="padding: 12px; background: #374151;">
           <!-- Title -->
-          <h3 style="margin: 0 0 8px 0; font-size: 14px; font-weight: 600; color: #1f2937; line-height: 1.3;">
+          <h3 style="margin: 0 0 8px 0; font-size: 14px; font-weight: 600; color: #f9fafb; line-height: 1;">
             ${webcam.title}
           </h3>
           
           <!-- Location -->
-          <p style="margin: 0 0 6px 0; font-size: 11px; color: #6b7280;">
-            📍 ${formatLocation()}
+          <p style="margin: 0 0 6px 0; font-size: 11px; color: #d1d5db;line-height: 1;">
+            ${formatLocation()}
           </p>
-          
-          <!-- Views and Status -->
-          <p style="margin: 0 0 4px 0; font-size: 11px; color: #6b7280;">
-            📊 Views: ${webcam.viewCount?.toLocaleString() || 'N/A'}
-          </p>
-          <p style="margin: 0 0 6px 0; font-size: 11px; color: #9ca3af;">
-            🎥 Status: ${webcam.status || 'Unknown'}
-          </p>
-          
-          <!-- Categories -->
-          ${
-            formatCategories()
-              ? `
-            <p style="margin: 0 0 6px 0; font-size: 11px; color: #2563eb;">
-              🏷️ ${formatCategories()}
-            </p>
-          `
-              : ''
-          }
           
           <!-- Last Updated -->
-          <p style="margin: 0 0 4px 0; font-size: 10px; color: #9ca3af;">
-            🕒 Updated: ${formatLastUpdated()}
+          <p style="margin: 0 0 4px 0; font-size: 10px; color: #9ca3af;line-height: 1;">
+            Updated: ${formatLastUpdated()}
           </p>
           
           <!-- ID -->
-          <p style="margin: 0; font-size: 10px; color: #9ca3af;">
+          <p style="margin: 0; font-size: 10px; color: #9ca3af;line-height: 1;">
             ID: ${webcam.webcamId}
           </p>
         </div>
+    </div>
     `;
   }
 
   return `
-    <div style="width: 280px; background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
+    <div style="width: 200px; background: #374151; border-radius: 6px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.3);">
       <!-- Image Section -->
-      <div style="position: relative; width: 100%; height: 160px; overflow: hidden;">
-        <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(135deg, #ff6b35, #f7931e); display: flex; align-items: center; justify-content: center; font-size: 48px; color: white;">
+      <div style="position: relative; width: 100%; height: 160px; padding: 8px; overflow: hidden;">
+        <div style="position: absolute; top: 8px; left: 8px; right: 8px; bottom: 8px; background: linear-gradient(135deg, #ff6b35, #f7931e); display: flex; align-items: center; justify-content: center; font-size: 48px; color: white; border-radius: 4px;">
           🌅
         </div>
       </div>
@@ -115,41 +98,22 @@ export function createWebcamPopupContent(
       <!-- Details Section -->
       <div style="padding: 12px;">
         <!-- Title -->
-        <h3 style="margin: 0 0 8px 0; font-size: 14px; font-weight: 600; color: #1f2937; line-height: 1.3;">
+        <h3 style="margin: 0 0 8px 0; font-size: 14px; font-weight: 600; color: #f9fafb; line-height: 1;">
           ${webcam.title}
         </h3>
         
         <!-- Location -->
-        <p style="margin: 0 0 6px 0; font-size: 11px; color: #6b7280;">
-          📍 ${formatLocation()}
+        <p style="margin: 0 0 6px 0; font-size: 11px; color: #d1d5db;line-height: 1;">
+          ${formatLocation()}
         </p>
-        
-        <!-- Views and Status -->
-        <p style="margin: 0 0 4px 0; font-size: 11px; color: #6b7280;">
-          📊 Views: ${webcam.viewCount?.toLocaleString() || 'N/A'}
-        </p>
-        <p style="margin: 0 0 6px 0; font-size: 11px; color: #9ca3af;">
-          🎥 Status: ${webcam.status || 'Unknown'}
-        </p>
-        
-        <!-- Categories -->
-        ${
-          formatCategories()
-            ? `
-          <p style="margin: 0 0 6px 0; font-size: 11px; color: #2563eb;">
-            🏷️ ${formatCategories()}
-          </p>
-        `
-            : ''
-        }
         
         <!-- Last Updated -->
-        <p style="margin: 0 0 4px 0; font-size: 10px; color: #9ca3af;">
-          🕒 Updated: ${formatLastUpdated()}
+        <p style="margin: 0 0 4px 0; font-size: 10px; color: #9ca3af;line-height: 1;">
+          Updated: ${formatLastUpdated()}
         </p>
         
         <!-- ID -->
-        <p style="margin: 0; font-size: 10px; color: #9ca3af;">
+        <p style="margin: 0; font-size: 10px; color: #9ca3af;line-height: 1;">
           ID: ${webcam.webcamId}
         </p>
       </div>

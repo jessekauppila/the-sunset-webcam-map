@@ -90,10 +90,11 @@ export function useSetWebcamMarkers(
           markerElement.textContent = '🌅';
         }
 
-        // Create POPUP
-        const popup = new mapboxgl.Popup({ offset: 25 }).setHTML(
-          createWebcamPopupContent(webcam)
-        );
+        // Create POPUP with dark gray styling
+        const popup = new mapboxgl.Popup({
+          offset: 25,
+          className: 'custom-popup',
+        }).setHTML(createWebcamPopupContent(webcam));
 
         const marker = new mapboxgl.Marker(markerElement)
           .setLngLat([
@@ -191,10 +192,11 @@ export function useSetWebcamMarkers(
           markerElement.textContent = '🌅';
         }
 
-        // Create popup
-        const popup = new mapboxgl.Popup({ offset: 25 }).setHTML(
-          createWebcamPopupContent(webcam)
-        );
+        // Create popup with dark gray styling
+        const popup = new mapboxgl.Popup({
+          offset: 25,
+          className: 'custom-popup',
+        }).setHTML(createWebcamPopupContent(webcam));
 
         const marker = new mapboxgl.Marker(markerElement)
           .setLngLat([

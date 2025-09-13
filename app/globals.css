@@ -3,6 +3,7 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  --popup-bg: #374151;
 }
 
 @theme inline {
@@ -35,21 +36,39 @@ body {
   @apply overflow-hidden mb-15 relative shadow-xl;
 }
 
+/* Custom popup styling */
+.custom-popup .mapboxgl-popup-content {
+  background: var(--popup-bg) !important; /* Dark gray background */
+  border-radius: 12px !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3) !important;
+  padding: 0 !important;
+  border: none !important;
+}
+
+.custom-popup .mapboxgl-popup-tip {
+  border-top-color: var(
+    --popup-bg
+  ) !important; /* Dark gray arrow pointing down */
+  border-bottom-color: var(
+    --popup-bg
+  ) !important; /* Dark gray arrow pointing up */
+}
+
 /* Mapbox popup close button styling */
 .mapboxgl-popup-close-button {
-  color: #374151 !important; /* Darker gray color */
-  font-size: 12px !important;
+  color: #9e9e9e !important; /* Light gray color for dark background */
+  font-size: 10px !important;
   font-weight: bold !important;
   opacity: 0.8 !important;
   transition: opacity 0.2s ease !important;
-  top: -6px !important; /* Move closer to top */
-  right: 2px !important; /* Move closer to right corner */
+  top: -8px !important; /* Move closer to top */
+  right: 1px !important; /* Move closer to right corner */
   padding: 1px !important; /* Reduce padding for tighter positioning */
 }
 
 .mapboxgl-popup-close-button:hover {
   opacity: 1 !important;
-  color: #1f2937 !important; /* Even darker on hover */
+  color: #5b5b5b !important; /* Even lighter on hover */
 }
 
 /* Mode toggle buttons */
