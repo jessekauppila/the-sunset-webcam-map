@@ -43,8 +43,8 @@ interface GlobeMapProps {
 
 export default function GlobeMap({
   webcams,
-  sunrise,
-  sunset,
+  // sunrise,
+  // sunset,
   currentTime,
   initialViewState = { longitude: 0, latitude: 20, zoom: 0 },
   targetLocation = null,
@@ -98,29 +98,29 @@ export default function GlobeMap({
     []
   );
 
-  const terminatorLayers = useMemo(
-    () => [
-      new GeoJsonLayer({
-        id: 'terminator-sunrise',
-        data: sunrise,
-        stroked: true,
-        filled: false,
-        lineWidthMinPixels: 2,
-        getLineColor: [120, 170, 255, 200],
-        pickable: false,
-      }),
-      new GeoJsonLayer({
-        id: 'terminator-sunset',
-        data: sunset,
-        stroked: true,
-        filled: false,
-        lineWidthMinPixels: 2,
-        getLineColor: [255, 170, 120, 200],
-        pickable: false,
-      }),
-    ],
-    [sunrise, sunset]
-  );
+  // const terminatorLayers = useMemo(
+  //   () => [
+  //     new GeoJsonLayer({
+  //       id: 'terminator-sunrise',
+  //       data: sunrise,
+  //       stroked: true,
+  //       filled: false,
+  //       lineWidthMinPixels: 2,
+  //       getLineColor: [120, 170, 255, 200],
+  //       pickable: false,
+  //     }),
+  //     new GeoJsonLayer({
+  //       id: 'terminator-sunset',
+  //       data: sunset,
+  //       stroked: true,
+  //       filled: false,
+  //       lineWidthMinPixels: 2,
+  //       getLineColor: [255, 170, 120, 200],
+  //       pickable: false,
+  //     }),
+  //   ],
+  //   [sunrise, sunset]
+  // );
 
   const webcamLayer = useMemo(
     () =>

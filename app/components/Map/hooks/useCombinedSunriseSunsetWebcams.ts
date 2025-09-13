@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import type { WindyWebcam, Location } from '../../../lib/types';
+import type { Location } from '../../../lib/types';
 import { useWebcamFetchArray } from '../../hooks/useWebCamFetchArray';
 
 export function useCombineSunriseSunsetWebcams(

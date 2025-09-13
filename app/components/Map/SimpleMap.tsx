@@ -18,7 +18,7 @@ import { useFlyTo } from './hooks/useFlyTo';
 import { useSetMarker } from './hooks/useSetMarker';
 import { useSetWebcamMarkers } from './hooks/useSetWebcamMarkers';
 import { WebcamConsole } from '../WebcamConsole';
-import { WebcamDisplay } from '../WebcamDisplay';
+// import { WebcamDisplay } from '../WebcamDisplay';
 import { useUpdateTerminatorRing } from './hooks/useUpdateTerminatorRing';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import type { Location } from '../../lib/types';
@@ -51,7 +51,7 @@ export default function SimpleMap({ userLocation }: SimpleMapProps) {
   const {
     sunsetCoords,
     sunriseCoords,
-    allTerminatorCoords,
+    // allTerminatorCoords,
     sunrise,
     sunset,
   } = useUpdateTerminatorRing(map, mapLoaded, currentTime, {
@@ -62,7 +62,7 @@ export default function SimpleMap({ userLocation }: SimpleMapProps) {
     combinedWebcams,
     sunriseWebcams,
     sunsetWebcams,
-    isLoading: webcamsLoading,
+    // isLoading: webcamsLoading,
     sunriseCount,
     sunsetCount,
   } = useCombineSunriseSunsetWebcams(sunriseCoords, sunsetCoords);

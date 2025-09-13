@@ -113,9 +113,9 @@ export function useMap(
   }, [userLocation, enabled]);
 
   // Function to update sun lighting (can be called from parent components)
-  const updateSunPosition = (date: Date) => {
-    updateSunLighting(date);
-  };
+  // const updateSunPosition = (date: Date) => {
+  //   updateSunLighting(date);
+  // };
 
   return {
     mapContainer,
@@ -123,6 +123,6 @@ export function useMap(
     mapLoaded,
     mapReady,
     hasToken: !!mapboxgl.accessToken,
-    updateSunPosition, // Export this function
+    // updateSunPosition, // Export this function
   };
 }

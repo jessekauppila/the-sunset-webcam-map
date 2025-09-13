@@ -4,12 +4,17 @@ import { useEffect, useRef } from 'react';
 import type { WindyWebcam } from '../../../lib/types';
 import { createWebcamPopupContent } from '../lib/webcamPopup';
 
+type MarkerInstance = {
+  remove: () => void;
+  getElement: () => HTMLElement;
+};
+
 export function useSetWebcamMarkers(
-  map: any, // Use any to avoid SSR issues with mapboxgl types
+  map: mapboxgl.Map | null, // Use any to avoid SSR issues with mapboxgl types
   mapLoaded: boolean,
   webcams: WindyWebcam[]
 ) {
-  const markersRef = useRef<Map<number, any>>(new Map());
+  const markersRef = useRef<Map<number, MarkerInstance>>(new Map());
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   //const firstBatchAppliedRef = useRef(false);
   const INITIAL_IMMEDIATE_BATCHES = 17; // or pass this in from caller later

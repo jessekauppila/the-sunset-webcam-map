@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import type { Location } from '../../../lib/types';
 
 export function useFlyTo(
-  map: any, // Use any to avoid SSR issues with mapboxgl types
+  map: mapboxgl.Map | null,
   mapLoaded: boolean,
   location: Location | null
 ) {
