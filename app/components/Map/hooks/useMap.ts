@@ -2,7 +2,10 @@ import { useEffect, useRef, useState } from 'react';
 import type { Location } from '../../../lib/types';
 import mapboxgl from 'mapbox-gl';
 
-export function useMap(userLocation: Location, enabled: boolean = true) {
+export function useMap(
+  userLocation: Location,
+  enabled: boolean = true
+) {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
   const [mapLoaded, setMapLoaded] = useState(false);
@@ -18,7 +21,7 @@ export function useMap(userLocation: Location, enabled: boolean = true) {
 
     // Calculate sun position (simplified - you can use a more accurate calculation)
     const sunPosition = calculateSunPosition(date);
-    
+
     // Update the map's light source
     map.current.setLight({
       anchor: 'map',
@@ -30,15 +33,22 @@ export function useMap(userLocation: Location, enabled: boolean = true) {
 
   // Simple sun position calculation (you can make this more accurate)
   const calculateSunPosition = (date: Date) => {
-    consconds
- const dayOfYear = Math.floor((date.getTime()   // Simplified sun position calculation
-    const declination = 23.45 * Math.sin((284 + dayOfYear) * Math.PI / 180);
+    const time = date.getTime() / 1000; // Convert to seconds
+    const dayOfYear = Math.floor(
+      (date.getTime() -
+        new Date(date.getFullYear(), 0, 0).getTime()) /
+        86400000
+    );
+
+    // Simplified sun position calculation
+    const declination =
+      23.45 * Math.sin(((284 + dayOfYear) * Math.PI) / 180);
     const hourAngle = (time % 86400) / 3600 - 12; // Hours from noon
-    
+
     const lat = declination;
     const lng = hourAngle * 15; // Convert hours to degrees
-    
-    return [lng, lat, 1]; // [longitude, latitude, altitude]
+
+    return [lng, lat, 1] as [number, number, number]; // [longitude, latitude, altitude]
   };
 
   // Initialize map
@@ -73,7 +83,7 @@ export function useMap(userLocation: Location, enabled: boolean = true) {
     map.current.on('load', () => {
       console.log('✅ Map loaded successfully!');
       setMapLoaded(true);
-      
+
       // Set initial sun lighting
       updateSunLighting();
     });
@@ -81,7 +91,7 @@ export function useMap(userLocation: Location, enabled: boolean = true) {
     map.current.on('style.load', () => {
       console.log('✅ Map style loaded!');
       setMapReady(true);
-      
+
       // Update sun lighting when style loads
       updateSunLighting();
     });

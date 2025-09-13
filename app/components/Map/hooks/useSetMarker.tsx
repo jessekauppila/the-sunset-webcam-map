@@ -1,14 +1,16 @@
 // Add a marker at sunset location
 import type { Location } from '../../../lib/types';
-import mapboxgl from 'mapbox-gl';
 import { useEffect } from 'react';
 
 export function useSetMarker(
-  map: mapboxgl.Map | null,
+  map: any, // Use any to avoid SSR issues with mapboxgl types
   mapLoaded: boolean,
   location: Location | null
 ) {
   useEffect(() => {
+    // Only run on client side
+    if (typeof window === 'undefined') return;
+
     console.log('🔍 useSetMarker effect running:', {
       hasMap: !!map,
       mapLoaded,
@@ -32,22 +34,25 @@ export function useSetMarker(
       return;
     }
 
-    try {
-      console.log('✅ Creating marker for location:', location);
-      // Create a default Marker and add it to the map.
-      const marker = new mapboxgl.Marker()
-        .setLngLat([location.lng, location.lat])
-        .addTo(map);
+    // Dynamic import to avoid SSR issues
+    import('mapbox-gl').then((mapboxgl) => {
+      try {
+        console.log('✅ Creating marker for location:', location);
+        // Create a default Marker and add it to the map.
+        const marker = new mapboxgl.default.Marker()
+          .setLngLat([location.lng, location.lat])
+          .addTo(map);
 
-      console.log('✅ Marker created and added successfully');
+        console.log('✅ Marker created and added successfully');
 
-      return () => {
-        if (marker) {
-          console.log('🧹 Removing marker');
-          marker.remove();
-        }
-      };
-    } catch (error) {
-      console.error('❌ Error creating marker:', error);
-    }
+        return () => {
+          if (marker) {
+            console.log('🧹 Removing marker');
+            marker.remove();
+          }
+        };
+      } catch (error) {
+        console.error('❌ Error creating marker:', error);
+      }
+    });
   }, [map, mapLoaded, location]);

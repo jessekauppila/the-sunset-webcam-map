@@ -2,11 +2,14 @@ import { useEffect } from 'react';
 import type { Location } from '../../../lib/types';
 
 export function useFlyTo(
-  map: mapboxgl.Map | null,
+  map: any, // Use any to avoid SSR issues with mapboxgl types
   mapLoaded: boolean,
   location: Location | null
 ) {
   useEffect(() => {
+    // Only run on client side
+    if (typeof window === 'undefined') return;
+
     console.log('🔍 useFlyTo effect running:', {
       hasMap: !!map,
       mapLoaded,
