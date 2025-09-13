@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Drawer, IconButton, Box, Typography } from '@mui/material';
 import {
   KeyboardArrowUp,
@@ -29,19 +29,25 @@ interface SimpleMapProps {
 export default function SimpleMap({ userLocation }: SimpleMapProps) {
   const [mode, setMode] = useState<'map' | 'globe'>('globe');
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [currentTime, setCurrentTime] = useState(new Date());
+
+  useEffect(() => {
+    const id = setInterval(() => setCurrentTime(new Date()), 60_000);
+    return () => clearInterval(id);
+  }, []);
+
   const { mapContainer, map, mapLoaded } = useMap(
     userLocation,
     mode === 'map'
   );
 
   const {
-    currentTime,
     sunsetCoords,
     sunriseCoords,
     allTerminatorCoords,
     sunrise,
     sunset,
-  } = useUpdateTerminatorRing(map, mapLoaded, {
+  } = useUpdateTerminatorRing(map, mapLoaded, currentTime, {
     attachToMap: mode === 'map',
   });
 

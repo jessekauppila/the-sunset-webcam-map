@@ -50,7 +50,7 @@ export default function GlobeMap({
   targetLocation = null,
 }: GlobeMapProps) {
   // Sync lighting with current time
-  sunLight.timestamp = currentTime;
+  sunLight.timestamp = currentTime.getTime();
 
   const [viewState, setViewState] =
     useState<GlobeViewState>(initialViewState);

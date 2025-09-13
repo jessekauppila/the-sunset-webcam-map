@@ -14,8 +14,11 @@ export function useUpdateTerminatorRing(
   const overlayRef = useRef<MapboxOverlay | null>(null);
   const attachToMap = options?.attachToMap ?? true;
 
-  const { lat, lng, raHours, gmstHours } = subsolarPoint(currentTime);
-  const subsolarLocation = { lat, lng };
+  const { lat, lng, raHours, gmstHours } = useMemo(() => {
+    return subsolarPoint(currentTime);
+  }, [currentTime]);
+
+  const subsolarLocation = useMemo(() => ({ lat, lng }), [lat, lng]);
 
   const { entireHiResTerminatorRing } = useMemo(() => {
     return createTerminatorRingHiRes(currentTime);
@@ -31,6 +34,27 @@ export function useUpdateTerminatorRing(
   } = useMemo(() => {
     return createTerminatorRing(currentTime, raHours, gmstHours);
   }, [currentTime, raHours, gmstHours]);
+
+  // Memoize the coordinate arrays to prevent unnecessary re-renders
+  // Create a stable key based on the actual content
+  const sunriseKey = useMemo(
+    () => sunriseCoords.map((c) => `${c.lat},${c.lng}`).join('|'),
+    [sunriseCoords]
+  );
+
+  const sunsetKey = useMemo(
+    () => sunsetCoords.map((c) => `${c.lat},${c.lng}`).join('|'),
+    [sunsetCoords]
+  );
+
+  const memoizedSunriseCoords = useMemo(
+    () => sunriseCoords,
+    [sunriseKey]
+  );
+  const memoizedSunsetCoords = useMemo(
+    () => sunsetCoords,
+    [sunsetKey]
+  );
 
   const sunSetRiseRingLineLayer = makeTerminatorLayers({
     sunrise,
@@ -76,8 +100,8 @@ export function useUpdateTerminatorRing(
 
   return {
     subsolarLocation,
-    sunriseCoords,
-    sunsetCoords,
+    sunriseCoords: memoizedSunriseCoords,
+    sunsetCoords: memoizedSunsetCoords,
     allTerminatorCoords,
     sunrise,
     sunset,
