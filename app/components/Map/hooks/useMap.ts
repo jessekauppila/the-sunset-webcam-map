@@ -40,7 +40,8 @@ export function useMap(
 
     map.current = new mapboxgl.Map({
       container: mapContainer.current,
-      style: 'mapbox://styles/mapbox/satellite-v9',
+      style: 'mapbox://styles/mapbox/dark-v11',
+      // style: 'mapbox://styles/mapbox/satellite-v9',
       center: [userLocation.lng, userLocation.lat],
       zoom: 6,
     });
