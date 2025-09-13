@@ -1,7 +1,14 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Drawer, IconButton, Box, Typography } from '@mui/material';
+import {
+  Drawer,
+  IconButton,
+  Box,
+  Typography,
+  ToggleButton,
+  ToggleButtonGroup,
+} from '@mui/material';
 import {
   KeyboardArrowUp,
   KeyboardArrowDown,
@@ -27,7 +34,7 @@ interface SimpleMapProps {
 }
 
 export default function SimpleMap({ userLocation }: SimpleMapProps) {
-  const [mode, setMode] = useState<'map' | 'globe'>('globe');
+  const [mode, setMode] = useState<'map' | 'globe'>('map');
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
 
@@ -141,27 +148,45 @@ export default function SimpleMap({ userLocation }: SimpleMapProps) {
           )}
 
           {/* Mode Toggle */}
-          <div
-            className="absolute top-2 right-2 flex gap-2"
-            style={{ zIndex: 3 }}
+          <Box
+            sx={{
+              position: 'absolute',
+              top: 16,
+              right: 16,
+              zIndex: 3,
+            }}
           >
-            <button
-              onClick={() => setMode('map')}
-              className={`mode-toggle-btn ${
-                mode === 'map' ? 'active' : 'inactive'
-              }`}
+            <ToggleButtonGroup
+              value={mode}
+              exclusive
+              onChange={(_, newMode) => {
+                if (newMode !== null) {
+                  setMode(newMode);
+                }
+              }}
+              size="small"
+              sx={{
+                backgroundColor: 'rgba(0, 0, 0, 0.7)',
+                '& .MuiToggleButton-root': {
+                  color: 'white',
+                  borderColor: 'rgba(255, 255, 255, 0.3)',
+                  '&.Mui-selected': {
+                    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                    color: 'white',
+                    '&:hover': {
+                      backgroundColor: 'rgba(255, 255, 255, 0.3)',
+                    },
+                  },
+                  '&:hover': {
+                    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                  },
+                },
+              }}
             >
-              2D Map
-            </button>
-            <button
-              onClick={() => setMode('globe')}
-              className={`mode-toggle-btn ${
-                mode === 'globe' ? 'active' : 'inactive'
-              }`}
-            >
-              3D Globe
-            </button>
-          </div>
+              <ToggleButton value="map">Mapbox</ToggleButton>
+              <ToggleButton value="globe">DeckGL</ToggleButton>
+            </ToggleButtonGroup>
+          </Box>
 
           {/* Drawer Toggle Button */}
           <IconButton
@@ -224,15 +249,20 @@ export default function SimpleMap({ userLocation }: SimpleMapProps) {
           </Box>
 
           {/* Webcam Consoles */}
-          <Box sx={{ mb: 4 }}>
-            <WebcamConsole webcams={sunsetWebcams || []} />
-          </Box>
+          <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+            <Box sx={{ flex: 1, minWidth: 300 }}>
+              <Typography variant="h6" sx={{ color: 'white', mb: 2 }}>
+                Sunset Webcams
+              </Typography>
+              <WebcamConsole webcams={sunsetWebcams || []} />
+            </Box>
 
-          <Box>
-            <Typography variant="h6" sx={{ color: 'white', mb: 2 }}>
-              Sunrise Webcams
-            </Typography>
-            <WebcamConsole webcams={sunriseWebcams || []} />
+            <Box sx={{ flex: 1, minWidth: 300 }}>
+              <Typography variant="h6" sx={{ color: 'white', mb: 2 }}>
+                Sunrise Webcams
+              </Typography>
+              <WebcamConsole webcams={sunriseWebcams || []} />
+            </Box>
           </Box>
         </Box>
       </Drawer>
