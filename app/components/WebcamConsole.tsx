@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import type { WindyWebcam } from '@/app/lib/types';
 
 export function WebcamConsole({
@@ -69,10 +70,13 @@ export function WebcamConsole({
 
               {/* Webcam Image */}
               {webcam.images?.current?.preview && (
-                <img
+                <Image
                   src={webcam.images.current.preview}
                   alt={webcam.title}
+                  width={400}
+                  height={192}
                   className="w-full h-48 object-contain rounded mt-2"
+                  unoptimized
                 />
               )}
             </div>

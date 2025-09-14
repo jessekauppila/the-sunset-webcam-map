@@ -3,13 +3,13 @@ import type { Location } from '../../../lib/types';
 import { useEffect } from 'react';
 
 type MapInstance = {
-  addTo: (map: unknown) => unknown;
-  remove: () => void;
+  isStyleLoaded?: () => boolean;
+  getContainer?: () => HTMLElement | null;
 };
 
 export function useSetMarker(
   map: MapInstance | null,
-  mapLoaded: boolean,
+  mapReady: boolean,
   location: Location | null
 ) {
   useEffect(() => {
@@ -18,27 +18,31 @@ export function useSetMarker(
 
     console.log('🔍 useSetMarker effect running:', {
       hasMap: !!map,
-      mapLoaded,
+      mapReady,
       hasLocation: !!location,
       locationType: typeof location,
       locationKeys: location ? Object.keys(location) : 'null',
       locationValue: location,
+      mapType: typeof map,
+      mapConstructor: map?.constructor?.name,
+      mapKeys: map ? Object.keys(map) : 'null',
     });
 
     // More robust validation
     if (
       !map ||
-      !mapLoaded ||
+      !mapReady ||
       !location ||
       typeof location !== 'object' ||
       !location.lng ||
-      !location.lat
+      !location.lat ||
+      (typeof map === 'object' && Object.keys(map).length === 0) // Check if map is empty object
     ) {
       console.log(
         '⚠️ Skipping marker setting - missing requirements:',
         {
           hasMap: !!map,
-          mapLoaded,
+          mapReady,
           hasLocation: !!location,
           hasLng: location?.lng !== undefined,
           hasLat: location?.lat !== undefined,
@@ -52,6 +56,16 @@ export function useSetMarker(
     // Dynamic import to avoid SSR issues
     import('mapbox-gl').then((mapboxgl) => {
       try {
+        // Simple validation - just check if map exists and has required methods
+        if (
+          !map ||
+          !(map as any).isStyleLoaded ||
+          !(map as any).getContainer
+        ) {
+          console.log('⚠️ Map not ready, skipping marker creation');
+          return;
+        }
+
         console.log('✅ Creating marker for location:', location);
         // Create a default Marker and add it to the map.
         const marker = new mapboxgl.default.Marker({
@@ -72,5 +86,5 @@ export function useSetMarker(
         console.error('❌ Error creating marker:', error);
       }
     });
-  }, [map, mapLoaded, location]);
+  }, [map, mapReady, location]);
 }

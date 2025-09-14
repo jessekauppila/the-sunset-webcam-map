@@ -44,7 +44,7 @@ export function WebcamDisplay({ webcam }: WebcamDisplayProps) {
     };
 
     img.src = webcam.images.current.preview;
-  }, [webcam.images?.current?.preview]);
+  }, [webcam.images]);
 
   return (
     <canvas

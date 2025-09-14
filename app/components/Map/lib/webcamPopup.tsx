@@ -28,12 +28,12 @@ export function createWebcamPopupContent(
   };
 
   // Helper function to format categories
-  const formatCategories = () => {
-    if (webcam.categories && webcam.categories.length > 0) {
-      return webcam.categories.map((cat) => cat.name).join(', ');
-    }
-    return null;
-  };
+  // const formatCategories = () => {
+  //   if (webcam.categories && webcam.categories.length > 0) {
+  //     return webcam.categories.map((cat) => cat.name).join(', ');
+  //   }
+  //   return null;
+  // };
 
   // Helper function to format last updated
   const formatLastUpdated = () => {

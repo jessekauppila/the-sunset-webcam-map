@@ -19,8 +19,8 @@ export function makeTerminatorLayers(opts: {
     sunset,
     entireTerminatorRing,
     entireHiResTerminatorRing,
-    sunriseColor = [120, 170, 255, 200], // blue-ish
-    sunsetColor = [255, 170, 120, 200], // orange-ish
+    // sunriseColor = [120, 170, 255, 200], // blue-ish
+    // sunsetColor = [255, 170, 120, 200], // orange-ish
     terminatorColor = [200, 200, 200, 200], // light gray
     lineWidth = 3,
   } = opts;

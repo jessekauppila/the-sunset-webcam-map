@@ -4,7 +4,7 @@ import type { Location } from '../../../lib/types';
 import type { Feature, LineString } from 'geojson';
 
 // ---------- tiny math helpers ----------
-const normHours = (h: number) => ((h % 24) + 24) % 24;
+//const normHours = (h: number) => ((h % 24) + 24) % 24;
 
 /** Build the terminator ring (GeoJSON Polygon) centered on subsolar point. */
 export function terminatorPolygon(

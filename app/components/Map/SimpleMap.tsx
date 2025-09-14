@@ -43,7 +43,7 @@ export default function SimpleMap({ userLocation }: SimpleMapProps) {
     return () => clearInterval(id);
   }, []);
 
-  const { mapContainer, map, mapLoaded } = useMap(
+  const { mapContainer, map, mapLoaded, mapReady } = useMap(
     userLocation,
     mode === 'map'
   );
@@ -91,7 +91,7 @@ export default function SimpleMap({ userLocation }: SimpleMapProps) {
     nextLatitudeNorthSunsetWebCam
   );
 
-  useSetMarker(map, mapLoaded, mode === 'map' ? userLocation : null);
+  useSetMarker(map, mapReady, mode === 'map' ? userLocation : null);
 
   useSetWebcamMarkers(
     map,

@@ -157,11 +157,20 @@ export default function GlobeMap({
         getIcon: (w) => {
           const fallback =
             'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48"><rect width="48" height="48" rx="8" ry="8" fill="%23eee"/><text x="8" y="36" font-size="24">🌅</text></svg>';
-          const url = w.images?.current?.preview || fallback;
+
+          // Validate URL before using it
+          const previewUrl = w.images?.current?.preview;
+          const isValidUrl =
+            previewUrl &&
+            (previewUrl.startsWith('http://') ||
+              previewUrl.startsWith('https://')) &&
+            previewUrl.length > 10; // Basic validation
+
+          const url = isValidUrl ? previewUrl : fallback;
 
           // For webcam previews, use a more rectangular aspect ratio
           // Most webcam images are wider than tall (16:9 or 4:3)
-          if (w.images?.current?.preview) {
+          if (isValidUrl) {
             return { url, width: 64, height: 36, anchorY: 40 }; // 16:9 aspect ratio
           }
 
@@ -176,6 +185,9 @@ export default function GlobeMap({
           50000, // Higher elevation to ensure icons are above everything
         ],
         loadOptions: { image: { crossOrigin: 'anonymous' } },
+        onError: (error) => {
+          console.warn('Failed to load webcam icon:', error);
+        },
         pickable: true,
         billboard: true, // Always face the camera
         //these eliminate the intersection of the icons with the globe,

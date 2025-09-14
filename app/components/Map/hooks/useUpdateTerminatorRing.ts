@@ -22,7 +22,7 @@ export function useUpdateTerminatorRing(
 
   const { entireHiResTerminatorRing } = useMemo(() => {
     return createTerminatorRingHiRes(currentTime);
-  }, [currentTime, raHours, gmstHours]);
+  }, [currentTime]);
 
   const {
     sunriseCoords,
@@ -36,24 +36,14 @@ export function useUpdateTerminatorRing(
   }, [currentTime, raHours, gmstHours]);
 
   // Memoize the coordinate arrays to prevent unnecessary re-renders
-  // Create a stable key based on the actual content
-  const sunriseKey = useMemo(
-    () => sunriseCoords.map((c) => `${c.lat},${c.lng}`).join('|'),
-    [sunriseCoords]
-  );
-
-  const sunsetKey = useMemo(
-    () => sunsetCoords.map((c) => `${c.lat},${c.lng}`).join('|'),
-    [sunsetCoords]
-  );
 
   const memoizedSunriseCoords = useMemo(
     () => sunriseCoords,
-    [sunriseKey]
+    [sunriseCoords]
   );
   const memoizedSunsetCoords = useMemo(
     () => sunsetCoords,
-    [sunsetKey]
+    [sunsetCoords]
   );
 
   const sunSetRiseRingLineLayer = makeTerminatorLayers({

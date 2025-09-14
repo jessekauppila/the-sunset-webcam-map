@@ -15,44 +15,43 @@ export function useMap(
   mapboxgl.accessToken =
     process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN || '';
 
-  // Function to calculate sun position and update map lighting
-  const updateSunLighting = (date: Date = new Date()) => {
-    if (!map.current || !map.current.isStyleLoaded()) return;
-
-    // Calculate sun position (simplified - you can use a more accurate calculation)
-    const sunPosition = calculateSunPosition(date);
-
-    // Update the map's light source
-    map.current.setLight({
-      anchor: 'map',
-      color: '#ffffff',
-      intensity: 1,
-      position: sunPosition,
-    });
-  };
-
-  // Simple sun position calculation (you can make this more accurate)
-  const calculateSunPosition = (date: Date) => {
-    const time = date.getTime() / 1000; // Convert to seconds
-    const dayOfYear = Math.floor(
-      (date.getTime() -
-        new Date(date.getFullYear(), 0, 0).getTime()) /
-        86400000
-    );
-
-    // Simplified sun position calculation
-    const declination =
-      23.45 * Math.sin(((284 + dayOfYear) * Math.PI) / 180);
-    const hourAngle = (time % 86400) / 3600 - 12; // Hours from noon
-
-    const lat = declination;
-    const lng = hourAngle * 15; // Convert hours to degrees
-
-    return [lng, lat, 1] as [number, number, number]; // [longitude, latitude, altitude]
-  };
-
   // Initialize map
   useEffect(() => {
+    // Function to calculate sun position and update map lighting
+    const updateSunLighting = (date: Date = new Date()) => {
+      if (!map.current || !map.current.isStyleLoaded()) return;
+
+      // Calculate sun position (simplified - you can use a more accurate calculation)
+      const sunPosition = calculateSunPosition(date);
+
+      // Update the map's light source
+      map.current.setLight({
+        anchor: 'map',
+        color: '#ffffff',
+        intensity: 1,
+        position: sunPosition,
+      });
+    };
+
+    // Simple sun position calculation (you can make this more accurate)
+    const calculateSunPosition = (date: Date) => {
+      const time = date.getTime() / 1000; // Convert to seconds
+      const dayOfYear = Math.floor(
+        (date.getTime() -
+          new Date(date.getFullYear(), 0, 0).getTime()) /
+          86400000
+      );
+
+      // Simplified sun position calculation
+      const declination =
+        23.45 * Math.sin(((284 + dayOfYear) * Math.PI) / 180);
+      const hourAngle = (time % 86400) / 3600 - 12; // Hours from noon
+
+      const lat = declination;
+      const lng = hourAngle * 15; // Convert hours to degrees
+
+      return [lng, lat, 1] as [number, number, number]; // [longitude, latitude, altitude]
+    };
     if (!enabled) {
       if (map.current) {
         console.log('🧹 Cleaning up map (disabled)...');
@@ -119,7 +118,7 @@ export function useMap(
 
   return {
     mapContainer,
-    map: map.current,
+    map: map.current || null,
     mapLoaded,
     mapReady,
     hasToken: !!mapboxgl.accessToken,

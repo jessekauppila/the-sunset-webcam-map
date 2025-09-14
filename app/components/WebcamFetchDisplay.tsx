@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { useWebcamFetch } from './hooks/useWebCamFetch';
 import type { Location } from '../lib/types';
 
@@ -97,10 +98,13 @@ export default function WebcamFetchDisplay({
 
               {/* Webcam Image */}
               {webcam.images?.current?.preview && (
-                <img
+                <Image
                   src={webcam.images.current.preview}
                   alt={webcam.title}
+                  width={400}
+                  height={192}
                   className="w-full h-48 object-contain rounded mt-2"
+                  unoptimized
                 />
               )}
             </div>
