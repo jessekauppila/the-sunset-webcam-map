@@ -20,6 +20,7 @@ import { useSetWebcamMarkers } from './hooks/useSetWebcamMarkers';
 import { WebcamConsole } from '../WebcamConsole';
 // import { WebcamDisplay } from '../WebcamDisplay';
 import { useUpdateTerminatorRing } from './hooks/useUpdateTerminatorRing';
+import { useMapInteractionPause } from './hooks/useMapInteractionPause';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import type { Location } from '../../lib/types';
 //import { useWebcamFetchArray } from '../hooks/useWebCamFetchArray';
@@ -70,6 +71,8 @@ export default function SimpleMap({ userLocation }: SimpleMapProps) {
   const {
     currentWebcam: nextLatitudeNorthSunsetWebCam,
     currentWebcamLocation: nextLatitudeNorthSunsetLocation,
+    pause,
+    resume,
   } = useCyclingWebcams(combinedWebcams, {
     getValue: (webcam: WindyWebcam) => {
       // Find the index of this webcam in the combinedWebcams array
@@ -80,6 +83,16 @@ export default function SimpleMap({ userLocation }: SimpleMapProps) {
     direction: 'asc',
     intervalMs: 5000,
     wrap: true,
+  });
+
+  // Add map interaction pause functionality
+  useMapInteractionPause({
+    map,
+    mapReady: mapReady && mode === 'map',
+    onPause: pause,
+    onResume: resume,
+    pauseDelayMs: 0, // Immediate pause when interaction starts
+    resumeDelayMs: 15000, // Resume after 15 seconds
   });
 
   console.log(
