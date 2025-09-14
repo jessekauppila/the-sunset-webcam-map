@@ -5,13 +5,15 @@ import type { WindyWebcam } from '@/app/lib/types';
 
 export function WebcamConsole({
   webcams,
+  title,
 }: {
   webcams: WindyWebcam[];
+  title: string;
 }) {
   return (
     <div className="p-4 bg-gray-200 rounded-lg">
       <h3 className="text-lg font-bold text-gray-700 mb-2">
-        Windy API Results ({webcams.length} webcams)
+        {title}: {webcams.length} Webcams
       </h3>
 
       {webcams.length === 0 ? (
@@ -25,6 +27,18 @@ export function WebcamConsole({
               key={webcam.webcamId}
               className="bg-white p-3 rounded border"
             >
+              {/* Webcam Image */}
+              {webcam.images?.current?.preview && (
+                <Image
+                  src={webcam.images.current.preview}
+                  alt={webcam.title}
+                  width={600}
+                  height={300}
+                  className="w-full h-24 object-contain rounded"
+                  unoptimized
+                />
+              )}
+
               <h4 className="font-semibold text-gray-900 text-sm mb-1">
                 {webcam.title}
               </h4>
@@ -67,18 +81,6 @@ export function WebcamConsole({
               <p className="webcam-console-details">
                 ID: {webcam.webcamId}
               </p>
-
-              {/* Webcam Image */}
-              {webcam.images?.current?.preview && (
-                <Image
-                  src={webcam.images.current.preview}
-                  alt={webcam.title}
-                  width={400}
-                  height={192}
-                  className="w-full h-48 object-contain rounded mt-2"
-                  unoptimized
-                />
-              )}
             </div>
           ))}
         </div>

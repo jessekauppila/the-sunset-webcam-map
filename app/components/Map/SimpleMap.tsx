@@ -254,17 +254,17 @@ export default function SimpleMap({ userLocation }: SimpleMapProps) {
           {/* Webcam Consoles */}
           <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
             <Box sx={{ flex: 1, minWidth: 300 }}>
-              <Typography variant="h6" sx={{ color: 'white', mb: 2 }}>
-                Sunset Webcams
-              </Typography>
-              <WebcamConsole webcams={sunsetWebcams || []} />
+              <WebcamConsole
+                webcams={sunsetWebcams || []}
+                title={'Sunsets'}
+              />
             </Box>
 
             <Box sx={{ flex: 1, minWidth: 300 }}>
-              <Typography variant="h6" sx={{ color: 'white', mb: 2 }}>
-                Sunrise Webcams
-              </Typography>
-              <WebcamConsole webcams={sunriseWebcams || []} />
+              <WebcamConsole
+                webcams={sunriseWebcams || []}
+                title={'Sunrises'}
+              />
             </Box>
           </Box>
         </Box>
