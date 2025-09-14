@@ -195,7 +195,7 @@ export default function GlobeMap({
         parameters: {
           depthTest: false, // Disable depth testing completely
           //depthMask: false,
-        },
+        } as Record<string, unknown>,
       }),
     [webcams, viewState.longitude, viewState.latitude]
   );

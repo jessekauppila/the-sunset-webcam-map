@@ -170,6 +170,9 @@ export default function SimpleMap({ userLocation }: SimpleMapProps) {
                 '& .MuiToggleButton-root': {
                   color: 'white',
                   borderColor: 'rgba(255, 255, 255, 0.3)',
+                  padding: '4px 8px', // Add this to make buttons smaller
+                  fontSize: '8px', // Add this to make text smaller
+                  minWidth: 'auto', // Add this to remove minimum width
                   '&.Mui-selected': {
                     backgroundColor: 'rgba(255, 255, 255, 0.2)',
                     color: 'white',

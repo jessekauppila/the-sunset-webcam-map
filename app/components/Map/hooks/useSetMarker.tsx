@@ -59,8 +59,8 @@ export function useSetMarker(
         // Simple validation - just check if map exists and has required methods
         if (
           !map ||
-          !(map as any).isStyleLoaded ||
-          !(map as any).getContainer
+          !(map as MapInstance).isStyleLoaded ||
+          !(map as MapInstance).getContainer
         ) {
           console.log('⚠️ Map not ready, skipping marker creation');
           return;
