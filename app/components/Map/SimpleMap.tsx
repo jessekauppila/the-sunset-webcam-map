@@ -86,14 +86,20 @@ export default function SimpleMap({ userLocation }: SimpleMapProps) {
   });
 
   // Add map interaction pause functionality
-  useMapInteractionPause({
+  const { isPaused } = useMapInteractionPause({
     map,
     mapReady: mapReady && mode === 'map',
     onPause: pause,
     onResume: resume,
     pauseDelayMs: 0, // Immediate pause when interaction starts
-    resumeDelayMs: 15000, // Resume after 15 seconds
+    resumeDelayMs: 10000, // Resume after 15 seconds
   });
+
+  console.log(
+    `🎮 Cycling webcams ${
+      isPaused ? 'paused' : 'running'
+    } due to map interaction`
+  );
 
   console.log(
     `🌅 Sunrise webcams: ${sunriseCount}, 🌅 Sunset webcams: ${sunsetCount}, 📹 Total: ${combinedWebcams.length}`
