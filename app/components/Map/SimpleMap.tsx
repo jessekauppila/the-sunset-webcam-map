@@ -64,8 +64,8 @@ export default function SimpleMap({ userLocation }: SimpleMapProps) {
     sunriseWebcams,
     sunsetWebcams,
     // isLoading: webcamsLoading,
-    // sunriseCount,
-    // sunsetCount,
+    sunriseCount,
+    sunsetCount,
   } = useCombineSunriseSunsetWebcams(sunriseCoords, sunsetCoords);
 
   const {
@@ -86,15 +86,6 @@ export default function SimpleMap({ userLocation }: SimpleMapProps) {
   });
 
   // Add map interaction pause functionality
-  console.log('🎮 SimpleMap debug - before useMapInteractionPause:', {
-    hasMap: !!map,
-    mapLoaded,
-    mapReady,
-    mode,
-    mapReadyAndMode: mapReady && mode === 'map',
-    mapConstructor: map?.constructor?.name,
-  });
-
   const { isPaused } = useMapInteractionPause({
     map,
     mapReady: mapReady && mode === 'map',
@@ -108,6 +99,10 @@ export default function SimpleMap({ userLocation }: SimpleMapProps) {
     `🎮 Cycling webcams ${
       isPaused ? 'paused' : 'running'
     } due to map interaction`
+  );
+
+  console.log(
+    `🌅 Sunrise webcams: ${sunriseCount}, 🌅 Sunset webcams: ${sunsetCount}, 📹 Total: ${combinedWebcams.length}`
   );
 
   console.log(
