@@ -1,3 +1,6 @@
+//this is the initial API before creating a
+// database and the terminator rings on the backend
+
 import { NextRequest, NextResponse } from 'next/server';
 
 interface WindyWebcam {

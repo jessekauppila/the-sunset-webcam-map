@@ -39,15 +39,15 @@ export default function SimpleMap({ userLocation }: SimpleMapProps) {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
 
-  useEffect(() => {
-    const id = setInterval(() => setCurrentTime(new Date()), 60_000);
-    return () => clearInterval(id);
-  }, []);
-
   const { mapContainer, map, mapLoaded, mapReady } = useMap(
     userLocation,
     mode === 'map'
   );
+
+  useEffect(() => {
+    const id = setInterval(() => setCurrentTime(new Date()), 60_000);
+    return () => clearInterval(id);
+  }, []);
 
   const {
     sunsetCoords,
@@ -86,6 +86,7 @@ export default function SimpleMap({ userLocation }: SimpleMapProps) {
   });
 
   // Add map interaction pause functionality
+  // this isn't working as expected...
   const { isPaused } = useMapInteractionPause({
     map,
     mapReady: mapReady && mode === 'map',
