@@ -146,12 +146,53 @@ export async function GET(req: Request) {
   };
 
   const windyAll = [...windyById.values()].filter((w) => w.location);
-  const sunriseList = [...windyAll].sort(
+
+  // Split webcams into sunrise vs sunset based on their actual position
+  // Webcams closer to sunrise coords go to sunrise, closer to sunset coords go to sunset
+  const sunriseList: WindyWebcam[] = [];
+  const sunsetList: WindyWebcam[] = [];
+
+  for (const webcam of windyAll) {
+    // Calculate distance to nearest sunrise coord
+    const sunriseDistances = sunriseCoords.map((coord) =>
+      Math.sqrt(
+        Math.pow(webcam.location.longitude - coord.lng, 2) +
+          Math.pow(webcam.location.latitude - coord.lat, 2)
+      )
+    );
+    const minSunriseDistance = Math.min(...sunriseDistances);
+
+    // Calculate distance to nearest sunset coord
+    const sunsetDistances = sunsetCoords.map((coord) =>
+      Math.sqrt(
+        Math.pow(webcam.location.longitude - coord.lng, 2) +
+          Math.pow(webcam.location.latitude - coord.lat, 2)
+      )
+    );
+    const minSunsetDistance = Math.min(...sunsetDistances);
+
+    // Assign to the closer phase
+    if (minSunriseDistance < minSunsetDistance) {
+      sunriseList.push(webcam);
+    } else {
+      sunsetList.push(webcam);
+    }
+  }
+
+  // Sort each list by longitude
+  sunriseList.sort(
     (a, b) => b.location.longitude - a.location.longitude
   );
-  const sunsetList = [...windyAll].sort(
+  sunsetList.sort(
     (a, b) => a.location.longitude - b.location.longitude
   );
+
+  console.log('📊 Webcam split:', {
+    total: windyAll.length,
+    sunrise: sunriseList.length,
+    sunset: sunsetList.length,
+    totalEntries: sunriseList.length + sunsetList.length,
+  });
 
   await Promise.all(windyAll.map(upsertWebcam));
 
@@ -174,6 +215,12 @@ export async function GET(req: Request) {
     `;
   }
 
+  // Clear ALL terminator state entries (start fresh each time)
+  await sql`
+    delete from terminator_webcam_state 
+    where active = true
+  `;
+
   const ids = windyAll.map((w) => String(w.webcamId));
 
   // Map external ids -> internal ids
@@ -185,58 +232,31 @@ export async function GET(req: Request) {
     rows.map((r) => [r.external_id, r.id])
   );
 
-  // Upsert current snapshot state
-  const upsertState = async (
+  // Create terminator state entries only for webcams that are currently active
+  const createTerminatorState = async (
     w: WindyWebcam,
     phase: 'sunrise' | 'sunset',
     rank: number
   ) => {
     const webcamId = idByExternal.get(String(w.webcamId));
     if (!webcamId) return;
+
+    // Only create state for webcams that are currently active
     await sql`
       insert into terminator_webcam_state (webcam_id, phase, rank, last_seen_at, updated_at, active)
       values (${webcamId}, ${phase}, ${rank}, now(), now(), true)
-      on conflict (webcam_id, phase) do update set
-        rank = excluded.rank,
-        last_seen_at = now(),
-        updated_at = now(),
-        active = true
     `;
   };
 
+  // Create state entries for current sunrise/sunset webcams
   await Promise.all(
-    sunriseList.map((w, i) => upsertState(w, 'sunrise', i))
+    sunriseList.map((w, i) => createTerminatorState(w, 'sunrise', i))
   );
   await Promise.all(
-    sunsetList.map((w, i) => upsertState(w, 'sunset', i))
+    sunsetList.map((w, i) => createTerminatorState(w, 'sunset', i))
   );
 
-  // Deactivate stale
-  const active = (await sql`
-    select webcam_id, phase from terminator_webcam_state where active = true
-  `) as { webcam_id: number; phase: 'sunrise' | 'sunset' }[];
-  const seenSunriseSet = new Set(
-    sunriseList.map((w) => idByExternal.get(String(w.webcamId)))
-  );
-  const seenSunsetSet = new Set(
-    sunsetList.map((w) => idByExternal.get(String(w.webcamId)))
-  );
-  const toDeactivate: number[] = [];
-  for (const r of active) {
-    if (
-      (r.phase === 'sunrise' && !seenSunriseSet.has(r.webcam_id)) ||
-      (r.phase === 'sunset' && !seenSunsetSet.has(r.webcam_id))
-    ) {
-      toDeactivate.push(r.webcam_id);
-    }
-  }
-  if (toDeactivate.length) {
-    await sql`
-    update terminator_webcam_state
-    set active = false, updated_at = now()
-    where webcam_id = any(${toDeactivate})
-  `;
-  }
+  // No need for stale deactivation - we cleared everything and created fresh entries
 
   return NextResponse.json({
     ok: true,

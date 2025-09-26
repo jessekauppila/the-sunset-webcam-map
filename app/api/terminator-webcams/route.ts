@@ -9,7 +9,7 @@ export async function GET() {
            w.lat, w.lng, w.title, w.images, w.source
     from terminator_webcam_state s
     join webcams w on w.id = s.webcam_id
-    where s.active = true
+    where s.active = true and w.status = 'active'
     order by case s.phase when 'sunrise' then 0 else 1 end, s.rank
     limit 2000
   `) as Array<{
