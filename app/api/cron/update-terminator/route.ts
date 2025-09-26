@@ -1,3 +1,5 @@
+//
+
 import { NextResponse } from 'next/server';
 import { sql } from '@/app/lib/db';
 import { subsolarPoint } from '@/app/components/Map/lib/subsolarLocation';
@@ -120,7 +122,16 @@ export async function GET(req: Request) {
           player = excluded.player,
           categories = excluded.categories,
           last_fetched_at = now(),
-          updated_at = now()
+          updated_at = case
+                         when webcams.title is distinct from excluded.title
+                           or webcams.status is distinct from excluded.status
+                           or webcams.images is distinct from excluded.images
+                           or webcams.urls is distinct from excluded.urls
+                           or webcams.player is distinct from excluded.player
+                           or webcams.categories is distinct from excluded.categories
+                         then now()
+                         else webcams.updated_at
+                       end
       `;
     } catch (error) {
       console.error(
@@ -143,6 +154,25 @@ export async function GET(req: Request) {
   );
 
   await Promise.all(windyAll.map(upsertWebcam));
+
+  // Mark webcams not found in current fetch as inactive
+  const currentExternalIds = windyAll.map((w) => String(w.webcamId));
+
+  // Mark all Windy webcams as inactive first, then reactivate the ones we found
+  await sql`
+    update webcams 
+    set status = 'inactive', updated_at = now()
+    where source = 'windy' and status != 'inactive'
+  `;
+
+  // Reactivate the webcams we just found
+  if (currentExternalIds.length > 0) {
+    await sql`
+      update webcams 
+      set status = 'active', updated_at = now()
+      where source = 'windy' and external_id = any(${currentExternalIds})
+    `;
+  }
 
   const ids = windyAll.map((w) => String(w.webcamId));
 
