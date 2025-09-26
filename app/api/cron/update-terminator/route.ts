@@ -13,7 +13,8 @@ async function fetchWebcamsFor(loc: Location) {
   const res = await fetch(url, {
     headers: {
       accept: 'application/json',
-      'x-windy-api-key': process.env.WINDY_ACCESS_TOKEN || '',
+      'x-windy-api-key':
+        process.env.NEXT_PUBLIC_WINDY_ACCESS_TOKEN || '',
     },
     cache: 'no-store',
   });
@@ -28,6 +29,8 @@ export async function GET(req: Request) {
   if (!secret || secret !== process.env.CRON_SECRET)
     return new NextResponse('Unauthorized', { status: 401 });
 
+  console.log('🚀 Starting cron job...');
+
   const now = new Date();
   const { raHours, gmstHours } = subsolarPoint(now);
   const { sunriseCoords, sunsetCoords } = createTerminatorRing(
@@ -36,14 +39,31 @@ export async function GET(req: Request) {
     gmstHours
   );
 
+  console.log('📍 Coords:', {
+    sunrise: sunriseCoords.length,
+    sunset: sunsetCoords.length,
+  });
+
   // Fetch webcams at coords; de-dup by provider id
   const coords = [...sunriseCoords, ...sunsetCoords];
+  console.log(
+    '🌐 Fetching webcams for',
+    coords.length,
+    'coordinates...'
+  );
+
   const batches = await Promise.all(
     coords.map((c) => fetchWebcamsFor(c))
   );
+  console.log('📦 Batches received:', batches.length);
+
   const windyById = new Map<number, WindyWebcam>();
-  for (const b of batches)
+  for (const b of batches) {
+    console.log('📹 Batch size:', b.length);
     for (const w of b) windyById.set(w.webcamId, w);
+  }
+
+  console.log('🗂️ Total unique webcams:', windyById.size);
 
   type Json =
     | Record<string, unknown>
@@ -65,41 +85,53 @@ export async function GET(req: Request) {
     region: w.location.region ?? null,
     country: w.location.country ?? null,
     continent: w.location.continent ?? null,
-    images: (w.images ?? null) as Json,
-    urls: (w.urls ?? null) as Json,
-    player: (w.player ?? null) as Json,
-    categories: (w.categories ?? null) as Json,
+    // Convert to JSON strings for JSONB columns
+    images: w.images ? JSON.stringify(w.images) : null,
+    urls: w.urls ? JSON.stringify(w.urls) : null,
+    player: w.player ? JSON.stringify(w.player) : null,
+    categories: w.categories ? JSON.stringify(w.categories) : null,
   });
 
   const upsertWebcam = async (w: WindyWebcam) => {
-    const d = toDbFields(w);
-    await sql`
-      insert into webcams (
-        source, external_id, title, status, view_count, lat, lng, city, region, country, continent,
-        images, urls, player, categories, last_fetched_at, updated_at
-      ) values (
-        ${d.source}, ${d.external_id}, ${d.title}, ${d.status}, ${d.view_count},
-        ${d.lat}, ${d.lng}, ${d.city}, ${d.region}, ${d.country}, ${d.continent},
-        ${d.images}::jsonb, ${d.urls}::jsonb, ${d.player}::jsonb, ${d.categories}::jsonb,
-        now(), now()
-      )
-      on conflict (source, external_id) do update set
-        title = excluded.title,
-        status = excluded.status,
-        view_count = excluded.view_count,
-        lat = excluded.lat,
-        lng = excluded.lng,
-        city = excluded.city,
-        region = excluded.region,
-        country = excluded.country,
-        continent = excluded.continent,
-        images = excluded.images,
-        urls = excluded.urls,
-        player = excluded.player,
-        categories = excluded.categories,
-        last_fetched_at = now(),
-        updated_at = now()
-    `;
+    try {
+      const d = toDbFields(w);
+      await sql`
+        insert into webcams (
+          source, external_id, title, status, view_count, lat, lng, city, region, country, continent,
+          images, urls, player, categories, last_fetched_at, updated_at
+        ) values (
+          ${d.source}, ${d.external_id}, ${d.title}, ${d.status}, ${d.view_count},
+          ${d.lat}, ${d.lng}, ${d.city}, ${d.region}, ${d.country}, ${d.continent},
+          ${d.images}::jsonb, ${d.urls}::jsonb, ${d.player}::jsonb, ${d.categories}::jsonb,
+          now(), now()
+        )
+        on conflict (source, external_id) do update set
+          title = excluded.title,
+          status = excluded.status,
+          view_count = excluded.view_count,
+          lat = excluded.lat,
+          lng = excluded.lng,
+          city = excluded.city,
+          region = excluded.region,
+          country = excluded.country,
+          continent = excluded.continent,
+          images = excluded.images,
+          urls = excluded.urls,
+          player = excluded.player,
+          categories = excluded.categories,
+          last_fetched_at = now(),
+          updated_at = now()
+      `;
+    } catch (error) {
+      console.error(
+        '❌ Failed to upsert webcam:',
+        w.webcamId,
+        w.title
+      );
+      console.error('❌ Error:', error);
+      console.error('❌ Categories data:', w.categories);
+      // Skip this webcam and continue with others
+    }
   };
 
   const windyAll = [...windyById.values()].filter((w) => w.location);
