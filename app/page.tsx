@@ -1,10 +1,6 @@
 import SimpleMap from './components/Map/SimpleMap';
-import { useDBTerminatorWebcams } from './components/hooks/useDBTerminatorWebcams';
 
 //import
-
-const { terminatorWebcams, error, isLoading } =
-  useDBTerminatorWebcams;
 
 export default function Home() {
   // Bellingham, Washington location

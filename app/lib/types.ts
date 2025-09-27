@@ -2,16 +2,36 @@
  * Core types for the Sunset Webcam Map application
  */
 
+export type Orientation =
+  | 'N'
+  | 'NE'
+  | 'E'
+  | 'SE'
+  | 'S'
+  | 'SW'
+  | 'W'
+  | 'NW';
+
 export interface WindyWebcam {
   webcamId: number;
   title: string;
   viewCount: number;
   status: string;
   images?: {
-    current?: {
-      preview?: string;
-      thumbnail?: string;
-      icon?: string;
+    sizes: {
+      icon: { width: number; height: number };
+      preview: { width: number; height: number };
+      thumbnail: { width: number; height: number };
+    };
+    current: {
+      icon: string;
+      preview: string;
+      thumbnail: string;
+    };
+    daylight: {
+      icon: string;
+      preview: string;
+      thumbnail: string;
     };
   };
   location: {
@@ -22,7 +42,6 @@ export interface WindyWebcam {
     country: string;
     continent: string;
   };
-
   categories: Array<{
     id: string;
     name: string;
@@ -40,6 +59,18 @@ export interface WindyWebcam {
     edit?: string;
     provider?: string;
   };
+
+  // Additional fields for terminator webcams
+  phase?: 'sunrise' | 'sunset';
+  rank?: number;
+  source?: string;
+  externalId?: string;
+  createdAt?: string;
+  updatedAt?: string;
+
+  // User rating and orientation fields
+  rating?: number; // 1-5 star rating
+  orientation?: Orientation; // Direction the webcam is facing
 }
 
 export function windyWebcamToLocation(

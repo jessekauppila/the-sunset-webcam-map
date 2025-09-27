@@ -1,0 +1,71 @@
+'use client';
+
+import { create } from 'zustand';
+import type { WindyWebcam, Orientation } from '../lib/types';
+
+type State = {
+  loading: boolean;
+  error?: string;
+
+  sunrise: WindyWebcam[];
+  sunset: WindyWebcam[];
+
+  // Computed getter for all webcams combined
+  get combined(): WindyWebcam[];
+
+  setWebcams: (webcams: WindyWebcam[]) => void;
+  setLoading: (v: boolean) => void;
+  setError: (e?: string) => void;
+
+  // Direct webcam updaters
+  setRating: (webcamId: number, rating: number) => void;
+  setOrientation: (
+    webcamId: number,
+    orientation: Orientation
+  ) => void;
+};
+
+export const useTerminatorStore = create<State>()((set, get) => ({
+  loading: false,
+  sunrise: [],
+  sunset: [],
+
+  get combined() {
+    return [...get().sunrise, ...get().sunset];
+  },
+
+  setWebcams: (webcams) =>
+    set(() => {
+      const sunrise = webcams
+        .filter((w) => w.phase === 'sunrise')
+        .sort((a, b) => (a.rank ?? 0) - (b.rank ?? 0));
+      const sunset = webcams
+        .filter((w) => w.phase === 'sunset')
+        .sort((a, b) => (a.rank ?? 0) - (b.rank ?? 0));
+      return { sunrise, sunset };
+    }),
+  setLoading: (v) => set({ loading: v }),
+  setError: (e) => set({ error: e }),
+
+  setRating: (webcamId, rating) => {
+    set((state) => ({
+      sunrise: state.sunrise.map((w) =>
+        w.webcamId === webcamId ? { ...w, rating } : w
+      ),
+      sunset: state.sunset.map((w) =>
+        w.webcamId === webcamId ? { ...w, rating } : w
+      ),
+    }));
+  },
+
+  setOrientation: (webcamId, orientation) => {
+    set((state) => ({
+      sunrise: state.sunrise.map((w) =>
+        w.webcamId === webcamId ? { ...w, orientation } : w
+      ),
+      sunset: state.sunset.map((w) =>
+        w.webcamId === webcamId ? { ...w, orientation } : w
+      ),
+    }));
+  },
+}));
