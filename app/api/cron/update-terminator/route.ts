@@ -179,12 +179,12 @@ export async function GET(req: Request) {
     }
   }
 
-  // Sort each list by longitude
+  // Sort each list by latitude
   sunriseList.sort(
-    (a, b) => b.location.longitude - a.location.longitude
+    (a, b) => b.location.latitude - a.location.latitude // North to South
   );
   sunsetList.sort(
-    (a, b) => a.location.longitude - b.location.longitude
+    (a, b) => a.location.latitude - b.location.latitude // South to North
   );
 
   console.log('📊 Webcam split:', {
