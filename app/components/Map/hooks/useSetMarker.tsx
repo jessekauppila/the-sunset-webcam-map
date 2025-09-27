@@ -56,7 +56,7 @@ export function useSetMarker(
     // Dynamic import to avoid SSR issues
     import('mapbox-gl').then((mapboxgl) => {
       try {
-        // Simple validation - just check if map exists and has required methods
+        // More comprehensive validation
         if (
           !map ||
           !(map as MapInstance).isStyleLoaded ||
@@ -66,13 +66,31 @@ export function useSetMarker(
           return;
         }
 
+        // Check if map container exists and is properly initialized
+        const mapContainer = (map as MapInstance).getContainer?.();
+        if (!mapContainer) {
+          console.log(
+            '⚠️ Map container not available, skipping marker creation'
+          );
+          return;
+        }
+
+        // Check if map is actually a Mapbox GL map instance
+        const mapboxMap = map as unknown as mapboxgl.Map;
+        if (!mapboxMap.isStyleLoaded || !mapboxMap.isStyleLoaded()) {
+          console.log(
+            '⚠️ Map style not loaded, skipping marker creation'
+          );
+          return;
+        }
+
         console.log('✅ Creating marker for location:', location);
         // Create a default Marker and add it to the map.
         const marker = new mapboxgl.default.Marker({
           color: '#374151',
         })
           .setLngLat([location.lng, location.lat])
-          .addTo(map as unknown as mapboxgl.Map);
+          .addTo(mapboxMap);
 
         console.log('✅ Marker created and added successfully');
 
