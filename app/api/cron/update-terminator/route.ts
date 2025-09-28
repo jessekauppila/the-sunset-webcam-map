@@ -28,6 +28,17 @@ async function fetchWebcamsFor(loc: Location) {
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const secret = searchParams.get('secret');
+
+  console.log('🔍 Debug - Secret from URL:', secret);
+  console.log(
+    '🔍 Debug - CRON_SECRET env var:',
+    process.env.CRON_SECRET
+  );
+  console.log(
+    '🔍 Debug - Match:',
+    secret === process.env.CRON_SECRET
+  );
+
   if (!secret || secret !== process.env.CRON_SECRET)
     return new NextResponse('Unauthorized', { status: 401 });
 
