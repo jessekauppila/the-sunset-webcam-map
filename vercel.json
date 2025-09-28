@@ -1,7 +1,7 @@
 {
   "crons": [
     {
-      "path": "/api/cron/update-terminator?secret=zo8hXTR7TD%S3ruTp4^yI^I",
+      "path": "/api/cron/update-terminator",
       "schedule": "*/1 * * * *"
     }
   ]
