@@ -13,19 +13,19 @@ type CycleConfig = {
 function terminatorComparator(a: WindyWebcam, b: WindyWebcam) {
   // First sort by phase: sunrise comes before sunset
   const phaseOrder = { sunrise: 0, sunset: 1 };
-  const aPhase = a.phase || 'sunset';
-  const bPhase = b.phase || 'sunset';
+  const webcamAPhase = a.phase ?? 'sunset'; // fallback if phase is undefined
+  const webcamBPhase = b.phase ?? 'sunset'; // fallback if phase is undefined
 
-  if (aPhase !== bPhase) {
-    return phaseOrder[aPhase] - phaseOrder[bPhase];
+  if (webcamAPhase !== webcamBPhase) {
+    return phaseOrder[webcamAPhase] - phaseOrder[webcamBPhase];
   }
 
   // Then sort by rank within the same phase
-  const aRank = a.rank ?? 0;
-  const bRank = b.rank ?? 0;
+  const webcamARank = a.rank ?? 0;
+  const webcamBRank = b.rank ?? 0;
 
-  if (aRank !== bRank) {
-    return aRank - bRank;
+  if (webcamARank !== webcamBRank) {
+    return webcamARank - webcamBRank;
   }
 
   // Stable tie-breaker by webcamId

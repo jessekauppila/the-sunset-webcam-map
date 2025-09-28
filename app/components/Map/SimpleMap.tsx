@@ -54,9 +54,9 @@ export default function SimpleMap({ userLocation }: SimpleMapProps) {
   //this brings in the Zustand "state" store
   const { allTerminatorWebcams, sunriseWebcams, sunsetWebcams } =
     useTerminatorStore((t) => ({
-      allTerminatorWebcams: t.setTerimantorWebcams,
-      sunriseWebcams: t.setSunriseWebcams,
-      sunsetWebcams: t.setSunsetWebcams,
+      allTerminatorWebcams: t.combined,
+      sunriseWebcams: t.sunrise,
+      sunsetWebcams: t.sunset,
     }));
 
   const {
@@ -82,15 +82,9 @@ export default function SimpleMap({ userLocation }: SimpleMapProps) {
     pause,
     resume,
   } = useCyclingWebcams(allTerminatorWebcams, {
-    getValue: (webcam: WindyWebcam) => {
-      // Find the index of this webcam in the combinedWebcams array
-      return allTerminatorWebcams.findIndex(
-        (w) => w.webcamId === webcam.webcamId
-      );
-    },
-    direction: 'asc',
-    intervalMs: 5000,
-    wrap: true,
+    startIndex: 0, // index
+    intervalMs: 3000,
+    autoStart: true,
   });
 
   // Add map interaction pause functionality
@@ -124,7 +118,7 @@ export default function SimpleMap({ userLocation }: SimpleMapProps) {
   useSetWebcamMarkers(
     map,
     mapLoaded,
-    mode === 'map' ? combinedWebcams : []
+    mode === 'map' ? allTerminatorWebcams : []
   );
 
   useFlyTo(
@@ -153,7 +147,7 @@ export default function SimpleMap({ userLocation }: SimpleMapProps) {
               style={{ position: 'relative', zIndex: 1 }}
             >
               <GlobeMap
-                webcams={combinedWebcams || []}
+                webcams={allTerminatorWebcams || []}
                 sunrise={sunrise}
                 sunset={sunset}
                 currentTime={currentTime}
