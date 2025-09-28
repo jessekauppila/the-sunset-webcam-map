@@ -17,11 +17,12 @@ const validOrientations: Orientation[] = [
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { orientation } = await request.json();
-    const webcamId = parseInt(params.id);
+    const { id } = await params;
+    const webcamId = parseInt(id);
 
     // Validate orientation
     if (!orientation || !validOrientations.includes(orientation)) {

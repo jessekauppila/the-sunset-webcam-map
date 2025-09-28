@@ -27,7 +27,7 @@ type State = {
   ) => void;
 };
 
-export const useTerminatorStore = create<State>()((set, get) => ({
+export const useTerminatorStore = create<State>()((set) => ({
   loading: false,
   sunrise: [],
   sunset: [],

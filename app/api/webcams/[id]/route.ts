@@ -19,11 +19,12 @@ const validOrientations: Orientation[] = [
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const body = await request.json();
-    const webcamId = parseInt(params.id);
+    const { id } = await params;
+    const webcamId = parseInt(id);
     const { rating, orientation } = body;
 
     // Validate inputs
@@ -50,7 +51,7 @@ export async function PATCH(
 
     // Build dynamic update query
     const updates: string[] = [];
-    const values: any[] = [];
+    const values: (number | string)[] = [];
     let paramIndex = 1;
 
     if (rating !== undefined) {
@@ -82,7 +83,7 @@ export async function PATCH(
       WHERE id = $${paramIndex}
     `;
 
-    await sql.unsafe(query, values);
+    await sql.query(query, values);
 
     return NextResponse.json({
       success: true,

@@ -5,7 +5,7 @@ import {
   Drawer,
   IconButton,
   Box,
-  Typography,
+  // Typography,
   ToggleButton,
   ToggleButtonGroup,
 } from '@mui/material';
@@ -26,7 +26,7 @@ import type { Location } from '../../lib/types';
 //import { useWebcamFetchArray } from '../hooks/useWebCamFetchArray';
 //import { useClosestWebcams } from './hooks/useClosestWebcams';
 import { useCyclingWebcams } from './hooks/useCyclingWebcams';
-import { useCombineSunriseSunsetWebcams } from './hooks/useCombinedSunriseSunsetWebcams';
+// import { useCombineSunriseSunsetWebcams } from './hooks/useCombinedSunriseSunsetWebcams';
 import GlobeMap from './GlobeMap';
 //import type { WindyWebcam } from '../../lib/types';
 import { useTerminatorStore } from '@/app/store/useTerminatorStore';

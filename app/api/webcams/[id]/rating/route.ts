@@ -5,11 +5,12 @@ import { sql } from '@/app/lib/db';
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { rating } = await request.json();
-    const webcamId = parseInt(params.id);
+    const { id } = await params;
+    const webcamId = parseInt(id);
 
     // Validate rating
     if (!rating || rating < 1 || rating > 5) {

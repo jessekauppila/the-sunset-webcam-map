@@ -67,13 +67,13 @@ export async function GET(req: Request) {
 
   console.log('🗂️ Total unique webcams:', windyById.size);
 
-  type Json =
-    | Record<string, unknown>
-    | unknown[]
-    | string
-    | number
-    | boolean
-    | null;
+  // type Json =
+  //   | Record<string, unknown>
+  //   | unknown[]
+  //   | string
+  //   | number
+  //   | boolean
+  //   | null;
 
   const toDbFields = (w: WindyWebcam) => ({
     source: 'windy' as const,
