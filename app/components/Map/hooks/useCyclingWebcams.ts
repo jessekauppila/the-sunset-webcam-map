@@ -2,44 +2,34 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { WindyWebcam } from '../../../lib/types';
 import { windyWebcamToLocation } from '../../../lib/types';
 
-type Direction = 'asc' | 'desc';
-
 type CycleConfig = {
-  getValue?: (webcam: WindyWebcam) => number | string;
-  direction?: Direction;
   intervalMs?: number;
   wrap?: boolean;
   autoStart?: boolean;
-  comparator?: (a: WindyWebcam, b: WindyWebcam) => number;
   startIndex?: number;
 };
 
-function defaultComparator(
-  getValue: (webcam: WindyWebcam) => number | string,
-  direction: Direction
-) {
-  return (a: WindyWebcam, b: WindyWebcam) => {
-    const va = getValue(a);
-    const vb = getValue(b);
+// Terminator-specific sorting: sunrise first, then sunset, both by rank
+function terminatorComparator(a: WindyWebcam, b: WindyWebcam) {
+  // First sort by phase: sunrise comes before sunset
+  const phaseOrder = { sunrise: 0, sunset: 1 };
+  const aPhase = a.phase || 'sunset';
+  const bPhase = b.phase || 'sunset';
 
-    const isNumber = typeof va === 'number' && typeof vb === 'number';
+  if (aPhase !== bPhase) {
+    return phaseOrder[aPhase] - phaseOrder[bPhase];
+  }
 
-    let cmp = 0;
-    if (isNumber) {
-      cmp = (va as number) - (vb as number);
-    } else {
-      const sa = String(va);
-      const sb = String(vb);
-      cmp = sa < sb ? -1 : sa > sb ? 1 : 0;
-    }
+  // Then sort by rank within the same phase
+  const aRank = a.rank ?? 0;
+  const bRank = b.rank ?? 0;
 
-    if (cmp === 0) {
-      // Stable tie-breaker by webcamId
-      cmp = a.webcamId - b.webcamId;
-    }
+  if (aRank !== bRank) {
+    return aRank - bRank;
+  }
 
-    return direction === 'asc' ? cmp : -cmp;
-  };
+  // Stable tie-breaker by webcamId
+  return a.webcamId - b.webcamId;
 }
 
 export function useCyclingWebcams(
@@ -47,25 +37,17 @@ export function useCyclingWebcams(
   config: CycleConfig = {}
 ) {
   const {
-    getValue = (w: WindyWebcam) => w.location.latitude,
-    direction = 'asc',
     intervalMs = 5000,
     wrap = true,
     autoStart = true,
-    comparator,
     startIndex = 0,
   } = config;
 
-  const cmp = useMemo(
-    () => comparator ?? defaultComparator(getValue, direction),
-    [comparator, getValue, direction]
-  );
-
   const sortedWebcams = useMemo(() => {
     const arr = [...webcams];
-    arr.sort(cmp);
+    arr.sort(terminatorComparator);
     return arr;
-  }, [webcams, cmp]);
+  }, [webcams]);
 
   const [index, setIndex] = useState<number>(
     sortedWebcams.length

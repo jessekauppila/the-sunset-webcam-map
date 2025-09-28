@@ -29,6 +29,7 @@ import { useCyclingWebcams } from './hooks/useCyclingWebcams';
 import { useCombineSunriseSunsetWebcams } from './hooks/useCombinedSunriseSunsetWebcams';
 import GlobeMap from './GlobeMap';
 import type { WindyWebcam } from '../../lib/types';
+import { useTerminatorStore } from '@/app/store/useTerminatorStore';
 
 interface SimpleMapProps {
   userLocation: Location;
@@ -44,14 +45,23 @@ export default function SimpleMap({ userLocation }: SimpleMapProps) {
     mode === 'map'
   );
 
+  //this used to call the api, but now is just used for updating the terminator ring visuals...
   useEffect(() => {
     const id = setInterval(() => setCurrentTime(new Date()), 60_000);
     return () => clearInterval(id);
   }, []);
 
+  //this brings in the Zustand "state" store
+  const { allTerminatorWebcams, sunriseWebcams, sunsetWebcams } =
+    useTerminatorStore((t) => ({
+      allTerminatorWebcams: t.setTerimantorWebcams,
+      sunriseWebcams: t.setSunriseWebcams,
+      sunsetWebcams: t.setSunsetWebcams,
+    }));
+
   const {
-    sunsetCoords,
-    sunriseCoords,
+    // sunsetCoords,
+    // sunriseCoords,
     // allTerminatorCoords,
     sunrise,
     sunset,
@@ -59,24 +69,22 @@ export default function SimpleMap({ userLocation }: SimpleMapProps) {
     attachToMap: mode === 'map',
   });
 
-  const {
-    combinedWebcams,
-    sunriseWebcams,
-    sunsetWebcams,
-    // isLoading: webcamsLoading,
-    sunriseCount,
-    sunsetCount,
-  } = useCombineSunriseSunsetWebcams(sunriseCoords, sunsetCoords);
+  // const {
+  //   combinedWebcams,
+  //   sunriseWebcams,
+  //   sunsetWebcams,
+  //   // isLoading: webcamsLoading,
+  // } = useCombineSunriseSunsetWebcams(sunriseCoords, sunsetCoords);
 
   const {
     currentWebcam: nextLatitudeNorthSunsetWebCam,
     currentWebcamLocation: nextLatitudeNorthSunsetLocation,
     pause,
     resume,
-  } = useCyclingWebcams(combinedWebcams, {
+  } = useCyclingWebcams(allTerminatorWebcams, {
     getValue: (webcam: WindyWebcam) => {
       // Find the index of this webcam in the combinedWebcams array
-      return combinedWebcams.findIndex(
+      return allTerminatorWebcams.findIndex(
         (w) => w.webcamId === webcam.webcamId
       );
     },
@@ -102,9 +110,9 @@ export default function SimpleMap({ userLocation }: SimpleMapProps) {
     } due to map interaction`
   );
 
-  console.log(
-    `🌅 Sunrise webcams: ${sunriseCount}, 🌅 Sunset webcams: ${sunsetCount}, 📹 Total: ${combinedWebcams.length}`
-  );
+  // console.log(
+  //   `🌅 Sunrise webcams: ${sunriseCount}, 🌅 Sunset webcams: ${sunsetCount}, 📹 Total: ${combinedWebcams.length}`
+  // );
 
   console.log(
     '📹 Next Latitude webcam: ',
