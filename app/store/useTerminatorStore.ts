@@ -14,7 +14,7 @@ type State = {
   // Computed getter for terminator webcams combined
   get combined(): WindyWebcam[];
 
-  setWebcams: (webcams: WindyWebcam[]) => void;
+  setTerimantorWebcams: (webcams: WindyWebcam[]) => void;
   setAllWebcams: (webcams: WindyWebcam[]) => void;
   setLoading: (v: boolean) => void;
   setError: (e?: string) => void;
@@ -37,7 +37,7 @@ export const useTerminatorStore = create<State>()((set, get) => ({
     return [...get().sunrise, ...get().sunset];
   },
 
-  setWebcams: (webcams) =>
+  setTerimantorWebcams: (webcams) =>
     set(() => {
       const sunrise = webcams
         .filter((w) => w.phase === 'sunrise')
