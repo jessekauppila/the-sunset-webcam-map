@@ -7,7 +7,7 @@ import { useTerminatorStore } from './useTerminatorStore';
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 export function useLoadTerminatorWebcams() {
-  const setRows = useTerminatorStore((s) => s.setRows);
+  const setWebcams = useTerminatorStore((s) => s.setWebcams);
   const setLoading = useTerminatorStore((s) => s.setLoading);
   const setError = useTerminatorStore((s) => s.setError);
 
@@ -28,6 +28,6 @@ export function useLoadTerminatorWebcams() {
   }, [error, setError]);
 
   useEffect(() => {
-    if (data) setRows(data);
-  }, [data, setRows]);
+    if (data) setWebcams(data);
+  }, [data, setWebcams]);
 }
