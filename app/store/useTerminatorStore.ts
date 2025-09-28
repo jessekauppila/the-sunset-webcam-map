@@ -9,11 +9,13 @@ type State = {
 
   sunrise: WindyWebcam[];
   sunset: WindyWebcam[];
+  allWebcams: WindyWebcam[]; // All webcams from database (not just terminator)
 
-  // Computed getter for all webcams combined
+  // Computed getter for terminator webcams combined
   get combined(): WindyWebcam[];
 
   setWebcams: (webcams: WindyWebcam[]) => void;
+  setAllWebcams: (webcams: WindyWebcam[]) => void;
   setLoading: (v: boolean) => void;
   setError: (e?: string) => void;
 
@@ -29,6 +31,7 @@ export const useTerminatorStore = create<State>()((set, get) => ({
   loading: false,
   sunrise: [],
   sunset: [],
+  allWebcams: [],
 
   get combined() {
     return [...get().sunrise, ...get().sunset];
@@ -44,6 +47,7 @@ export const useTerminatorStore = create<State>()((set, get) => ({
         .sort((a, b) => (a.rank ?? 0) - (b.rank ?? 0));
       return { sunrise, sunset };
     }),
+  setAllWebcams: (webcams) => set({ allWebcams: webcams }),
   setLoading: (v) => set({ loading: v }),
   setError: (e) => set({ error: e }),
 
@@ -55,6 +59,9 @@ export const useTerminatorStore = create<State>()((set, get) => ({
       sunset: state.sunset.map((w) =>
         w.webcamId === webcamId ? { ...w, rating } : w
       ),
+      allWebcams: state.allWebcams.map((w) =>
+        w.webcamId === webcamId ? { ...w, rating } : w
+      ),
     }));
   },
 
@@ -64,6 +71,9 @@ export const useTerminatorStore = create<State>()((set, get) => ({
         w.webcamId === webcamId ? { ...w, orientation } : w
       ),
       sunset: state.sunset.map((w) =>
+        w.webcamId === webcamId ? { ...w, orientation } : w
+      ),
+      allWebcams: state.allWebcams.map((w) =>
         w.webcamId === webcamId ? { ...w, orientation } : w
       ),
     }));

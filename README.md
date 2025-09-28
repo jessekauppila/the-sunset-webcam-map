@@ -107,3 +107,102 @@ This software is proprietary and confidential. No part of this software may be:
 - Shared with third parties
 
 without explicit written permission from the copyright holder.
+
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│ COMPLETE DATA FLOW ARCHITECTURE │
+└─────────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│ DATA INGESTION FLOW │
+└─────────────────────────────────────────────────────────────────────────────────┘
+
+1️⃣ CRON JOB (External Data)
+📅 /api/cron/update-terminator/route.ts
+├── Calculates sunrise/sunset terminator coordinates
+├── Fetches webcams from Windy API at those coordinates
+├── Deduplicates webcams by webcamId
+└── UPSERTS to database tables:
+├── webcams (basic webcam data - NO rating/orientation)
+└── terminator_webcam_state (sunrise/sunset phase + rank)
+
+                    ⬇️ WRITES TO DATABASE
+
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│ DATABASE LAYER │
+└─────────────────────────────────────────────────────────────────────────────────┘
+
+🗄️ PostgreSQL Database
+├── webcams table
+│ ├── Basic data (title, location, images, etc.) ← FROM CRON
+│ ├── rating (NULL initially) ← FROM CLIENT
+│ └── orientation (NULL initially) ← FROM CLIENT
+└── terminator_webcam_state table
+├── webcam_id, phase (sunrise/sunset), rank ← FROM CRON
+└── active flag
+
+                    ⬇️ READS FROM DATABASE
+
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│ DATA RETRIEVAL FLOW │
+└─────────────────────────────────────────────────────────────────────────────────┘
+
+2️⃣ READ API
+📖 /api/db-terminator-webcams/route.ts
+├── JOINs webcams + terminator_webcam_state tables
+├── Returns combined data including rating & orientation
+└── Transforms to WindyWebcam[] format
+
+                    ⬇️ FETCHED BY CLIENT
+
+3️⃣ CLIENT DATA LOADING
+🔄 useLoadTerminatorWebcams() hook
+├── Uses SWR to fetch from /api/db-terminator-webcams
+├── Refreshes every 60 seconds
+└── Feeds data into Zustand store
+
+                    ⬇️ STORES IN STATE
+
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│ STATE MANAGEMENT │
+└─────────────────────────────────────────────────────────────────────────────────┘
+
+4️⃣ ZUSTAND STORE (Central State)
+🏪 useTerminatorStore.ts
+├── Stores: { sunrise: WindyWebcam[], sunset: WindyWebcam[] }
+├── setRows() ← Updates from API data
+├── setRating() ← Updates local state from UI
+└── setOrientation() ← Updates local state from UI
+
+                    ⬇️ CONSUMED BY COMPONENTS
+
+5️⃣ UI COMPONENTS
+🖥️ React Components
+├── Read webcam data from Zustand store
+├── Display ratings & orientations
+└── Allow user to modify rating/orientation
+
+                    ⬇️ USER INTERACTIONS
+
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│ CLIENT UPDATE FLOW │
+└─────────────────────────────────────────────────────────────────────────────────┘
+
+6️⃣ CLIENT UPDATES (User Changes)
+✏️ useUpdateWebcam() hook
+├── updateRating(webcamId, rating)
+├── updateOrientation(webcamId, orientation)
+└── updateWebcam(webcamId, {rating, orientation})
+
+                    ⬇️ SENDS TO API
+
+7️⃣ UPDATE APIs (Client → Database)
+📝 /api/webcams/[id]/route.ts (or individual rating/orientation routes)
+├── Validates input data
+├── UPDATEs webcams table with new rating/orientation
+└── Returns success/error response
+
+                    ⬇️ WRITES TO DATABASE
+
+8️⃣ DATA SYNC
+🔄 Next SWR refresh (60s) picks up the changes
+└── Updates Zustand store with persisted data
