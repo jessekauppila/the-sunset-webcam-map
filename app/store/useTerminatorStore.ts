@@ -9,10 +9,8 @@ type State = {
 
   sunrise: WindyWebcam[];
   sunset: WindyWebcam[];
+  combined: WindyWebcam[]; // Combined terminator webcams
   allWebcams: WindyWebcam[]; // All webcams from database (not just terminator)
-
-  // Computed getter for terminator webcams combined
-  get combined(): WindyWebcam[];
 
   setTerimantorWebcams: (webcams: WindyWebcam[]) => void;
   setSunriseWebcams: (webcams: WindyWebcam[]) => void;
@@ -33,11 +31,8 @@ export const useTerminatorStore = create<State>()((set, get) => ({
   loading: false,
   sunrise: [],
   sunset: [],
+  combined: [],
   allWebcams: [],
-
-  get combined() {
-    return [...get().sunrise, ...get().sunset];
-  },
 
   setTerimantorWebcams: (webcams) =>
     set(() => {
@@ -47,23 +42,26 @@ export const useTerminatorStore = create<State>()((set, get) => ({
       const sunset = webcams
         .filter((w) => w.phase === 'sunset')
         .sort((a, b) => (a.rank ?? 0) - (b.rank ?? 0));
-      return { sunrise, sunset };
+      const combined = [...sunrise, ...sunset];
+      return { sunrise, sunset, combined };
     }),
 
   setSunriseWebcams: (webcams) =>
-    set(() => {
+    set((state) => {
       const sunrise = webcams
         .filter((w) => w.phase === 'sunrise')
         .sort((a, b) => (a.rank ?? 0) - (b.rank ?? 0));
-      return { sunrise };
+      const combined = [...sunrise, ...state.sunset];
+      return { sunrise, combined };
     }),
 
   setSunsetWebcams: (webcams) =>
-    set(() => {
+    set((state) => {
       const sunset = webcams
         .filter((w) => w.phase === 'sunset')
         .sort((a, b) => (a.rank ?? 0) - (b.rank ?? 0));
-      return { sunset };
+      const combined = [...state.sunrise, ...sunset];
+      return { sunset, combined };
     }),
 
   setAllWebcams: (webcams) => set({ allWebcams: webcams }),
@@ -71,30 +69,42 @@ export const useTerminatorStore = create<State>()((set, get) => ({
   setError: (e) => set({ error: e }),
 
   setRating: (webcamId, rating) => {
-    set((state) => ({
-      sunrise: state.sunrise.map((w) =>
+    set((state) => {
+      const sunrise = state.sunrise.map((w) =>
         w.webcamId === webcamId ? { ...w, rating } : w
-      ),
-      sunset: state.sunset.map((w) =>
+      );
+      const sunset = state.sunset.map((w) =>
         w.webcamId === webcamId ? { ...w, rating } : w
-      ),
-      allWebcams: state.allWebcams.map((w) =>
-        w.webcamId === webcamId ? { ...w, rating } : w
-      ),
-    }));
+      );
+      const combined = [...sunrise, ...sunset];
+      return {
+        sunrise,
+        sunset,
+        combined,
+        allWebcams: state.allWebcams.map((w) =>
+          w.webcamId === webcamId ? { ...w, rating } : w
+        ),
+      };
+    });
   },
 
   setOrientation: (webcamId, orientation) => {
-    set((state) => ({
-      sunrise: state.sunrise.map((w) =>
+    set((state) => {
+      const sunrise = state.sunrise.map((w) =>
         w.webcamId === webcamId ? { ...w, orientation } : w
-      ),
-      sunset: state.sunset.map((w) =>
+      );
+      const sunset = state.sunset.map((w) =>
         w.webcamId === webcamId ? { ...w, orientation } : w
-      ),
-      allWebcams: state.allWebcams.map((w) =>
-        w.webcamId === webcamId ? { ...w, orientation } : w
-      ),
-    }));
+      );
+      const combined = [...sunrise, ...sunset];
+      return {
+        sunrise,
+        sunset,
+        combined,
+        allWebcams: state.allWebcams.map((w) =>
+          w.webcamId === webcamId ? { ...w, orientation } : w
+        ),
+      };
+    });
   },
 }));

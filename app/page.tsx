@@ -1,3 +1,5 @@
+'use client';
+
 import SimpleMap from './components/Map/SimpleMap';
 import { useLoadTerminatorWebcams } from '@/app/store/useLoadTerminatorWebcams';
 

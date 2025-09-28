@@ -28,7 +28,7 @@ import type { Location } from '../../lib/types';
 import { useCyclingWebcams } from './hooks/useCyclingWebcams';
 import { useCombineSunriseSunsetWebcams } from './hooks/useCombinedSunriseSunsetWebcams';
 import GlobeMap from './GlobeMap';
-import type { WindyWebcam } from '../../lib/types';
+//import type { WindyWebcam } from '../../lib/types';
 import { useTerminatorStore } from '@/app/store/useTerminatorStore';
 
 interface SimpleMapProps {
@@ -52,12 +52,9 @@ export default function SimpleMap({ userLocation }: SimpleMapProps) {
   }, []);
 
   //this brings in the Zustand "state" store
-  const { allTerminatorWebcams, sunriseWebcams, sunsetWebcams } =
-    useTerminatorStore((t) => ({
-      allTerminatorWebcams: t.combined,
-      sunriseWebcams: t.sunrise,
-      sunsetWebcams: t.sunset,
-    }));
+  const allTerminatorWebcams = useTerminatorStore((t) => t.combined);
+  const sunriseWebcams = useTerminatorStore((t) => t.sunrise);
+  const sunsetWebcams = useTerminatorStore((t) => t.sunset);
 
   const {
     // sunsetCoords,
