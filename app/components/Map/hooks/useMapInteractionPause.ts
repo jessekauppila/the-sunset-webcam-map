@@ -76,7 +76,7 @@ export function useMapInteractionPause({
       'mousedown',
       'touchstart',
       'wheel',
-      'movestart',
+      //'movestart',
       'zoomstart',
       'rotatestart',
       'pitchstart',
