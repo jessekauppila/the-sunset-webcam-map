@@ -235,8 +235,7 @@ export async function GET(req: Request) {
 
   // Clear ALL terminator state entries (start fresh each time)
   await sql`
-    delete from terminator_webcam_state 
-    where active = true
+    delete from terminator_webcam_state
   `;
 
   const ids = windyAll.map((w) => String(w.webcamId));
@@ -263,6 +262,11 @@ export async function GET(req: Request) {
     await sql`
       insert into terminator_webcam_state (webcam_id, phase, rank, last_seen_at, updated_at, active)
       values (${webcamId}, ${phase}, ${rank}, now(), now(), true)
+      on conflict (webcam_id, phase) do update set
+        rank = excluded.rank,
+        last_seen_at = now(),
+        updated_at = now(),
+        active = true
     `;
   };
 
