@@ -2,10 +2,14 @@
 
 import SimpleMap from './components/Map/SimpleMap';
 import { useLoadTerminatorWebcams } from '@/app/store/useLoadTerminatorWebcams';
+import { useMemo } from 'react';
 
 export default function Home() {
   // Bellingham, Washington location need to put in user's location eventually
-  const userLocation = { lat: 48.7519, lng: -122.4787 };
+  const userLocation = useMemo(
+    () => ({ lat: 48.7519, lng: -122.4787 }),
+    []
+  );
 
   // Fetches sunrise/sunset webcams from database and stores in Zustand
   // Automatically refreshes every 60 seconds using SWR
