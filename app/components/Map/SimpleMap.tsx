@@ -27,7 +27,13 @@ import type { Location } from '../../lib/types';
 //import { useClosestWebcams } from './hooks/useClosestWebcams';
 import { useCyclingWebcams } from './hooks/useCyclingWebcams';
 // import { useCombineSunriseSunsetWebcams } from './hooks/useCombinedSunriseSunsetWebcams';
-import GlobeMap from './GlobeMap';
+import dynamic from 'next/dynamic';
+
+const GlobeMap = dynamic(() => import('./GlobeMap'), {
+  ssr: false, // Disable server-side rendering for Deck.gl
+  loading: () => <div>Loading 3D Globe...</div>,
+});
+
 //import type { WindyWebcam } from '../../lib/types';
 import { useTerminatorStore } from '@/app/store/useTerminatorStore';
 
@@ -56,22 +62,14 @@ export default function SimpleMap({ userLocation }: SimpleMapProps) {
   const sunriseWebcams = useTerminatorStore((t) => t.sunrise);
   const sunsetWebcams = useTerminatorStore((t) => t.sunset);
 
-  const {
-    // sunsetCoords,
-    // sunriseCoords,
-    // allTerminatorCoords,
-    sunrise,
-    sunset,
-  } = useUpdateTerminatorRing(map, mapLoaded, currentTime, {
-    attachToMap: mode === 'map',
-  });
-
-  // const {
-  //   combinedWebcams,
-  //   sunriseWebcams,
-  //   sunsetWebcams,
-  //   // isLoading: webcamsLoading,
-  // } = useCombineSunriseSunsetWebcams(sunriseCoords, sunsetCoords);
+  const { sunrise, sunset } = useUpdateTerminatorRing(
+    map,
+    mapLoaded,
+    currentTime,
+    {
+      attachToMap: mode === 'map',
+    }
+  );
 
   const {
     currentWebcam: nextLatitudeNorthSunsetWebCam,
@@ -100,10 +98,6 @@ export default function SimpleMap({ userLocation }: SimpleMapProps) {
       isPaused ? 'paused' : 'running'
     } due to map interaction`
   );
-
-  // console.log(
-  //   `🌅 Sunrise webcams: ${sunriseCount}, 🌅 Sunset webcams: ${sunsetCount}, 📹 Total: ${combinedWebcams.length}`
-  // );
 
   console.log(
     '📹 Next Latitude webcam: ',

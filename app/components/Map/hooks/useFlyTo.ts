@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import type { Location } from '../../../lib/types';
 
 export function useFlyTo(
@@ -6,6 +6,8 @@ export function useFlyTo(
   mapLoaded: boolean,
   location: Location | null
 ) {
+  const hasFlownRef = useRef(false);
+
   useEffect(() => {
     // Only run on client side
     if (typeof window === 'undefined') return;
@@ -14,8 +16,7 @@ export function useFlyTo(
       hasMap: !!map,
       mapLoaded,
       hasLocation: !!location,
-      mapType: typeof map,
-      mapConstructor: map?.constructor?.name,
+      hasFlownBefore: hasFlownRef.current,
     });
 
     if (!map || !mapLoaded || !location) {
@@ -27,14 +28,21 @@ export function useFlyTo(
       return;
     }
 
-    console.log('🎯 Set fly to:', location);
+    // Only fly to location once (on first render)
+    if (hasFlownRef.current) {
+      console.log('🚫 Skipping fly to - already flown before');
+      return;
+    }
+
+    console.log('🎯 Flying to location (first time):', location);
+    hasFlownRef.current = true; //have to make this true so it only runs once at load...
 
     // Smoothly fly to sunset location
     map.flyTo({
       center: [location.lng, location.lat],
       zoom: 2,
-      duration: 2000, // Reduce from 6000 to 2000ms
-      easing: (t) => t * (2 - t), // Add smooth easing
+      duration: 2000,
+      easing: (t) => t * (2 - t),
     });
   }, [map, mapLoaded, location]);
 }
