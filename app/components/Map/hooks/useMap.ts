@@ -11,6 +11,11 @@ export function useMap(
   const [mapLoaded, setMapLoaded] = useState(false);
   const [mapReady, setMapReady] = useState(false);
 
+  const initialCenterRef = useRef<[number, number]>([
+    userLocation.lng,
+    userLocation.lat,
+  ]);
+
   // Set Mapbox token
   mapboxgl.accessToken =
     process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN || '';
@@ -75,7 +80,7 @@ export function useMap(
     map.current = new mapboxgl.Map({
       container: mapContainer.current,
       style: 'mapbox://styles/mapbox/dark-v11',
-      center: [userLocation.lng, userLocation.lat],
+      center: initialCenterRef.current, // ← Use the ref instead
       zoom: 6,
     });
 
@@ -109,7 +114,7 @@ export function useMap(
         setMapReady(false);
       }
     };
-  }, [userLocation, enabled]);
+  }, [enabled]);
 
   // Function to update sun lighting (can be called from parent components)
   // const updateSunPosition = (date: Date) => {
