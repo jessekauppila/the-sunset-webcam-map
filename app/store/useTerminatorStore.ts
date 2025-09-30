@@ -1,7 +1,7 @@
 'use client';
 
 import { create } from 'zustand';
-import type { WindyWebcam, Orientation } from '../lib/types';
+import type { WindyWebcam } from '../lib/types';
 
 type State = {
   loading: boolean;
@@ -10,21 +10,12 @@ type State = {
   sunrise: WindyWebcam[];
   sunset: WindyWebcam[];
   combined: WindyWebcam[]; // Combined terminator webcams
-  allWebcams: WindyWebcam[]; // All webcams from database (not just terminator)
 
   setTerimantorWebcams: (webcams: WindyWebcam[]) => void;
   setSunriseWebcams: (webcams: WindyWebcam[]) => void;
   setSunsetWebcams: (webcams: WindyWebcam[]) => void;
-  setAllWebcams: (webcams: WindyWebcam[]) => void;
   setLoading: (v: boolean) => void;
   setError: (e?: string) => void;
-
-  // Direct webcam updaters
-  setRating: (webcamId: number, rating: number) => void;
-  setOrientation: (
-    webcamId: number,
-    orientation: Orientation
-  ) => void;
 };
 
 export const useTerminatorStore = create<State>()((set) => ({
@@ -32,7 +23,6 @@ export const useTerminatorStore = create<State>()((set) => ({
   sunrise: [],
   sunset: [],
   combined: [],
-  allWebcams: [],
 
   setTerimantorWebcams: (webcams) =>
     set(() => {
@@ -64,47 +54,6 @@ export const useTerminatorStore = create<State>()((set) => ({
       return { sunset, combined };
     }),
 
-  setAllWebcams: (webcams) => set({ allWebcams: webcams }),
   setLoading: (v) => set({ loading: v }),
   setError: (e) => set({ error: e }),
-
-  setRating: (webcamId, rating) => {
-    set((state) => {
-      const sunrise = state.sunrise.map((w) =>
-        w.webcamId === webcamId ? { ...w, rating } : w
-      );
-      const sunset = state.sunset.map((w) =>
-        w.webcamId === webcamId ? { ...w, rating } : w
-      );
-      const combined = [...sunrise, ...sunset];
-      return {
-        sunrise,
-        sunset,
-        combined,
-        allWebcams: state.allWebcams.map((w) =>
-          w.webcamId === webcamId ? { ...w, rating } : w
-        ),
-      };
-    });
-  },
-
-  setOrientation: (webcamId, orientation) => {
-    set((state) => {
-      const sunrise = state.sunrise.map((w) =>
-        w.webcamId === webcamId ? { ...w, orientation } : w
-      );
-      const sunset = state.sunset.map((w) =>
-        w.webcamId === webcamId ? { ...w, orientation } : w
-      );
-      const combined = [...sunrise, ...sunset];
-      return {
-        sunrise,
-        sunset,
-        combined,
-        allWebcams: state.allWebcams.map((w) =>
-          w.webcamId === webcamId ? { ...w, orientation } : w
-        ),
-      };
-    });
-  },
 }));

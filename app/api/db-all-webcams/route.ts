@@ -12,7 +12,6 @@ export async function GET() {
            w.last_fetched_at, w.created_at, w.updated_at,
            w.rating, w.orientation
     from webcams w
-    where w.status = 'active'
     order by w.updated_at desc
     limit 5000
   `) as Array<{

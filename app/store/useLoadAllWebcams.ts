@@ -2,20 +2,17 @@
 
 import { useEffect } from 'react';
 import useSWR from 'swr';
-import { useTerminatorStore } from './useTerminatorStore';
+import { useAllWebcamsStore } from './useAllWebcamsStore';
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
-export function useLoadTerminatorWebcams() {
-  const setTerimantorWebcams = useTerminatorStore(
-    (s) => s.setTerimantorWebcams
-  );
-
-  const setLoading = useTerminatorStore((s) => s.setLoading);
-  const setError = useTerminatorStore((s) => s.setError);
+export function useLoadAllWebcams() {
+  const setAllWebcams = useAllWebcamsStore((s) => s.setAllWebcams);
+  const setLoading = useAllWebcamsStore((s) => s.setLoading);
+  const setError = useAllWebcamsStore((s) => s.setError);
 
   const { data, error, isLoading } = useSWR(
-    '/api/db-terminator-webcams',
+    '/api/db-all-webcams',
     fetcher,
     {
       refreshInterval: 60_000,
@@ -31,6 +28,6 @@ export function useLoadTerminatorWebcams() {
   }, [error, setError]);
 
   useEffect(() => {
-    if (data) setTerimantorWebcams(data);
-  }, [data, setTerimantorWebcams]);
+    if (data) setAllWebcams(data);
+  }, [data, setAllWebcams]);
 }

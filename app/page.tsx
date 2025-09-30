@@ -3,8 +3,11 @@
 import { useState } from 'react';
 import SimpleMap from './components/Map/SimpleMap';
 import { useLoadTerminatorWebcams } from '@/app/store/useLoadTerminatorWebcams';
+import { useLoadAllWebcams } from '@/app/store/useLoadAllWebcams';
+
 import { useMemo } from 'react';
 import { useTerminatorStore } from '@/app/store/useTerminatorStore';
+import { useAllWebcamsStore } from '@/app/store/useAllWebcamsStore';
 import { WebcamConsole } from './components/WebcamConsole';
 import { Tabs, Tab, Drawer, Box, IconButton } from '@mui/material';
 import {
@@ -26,11 +29,12 @@ export default function Home() {
   // Automatically refreshes every 60 seconds using SWR
   // Splits webcams into sunrise[] and sunset[] arrays by phase
   useLoadTerminatorWebcams();
+  useLoadAllWebcams();
 
   //Bring in terminator webcams from Zustand Store
   const sunriseWebcams = useTerminatorStore((t) => t.sunrise);
   const sunsetWebcams = useTerminatorStore((t) => t.sunset);
-  const allWebcams = useTerminatorStore((t) => t.allWebcams);
+  const allWebcams = useAllWebcamsStore((t) => t.allWebcams);
 
   return (
     <main className="relative w-full">
