@@ -1,7 +1,9 @@
 'use client';
 
 import Image from 'next/image';
-import type { WindyWebcam } from '@/app/lib/types';
+import { useState } from 'react';
+import type { WindyWebcam, Orientation } from '@/app/lib/types';
+import { useAllWebcamsStore } from '@/app/store/useAllWebcamsStore';
 
 export function WebcamConsole({
   webcams,
@@ -10,6 +12,47 @@ export function WebcamConsole({
   webcams: WindyWebcam[];
   title: string;
 }) {
+  const setRating = useAllWebcamsStore((s) => s.setRating);
+  const setOrientation = useAllWebcamsStore((s) => s.setOrientation);
+  const [updatingWebcams, setUpdatingWebcams] = useState<Set<number>>(
+    new Set()
+  );
+
+  const handleRatingChange = async (
+    webcamId: number,
+    rating: number
+  ) => {
+    setUpdatingWebcams((prev) => new Set(prev).add(webcamId));
+    try {
+      await setRating(webcamId, rating);
+    } catch (error) {
+      console.error('Failed to update rating:', error);
+    } finally {
+      setUpdatingWebcams((prev) => {
+        const newSet = new Set(prev);
+        newSet.delete(webcamId);
+        return newSet;
+      });
+    }
+  };
+
+  const handleOrientationChange = async (
+    webcamId: number,
+    orientation: Orientation
+  ) => {
+    setUpdatingWebcams((prev) => new Set(prev).add(webcamId));
+    try {
+      await setOrientation(webcamId, orientation);
+    } catch (error) {
+      console.error('Failed to update orientation:', error);
+    } finally {
+      setUpdatingWebcams((prev) => {
+        const newSet = new Set(prev);
+        newSet.delete(webcamId);
+        return newSet;
+      });
+    }
+  };
   return (
     <div className="p-4 bg-gray-200 rounded-lg">
       <h3 className="text-lg font-bold text-gray-700 mb-2">
@@ -81,6 +124,67 @@ export function WebcamConsole({
               <p className="webcam-console-details">
                 ID: {webcam.webcamId}
               </p>
+
+              {/* Rating Controls */}
+              <div className="mt-2 mb-2">
+                <label className="webcam-console-details">
+                  Rating:
+                </label>
+                <div className="flex gap-1">
+                  {[1, 2, 3, 4, 5].map((rating) => (
+                    <button
+                      key={rating}
+                      onClick={() =>
+                        handleRatingChange(webcam.webcamId, rating)
+                      }
+                      disabled={updatingWebcams.has(webcam.webcamId)}
+                      className={`w-6 h-6 text-xs rounded border ${
+                        webcam.rating === rating
+                          ? 'bg-yellow-400 border-yellow-500 text-yellow-900'
+                          : 'bg-gray-100 border-gray-300 text-gray-600 hover:bg-gray-200'
+                      } ${
+                        updatingWebcams.has(webcam.webcamId)
+                          ? 'opacity-50 cursor-not-allowed'
+                          : 'cursor-pointer'
+                      }`}
+                    >
+                      {rating}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Orientation Controls */}
+              <div className="mt-2">
+                <label className="webcam-console-details">
+                  Orientation:
+                </label>
+                <select
+                  value={webcam.orientation || ''}
+                  onChange={(e) =>
+                    handleOrientationChange(
+                      webcam.webcamId,
+                      e.target.value as Orientation
+                    )
+                  }
+                  disabled={updatingWebcams.has(webcam.webcamId)}
+                  className={`w-full text-xs p-1 border rounded ${
+                    updatingWebcams.has(webcam.webcamId)
+                      ? 'opacity-50 cursor-not-allowed'
+                      : 'cursor-pointer'
+                  }`}
+                >
+                  <option value="">Select orientation</option>
+                  <option value="N">North (N)</option>
+                  <option value="NE">Northeast (NE)</option>
+                  <option value="E">East (E)</option>
+                  <option value="SE">Southeast (SE)</option>
+                  <option value="S">South (S)</option>
+                  <option value="SW">Southwest (SW)</option>
+                  <option value="W">West (W)</option>
+                  <option value="NW">Northwest (NW)</option>
+                </select>
+              </div>
             </div>
           ))}
         </div>
