@@ -6,7 +6,7 @@ import { useLoadTerminatorWebcams } from '@/app/store/useLoadTerminatorWebcams';
 import { useMemo } from 'react';
 import { useTerminatorStore } from '@/app/store/useTerminatorStore';
 import { WebcamConsole } from './components/WebcamConsole';
-import { Drawer, Box, IconButton } from '@mui/material';
+import { Tabs, Tab, Drawer, Box, IconButton } from '@mui/material';
 import {
   KeyboardArrowUp,
   KeyboardArrowDown,
@@ -14,6 +14,7 @@ import {
 
 export default function Home() {
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [tabValue, setTabValue] = useState(0); // Add tab state
 
   // Bellingham, Washington location need to put in user's location eventually
   const userLocation = useMemo(
@@ -70,33 +71,68 @@ export default function Home() {
             },
           }}
         >
-          <Box sx={{ p: 3, height: '100%', overflow: 'auto' }}>
-            {/* Webcam Display */}
-            <Box sx={{ mb: 4 }}>
-              {/* <div className="canvas-container">
-              {nextLatitudeNorthSunsetWebCam && (
-                <WebcamDisplay
-                  webcam={nextLatitudeNorthSunsetWebCam}
-                />
+          <Box
+            sx={{
+              height: '100%',
+              display: 'flex',
+              flexDirection: 'column',
+            }}
+          >
+            {/* Tabs Header */}
+            <Tabs
+              value={tabValue}
+              onChange={(_, newValue) => setTabValue(newValue)}
+              sx={{
+                borderBottom: 1,
+                borderColor: 'divider',
+                backgroundColor: '#374151', // gray-700
+                '& .MuiTab-root': {
+                  color: 'white',
+                  '&.Mui-selected': {
+                    color: '#60a5fa', // blue-400
+                  },
+                },
+                '& .MuiTabs-indicator': {
+                  backgroundColor: '#60a5fa', // blue-400
+                },
+              }}
+            >
+              <Tab label="Current Terminator" />
+              <Tab label="All Webcams" />
+            </Tabs>
+
+            {/* Tab Content */}
+            <Box sx={{ flex: 1, overflow: 'auto', p: 3 }}>
+              {tabValue === 0 && (
+                // Current Terminator Tab
+                <Box
+                  sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}
+                >
+                  <Box sx={{ flex: 1, minWidth: 300 }}>
+                    <WebcamConsole
+                      webcams={sunsetWebcams || []}
+                      title={'Current Sunsets'}
+                    />
+                  </Box>
+
+                  <Box sx={{ flex: 1, minWidth: 300 }}>
+                    <WebcamConsole
+                      webcams={sunriseWebcams || []}
+                      title={'Current Sunrises'}
+                    />
+                  </Box>
+                </Box>
               )}
-            </div> */}
-            </Box>
 
-            {/* Webcam Consoles */}
-            <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-              <Box sx={{ flex: 1, minWidth: 300 }}>
-                <WebcamConsole
-                  webcams={sunsetWebcams || []}
-                  title={'Current Sunsets'}
-                />
-              </Box>
-
-              <Box sx={{ flex: 1, minWidth: 300 }}>
-                <WebcamConsole
-                  webcams={sunriseWebcams || []}
-                  title={'Current Sunrises'}
-                />
-              </Box>
+              {tabValue === 1 && (
+                // All Webcams Tab
+                <Box>
+                  <WebcamConsole
+                    webcams={allWebcams || []}
+                    title={'All Webcams'}
+                  />
+                </Box>
+              )}
             </Box>
           </Box>
         </Drawer>
@@ -106,3 +142,19 @@ export default function Home() {
 }
 
 //allWebcams
+
+{
+  /*
+<Box sx={{ p: 3, height: '100%', overflow: 'auto' }}>
+            {/* Webcam Display 
+            <Box sx={{ mb: 4 }}>
+              {/* <div className="canvas-container">
+              {nextLatitudeNorthSunsetWebCam && (
+                <WebcamDisplay
+                  webcam={nextLatitudeNorthSunsetWebCam}
+                />
+              )}
+            </div> 
+            </Box>
+            */
+}
