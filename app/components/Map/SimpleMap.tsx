@@ -43,7 +43,6 @@ interface SimpleMapProps {
 
 export default function SimpleMap({ userLocation }: SimpleMapProps) {
   const [mode, setMode] = useState<'map' | 'globe'>('map');
-  const [drawerOpen, setDrawerOpen] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
 
   const { mapContainer, map, mapLoaded, mapReady } = useMap(
@@ -59,8 +58,6 @@ export default function SimpleMap({ userLocation }: SimpleMapProps) {
 
   //this brings in the Zustand "state" store
   const allTerminatorWebcams = useTerminatorStore((t) => t.combined);
-  const sunriseWebcams = useTerminatorStore((t) => t.sunrise);
-  const sunsetWebcams = useTerminatorStore((t) => t.sunset);
 
   const { sunrise, sunset } = useUpdateTerminatorRing(
     map,
@@ -204,25 +201,6 @@ export default function SimpleMap({ userLocation }: SimpleMapProps) {
             </ToggleButtonGroup>
           </Box>
 
-          {/* Drawer Toggle Button */}
-          <IconButton
-            onClick={() => setDrawerOpen(!drawerOpen)}
-            sx={{
-              position: 'absolute',
-              bottom: 16,
-              left: '50%',
-              transform: 'translateX(-50%)',
-              backgroundColor: 'rgba(0, 0, 0, 0.7)',
-              color: 'white',
-              zIndex: 3,
-              '&:hover': {
-                backgroundColor: 'rgba(0, 0, 0, 0.9)',
-              },
-            }}
-          >
-            {drawerOpen ? <KeyboardArrowDown /> : <KeyboardArrowUp />}
-          </IconButton>
-
           {/* Loading Overlay */}
           {mode === 'map' && !mapLoaded && (
             <div
@@ -237,51 +215,6 @@ export default function SimpleMap({ userLocation }: SimpleMapProps) {
           )}
         </div>
       </section>
-
-      {/* MUI Drawer */}
-      <Drawer
-        anchor="bottom"
-        open={drawerOpen}
-        onClose={() => setDrawerOpen(false)}
-        PaperProps={{
-          sx: {
-            height: '60vh',
-            borderTopLeftRadius: 16,
-            borderTopRightRadius: 16,
-            backgroundColor: '#1f2937', // gray-800
-          },
-        }}
-      >
-        <Box sx={{ p: 3, height: '100%', overflow: 'auto' }}>
-          {/* Webcam Display */}
-          <Box sx={{ mb: 4 }}>
-            {/* <div className="canvas-container">
-              {nextLatitudeNorthSunsetWebCam && (
-                <WebcamDisplay
-                  webcam={nextLatitudeNorthSunsetWebCam}
-                />
-              )}
-            </div> */}
-          </Box>
-
-          {/* Webcam Consoles */}
-          <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-            <Box sx={{ flex: 1, minWidth: 300 }}>
-              <WebcamConsole
-                webcams={sunsetWebcams || []}
-                title={'Sunsets'}
-              />
-            </Box>
-
-            <Box sx={{ flex: 1, minWidth: 300 }}>
-              <WebcamConsole
-                webcams={sunriseWebcams || []}
-                title={'Sunrises'}
-              />
-            </Box>
-          </Box>
-        </Box>
-      </Drawer>
     </div>
   );
 }
