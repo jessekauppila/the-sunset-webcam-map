@@ -125,6 +125,11 @@ export function WebcamConsole({
                 ID: {webcam.webcamId}
               </p>
 
+              {/* Rating */}
+              <p className="webcam-console-details">
+                Rating: {webcam.rating}
+              </p>
+
               {/* Rating Controls */}
               <div className="mt-2 mb-2">
                 <label className="webcam-console-details">
@@ -153,6 +158,11 @@ export function WebcamConsole({
                   ))}
                 </div>
               </div>
+
+              {/* Rating */}
+              <p className="webcam-console-details">
+                Orientation: {webcam.orientation}
+              </p>
 
               {/* Orientation Controls */}
               <div className="mt-2">
