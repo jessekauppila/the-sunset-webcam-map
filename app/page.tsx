@@ -14,6 +14,7 @@ import {
   KeyboardArrowUp,
   KeyboardArrowDown,
 } from '@mui/icons-material';
+import { MosaicCanvas } from '@/app/components/WebcamsMosaicCanvas';
 
 export default function Home() {
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -103,6 +104,8 @@ export default function Home() {
             >
               <Tab label="Current Terminator" />
               <Tab label="All Webcams" />
+              <Tab label="Sunrise Mosaic Display" />
+              <Tab label="Sunset Mosaic Display" />
             </Tabs>
 
             {/* Tab Content */}
@@ -134,6 +137,42 @@ export default function Home() {
                   <WebcamConsole
                     webcams={allWebcams || []}
                     title={'All Webcams'}
+                  />
+                </Box>
+              )}
+
+              {tabValue === 2 && (
+                <Box sx={{ p: 2 }}>
+                  {/* choose which set to render */}
+                  <MosaicCanvas
+                    webcams={sunriseWebcams} // or sunsetWebcams
+                    width={1200}
+                    height={700}
+                    rows={6}
+                    maxImages={180}
+                    padding={2}
+                    onSelect={(w) => {
+                      // show detail, focus the map, open drawer, etc.
+                      console.log('clicked', w.webcamId, w.title);
+                    }}
+                  />
+                </Box>
+              )}
+
+              {tabValue === 3 && (
+                <Box sx={{ p: 2 }}>
+                  {/* choose which set to render */}
+                  <MosaicCanvas
+                    webcams={sunsetWebcams} // or sunsetWebcams
+                    width={1200}
+                    height={700}
+                    rows={6}
+                    maxImages={180}
+                    padding={2}
+                    onSelect={(w) => {
+                      // show detail, focus the map, open drawer, etc.
+                      console.log('clicked', w.webcamId, w.title);
+                    }}
                   />
                 </Box>
               )}
