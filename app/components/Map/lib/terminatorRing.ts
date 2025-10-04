@@ -13,7 +13,7 @@ const normSignedHours = (h: number) => {
 /** Build the terminator ring (GeoJSON Polygon) centered on subsolar point. */
 export function terminatorPolygon(
   date = new Date(),
-  precisionDeg = 10,
+  precisionDeg = 2, // Optimal precision for complete coverage with minimal overlap
   sunAltitudeDegrees = 0 // this is used to calculate the angle/altitude of the sun in the sky
 ) {
   const { lat, lng } = subsolarPoint(date);

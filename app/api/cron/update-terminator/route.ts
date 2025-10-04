@@ -6,12 +6,54 @@ import { subsolarPoint } from '@/app/components/Map/lib/subsolarLocation';
 import { createTerminatorRing } from '@/app/components/Map/lib/terminatorRing';
 import type { Location, WindyWebcam } from '@/app/lib/types';
 
-async function fetchWebcamsFor(loc: Location) {
+/**
+ * Analyzes coverage efficiency based on terminator precision and search radius
+ * @param precisionDeg - Terminator ring precision in degrees
+ * @param searchRadiusDeg - Search radius per API call in degrees (default: 5)
+ * @returns Coverage analysis metrics
+ */
+function analyzeCoverage(
+  precisionDeg: number,
+  searchRadiusDeg: number = 5
+) {
+  const pointsAroundGlobe = 360 / precisionDeg;
+  const earthCircumferenceKm = 40075; // km at equator
+  const distanceBetweenPointsKm =
+    earthCircumferenceKm / pointsAroundGlobe;
+  const searchRadiusKm = searchRadiusDeg * 111; // 1° ≈ 111 km
+
+  const overlapKm = searchRadiusKm - distanceBetweenPointsKm;
+  const overlapPercent = (overlapKm / searchRadiusKm) * 100;
+
+  return {
+    pointsAroundGlobe,
+    distanceBetweenPointsKm: Math.round(distanceBetweenPointsKm),
+    searchRadiusKm,
+    overlapKm: Math.round(overlapKm),
+    overlapPercent: Math.round(overlapPercent),
+    hasGoodCoverage: overlapPercent > 0 && overlapPercent < 300,
+    isOptimal: overlapPercent > 50 && overlapPercent < 200,
+  };
+}
+
+async function fetchWebcamsFor(loc: Location, delayMs = 0) {
+  // Add delay to avoid rate limiting
+  if (delayMs > 0) {
+    await new Promise((resolve) => setTimeout(resolve, delayMs));
+  }
+
   const url = `https://api.windy.com/webcams/api/v3/map/clusters?lang=en&northLat=${
     loc.lat + 5
   }&southLat=${loc.lat - 5}&eastLon=${loc.lng + 5}&westLon=${
     loc.lng - 5
   }&zoom=4&include=images&include=urls&include=player&include=location&include=categories`;
+
+  console.log(
+    `🌐 Fetching webcams for lat:${loc.lat.toFixed(
+      2
+    )}, lng:${loc.lng.toFixed(2)}`
+  );
+
   const res = await fetch(url, {
     headers: {
       accept: 'application/json',
@@ -20,8 +62,18 @@ async function fetchWebcamsFor(loc: Location) {
     },
     cache: 'no-store',
   });
-  if (!res.ok) return [] as WindyWebcam[];
+
+  if (!res.ok) {
+    console.error(
+      `❌ API error for ${loc.lat},${loc.lng}: ${res.status} ${res.statusText}`
+    );
+    return [] as WindyWebcam[];
+  }
+
   const data: WindyWebcam[] = await res.json();
+  console.log(
+    `📹 Found ${data.length} webcams at ${loc.lat},${loc.lng}`
+  );
   return data ?? [];
 }
 
@@ -59,6 +111,21 @@ export async function GET(req: Request) {
     gmstHours
   );
 
+  // Analyze coverage efficiency
+  const coverage = analyzeCoverage(2, 5); // 2° precision, 5° search radius
+  console.log('📊 Coverage Analysis:', {
+    precision: '2°',
+    terminatorPoints: coverage.pointsAroundGlobe,
+    distanceBetweenPoints: `${coverage.distanceBetweenPointsKm} km`,
+    searchRadius: `${coverage.searchRadiusKm} km`,
+    overlap: `${coverage.overlapKm} km (${coverage.overlapPercent}%)`,
+    status: coverage.isOptimal
+      ? '✅ Optimal'
+      : coverage.hasGoodCoverage
+      ? '✅ Good'
+      : '⚠️ Needs adjustment',
+  });
+
   console.log('📍 Coords:', {
     sunrise: sunriseCoords.length,
     sunset: sunsetCoords.length,
@@ -66,16 +133,53 @@ export async function GET(req: Request) {
 
   // Fetch webcams at coords; de-dup by provider id
   const coords = [...sunriseCoords, ...sunsetCoords];
+  console.log(`🌐 Terminator coordinates: ${coords.length}`);
+
+  // Add midpoint sampling for extra coverage (catches webcams between terminator points)
+  const additionalCoords: Location[] = [];
+  for (let i = 0; i < coords.length; i++) {
+    const current = coords[i];
+    const next = coords[(i + 1) % coords.length];
+
+    // Add midpoint between consecutive terminator points for denser coverage
+    const midLat = (current.lat + next.lat) / 2;
+    const midLng = (current.lng + next.lng) / 2;
+    additionalCoords.push({ lat: midLat, lng: midLng });
+  }
+
+  const allCoords = [...coords, ...additionalCoords];
   console.log(
-    '🌐 Fetching webcams for',
-    coords.length,
-    'coordinates...'
+    `🌐 Total coordinates (with midpoint sampling): ${allCoords.length}`
   );
 
-  const batches = await Promise.all(
-    coords.map((c) => fetchWebcamsFor(c))
-  );
-  console.log('📦 Batches received:', batches.length);
+  // Rate limit the requests to avoid API throttling
+  const batches: WindyWebcam[][] = [];
+  const batchSize = 5; // Process 5 requests at a time
+  const delayBetweenBatches = 1000; // 1 second delay between batches
+
+  for (let i = 0; i < allCoords.length; i += batchSize) {
+    const batch = allCoords.slice(i, i + batchSize);
+    console.log(
+      `📦 Processing batch ${
+        Math.floor(i / batchSize) + 1
+      }/${Math.ceil(allCoords.length / batchSize)}`
+    );
+
+    const batchResults = await Promise.all(
+      batch.map((coord, index) => fetchWebcamsFor(coord, index * 200)) // Stagger requests within batch
+    );
+
+    batches.push(...batchResults);
+
+    // Add delay between batches (except for the last one)
+    if (i + batchSize < allCoords.length) {
+      await new Promise((resolve) =>
+        setTimeout(resolve, delayBetweenBatches)
+      );
+    }
+  }
+
+  console.log('📦 All batches received:', batches.length);
 
   const windyById = new Map<number, WindyWebcam>();
   for (const b of batches) {
