@@ -4,13 +4,13 @@
 
 import { useState } from 'react';
 import type { WindyWebcam } from '@/app/lib/types';
-import { useTerminatorStore } from '@/app/store/useTerminatorStore';
+import { useAllWebcamsStore } from '@/app/store/useAllWebcamsStore';
 
 export function useLoadAllWebcams() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const setAllWebcams = useTerminatorStore((s) => s.setAllWebcams);
+  const setAllWebcams = useAllWebcamsStore((s) => s.setAllWebcams);
 
   const loadAllWebcams = async (): Promise<WindyWebcam[] | null> => {
     setIsLoading(true);

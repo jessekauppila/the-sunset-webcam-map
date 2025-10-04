@@ -2,22 +2,16 @@
 
 import { useState, useEffect } from 'react';
 import {
-  Drawer,
-  IconButton,
   Box,
   // Typography,
   ToggleButton,
   ToggleButtonGroup,
 } from '@mui/material';
-import {
-  KeyboardArrowUp,
-  KeyboardArrowDown,
-} from '@mui/icons-material';
+import {} from '@mui/icons-material';
 import { useMap } from './hooks/useMap';
 import { useFlyTo } from './hooks/useFlyTo';
 import { useSetMarker } from './hooks/useSetMarker';
 import { useSetWebcamMarkers } from './hooks/useSetWebcamMarkers';
-import { WebcamConsole } from '../WebcamConsole';
 // import { WebcamDisplay } from '../WebcamDisplay';
 import { useUpdateTerminatorRing } from './hooks/useUpdateTerminatorRing';
 import { useMapInteractionPause } from './hooks/useMapInteractionPause';
