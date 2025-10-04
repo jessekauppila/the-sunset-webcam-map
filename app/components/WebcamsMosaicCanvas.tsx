@@ -54,18 +54,36 @@ export function MosaicCanvas({
       .slice(0, maxImages);
   }, [webcams, maxImages]);
 
-  // Even quantile rows, west→east within each row
+  // Flexible rows based on natural grouping, maintaining original aspect ratios
   const bands = useMemo(() => {
     if (!items.length) return [];
-    const k = Math.min(Math.max(1, rows), items.length);
-    const perRow = Math.ceil(items.length / k);
+
+    // Calculate optimal row distribution
+    const totalImages = items.length;
+    const targetRows = Math.min(Math.max(1, rows), totalImages);
+
+    // Distribute images more naturally across rows
+    const imagesPerRow = Math.floor(totalImages / targetRows);
+    const extraImages = totalImages % targetRows;
+
     const out: Item[][] = [];
-    for (let i = 0; i < k; i++) {
-      const start = i * perRow;
-      const row = items.slice(start, start + perRow);
-      row.sort((a, b) => a.lng - b.lng); // west → east
-      if (row.length) out.push(row);
+    let imageIndex = 0;
+
+    for (let i = 0; i < targetRows; i++) {
+      // Some rows get one extra image to distribute remainder
+      const rowSize = imagesPerRow + (i < extraImages ? 1 : 0);
+      const row = items.slice(imageIndex, imageIndex + rowSize);
+
+      // Sort by longitude (west → east) within each row
+      row.sort((a, b) => a.lng - b.lng);
+
+      if (row.length > 0) {
+        out.push(row);
+      }
+
+      imageIndex += rowSize;
     }
+
     return out;
   }, [items, rows]);
 
@@ -121,54 +139,89 @@ export function MosaicCanvas({
       );
 
       bands.forEach((row, rIdx) => {
-        const cols = row.length || 1;
-        const tileWidth = Math.floor(
-          (width - padding * (cols + 1)) / cols
-        );
         const y = padding + rIdx * (rowHeight + padding);
 
-        row.forEach((item, cIdx) => {
-          const x = padding + cIdx * (tileWidth + padding);
+        // Calculate total width needed for this row's images
+        let totalImageWidth = 0;
+        const imageData: Array<{
+          item: Item;
+          img: HTMLImageElement | null;
+          width: number;
+          height: number;
+        }> = [];
+
+        // First pass: calculate dimensions for each image maintaining original aspect ratio
+        row.forEach((item) => {
           const img = imgMap.get(item.webcam.webcamId);
-          if (!img) return;
-
-          // cover-fit crop
-          const tileAR = tileWidth / rowHeight;
-          const imgAR = img.naturalWidth / img.naturalHeight;
-          let sx = 0,
-            sy = 0,
-            sw = img.naturalWidth,
-            sh = img.naturalHeight;
-
-          if (imgAR > tileAR) {
-            const targetW = sh * tileAR;
-            sx = Math.floor((sw - targetW) / 2);
-            sw = Math.floor(targetW);
-          } else {
-            const targetH = sw / tileAR;
-            sy = Math.floor((sh - targetH) / 2);
-            sh = Math.floor(targetH);
+          if (!img) {
+            imageData.push({ item, img: null, width: 0, height: 0 });
+            return;
           }
 
-          ctx.drawImage(
+          // Calculate dimensions maintaining original aspect ratio
+          const imgAR = img.naturalWidth / img.naturalHeight;
+          let imgWidth = rowHeight * imgAR; // Scale to fit row height
+          let imgHeight = rowHeight;
+
+          // If image is too wide, scale down to fit
+          if (imgWidth > width * 0.8) {
+            // Max 80% of canvas width per image
+            imgWidth = width * 0.8;
+            imgHeight = imgWidth / imgAR;
+          }
+
+          imageData.push({
+            item,
             img,
-            sx,
-            sy,
-            sw,
-            sh,
-            x,
-            y,
-            tileWidth,
-            rowHeight
-          );
-          hitRectsRef.current.push({
-            x,
-            y,
-            w: tileWidth,
-            h: rowHeight,
-            webcam: item.webcam,
+            width: imgWidth,
+            height: imgHeight,
           });
+          totalImageWidth += imgWidth;
         });
+
+        // Add padding between images
+        totalImageWidth += padding * (row.length - 1);
+
+        // Calculate starting x position to center the row
+        const startX = Math.max(
+          padding,
+          (width - totalImageWidth) / 2
+        );
+
+        // Second pass: render images
+        let currentX = startX;
+        imageData.forEach(
+          ({ item, img, width: imgWidth, height: imgHeight }) => {
+            if (!img) {
+              // Image failed to load - draw black rectangle
+              ctx.fillStyle = '#000000';
+              ctx.fillRect(
+                currentX,
+                y,
+                imgWidth || rowHeight,
+                rowHeight
+              );
+              currentX += (imgWidth || rowHeight) + padding;
+              return;
+            }
+
+            // Center image vertically within row
+            const drawY = y + (rowHeight - imgHeight) / 2;
+
+            // Draw the image maintaining its original aspect ratio
+            ctx.drawImage(img, currentX, drawY, imgWidth, imgHeight);
+
+            hitRectsRef.current.push({
+              x: currentX,
+              y: drawY,
+              w: imgWidth,
+              h: imgHeight,
+              webcam: item.webcam,
+            });
+
+            currentX += imgWidth + padding;
+          }
+        );
       });
     });
 
