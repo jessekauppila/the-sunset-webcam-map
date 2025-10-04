@@ -18,7 +18,7 @@ type YTItem = {
 async function searchYouTubeLiveNear(
   loc: Location,
   radiusKm = 400
-): Promise<YTItem[]> {
+): Promise<(YTItem & { searchLocation: Location })[]> {
   const key = process.env.YOUTUBE_API_KEY || '';
   if (!key) return [];
 
@@ -36,7 +36,10 @@ async function searchYouTubeLiveNear(
   const res = await fetch(url, { cache: 'no-store' });
   if (!res.ok) return [];
   const data = await res.json();
-  return (data.items || []) as YTItem[];
+  return (data.items || []).map((item: YTItem) => ({
+    ...item,
+    searchLocation: loc,
+  }));
 }
 
 export async function GET(req: Request) {
@@ -74,7 +77,7 @@ export async function GET(req: Request) {
   // Batch requests to respect quotas
   const batchSize = 5;
   const delayMs = 800; // between batches
-  const ytItems: YTItem[] = [];
+  const ytItems: (YTItem & { searchLocation: Location })[] = [];
   for (let i = 0; i < allCoords.length; i += batchSize) {
     const batch = allCoords.slice(i, i + batchSize);
     const results = await Promise.all(
@@ -86,8 +89,11 @@ export async function GET(req: Request) {
     }
   }
 
-  // Dedupe by videoId
-  const byId = new Map<string, YTItem>();
+  // Dedupe by videoId, keeping the first occurrence (closest to terminator)
+  const byId = new Map<
+    string,
+    YTItem & { searchLocation: Location }
+  >();
   for (const it of ytItems) {
     const id = it.id?.videoId;
     if (!id) continue;
@@ -103,8 +109,8 @@ export async function GET(req: Request) {
       title: it.snippet?.title ?? null,
       status: 'active' as const,
       view_count: null,
-      lat: null,
-      lng: null,
+      lat: it.searchLocation.lat,
+      lng: it.searchLocation.lng,
       city: null,
       region: null,
       country: null,
