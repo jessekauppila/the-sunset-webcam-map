@@ -1,3 +1,11 @@
+//http://localhost:3000/api/cron/update-youtube?secret=
+
+//temporarlly disabled from vercel.json
+// {
+//   "path": "/api/cron/update-youtube",
+//   "schedule": " * */1 * * *"
+// }
+
 import { NextResponse } from 'next/server';
 import { sql } from '@/app/lib/db';
 import { subsolarPoint } from '@/app/components/Map/lib/subsolarLocation';
@@ -34,12 +42,24 @@ async function searchYouTubeLiveNear(
 
   const url = `https://www.googleapis.com/youtube/v3/search?${params.toString()}`;
   const res = await fetch(url, { cache: 'no-store' });
-  if (!res.ok) return [];
+  if (!res.ok) {
+    console.log(
+      `YouTube API error for ${loc.lat},${loc.lng}: ${res.status} ${res.statusText}`
+    );
+    // Add this to see the actual error response:
+    const errorText = await res.text();
+    console.log(`YouTube API error details:`, errorText);
+    return [];
+  }
   const data = await res.json();
-  return (data.items || []).map((item: YTItem) => ({
+  const items = (data.items || []).map((item: YTItem) => ({
     ...item,
     searchLocation: loc,
   }));
+  console.log(
+    `Found ${items.length} YouTube live streams near ${loc.lat},${loc.lng}`
+  );
+  return items;
 }
 
 export async function GET(req: Request) {
@@ -49,9 +69,37 @@ export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const secret = searchParams.get('secret');
   const isUrlSecret = secret === process.env.CRON_SECRET;
+
+  console.log('🔍 Debug - Vercel cron header:', authHeader);
+  console.log('🔍 Debug - Secret from URL:', secret);
+  console.log(
+    '🔍 Debug - CRON_SECRET env var:',
+    process.env.CRON_SECRET ? 'SET' : 'NOT SET'
+  );
+  console.log('🔍 Debug - Is Vercel cron:', isVercelCron);
+  console.log('🔍 Debug - Is URL secret valid:', isUrlSecret);
+
   if (!isVercelCron && !isUrlSecret) {
     return new NextResponse('Unauthorized', { status: 401 });
   }
+
+  // Check if YouTube API key is configured
+  // Check if YouTube API key is configured
+  if (!process.env.YOUTUBE_API_KEY) {
+    console.log(
+      'YouTube API key not configured, skipping YouTube update'
+    );
+    return NextResponse.json({
+      ok: true,
+      message: 'YouTube API key not configured',
+    });
+  }
+
+  console.log(
+    `🔍 YouTube API key is configured: ${
+      process.env.YOUTUBE_API_KEY ? 'YES' : 'NO'
+    }`
+  );
 
   const now = new Date();
   const { raHours, gmstHours } = subsolarPoint(now);
@@ -74,6 +122,9 @@ export async function GET(req: Request) {
   }
   const allCoords = [...coords, ...additional];
 
+  console.log(`🔍 Total coordinates to search: ${allCoords.length}`);
+  console.log(`🔍 First few coordinates:`, allCoords.slice(0, 3));
+
   // Batch requests to respect quotas
   const batchSize = 5;
   const delayMs = 800; // between batches
@@ -89,6 +140,8 @@ export async function GET(req: Request) {
     }
   }
 
+  console.log(`🔍 Total YouTube items collected: ${ytItems.length}`);
+
   // Dedupe by videoId, keeping the first occurrence (closest to terminator)
   const byId = new Map<
     string,
@@ -99,6 +152,10 @@ export async function GET(req: Request) {
     if (!id) continue;
     if (!byId.has(id)) byId.set(id, it);
   }
+
+  console.log(
+    `Total YouTube items found: ${ytItems.length}, after deduplication: ${byId.size}`
+  );
 
   // Map to DB shape
   const rows = Array.from(byId.values()).map((it) => {
@@ -126,7 +183,8 @@ export async function GET(req: Request) {
     };
   });
 
-  // Upsert
+  // Upsert webcams
+  console.log(`Upserting ${rows.length} YouTube webcams to database`);
   for (const d of rows) {
     await sql`
       insert into webcams (
@@ -179,6 +237,44 @@ export async function GET(req: Request) {
       set status = 'active', updated_at = now()
       where source = 'youtube' and external_id = any(${currentIds})
     `;
+  }
+
+  // Add YouTube webcams to terminator_webcam_state so they show up in the app
+  console.log(`Adding YouTube webcams to terminator_webcam_state`);
+  const youtubeWebcamIds = await sql`
+    select id from webcams 
+    where source = 'youtube' and external_id = any(${currentIds})
+  `;
+
+  // Clear existing YouTube entries from terminator_webcam_state
+  await sql`
+    delete from terminator_webcam_state 
+    where webcam_id in (select id from webcams where source = 'youtube')
+  `;
+
+  // Add new YouTube entries to terminator_webcam_state
+  if (youtubeWebcamIds.length > 0) {
+    const terminatorEntries = (
+      youtubeWebcamIds as { id: number }[]
+    ).map((row, index: number) => ({
+      webcam_id: row.id,
+      phase: 'sunset' as const, // YouTube streams are typically sunset-oriented
+      rank: index + 1,
+      active: true,
+    }));
+
+    for (const entry of terminatorEntries) {
+      await sql`
+        insert into terminator_webcam_state (webcam_id, phase, rank, active)
+        values (${entry.webcam_id}, ${entry.phase}, ${entry.rank}, ${entry.active})
+        on conflict (webcam_id, phase) do update set
+          rank = excluded.rank,
+          active = excluded.active
+      `;
+    }
+    console.log(
+      `Added ${terminatorEntries.length} YouTube webcams to terminator_webcam_state`
+    );
   }
 
   return NextResponse.json({ ok: true, upserted: rows.length });
