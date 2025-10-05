@@ -14,6 +14,7 @@ type Props = {
   // Scaling configuration
   ratingSizeEffect?: number; // How much rating affects size (0-1, default 0.75)
   viewSizeEffect?: number; // How much views affect size (0-1, default 0.1)
+  baseHeight?: number; // Base height for scaling (default 60px)
 };
 
 type Item = {
@@ -81,6 +82,7 @@ export function MosaicCanvas({
   onSelect,
   ratingSizeEffect = 0.75,
   viewSizeEffect = 0.1,
+  baseHeight = 60,
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
@@ -191,16 +193,23 @@ export function MosaicCanvas({
       const imgMap = new Map<number, HTMLImageElement>();
       for (const p of pairs) if (p) imgMap.set(p[0], p[1]);
 
-      const rowCount = bands.length || 1;
-      const rowHeight = Math.floor(
-        (height - padding * (rowCount + 1)) / rowCount
-      );
+      // Calculate row heights and positions dynamically
+      const rowData: Array<{
+        height: number;
+        y: number;
+        imageData: Array<{
+          item: Item;
+          img: HTMLImageElement | null;
+          width: number;
+          height: number;
+        }>;
+        totalWidth: number;
+      }> = [];
 
-      bands.forEach((row, rIdx) => {
-        const y = padding + rIdx * (rowHeight + padding);
+      let currentY = padding;
 
-        // Calculate total width needed for this row's images
-        let totalImageWidth = 0;
+      bands.forEach((row) => {
+        // Calculate dimensions for each image in this row
         const imageData: Array<{
           item: Item;
           img: HTMLImageElement | null;
@@ -208,7 +217,10 @@ export function MosaicCanvas({
           height: number;
         }> = [];
 
-        // First pass: calculate dimensions for each image maintaining original aspect ratio
+        let totalImageWidth = 0;
+        let maxImageHeight = 0;
+
+        // First pass: calculate dimensions for each image
         row.forEach((item) => {
           const img = imgMap.get(item.webcam.webcamId);
           if (!img) {
@@ -224,10 +236,10 @@ export function MosaicCanvas({
             viewSizeEffect
           );
 
-          // Calculate dimensions maintaining original aspect ratio
+          // Calculate base dimensions using configurable base height
           const imgAR = img.naturalWidth / img.naturalHeight;
-          let imgWidth = rowHeight * imgAR; // Scale to fit row height
-          let imgHeight = rowHeight;
+          let imgWidth = baseHeight * imgAR;
+          let imgHeight = baseHeight;
 
           // Apply combined rating and view-based scaling
           imgWidth *= webcamScale;
@@ -248,21 +260,37 @@ export function MosaicCanvas({
             width: imgWidth,
             height: imgHeight,
           });
+
           totalImageWidth += imgWidth;
+          maxImageHeight = Math.max(maxImageHeight, imgHeight);
         });
 
         // Add padding between images
         totalImageWidth += padding * (row.length - 1);
 
+        // Store row data
+        rowData.push({
+          height: maxImageHeight,
+          y: currentY,
+          imageData,
+          totalWidth: totalImageWidth,
+        });
+
+        // Move to next row position
+        currentY += maxImageHeight + padding;
+      });
+
+      // Render each row
+      rowData.forEach((rowInfo) => {
         // Calculate starting x position to center the row
         const startX = Math.max(
           padding,
-          (width - totalImageWidth) / 2
+          (width - rowInfo.totalWidth) / 2
         );
 
         // Second pass: render images
         let currentX = startX;
-        imageData.forEach(
+        rowInfo.imageData.forEach(
           ({ item, img, width: imgWidth, height: imgHeight }) => {
             if (!img) {
               // Image failed to load - draw black rectangle
@@ -273,14 +301,14 @@ export function MosaicCanvas({
                 ratingSizeEffect,
                 viewSizeEffect
               );
-              const failedWidth =
-                (imgWidth || rowHeight) * webcamScale;
-              const failedHeight = rowHeight * webcamScale;
+              const failedBaseHeight = baseHeight;
+              const failedWidth = failedBaseHeight * webcamScale;
+              const failedHeight = failedBaseHeight * webcamScale;
 
               ctx.fillStyle = '#000000';
               ctx.fillRect(
                 currentX,
-                y + (rowHeight - failedHeight) / 2,
+                rowInfo.y + (rowInfo.height - failedHeight) / 2,
                 failedWidth,
                 failedHeight
               );
@@ -289,7 +317,8 @@ export function MosaicCanvas({
             }
 
             // Center image vertically within row
-            const drawY = y + (rowHeight - imgHeight) / 2;
+            const drawY =
+              rowInfo.y + (rowInfo.height - imgHeight) / 2;
 
             // Draw the image maintaining its original aspect ratio
             ctx.drawImage(img, currentX, drawY, imgWidth, imgHeight);
@@ -319,6 +348,7 @@ export function MosaicCanvas({
     maxViews,
     ratingSizeEffect,
     viewSizeEffect,
+    baseHeight,
   ]);
 
   useEffect(() => {

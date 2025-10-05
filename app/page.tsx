@@ -148,11 +148,12 @@ export default function Home() {
                     webcams={sunriseWebcams} // or sunsetWebcams
                     width={1200}
                     height={800}
-                    rows={8}
+                    rows={12}
                     maxImages={180}
                     padding={2}
-                    ratingSizeEffect={0.75}
-                    viewSizeEffect={0.1}
+                    ratingSizeEffect={0.65}
+                    viewSizeEffect={0.2}
+                    baseHeight={80}
                     onSelect={(w) => {
                       // show detail, focus the map, open drawer, etc.
                       console.log('clicked', w.webcamId, w.title);
@@ -168,11 +169,12 @@ export default function Home() {
                     webcams={sunsetWebcams} // or sunsetWebcams
                     width={1200}
                     height={800}
-                    rows={8}
+                    rows={12}
                     maxImages={180}
                     padding={2}
                     ratingSizeEffect={0.75}
                     viewSizeEffect={0.1}
+                    baseHeight={80}
                     onSelect={(w) => {
                       // show detail, focus the map, open drawer, etc.
                       console.log('clicked', w.webcamId, w.title);
