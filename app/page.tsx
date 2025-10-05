@@ -166,7 +166,7 @@ export default function Home() {
                     webcams={sunsetWebcams} // or sunsetWebcams
                     width={1200}
                     height={700}
-                    rows={6}
+                    rows={12}
                     maxImages={180}
                     padding={2}
                     onSelect={(w) => {

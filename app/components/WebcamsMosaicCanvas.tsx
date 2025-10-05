@@ -30,6 +30,19 @@ function loadImage(src: string): Promise<HTMLImageElement> {
   });
 }
 
+// Calculate scale factor based on rating (0-5 -> 0.25-1.0)
+function getRatingScale(rating?: number): number {
+  if (rating === undefined || rating === null) {
+    return 0.25; // Default to minimum size for unrated webcams
+  }
+
+  // Clamp rating to 0-5 range
+  const clampedRating = Math.max(0, Math.min(5, rating));
+
+  // Linear interpolation: 0 -> 0.25, 5 -> 1.0
+  return 0.25 + (clampedRating / 5) * 0.75;
+}
+
 export function MosaicCanvas({
   webcams,
   width = 1200,
@@ -158,16 +171,25 @@ export function MosaicCanvas({
             return;
           }
 
+          // Get rating-based scale factor
+          const ratingScale = getRatingScale(item.webcam.rating);
+
           // Calculate dimensions maintaining original aspect ratio
           const imgAR = img.naturalWidth / img.naturalHeight;
           let imgWidth = rowHeight * imgAR; // Scale to fit row height
           let imgHeight = rowHeight;
 
-          // If image is too wide, scale down to fit
+          // Apply rating-based scaling
+          imgWidth *= ratingScale;
+          imgHeight *= ratingScale;
+
+          // If image is too wide, scale down to fit (but maintain rating scale proportion)
           if (imgWidth > width * 0.8) {
             // Max 80% of canvas width per image
-            imgWidth = width * 0.8;
-            imgHeight = imgWidth / imgAR;
+            const maxWidth = width * 0.8;
+            const scaleDownFactor = maxWidth / imgWidth;
+            imgWidth = maxWidth;
+            imgHeight *= scaleDownFactor;
           }
 
           imageData.push({
@@ -194,14 +216,20 @@ export function MosaicCanvas({
           ({ item, img, width: imgWidth, height: imgHeight }) => {
             if (!img) {
               // Image failed to load - draw black rectangle
+              // Use rating scale for failed images too
+              const ratingScale = getRatingScale(item.webcam.rating);
+              const failedWidth =
+                (imgWidth || rowHeight) * ratingScale;
+              const failedHeight = rowHeight * ratingScale;
+
               ctx.fillStyle = '#000000';
               ctx.fillRect(
                 currentX,
-                y,
-                imgWidth || rowHeight,
-                rowHeight
+                y + (rowHeight - failedHeight) / 2,
+                failedWidth,
+                failedHeight
               );
-              currentX += (imgWidth || rowHeight) + padding;
+              currentX += failedWidth + padding;
               return;
             }
 
