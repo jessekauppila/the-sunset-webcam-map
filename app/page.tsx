@@ -147,10 +147,12 @@ export default function Home() {
                   <MosaicCanvas
                     webcams={sunriseWebcams} // or sunsetWebcams
                     width={1200}
-                    height={700}
-                    rows={6}
+                    height={800}
+                    rows={8}
                     maxImages={180}
                     padding={2}
+                    ratingSizeEffect={0.75}
+                    viewSizeEffect={0.1}
                     onSelect={(w) => {
                       // show detail, focus the map, open drawer, etc.
                       console.log('clicked', w.webcamId, w.title);
@@ -165,10 +167,12 @@ export default function Home() {
                   <MosaicCanvas
                     webcams={sunsetWebcams} // or sunsetWebcams
                     width={1200}
-                    height={700}
-                    rows={12}
+                    height={800}
+                    rows={8}
                     maxImages={180}
                     padding={2}
+                    ratingSizeEffect={0.75}
+                    viewSizeEffect={0.1}
                     onSelect={(w) => {
                       // show detail, focus the map, open drawer, etc.
                       console.log('clicked', w.webcamId, w.title);

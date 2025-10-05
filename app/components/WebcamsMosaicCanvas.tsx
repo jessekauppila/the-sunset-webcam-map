@@ -11,6 +11,9 @@ type Props = {
   maxImages?: number; // cap
   padding?: number; // px gap between tiles
   onSelect?: (webcam: WindyWebcam) => void; // click handler
+  // Scaling configuration
+  ratingSizeEffect?: number; // How much rating affects size (0-1, default 0.75)
+  viewSizeEffect?: number; // How much views affect size (0-1, default 0.1)
 };
 
 type Item = {
@@ -30,27 +33,54 @@ function loadImage(src: string): Promise<HTMLImageElement> {
   });
 }
 
-// Calculate scale factor based on rating (0-5 -> 0.25-1.0)
-function getRatingScale(rating?: number): number {
-  if (rating === undefined || rating === null) {
-    return 0.25; // Default to minimum size for unrated webcams
+// Calculate scale factor based on rating and views
+function getWebcamScale(
+  webcam: WindyWebcam,
+  maxViews: number,
+  ratingSizeEffect: number,
+  viewSizeEffect: number
+): number {
+  // Calculate base size (minimum size)
+  const baseSize = 1 - (ratingSizeEffect + viewSizeEffect);
+
+  // Calculate rating contribution (0-1 scale)
+  let ratingScale = 0;
+  if (webcam.rating !== undefined && webcam.rating !== null) {
+    const clampedRating = Math.max(0, Math.min(5, webcam.rating));
+    ratingScale = clampedRating / 5; // 0 to 1
   }
 
-  // Clamp rating to 0-5 range
-  const clampedRating = Math.max(0, Math.min(5, rating));
+  // Calculate view contribution (0-1 scale)
+  let viewScale = 0;
+  if (maxViews > 0) {
+    viewScale = Math.min(1, webcam.viewCount / maxViews); // 0 to 1
+  }
 
-  // Linear interpolation: 0 -> 0.25, 5 -> 1.0
-  return 0.25 + (clampedRating / 5) * 0.75;
+  // Debug logging for first few webcams
+  if (webcam.webcamId <= 3) {
+    console.log(
+      `Webcam ${webcam.webcamId}: viewCount=${webcam.viewCount}, maxViews=${maxViews}, viewScale=${viewScale}, ratingScale=${ratingScale}, baseSize=${baseSize}`
+    );
+  }
+
+  // Final scale: base + rating effect + view effect
+  return (
+    baseSize +
+    ratingScale * ratingSizeEffect +
+    viewScale * viewSizeEffect
+  );
 }
 
 export function MosaicCanvas({
   webcams,
-  width = 1200,
-  height = 800,
+  width = 1800,
+  height = 1200,
   rows = 6,
   maxImages = 180,
   padding = 2,
   onSelect,
+  ratingSizeEffect = 0.75,
+  viewSizeEffect = 0.1,
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
@@ -66,6 +96,21 @@ export function MosaicCanvas({
       .sort((a, b) => b.lat - a.lat) // north → south
       .slice(0, maxImages);
   }, [webcams, maxImages]);
+
+  // Calculate max views for normalization
+  const maxViews = useMemo(() => {
+    if (items.length === 0) return 1;
+    const max = Math.max(
+      ...items.map((item) => item.webcam.viewCount)
+    );
+    console.log(
+      'Debug: maxViews =',
+      max,
+      'viewCounts =',
+      items.map((item) => item.webcam.viewCount).slice(0, 10)
+    );
+    return max;
+  }, [items]);
 
   // Flexible rows based on natural grouping, maintaining original aspect ratios
   const bands = useMemo(() => {
@@ -171,17 +216,22 @@ export function MosaicCanvas({
             return;
           }
 
-          // Get rating-based scale factor
-          const ratingScale = getRatingScale(item.webcam.rating);
+          // Get combined rating and view-based scale factor
+          const webcamScale = getWebcamScale(
+            item.webcam,
+            maxViews,
+            ratingSizeEffect,
+            viewSizeEffect
+          );
 
           // Calculate dimensions maintaining original aspect ratio
           const imgAR = img.naturalWidth / img.naturalHeight;
           let imgWidth = rowHeight * imgAR; // Scale to fit row height
           let imgHeight = rowHeight;
 
-          // Apply rating-based scaling
-          imgWidth *= ratingScale;
-          imgHeight *= ratingScale;
+          // Apply combined rating and view-based scaling
+          imgWidth *= webcamScale;
+          imgHeight *= webcamScale;
 
           // If image is too wide, scale down to fit (but maintain rating scale proportion)
           if (imgWidth > width * 0.8) {
@@ -216,11 +266,16 @@ export function MosaicCanvas({
           ({ item, img, width: imgWidth, height: imgHeight }) => {
             if (!img) {
               // Image failed to load - draw black rectangle
-              // Use rating scale for failed images too
-              const ratingScale = getRatingScale(item.webcam.rating);
+              // Use combined rating and view scale for failed images too
+              const webcamScale = getWebcamScale(
+                item.webcam,
+                maxViews,
+                ratingSizeEffect,
+                viewSizeEffect
+              );
               const failedWidth =
-                (imgWidth || rowHeight) * ratingScale;
-              const failedHeight = rowHeight * ratingScale;
+                (imgWidth || rowHeight) * webcamScale;
+              const failedHeight = rowHeight * webcamScale;
 
               ctx.fillStyle = '#000000';
               ctx.fillRect(
@@ -256,7 +311,15 @@ export function MosaicCanvas({
     return () => {
       cancelled = true;
     };
-  }, [bands, width, height, padding]);
+  }, [
+    bands,
+    width,
+    height,
+    padding,
+    maxViews,
+    ratingSizeEffect,
+    viewSizeEffect,
+  ]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
