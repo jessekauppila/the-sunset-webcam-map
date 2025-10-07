@@ -159,7 +159,7 @@ export default function Home() {
                     padding={2}
                     ratingSizeEffect={0.65}
                     viewSizeEffect={0.2}
-                    baseHeight={80}
+                    baseHeight={200}
                     onSelect={(w) => {
                       // show detail, focus the map, open drawer, etc.
                       console.log('clicked', w.webcamId, w.title);
@@ -180,7 +180,7 @@ export default function Home() {
                     padding={2}
                     ratingSizeEffect={0.75}
                     viewSizeEffect={0.1}
-                    baseHeight={80}
+                    baseHeight={200}
                     onSelect={(w) => {
                       // show detail, focus the map, open drawer, etc.
                       console.log('clicked', w.webcamId, w.title);

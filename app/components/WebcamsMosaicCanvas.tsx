@@ -12,9 +12,9 @@ type Props = {
   padding?: number; // px gap between tiles
   onSelect?: (webcam: WindyWebcam) => void; // click handler
   // Scaling configuration
-  ratingSizeEffect?: number; // How much rating affects size (0-1, default 0.75)
-  viewSizeEffect?: number; // How much views affect size (0-1, default 0.1)
-  baseHeight?: number; // Base height for scaling (default 60px)
+  ratingSizeEffect?: number; // How much low ratings reduce size (0-1, default 0.75)
+  viewSizeEffect?: number; // How much low views reduce size (0-1, default 0.1)
+  baseHeight?: number; // Maximum height for highest-rated webcams (default 60px)
 };
 
 type Item = {
@@ -41,35 +41,38 @@ function getWebcamScale(
   ratingSizeEffect: number,
   viewSizeEffect: number
 ): number {
-  // Calculate base size (minimum size)
-  const baseSize = 1 - (ratingSizeEffect + viewSizeEffect);
+  // Start with maximum size (1.0) and scale DOWN based on lower ratings/views
+  const maxSize = 1.0;
 
-  // Calculate rating contribution (0-1 scale)
-  let ratingScale = 0;
+  // Calculate rating penalty (0-1 scale, where 0 = worst rating, 1 = best rating)
+  let ratingPenalty = 0;
   if (webcam.rating !== undefined && webcam.rating !== null) {
     const clampedRating = Math.max(0, Math.min(5, webcam.rating));
-    ratingScale = clampedRating / 5; // 0 to 1
+    ratingPenalty = 1 - clampedRating / 5; // Invert: 0 = best rating, 1 = worst rating
   }
 
-  // Calculate view contribution (0-1 scale)
-  let viewScale = 0;
+  // Calculate view penalty (0-1 scale, where 0 = most views, 1 = least views)
+  let viewPenalty = 0;
   if (maxViews > 0) {
-    viewScale = Math.min(1, webcam.viewCount / maxViews); // 0 to 1
+    viewPenalty = 1 - Math.min(1, webcam.viewCount / maxViews); // Invert: 0 = most views, 1 = least views
   }
 
   // Debug logging for first few webcams
   if (webcam.webcamId <= 3) {
     console.log(
-      `Webcam ${webcam.webcamId}: viewCount=${webcam.viewCount}, maxViews=${maxViews}, viewScale=${viewScale}, ratingScale=${ratingScale}, baseSize=${baseSize}`
+      `Webcam ${webcam.webcamId}: viewCount=${webcam.viewCount}, maxViews=${maxViews}, viewPenalty=${viewPenalty}, ratingPenalty=${ratingPenalty}`
     );
   }
 
-  // Final scale: base + rating effect + view effect
-  return (
-    baseSize +
-    ratingScale * ratingSizeEffect +
-    viewScale * viewSizeEffect
-  );
+  // Final scale: max size - penalties
+  // Higher ratingSizeEffect/viewSizeEffect means more penalty for low ratings/views
+  const finalScale =
+    maxSize -
+    ratingPenalty * ratingSizeEffect -
+    viewPenalty * viewSizeEffect;
+
+  // Ensure minimum scale to prevent images from becoming too small
+  return Math.max(0.2, finalScale); // Minimum 20% of max size
 }
 
 export function MosaicCanvas({
@@ -246,13 +249,13 @@ export function MosaicCanvas({
           imgHeight *= webcamScale;
 
           // If image is too wide, scale down to fit (but maintain rating scale proportion)
-          if (imgWidth > width * 0.8) {
-            // Max 80% of canvas width per image
-            const maxWidth = width * 0.8;
-            const scaleDownFactor = maxWidth / imgWidth;
-            imgWidth = maxWidth;
-            imgHeight *= scaleDownFactor;
-          }
+          // if (imgWidth > width * 1) {
+          //   // Max 80% of canvas width per image
+          //   const maxWidth = width * 1;
+          //   const scaleDownFactor = maxWidth / imgWidth;
+          //   imgWidth = maxWidth;
+          //   imgHeight *= scaleDownFactor;
+          // }
 
           imageData.push({
             item,

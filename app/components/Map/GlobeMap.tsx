@@ -126,7 +126,12 @@ export default function GlobeMap({
     () =>
       new IconLayer<WindyWebcam>({
         id: 'webcams',
-        data: webcams.filter((webcam) => {
+        data: (webcams || []).filter((webcam) => {
+          // Filter out null/undefined webcams and missing location data
+          if (!webcam || !webcam.location || !webcam.webcamId) {
+            return false;
+          }
+
           // 3D culling: hide webcams that are on the far side of the globe
           const webcamLat = webcam.location.latitude;
           const webcamLng = webcam.location.longitude;
@@ -180,8 +185,8 @@ export default function GlobeMap({
         sizeUnits: 'pixels',
         getSize: 48,
         getPosition: (w) => [
-          w.location.longitude,
-          w.location.latitude,
+          w?.location?.longitude || 0,
+          w?.location?.latitude || 0,
           50000, // Higher elevation to ensure icons are above everything
         ],
         loadOptions: { image: { crossOrigin: 'anonymous' } },

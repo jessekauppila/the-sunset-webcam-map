@@ -1,6 +1,5 @@
 'use client';
 
-import { useMemo } from 'react';
 import SimpleMap from './Map/SimpleMap';
 import { MosaicCanvas } from './WebcamsMosaicCanvas';
 import { useTerminatorStore } from '@/app/store/useTerminatorStore';
@@ -29,50 +28,51 @@ export default function MainViewContainer({
 
     case 'mosaic':
       return (
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'auto auto', // left | right
-            minHeight: '100vh',
-          }}
-        >
-          <MosaicCanvas
-            webcams={sunsetWebcams || []}
-            width={window.innerWidth / 2}
-            height={window.innerHeight}
-            rows={12}
-            maxImages={90}
-            padding={2}
-            ratingSizeEffect={0.75}
-            viewSizeEffect={0.1}
-            baseHeight={80}
-            onSelect={(webcam) => {
-              console.log(
-                'Selected webcam:',
-                webcam.webcamId,
-                webcam.title
-              );
+        <section className="map-container w-full h-screen">
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'auto auto', // left | right
             }}
-          />
-          <MosaicCanvas
-            webcams={sunriseWebcams || []}
-            width={window.innerWidth / 2}
-            height={window.innerHeight}
-            rows={12}
-            maxImages={90}
-            padding={2}
-            ratingSizeEffect={0.75}
-            viewSizeEffect={0.1}
-            baseHeight={80}
-            onSelect={(webcam) => {
-              console.log(
-                'Selected webcam:',
-                webcam.webcamId,
-                webcam.title
-              );
-            }}
-          />
-        </div>
+          >
+            <MosaicCanvas
+              webcams={sunsetWebcams || []}
+              width={window.innerWidth / 2}
+              height={window.innerHeight}
+              rows={12}
+              maxImages={90}
+              padding={2}
+              ratingSizeEffect={0.75}
+              viewSizeEffect={0.1}
+              baseHeight={80}
+              onSelect={(webcam) => {
+                console.log(
+                  'Selected webcam:',
+                  webcam.webcamId,
+                  webcam.title
+                );
+              }}
+            />
+            <MosaicCanvas
+              webcams={sunriseWebcams || []}
+              width={window.innerWidth / 2}
+              height={window.innerHeight}
+              rows={12}
+              maxImages={90}
+              padding={2}
+              ratingSizeEffect={0.75}
+              viewSizeEffect={0.1}
+              baseHeight={80}
+              onSelect={(webcam) => {
+                console.log(
+                  'Selected webcam:',
+                  webcam.webcamId,
+                  webcam.title
+                );
+              }}
+            />
+          </div>
+        </section>
       );
 
     default:
