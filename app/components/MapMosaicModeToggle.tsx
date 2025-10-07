@@ -3,8 +3,8 @@
 import { Box, ToggleButton, ToggleButtonGroup } from '@mui/material';
 
 interface MapMosaicModeToggleProps {
-  mode: 'map' | 'globe';
-  onModeChange: (mode: 'map' | 'globe') => void;
+  mode: 'map' | 'globe' | 'mosaic';
+  onModeChange: (mode: 'map' | 'globe' | 'mosaic') => void;
 }
 
 export function MapMosaicModeToggle({
@@ -50,8 +50,9 @@ export function MapMosaicModeToggle({
           },
         }}
       >
-        <ToggleButton value="map">Mapbox</ToggleButton>
-        <ToggleButton value="globe">DeckGL</ToggleButton>
+        <ToggleButton value="map">Map</ToggleButton>
+        <ToggleButton value="globe">Globe</ToggleButton>
+        <ToggleButton value="mosaic">Mosaic</ToggleButton>
       </ToggleButtonGroup>
     </Box>
   );

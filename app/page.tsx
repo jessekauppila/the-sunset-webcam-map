@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import SimpleMap from './components/Map/SimpleMap';
+import MainViewContainer from './components/MainViewContainer';
 import { useLoadTerminatorWebcams } from '@/app/store/useLoadTerminatorWebcams';
 import { useLoadAllWebcams } from '@/app/store/useLoadAllWebcams';
 
@@ -16,11 +16,12 @@ import {
 } from '@mui/icons-material';
 import { MosaicCanvas } from '@/app/components/WebcamsMosaicCanvas';
 import { MapMosaicModeToggle } from '@/app/components/MapMosaicModeToggle';
+import type { ViewMode } from './components/MainViewContainer';
 
 export default function Home() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [tabValue, setTabValue] = useState(0); // Add tab state
-  const [mode, setMode] = useState<'map' | 'globe'>('map');
+  const [mode, setMode] = useState<ViewMode>('map');
 
   // Bellingham, Washington location need to put in user's location eventually
   const userLocation = useMemo(
@@ -42,8 +43,8 @@ export default function Home() {
   return (
     <main className="relative w-full">
       <div>
-        {/* First Section - Full Screen Map */}
-        <SimpleMap userLocation={userLocation} mode={mode} />
+        {/* Main View Container - handles map, globe, and mosaic modes */}
+        <MainViewContainer userLocation={userLocation} mode={mode} />
 
         {/* Mode Toggle */}
         <MapMosaicModeToggle mode={mode} onModeChange={setMode} />
