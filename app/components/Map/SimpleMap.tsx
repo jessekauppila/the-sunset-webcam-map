@@ -1,12 +1,6 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import {
-  Box,
-  // Typography,
-  ToggleButton,
-  ToggleButtonGroup,
-} from '@mui/material';
 import {} from '@mui/icons-material';
 import { useMap } from './hooks/useMap';
 import { useFlyTo } from './hooks/useFlyTo';
@@ -33,10 +27,13 @@ import { useTerminatorStore } from '@/app/store/useTerminatorStore';
 
 interface SimpleMapProps {
   userLocation: Location;
+  mode: 'map' | 'globe';
 }
 
-export default function SimpleMap({ userLocation }: SimpleMapProps) {
-  const [mode, setMode] = useState<'map' | 'globe'>('map');
+export default function SimpleMap({
+  userLocation,
+  mode,
+}: SimpleMapProps) {
   const [currentTime, setCurrentTime] = useState(new Date());
 
   const { mapContainer, map, mapLoaded, mapReady } = useMap(
@@ -150,50 +147,6 @@ export default function SimpleMap({ userLocation }: SimpleMapProps) {
               />
             </div>
           )}
-
-          {/* Mode Toggle */}
-          <Box
-            sx={{
-              position: 'absolute',
-              top: 16,
-              right: 16,
-              zIndex: 3,
-            }}
-          >
-            <ToggleButtonGroup
-              value={mode}
-              exclusive
-              onChange={(_, newMode) => {
-                if (newMode !== null) {
-                  setMode(newMode);
-                }
-              }}
-              size="small"
-              sx={{
-                backgroundColor: 'rgba(0, 0, 0, 0.7)',
-                '& .MuiToggleButton-root': {
-                  color: 'white',
-                  borderColor: 'rgba(255, 255, 255, 0.3)',
-                  padding: '4px 8px', // Add this to make buttons smaller
-                  fontSize: '8px', // Add this to make text smaller
-                  minWidth: 'auto', // Add this to remove minimum width
-                  '&.Mui-selected': {
-                    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-                    color: 'white',
-                    '&:hover': {
-                      backgroundColor: 'rgba(255, 255, 255, 0.3)',
-                    },
-                  },
-                  '&:hover': {
-                    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                  },
-                },
-              }}
-            >
-              <ToggleButton value="map">Mapbox</ToggleButton>
-              <ToggleButton value="globe">DeckGL</ToggleButton>
-            </ToggleButtonGroup>
-          </Box>
 
           {/* Loading Overlay */}
           {mode === 'map' && !mapLoaded && (

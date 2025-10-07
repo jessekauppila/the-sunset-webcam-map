@@ -9,7 +9,15 @@ import { useMemo } from 'react';
 import { useTerminatorStore } from '@/app/store/useTerminatorStore';
 import { useAllWebcamsStore } from '@/app/store/useAllWebcamsStore';
 import { WebcamConsole } from './components/WebcamConsole';
-import { Tabs, Tab, Drawer, Box, IconButton } from '@mui/material';
+import {
+  Tabs,
+  Tab,
+  Drawer,
+  Box,
+  IconButton,
+  ToggleButton,
+  ToggleButtonGroup,
+} from '@mui/material';
 import {
   KeyboardArrowUp,
   KeyboardArrowDown,
@@ -19,6 +27,7 @@ import { MosaicCanvas } from '@/app/components/WebcamsMosaicCanvas';
 export default function Home() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [tabValue, setTabValue] = useState(0); // Add tab state
+  const [mode, setMode] = useState<'map' | 'globe'>('map');
 
   // Bellingham, Washington location need to put in user's location eventually
   const userLocation = useMemo(
@@ -41,7 +50,51 @@ export default function Home() {
     <main className="relative w-full">
       <div>
         {/* First Section - Full Screen Map */}
-        <SimpleMap userLocation={userLocation} />
+        <SimpleMap userLocation={userLocation} mode={mode} />
+
+        {/* Mode Toggle */}
+        <Box
+          sx={{
+            position: 'absolute',
+            top: 16,
+            right: 16,
+            zIndex: 3,
+          }}
+        >
+          <ToggleButtonGroup
+            value={mode}
+            exclusive
+            onChange={(_, newMode) => {
+              if (newMode !== null) {
+                setMode(newMode);
+              }
+            }}
+            size="small"
+            sx={{
+              backgroundColor: 'rgba(0, 0, 0, 0.7)',
+              '& .MuiToggleButton-root': {
+                color: 'white',
+                borderColor: 'rgba(255, 255, 255, 0.3)',
+                padding: '4px 8px', // Add this to make buttons smaller
+                fontSize: '8px', // Add this to make text smaller
+                minWidth: 'auto', // Add this to remove minimum width
+                '&.Mui-selected': {
+                  backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                  color: 'white',
+                  '&:hover': {
+                    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+                  },
+                },
+                '&:hover': {
+                  backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                },
+              },
+            }}
+          >
+            <ToggleButton value="map">Mapbox</ToggleButton>
+            <ToggleButton value="globe">DeckGL</ToggleButton>
+          </ToggleButtonGroup>
+        </Box>
 
         {/* Drawer Toggle Button - positioned over the map */}
         <IconButton
