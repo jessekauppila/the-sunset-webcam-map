@@ -21,6 +21,8 @@ export default function Home() {
   const [tabValue, setTabValue] = useState(0);
   const [mapMode, setMapMode] = useState<'map' | 'globe'>('map');
 
+  console.log('📄 Page render - mapMode:', mapMode);
+
   // Debug log
   console.log('Page: Current mapMode state:', mapMode);
 
@@ -42,8 +44,14 @@ export default function Home() {
   const allWebcams = useAllWebcamsStore((t) => t.allWebcams);
 
   const handleModeChange = (newMode: 'map' | 'globe') => {
-    console.log('Page: Mode change from', mapMode, 'to', newMode);
+    console.log(
+      '📄 handleModeChange called! From:',
+      mapMode,
+      'To:',
+      newMode
+    );
     setMapMode(newMode);
+    console.log('📄 setMapMode called with:', newMode);
   };
 
   return (

@@ -11,6 +11,8 @@ export function MapModeToggle({
   mode,
   onModeChange,
 }: MapModeToggleProps) {
+  console.log('🔘 MapModeToggle render - current mode:', mode);
+
   return (
     <Box
       sx={{
@@ -23,9 +25,18 @@ export function MapModeToggle({
       <ToggleButtonGroup
         value={mode}
         exclusive
-        onChange={(_, newMode) => {
+        onChange={(event, newMode) => {
+          console.log(
+            '🔘 Toggle clicked! Event:',
+            event.type,
+            'New mode:',
+            newMode
+          );
           if (newMode !== null) {
+            console.log('🔘 Calling onModeChange with:', newMode);
             onModeChange(newMode);
+          } else {
+            console.log('🔘 newMode was null, ignoring');
           }
         }}
         size="small"

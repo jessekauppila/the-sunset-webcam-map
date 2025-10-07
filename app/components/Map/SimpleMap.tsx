@@ -1,26 +1,16 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import {
-  Box,
-  // Typography,
-  // ToggleButton,
-  // ToggleButtonGroup,
-} from '@mui/material';
 import {} from '@mui/icons-material';
 import { useMap } from './hooks/useMap';
 import { useFlyTo } from './hooks/useFlyTo';
 import { useSetMarker } from './hooks/useSetMarker';
 import { useSetWebcamMarkers } from './hooks/useSetWebcamMarkers';
-// import { WebcamDisplay } from '../WebcamDisplay';
 import { useUpdateTerminatorRing } from './hooks/useUpdateTerminatorRing';
 import { useMapInteractionPause } from './hooks/useMapInteractionPause';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import type { Location } from '../../lib/types';
-//import { useWebcamFetchArray } from '../hooks/useWebCamFetchArray';
-//import { useClosestWebcams } from './hooks/useClosestWebcams';
 import { useCyclingWebcams } from './hooks/useCyclingWebcams';
-// import { useCombineSunriseSunsetWebcams } from './hooks/useCombinedSunriseSunsetWebcams';
 import dynamic from 'next/dynamic';
 
 const GlobeMap = dynamic(() => import('./GlobeMap'), {
@@ -40,8 +30,7 @@ export default function SimpleMap({
   userLocation,
   mode,
 }: SimpleMapProps) {
-  // Remove local mode state - now comes from props
-  console.log('SimpleMap: Received mode prop:', mode);
+  console.log('🗺️  SimpleMap render - mode:', mode);
 
   const [currentTime, setCurrentTime] = useState(new Date());
 
@@ -62,14 +51,9 @@ export default function SimpleMap({
   //this brings in the Zustand "state" store
   const allTerminatorWebcams = useTerminatorStore((t) => t.combined);
 
-  const { sunrise, sunset } = useUpdateTerminatorRing(
-    map,
-    mapLoaded,
-    currentTime,
-    {
-      attachToMap: mode === 'map',
-    }
-  );
+  useUpdateTerminatorRing(map, mapLoaded, currentTime, {
+    attachToMap: mode === 'map',
+  });
 
   const {
     currentWebcam: nextLatitudeNorthSunsetWebCam,
@@ -127,19 +111,25 @@ export default function SimpleMap({
       <section className="relative w-full h-full">
         <div className="relative w-full h-full">
           {mode === 'map' ? (
-            <div
-              ref={mapContainer}
-              className="w-full h-full"
-              style={{ minHeight: '100vh' }}
-            />
-          ) : (
-            <div className="w-full h-full">
-              <GlobeMap
-                webcams={[...sunsetWebcams, ...sunriseWebcams]}
-                currentTime={currentTime}
-                targetLocation={userLocation}
+            <>
+              <div
+                ref={mapContainer}
+                className="w-full h-full"
+                style={{ minHeight: '100vh' }}
               />
-            </div>
+              {console.log('🗺️  Rendering Mapbox')}
+            </>
+          ) : (
+            <>
+              {console.log('🗺️  Rendering Globe')}
+              <div className="w-full h-full">
+                <GlobeMap
+                  webcams={[...sunsetWebcams, ...sunriseWebcams]}
+                  currentTime={currentTime}
+                  targetLocation={userLocation}
+                />
+              </div>
+            </>
           )}
 
           {/* Loading Overlay */}
