@@ -4,8 +4,8 @@ import { useState, useEffect } from 'react';
 import {
   Box,
   // Typography,
-  ToggleButton,
-  ToggleButtonGroup,
+  // ToggleButton,
+  // ToggleButtonGroup,
 } from '@mui/material';
 import {} from '@mui/icons-material';
 import { useMap } from './hooks/useMap';
@@ -33,21 +33,30 @@ import { useTerminatorStore } from '@/app/store/useTerminatorStore';
 
 interface SimpleMapProps {
   userLocation: Location;
+  mode: 'map' | 'globe';
 }
 
-export default function SimpleMap({ userLocation }: SimpleMapProps) {
-  const [mode, setMode] = useState<'map' | 'globe'>('map');
+export default function SimpleMap({
+  userLocation,
+  mode,
+}: SimpleMapProps) {
+  // Remove local mode state - now comes from props
+  console.log('SimpleMap: Received mode prop:', mode);
+
   const [currentTime, setCurrentTime] = useState(new Date());
 
   const { mapContainer, map, mapLoaded, mapReady } = useMap(
     userLocation,
-    mode === 'map'
+    mode === 'map' // Only initialize map when mode is 'map'
   );
 
   //this used to call the api, but now is just used for updating the terminator ring visuals...
   useEffect(() => {
-    const id = setInterval(() => setCurrentTime(new Date()), 60_000);
-    return () => clearInterval(id);
+    const interval = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 1000);
+
+    return () => clearInterval(interval);
   }, []);
 
   //this brings in the Zustand "state" store
@@ -109,91 +118,29 @@ export default function SimpleMap({ userLocation }: SimpleMapProps) {
     mode === 'map' ? nextLatitudeNorthSunsetLocation ?? null : null
   );
 
+  // Bring in terminator webcams from Zustand Store
+  const sunriseWebcams = useTerminatorStore((t) => t.sunrise);
+  const sunsetWebcams = useTerminatorStore((t) => t.sunset);
+
   return (
-    <div>
-      {/* First Section - Full Screen Map */}
-      <section className="map-container w-full h-screen">
-        <div className="w-full h-full">
+    <div className="relative w-full h-screen">
+      <section className="relative w-full h-full">
+        <div className="relative w-full h-full">
           {mode === 'map' ? (
             <div
               ref={mapContainer}
               className="w-full h-full"
-              style={{
-                position: 'relative',
-                zIndex: 1,
-              }}
+              style={{ minHeight: '100vh' }}
             />
           ) : (
-            <div
-              className="w-full h-full"
-              style={{ position: 'relative', zIndex: 1 }}
-            >
+            <div className="w-full h-full">
               <GlobeMap
-                webcams={allTerminatorWebcams || []}
-                sunrise={sunrise}
-                sunset={sunset}
+                webcams={[...sunsetWebcams, ...sunriseWebcams]}
                 currentTime={currentTime}
-                initialViewState={{
-                  longitude: userLocation.lng,
-                  latitude: userLocation.lat,
-                  zoom: 0,
-                }}
-                targetLocation={
-                  nextLatitudeNorthSunsetLocation
-                    ? {
-                        longitude:
-                          nextLatitudeNorthSunsetLocation.lng,
-                        latitude: nextLatitudeNorthSunsetLocation.lat,
-                      }
-                    : null
-                }
+                targetLocation={userLocation}
               />
             </div>
           )}
-
-          {/* Mode Toggle */}
-          <Box
-            sx={{
-              position: 'absolute',
-              top: 16,
-              right: 16,
-              zIndex: 3,
-            }}
-          >
-            <ToggleButtonGroup
-              value={mode}
-              exclusive
-              onChange={(_, newMode) => {
-                if (newMode !== null) {
-                  setMode(newMode);
-                }
-              }}
-              size="small"
-              sx={{
-                backgroundColor: 'rgba(0, 0, 0, 0.7)',
-                '& .MuiToggleButton-root': {
-                  color: 'white',
-                  borderColor: 'rgba(255, 255, 255, 0.3)',
-                  padding: '4px 8px', // Add this to make buttons smaller
-                  fontSize: '8px', // Add this to make text smaller
-                  minWidth: 'auto', // Add this to remove minimum width
-                  '&.Mui-selected': {
-                    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-                    color: 'white',
-                    '&:hover': {
-                      backgroundColor: 'rgba(255, 255, 255, 0.3)',
-                    },
-                  },
-                  '&:hover': {
-                    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                  },
-                },
-              }}
-            >
-              <ToggleButton value="map">Mapbox</ToggleButton>
-              <ToggleButton value="globe">DeckGL</ToggleButton>
-            </ToggleButtonGroup>
-          </Box>
 
           {/* Loading Overlay */}
           {mode === 'map' && !mapLoaded && (

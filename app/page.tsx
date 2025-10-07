@@ -4,7 +4,6 @@ import { useState } from 'react';
 import SimpleMap from './components/Map/SimpleMap';
 import { useLoadTerminatorWebcams } from '@/app/store/useLoadTerminatorWebcams';
 import { useLoadAllWebcams } from '@/app/store/useLoadAllWebcams';
-
 import { useMemo } from 'react';
 import { useTerminatorStore } from '@/app/store/useTerminatorStore';
 import { useAllWebcamsStore } from '@/app/store/useAllWebcamsStore';
@@ -15,10 +14,15 @@ import {
   KeyboardArrowDown,
 } from '@mui/icons-material';
 import { MosaicCanvas } from '@/app/components/WebcamsMosaicCanvas';
+import { MapModeToggle } from '@/app/components/MapModeToggle';
 
 export default function Home() {
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [tabValue, setTabValue] = useState(0); // Add tab state
+  const [tabValue, setTabValue] = useState(0);
+  const [mapMode, setMapMode] = useState<'map' | 'globe'>('map');
+
+  // Debug log
+  console.log('Page: Current mapMode state:', mapMode);
 
   // Bellingham, Washington location need to put in user's location eventually
   const userLocation = useMemo(
@@ -37,11 +41,22 @@ export default function Home() {
   const sunsetWebcams = useTerminatorStore((t) => t.sunset);
   const allWebcams = useAllWebcamsStore((t) => t.allWebcams);
 
+  const handleModeChange = (newMode: 'map' | 'globe') => {
+    console.log('Page: Mode change from', mapMode, 'to', newMode);
+    setMapMode(newMode);
+  };
+
   return (
     <main className="relative w-full">
       <div>
         {/* First Section - Full Screen Map */}
-        <SimpleMap userLocation={userLocation} />
+        <SimpleMap userLocation={userLocation} mode={mapMode} />
+
+        {/* Map Mode Toggle - positioned over the map */}
+        <MapModeToggle
+          mode={mapMode}
+          onModeChange={handleModeChange}
+        />
 
         {/* Drawer Toggle Button - positioned over the map */}
         <IconButton
@@ -200,7 +215,7 @@ export default function Home() {
               {/* <div className="canvas-container">
               {nextLatitudeNorthSunsetWebCam && (
                 <WebcamDisplay
-                  webcam={nextLatitudeNorthSunsetWebCam}
+                  webcam={nextLatitudeNorthSunsetWebcams}
                 />
               )}
             </div> 
