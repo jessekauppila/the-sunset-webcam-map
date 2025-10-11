@@ -80,7 +80,7 @@ export default function MainViewContainer({
                     padding={canvasPadding}
                     ratingSizeEffect={0.75}
                     viewSizeEffect={0.1}
-                    baseHeight={150}
+                    fillScreenHeight={true}
                     onSelect={(webcam) => {
                       console.log(
                         'Selected webcam:',
@@ -110,7 +110,7 @@ export default function MainViewContainer({
                     padding={canvasPadding}
                     ratingSizeEffect={0.75}
                     viewSizeEffect={0.1}
-                    baseHeight={150}
+                    fillScreenHeight={true}
                     onSelect={(webcam) => {
                       console.log(
                         'Selected webcam:',
