@@ -20,6 +20,10 @@ export default function MainViewContainer({
   const sunriseWebcams = useTerminatorStore((t) => t.sunrise);
   const sunsetWebcams = useTerminatorStore((t) => t.sunset);
 
+  const canvasImageRows = 12;
+  const canvasMaxImages = 90;
+  const canvasPadding = 2;
+
   // Render different views based on mode
   switch (mode) {
     case 'map':
@@ -29,48 +33,54 @@ export default function MainViewContainer({
     case 'mosaic':
       return (
         <section className="map-container w-full h-screen">
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'auto auto', // left | right
-            }}
-          >
-            <MosaicCanvas
-              webcams={sunsetWebcams || []}
-              width={window.innerWidth / 2}
-              height={window.innerHeight}
-              rows={12}
-              maxImages={90}
-              padding={2}
-              ratingSizeEffect={0.75}
-              viewSizeEffect={0.1}
-              baseHeight={80}
-              onSelect={(webcam) => {
-                console.log(
-                  'Selected webcam:',
-                  webcam.webcamId,
-                  webcam.title
-                );
-              }}
-            />
-            <MosaicCanvas
-              webcams={sunriseWebcams || []}
-              width={window.innerWidth / 2}
-              height={window.innerHeight}
-              rows={12}
-              maxImages={90}
-              padding={2}
-              ratingSizeEffect={0.75}
-              viewSizeEffect={0.1}
-              baseHeight={80}
-              onSelect={(webcam) => {
-                console.log(
-                  'Selected webcam:',
-                  webcam.webcamId,
-                  webcam.title
-                );
-              }}
-            />
+          <div className="grid grid-cols-2">
+            <div>
+              <h1 className="text-center text-gray-600 text-xl font-serif">
+                Sunset
+              </h1>
+              <MosaicCanvas
+                webcams={sunsetWebcams || []}
+                width={window.innerWidth / 2}
+                height={window.innerHeight}
+                //rows={canvasImageRows}
+                maxImages={canvasMaxImages}
+                padding={canvasPadding}
+                ratingSizeEffect={0.75}
+                viewSizeEffect={0.1}
+                baseHeight={150}
+                onSelect={(webcam) => {
+                  console.log(
+                    'Selected webcam:',
+                    webcam.webcamId,
+                    webcam.title
+                  );
+                }}
+              />
+            </div>
+
+            <div>
+              <h1 className="text-center text-gray-600 text-xl font-serif">
+                Sunrise
+              </h1>
+              <MosaicCanvas
+                webcams={sunriseWebcams || []}
+                width={window.innerWidth / 2}
+                height={window.innerHeight}
+                //rows={canvasImageRows}
+                maxImages={canvasMaxImages}
+                padding={canvasPadding}
+                ratingSizeEffect={0.75}
+                viewSizeEffect={0.1}
+                baseHeight={150}
+                onSelect={(webcam) => {
+                  console.log(
+                    'Selected webcam:',
+                    webcam.webcamId,
+                    webcam.title
+                  );
+                }}
+              />
+            </div>
           </div>
         </section>
       );

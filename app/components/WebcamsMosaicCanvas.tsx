@@ -7,7 +7,8 @@ type Props = {
   webcams: WindyWebcam[];
   width?: number;
   height?: number;
-  rows?: number; // number of quantile rows
+  minRows?: number; // minimum number of rows (default 3)
+  maxRows?: number; // maximum number of rows (default 20)
   maxImages?: number; // cap
   padding?: number; // px gap between tiles
   onSelect?: (webcam: WindyWebcam) => void; // click handler
@@ -15,6 +16,7 @@ type Props = {
   ratingSizeEffect?: number; // How much low ratings reduce size (0-1, default 0.75)
   viewSizeEffect?: number; // How much low views reduce size (0-1, default 0.1)
   baseHeight?: number; // Maximum height for highest-rated webcams (default 60px)
+  fillScreenHeight?: boolean; // Whether to dynamically scale to fill screen height (default true)
 };
 
 type Item = {
@@ -79,13 +81,15 @@ export function MosaicCanvas({
   webcams,
   width = 1800,
   height = 1200,
-  rows = 6,
+  minRows = 3,
+  maxRows = 20,
   maxImages = 180,
   padding = 2,
   onSelect,
   ratingSizeEffect = 0.75,
   viewSizeEffect = 0.1,
   baseHeight = 60,
+  fillScreenHeight = true,
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
@@ -117,38 +121,81 @@ export function MosaicCanvas({
     return max;
   }, [items]);
 
-  // Flexible rows based on natural grouping, maintaining original aspect ratios
-  const bands = useMemo(() => {
-    if (!items.length) return [];
+  // Calculate optimal number of rows and dynamic image heights
+  const { bands, dynamicBaseHeight } = useMemo(() => {
+    if (!items.length)
+      return { bands: [], dynamicBaseHeight: baseHeight };
 
-    // Calculate optimal row distribution
     const totalImages = items.length;
-    const targetRows = Math.min(Math.max(1, rows), totalImages);
 
-    // Distribute images more naturally across rows
-    const imagesPerRow = Math.floor(totalImages / targetRows);
-    const extraImages = totalImages % targetRows;
+    // Calculate optimal number of rows based on image count and screen height
+    let targetRows: number;
+    if (fillScreenHeight) {
+      // Calculate rows based on available height and minimum row height
+      const availableHeight = height - padding * 2; // Account for top/bottom padding
+      const minRowHeight = baseHeight * 0.2; // Minimum 20% of base height
+      const maxRowsFromHeight = Math.floor(
+        availableHeight / (minRowHeight + padding)
+      );
 
-    const out: Item[][] = [];
-    let imageIndex = 0;
-
-    for (let i = 0; i < targetRows; i++) {
-      // Some rows get one extra image to distribute remainder
-      const rowSize = imagesPerRow + (i < extraImages ? 1 : 0);
-      const row = items.slice(imageIndex, imageIndex + rowSize);
-
-      // Sort by longitude (west → east) within each row
-      row.sort((a, b) => a.lng - b.lng);
-
-      if (row.length > 0) {
-        out.push(row);
-      }
-
-      imageIndex += rowSize;
+      // Use the smaller of: maxRowsFromHeight, maxRows, or totalImages
+      targetRows = Math.min(maxRowsFromHeight, maxRows, totalImages);
+      targetRows = Math.max(minRows, targetRows); // Ensure minimum rows
+    } else {
+      // Use fixed calculation based on image count
+      targetRows = Math.min(
+        Math.max(minRows, Math.ceil(Math.sqrt(totalImages))),
+        maxRows
+      );
     }
 
-    return out;
-  }, [items, rows]);
+    // Calculate dynamic base height to fill screen
+    let calculatedBaseHeight = baseHeight;
+    if (fillScreenHeight && targetRows > 0) {
+      const availableHeight = height - padding * 2;
+      const totalPaddingHeight = padding * (targetRows - 1);
+      const availableForImages = availableHeight - totalPaddingHeight;
+      calculatedBaseHeight = Math.max(
+        baseHeight * 0.2,
+        availableForImages / targetRows
+      );
+    }
+
+    // Create latitude-based bands with blank spaces
+    const out: Item[][] = [];
+
+    // Calculate latitude ranges for each row
+    const minLat = Math.min(...items.map((item) => item.lat));
+    const maxLat = Math.max(...items.map((item) => item.lat));
+    const latRange = maxLat - minLat;
+    const latStep = latRange / targetRows;
+
+    for (let i = 0; i < targetRows; i++) {
+      const rowMinLat = minLat + i * latStep;
+      const rowMaxLat = minLat + (i + 1) * latStep;
+
+      // Find items in this latitude range
+      const rowItems = items.filter(
+        (item) => item.lat >= rowMinLat && item.lat < rowMaxLat
+      );
+
+      // Sort by longitude (west → east) within each row
+      rowItems.sort((a, b) => a.lng - b.lng);
+
+      // Always add the row, even if empty (for geographic positioning)
+      out.push(rowItems);
+    }
+
+    return { bands: out, dynamicBaseHeight: calculatedBaseHeight };
+  }, [
+    items,
+    height,
+    minRows,
+    maxRows,
+    baseHeight,
+    fillScreenHeight,
+    padding,
+  ]);
 
   // Optional: hit map for clicks
   const hitRectsRef = useRef<
@@ -209,7 +256,8 @@ export function MosaicCanvas({
         totalWidth: number;
       }> = [];
 
-      let currentY = padding;
+      // Pre-calculate all row data and total content height
+      let totalContentHeight = 0;
 
       bands.forEach((row) => {
         // Calculate dimensions for each image in this row
@@ -223,7 +271,7 @@ export function MosaicCanvas({
         let totalImageWidth = 0;
         let maxImageHeight = 0;
 
-        // First pass: calculate dimensions for each image
+        // Calculate dimensions for each image
         row.forEach((item) => {
           const img = imgMap.get(item.webcam.webcamId);
           if (!img) {
@@ -249,13 +297,13 @@ export function MosaicCanvas({
           imgHeight *= webcamScale;
 
           // If image is too wide, scale down to fit (but maintain rating scale proportion)
-          // if (imgWidth > width * 1) {
-          //   // Max 80% of canvas width per image
-          //   const maxWidth = width * 1;
-          //   const scaleDownFactor = maxWidth / imgWidth;
-          //   imgWidth = maxWidth;
-          //   imgHeight *= scaleDownFactor;
-          // }
+          if (imgWidth > width * 0.8) {
+            // Max 80% of canvas width per image
+            const maxWidth = width * 0.8;
+            const scaleDownFactor = maxWidth / imgWidth;
+            imgWidth = maxWidth;
+            imgHeight *= scaleDownFactor;
+          }
 
           imageData.push({
             item,
@@ -274,13 +322,25 @@ export function MosaicCanvas({
         // Store row data
         rowData.push({
           height: maxImageHeight,
-          y: currentY,
+          y: 0, // Will be calculated below
           imageData,
           totalWidth: totalImageWidth,
         });
 
-        // Move to next row position
-        currentY += maxImageHeight + padding;
+        totalContentHeight += maxImageHeight + padding;
+      });
+
+      // Calculate vertical offset to center content
+      const verticalOffset = Math.max(
+        0,
+        (height - totalContentHeight) / 2
+      );
+      let currentY = verticalOffset;
+
+      // Update row positions with vertical centering
+      rowData.forEach((rowInfo) => {
+        rowInfo.y = currentY;
+        currentY += rowInfo.height + padding;
       });
 
       // Render each row
