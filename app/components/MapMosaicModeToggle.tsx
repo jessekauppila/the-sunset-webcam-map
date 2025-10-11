@@ -37,6 +37,7 @@ export function MapMosaicModeToggle({
             padding: '4px 8px', // Add this to make buttons smaller
             fontSize: '8px', // Add this to make text smaller
             minWidth: 'auto', // Add this to remove minimum width
+            fontFamily: 'Roboto, Arial, sans-serif', // Explicitly set Roboto font
             '&.Mui-selected': {
               backgroundColor: 'rgba(255, 255, 255, 0.2)',
               color: 'white',

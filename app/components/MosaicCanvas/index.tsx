@@ -148,7 +148,7 @@ export function MosaicCanvas({
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = 'high';
-    ctx.fillStyle = '#0b1220';
+    ctx.fillStyle = '#000000';
     ctx.fillRect(0, 0, width, height);
 
     hitRectsRef.current = [];

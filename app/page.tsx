@@ -14,7 +14,7 @@ import {
   KeyboardArrowUp,
   KeyboardArrowDown,
 } from '@mui/icons-material';
-import { MosaicCanvas } from '@/app/components/WebcamsMosaicCanvas';
+import { MosaicCanvas } from '@/app/components/MosaicCanvas';
 import { MapMosaicModeToggle } from '@/app/components/MapMosaicModeToggle';
 import type { ViewMode } from './components/MainViewContainer';
 

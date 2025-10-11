@@ -2,7 +2,7 @@
 
 import { useRef, useState, useEffect } from 'react';
 import SimpleMap from './Map/SimpleMap';
-import { MosaicCanvas } from './WebcamsMosaicCanvas';
+import { MosaicCanvas } from './MosaicCanvas';
 import { useTerminatorStore } from '@/app/store/useTerminatorStore';
 import type { Location } from '../lib/types';
 
@@ -64,8 +64,11 @@ export default function MainViewContainer({
         <section className="map-container w-full h-screen">
           <div className="grid grid-cols-2 h-full">
             <div className="flex flex-col h-full">
-              <h1 className="text-center text-gray-600 text-xl font-serif py-2">
-                Sunset
+              <h1
+                className="text-center text-gray-500 text-xl py-2"
+                style={{ fontFamily: 'Roboto, Arial, sans-serif' }}
+              >
+                Sunsets
               </h1>
               <div ref={sunsetContainerRef} className="flex-1">
                 {dimensions.height > 0 && (
@@ -91,8 +94,11 @@ export default function MainViewContainer({
             </div>
 
             <div className="flex flex-col h-full">
-              <h1 className="text-center text-gray-600 text-xl font-serif py-2">
-                Sunrise
+              <h1
+                className="text-center text-gray-500 text-xl py-2"
+                style={{ fontFamily: 'Roboto, Arial, sans-serif' }}
+              >
+                Sunrises
               </h1>
               <div ref={sunriseContainerRef} className="flex-1">
                 {dimensions.height > 0 && (
