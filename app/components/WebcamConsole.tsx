@@ -1,5 +1,7 @@
 'use client';
 
+//for displaying the information for all of a certain type of webcam...
+
 import Image from 'next/image';
 import { useState } from 'react';
 import type { WindyWebcam, Orientation } from '@/app/lib/types';

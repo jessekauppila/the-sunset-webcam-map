@@ -1,3 +1,5 @@
+//original before refactoring....
+
 'use client';
 
 import { useEffect, useMemo, useRef } from 'react';
@@ -287,10 +289,10 @@ export function MosaicCanvas({
             viewSizeEffect
           );
 
-          // Calculate base dimensions using configurable base height
+          // Calculate base dimensions using dynamic base height (calculated to fill screen)
           const imgAR = img.naturalWidth / img.naturalHeight;
-          let imgWidth = baseHeight * imgAR;
-          let imgHeight = baseHeight;
+          let imgWidth = dynamicBaseHeight * imgAR;
+          let imgHeight = dynamicBaseHeight;
 
           // Apply combined rating and view-based scaling
           imgWidth *= webcamScale;
@@ -364,9 +366,8 @@ export function MosaicCanvas({
                 ratingSizeEffect,
                 viewSizeEffect
               );
-              const failedBaseHeight = baseHeight;
-              const failedWidth = failedBaseHeight * webcamScale;
-              const failedHeight = failedBaseHeight * webcamScale;
+              const failedWidth = dynamicBaseHeight * webcamScale;
+              const failedHeight = dynamicBaseHeight * webcamScale;
 
               ctx.fillStyle = '#000000';
               ctx.fillRect(
@@ -411,7 +412,7 @@ export function MosaicCanvas({
     maxViews,
     ratingSizeEffect,
     viewSizeEffect,
-    baseHeight,
+    dynamicBaseHeight,
   ]);
 
   useEffect(() => {

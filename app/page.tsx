@@ -57,7 +57,7 @@ export default function Home() {
             bottom: 16,
             left: '50%',
             transform: 'translateX(-50%)',
-            backgroundColor: 'rgba(0, 0, 0, 0.7)',
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
             color: 'white',
             zIndex: 3,
             '&:hover': {
@@ -110,8 +110,6 @@ export default function Home() {
             >
               <Tab label="Current Terminator" />
               <Tab label="All Webcams" />
-              <Tab label="Sunrise Mosaic Display" />
-              <Tab label="Sunset Mosaic Display" />
             </Tabs>
 
             {/* Tab Content */}
@@ -143,48 +141,6 @@ export default function Home() {
                   <WebcamConsole
                     webcams={allWebcams || []}
                     title={'All Webcams'}
-                  />
-                </Box>
-              )}
-
-              {tabValue === 2 && (
-                <Box sx={{ p: 2 }}>
-                  {/* choose which set to render */}
-                  <MosaicCanvas
-                    webcams={sunriseWebcams} // or sunsetWebcams
-                    width={1200}
-                    height={800}
-                    rows={12}
-                    maxImages={180}
-                    padding={2}
-                    ratingSizeEffect={0.65}
-                    viewSizeEffect={0.2}
-                    baseHeight={200}
-                    onSelect={(w) => {
-                      // show detail, focus the map, open drawer, etc.
-                      console.log('clicked', w.webcamId, w.title);
-                    }}
-                  />
-                </Box>
-              )}
-
-              {tabValue === 3 && (
-                <Box sx={{ p: 2 }}>
-                  {/* choose which set to render */}
-                  <MosaicCanvas
-                    webcams={sunsetWebcams} // or sunsetWebcams
-                    width={1200}
-                    height={800}
-                    rows={12}
-                    maxImages={180}
-                    padding={2}
-                    ratingSizeEffect={0.75}
-                    viewSizeEffect={0.1}
-                    baseHeight={200}
-                    onSelect={(w) => {
-                      // show detail, focus the map, open drawer, etc.
-                      console.log('clicked', w.webcamId, w.title);
-                    }}
                   />
                 </Box>
               )}
