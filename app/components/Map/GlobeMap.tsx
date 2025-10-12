@@ -30,10 +30,10 @@ const lightingEffect = new LightingEffect({ ambientLight, sunLight });
 
 interface GlobeMapProps {
   webcams: WindyWebcam[];
-  sunrise:
+  sunrise?:
     | GeoJSON.FeatureCollection<GeoJSON.LineString>
     | GeoJSON.Feature<GeoJSON.LineString>;
-  sunset:
+  sunset?:
     | GeoJSON.FeatureCollection<GeoJSON.LineString>
     | GeoJSON.Feature<GeoJSON.LineString>;
   currentTime: Date;
@@ -46,22 +46,38 @@ export default function GlobeMap({
   // sunrise,
   // sunset,
   currentTime,
-  initialViewState = { longitude: 0, latitude: 20, zoom: 0 },
+  initialViewState,
   targetLocation = null,
 }: GlobeMapProps) {
   // Sync lighting with current time
   sunLight.timestamp = currentTime.getTime();
 
-  const [viewState, setViewState] =
-    useState<GlobeViewState>(initialViewState);
+  // Initialize with proper default viewState for GlobeView
+  const defaultViewState: GlobeViewState = {
+    longitude: 0,
+    latitude: 20,
+    zoom: 0,
+  };
+
+  const [viewState, setViewState] = useState<GlobeViewState>(
+    initialViewState ?? defaultViewState
+  );
 
   useEffect(() => {
-    setViewState((vs) => ({ ...vs, ...initialViewState }));
+    if (initialViewState) {
+      setViewState((vs) => ({ ...vs, ...initialViewState }));
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
-    if (!targetLocation) return;
+    if (
+      !targetLocation ||
+      typeof targetLocation.longitude !== 'number' ||
+      typeof targetLocation.latitude !== 'number'
+    ) {
+      return;
+    }
     setViewState((prev) => ({
       ...prev,
       longitude: targetLocation.longitude,
@@ -130,8 +146,18 @@ export default function GlobeMap({
           // 3D culling: hide webcams that are on the far side of the globe
           const webcamLat = webcam.location.latitude;
           const webcamLng = webcam.location.longitude;
-          const cameraLat = viewState.latitude;
-          const cameraLng = viewState.longitude;
+          const cameraLat = viewState.latitude ?? 0;
+          const cameraLng = viewState.longitude ?? 0;
+
+          // Safety check for valid coordinates
+          if (
+            typeof cameraLat !== 'number' ||
+            typeof cameraLng !== 'number' ||
+            typeof webcamLat !== 'number' ||
+            typeof webcamLng !== 'number'
+          ) {
+            return true; // Show all webcams if coordinates are invalid
+          }
 
           // Convert to radians
           const lat1 = (cameraLat * Math.PI) / 180;
