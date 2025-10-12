@@ -102,6 +102,20 @@ export function MosaicCanvas({
       fillScreenHeight
     );
 
+    // Debug: core layout decision metrics
+    console.log('MosaicCanvas layout', {
+      canvasWidth: width,
+      canvasHeight: height,
+      totalImages,
+      baseHeight: finalConfig.baseHeight,
+      dynamicBaseHeight: calculatedBaseHeight,
+      targetRows,
+      minRows: finalConfig.minRows,
+      maxRows: finalConfig.maxRows,
+      padding: finalConfig.padding,
+      fillScreenHeight,
+    });
+
     // Create latitude-based bands
     const latitudeBands = createLatitudeBands(items, targetRows);
 
@@ -112,6 +126,7 @@ export function MosaicCanvas({
   }, [
     items,
     height,
+    width,
     finalConfig.baseHeight,
     finalConfig.minRows,
     finalConfig.maxRows,
@@ -229,6 +244,15 @@ export function MosaicCanvas({
         0,
         (height - totalContentHeight) / 2
       );
+
+      // Debug: how much vertical space we are filling
+      console.log('MosaicCanvas render', {
+        rows: rowData.length,
+        totalContentHeight,
+        canvasHeight: height,
+        verticalOffset,
+        dynamicBaseHeight,
+      });
       let currentY = verticalOffset;
 
       // Update row positions with vertical centering
