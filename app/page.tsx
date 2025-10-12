@@ -1,9 +1,10 @@
 'use client';
 
 import { useState } from 'react';
-import SimpleMap from './components/Map/SimpleMap';
+import MainViewContainer from './components/MainViewContainer';
 import { useLoadTerminatorWebcams } from '@/app/store/useLoadTerminatorWebcams';
 import { useLoadAllWebcams } from '@/app/store/useLoadAllWebcams';
+
 import { useMemo } from 'react';
 import { useTerminatorStore } from '@/app/store/useTerminatorStore';
 import { useAllWebcamsStore } from '@/app/store/useAllWebcamsStore';
@@ -13,18 +14,14 @@ import {
   KeyboardArrowUp,
   KeyboardArrowDown,
 } from '@mui/icons-material';
-import { MosaicCanvas } from '@/app/components/WebcamsMosaicCanvas';
-import { MapModeToggle } from '@/app/components/MapModeToggle';
+import { MosaicCanvas } from '@/app/components/MosaicCanvas';
+import { MapMosaicModeToggle } from '@/app/components/MapMosaicModeToggle';
+import type { ViewMode } from './components/MainViewContainer';
 
 export default function Home() {
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [tabValue, setTabValue] = useState(0);
-  const [mapMode, setMapMode] = useState<'map' | 'globe'>('map');
-
-  console.log('📄 Page render - mapMode:', mapMode);
-
-  // Debug log
-  console.log('Page: Current mapMode state:', mapMode);
+  const [tabValue, setTabValue] = useState(0); // Add tab state
+  const [mode, setMode] = useState<ViewMode>('map');
 
   // Bellingham, Washington location need to put in user's location eventually
   const userLocation = useMemo(
@@ -43,28 +40,14 @@ export default function Home() {
   const sunsetWebcams = useTerminatorStore((t) => t.sunset);
   const allWebcams = useAllWebcamsStore((t) => t.allWebcams);
 
-  const handleModeChange = (newMode: 'map' | 'globe') => {
-    console.log(
-      '📄 handleModeChange called! From:',
-      mapMode,
-      'To:',
-      newMode
-    );
-    setMapMode(newMode);
-    console.log('📄 setMapMode called with:', newMode);
-  };
-
   return (
     <main className="relative w-full">
       <div>
-        {/* First Section - Full Screen Map */}
-        <SimpleMap userLocation={userLocation} mode={mapMode} />
+        {/* Main View Container - handles map, globe, and mosaic modes */}
+        <MainViewContainer userLocation={userLocation} mode={mode} />
 
-        {/* Map Mode Toggle - positioned over the map */}
-        <MapModeToggle
-          mode={mapMode}
-          onModeChange={handleModeChange}
-        />
+        {/* Mode Toggle */}
+        <MapMosaicModeToggle mode={mode} onModeChange={setMode} />
 
         {/* Drawer Toggle Button - positioned over the map */}
         <IconButton
@@ -74,7 +57,7 @@ export default function Home() {
             bottom: 16,
             left: '50%',
             transform: 'translateX(-50%)',
-            backgroundColor: 'rgba(0, 0, 0, 0.7)',
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
             color: 'white',
             zIndex: 3,
             '&:hover': {
@@ -127,8 +110,6 @@ export default function Home() {
             >
               <Tab label="Current Terminator" />
               <Tab label="All Webcams" />
-              <Tab label="Sunrise Mosaic Display" />
-              <Tab label="Sunset Mosaic Display" />
             </Tabs>
 
             {/* Tab Content */}
@@ -163,48 +144,6 @@ export default function Home() {
                   />
                 </Box>
               )}
-
-              {tabValue === 2 && (
-                <Box sx={{ p: 2 }}>
-                  {/* choose which set to render */}
-                  <MosaicCanvas
-                    webcams={sunriseWebcams} // or sunsetWebcams
-                    width={1200}
-                    height={800}
-                    rows={12}
-                    maxImages={180}
-                    padding={2}
-                    ratingSizeEffect={0.65}
-                    viewSizeEffect={0.2}
-                    baseHeight={80}
-                    onSelect={(w) => {
-                      // show detail, focus the map, open drawer, etc.
-                      console.log('clicked', w.webcamId, w.title);
-                    }}
-                  />
-                </Box>
-              )}
-
-              {tabValue === 3 && (
-                <Box sx={{ p: 2 }}>
-                  {/* choose which set to render */}
-                  <MosaicCanvas
-                    webcams={sunsetWebcams} // or sunsetWebcams
-                    width={1200}
-                    height={800}
-                    rows={12}
-                    maxImages={180}
-                    padding={2}
-                    ratingSizeEffect={0.75}
-                    viewSizeEffect={0.1}
-                    baseHeight={80}
-                    onSelect={(w) => {
-                      // show detail, focus the map, open drawer, etc.
-                      console.log('clicked', w.webcamId, w.title);
-                    }}
-                  />
-                </Box>
-              )}
             </Box>
           </Box>
         </Drawer>
@@ -223,7 +162,7 @@ export default function Home() {
               {/* <div className="canvas-container">
               {nextLatitudeNorthSunsetWebCam && (
                 <WebcamDisplay
-                  webcam={nextLatitudeNorthSunsetWebcams}
+                  webcam={nextLatitudeNorthSunsetWebCam}
                 />
               )}
             </div> 
