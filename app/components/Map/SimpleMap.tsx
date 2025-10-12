@@ -6,11 +6,15 @@ import { useMap } from './hooks/useMap';
 import { useFlyTo } from './hooks/useFlyTo';
 import { useSetMarker } from './hooks/useSetMarker';
 import { useSetWebcamMarkers } from './hooks/useSetWebcamMarkers';
+// import { WebcamDisplay } from '../WebcamDisplay';
 import { useUpdateTerminatorRing } from './hooks/useUpdateTerminatorRing';
 import { useMapInteractionPause } from './hooks/useMapInteractionPause';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import type { Location } from '../../lib/types';
+//import { useWebcamFetchArray } from '../hooks/useWebCamFetchArray';
+//import { useClosestWebcams } from './hooks/useClosestWebcams';
 import { useCyclingWebcams } from './hooks/useCyclingWebcams';
+// import { useCombineSunriseSunsetWebcams } from './hooks/useCombinedSunriseSunsetWebcams';
 import dynamic from 'next/dynamic';
 
 const GlobeMap = dynamic(() => import('./GlobeMap'), {
@@ -30,30 +34,30 @@ export default function SimpleMap({
   userLocation,
   mode,
 }: SimpleMapProps) {
-  console.log('🗺️  SimpleMap render - mode:', mode);
-
   const [currentTime, setCurrentTime] = useState(new Date());
 
   const { mapContainer, map, mapLoaded, mapReady } = useMap(
     userLocation,
-    mode === 'map' // Only initialize map when mode is 'map'
+    mode === 'map'
   );
 
   //this used to call the api, but now is just used for updating the terminator ring visuals...
   useEffect(() => {
-    const interval = setInterval(() => {
-      setCurrentTime(new Date());
-    }, 1000);
-
-    return () => clearInterval(interval);
+    const id = setInterval(() => setCurrentTime(new Date()), 60_000);
+    return () => clearInterval(id);
   }, []);
 
   //this brings in the Zustand "state" store
   const allTerminatorWebcams = useTerminatorStore((t) => t.combined);
 
-  useUpdateTerminatorRing(map, mapLoaded, currentTime, {
-    attachToMap: mode === 'map',
-  });
+  const { sunrise, sunset } = useUpdateTerminatorRing(
+    map,
+    mapLoaded,
+    currentTime,
+    {
+      attachToMap: mode === 'map',
+    }
+  );
 
   const {
     currentWebcam: nextLatitudeNorthSunsetWebCam,
@@ -102,34 +106,46 @@ export default function SimpleMap({
     mode === 'map' ? nextLatitudeNorthSunsetLocation ?? null : null
   );
 
-  // Bring in terminator webcams from Zustand Store
-  const sunriseWebcams = useTerminatorStore((t) => t.sunrise);
-  const sunsetWebcams = useTerminatorStore((t) => t.sunset);
-
   return (
-    <div className="relative w-full h-screen">
-      <section className="relative w-full h-full">
-        <div className="relative w-full h-full">
+    <div>
+      {/* First Section - Full Screen Map */}
+      <section className="map-container w-full h-screen">
+        <div className="w-full h-full">
           {mode === 'map' ? (
-            <>
-              <div
-                ref={mapContainer}
-                className="w-full h-full"
-                style={{ minHeight: '100vh' }}
-              />
-              {console.log('🗺️  Rendering Mapbox')}
-            </>
+            <div
+              ref={mapContainer}
+              className="w-full h-full"
+              style={{
+                position: 'relative',
+                zIndex: 1,
+              }}
+            />
           ) : (
-            <>
-              {console.log('🗺️  Rendering Globe')}
-              <div className="w-full h-full">
-                <GlobeMap
-                  webcams={[...sunsetWebcams, ...sunriseWebcams]}
-                  currentTime={currentTime}
-                  targetLocation={userLocation}
-                />
-              </div>
-            </>
+            <div
+              className="w-full h-full"
+              style={{ position: 'relative', zIndex: 1 }}
+            >
+              <GlobeMap
+                webcams={allTerminatorWebcams || []}
+                sunrise={sunrise}
+                sunset={sunset}
+                currentTime={currentTime}
+                initialViewState={{
+                  longitude: userLocation.lng,
+                  latitude: userLocation.lat,
+                  zoom: 0,
+                }}
+                targetLocation={
+                  nextLatitudeNorthSunsetLocation
+                    ? {
+                        longitude:
+                          nextLatitudeNorthSunsetLocation.lng,
+                        latitude: nextLatitudeNorthSunsetLocation.lat,
+                      }
+                    : null
+                }
+              />
+            </div>
           )}
 
           {/* Loading Overlay */}
