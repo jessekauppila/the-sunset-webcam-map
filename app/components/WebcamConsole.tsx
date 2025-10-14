@@ -4,6 +4,7 @@ import Image from 'next/image';
 import { useState } from 'react';
 import type { WindyWebcam, Orientation } from '@/app/lib/types';
 import { useAllWebcamsStore } from '@/app/store/useAllWebcamsStore';
+import StarRating from './console/StarRating';
 
 export function WebcamConsole({
   webcams,
@@ -127,13 +128,14 @@ export function WebcamConsole({
 
               {/* Rating */}
               <p className="webcam-console-details">
-                Rating: {webcam.rating}
+                Saved Rating:{' '}
+                {<StarRating rating={webcam.rating ?? 0} />}
               </p>
 
               {/* Rating Controls */}
               <div className="mt-2 mb-2">
                 <label className="webcam-console-details">
-                  Rating:
+                  Set Rating:
                 </label>
                 <div className="flex gap-1">
                   {[1, 2, 3, 4, 5].map((rating) => (
