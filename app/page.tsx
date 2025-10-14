@@ -21,7 +21,7 @@ import type { ViewMode } from './components/MainViewContainer';
 export default function Home() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [tabValue, setTabValue] = useState(0); // Add tab state
-  const [mode, setMode] = useState<ViewMode>('map');
+  const [mode, setMode] = useState<ViewMode>('globe');
 
   // Bellingham, Washington location need to put in user's location eventually
   const userLocation = useMemo(
