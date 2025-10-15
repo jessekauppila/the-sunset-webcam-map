@@ -50,7 +50,7 @@ async function captureSnapshots(request: Request) {
 
     // Transform to WindyWebcam format
     const webcamsToCapture: WindyWebcam[] = rows
-      .map((row: any) => {
+      .map((row: Record<string, unknown>) => {
         try {
           return {
             webcamId: row.webcam_id,
