@@ -16,7 +16,6 @@ import {
 } from '@mui/icons-material';
 import { MapMosaicModeToggle } from '@/app/components/MapMosaicModeToggle';
 import type { ViewMode } from './components/MainViewContainer';
-import { useArchiveSnapshots } from './components/hooks/useArchiveSnapshots';
 
 export default function Home() {
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -35,9 +34,7 @@ export default function Home() {
   useLoadTerminatorWebcams();
   useLoadAllWebcams();
 
-  // Archive snapshots of terminator webcams with rating >= 4
-  // Debounced to every 15 minutes
-  useArchiveSnapshots();
+  // Note: Snapshot archiving now handled by cron job at /api/cron/capture-snapshots
 
   //Bring in terminator webcams from Zustand Store
   const sunriseWebcams = useTerminatorStore((t) => t.sunrise);

@@ -3,9 +3,11 @@
     {
       "path": "/api/cron/update-windy",
       "schedule": "*/1 * * * *"
-    }
-  ],
-  "crons": [
+    },
+    {
+      "path": "/api/cron/capture-snapshots",
+      "schedule": "*/15 * * * *"
+    },
     {
       "path": "/api/snapshots/cleanup",
       "schedule": "0 2 * * *"
