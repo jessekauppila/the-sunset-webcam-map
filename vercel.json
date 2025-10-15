@@ -4,5 +4,11 @@
       "path": "/api/cron/update-windy",
       "schedule": "*/1 * * * *"
     }
+  ],
+  "crons": [
+    {
+      "path": "/api/snapshots/cleanup",
+      "schedule": "0 2 * * *"
+    }
   ]
 }

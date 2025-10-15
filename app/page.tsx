@@ -14,9 +14,9 @@ import {
   KeyboardArrowUp,
   KeyboardArrowDown,
 } from '@mui/icons-material';
-import { MosaicCanvas } from '@/app/components/MosaicCanvas';
 import { MapMosaicModeToggle } from '@/app/components/MapMosaicModeToggle';
 import type { ViewMode } from './components/MainViewContainer';
+import { useArchiveSnapshots } from './components/hooks/useArchiveSnapshots';
 
 export default function Home() {
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -35,6 +35,10 @@ export default function Home() {
   useLoadTerminatorWebcams();
   useLoadAllWebcams();
 
+  // Archive snapshots of terminator webcams with rating >= 4
+  // Debounced to every 15 minutes
+  useArchiveSnapshots();
+
   //Bring in terminator webcams from Zustand Store
   const sunriseWebcams = useTerminatorStore((t) => t.sunrise);
   const sunsetWebcams = useTerminatorStore((t) => t.sunset);
@@ -47,8 +51,10 @@ export default function Home() {
         <MainViewContainer userLocation={userLocation} mode={mode} />
 
         {/* Mode Toggle */}
-        {/* Mode Toggle */}
-        <MapMosaicModeToggle mode={mode} onModeChange={setMode} />
+        <MapMosaicModeToggle
+          mode={mode as 'map' | 'globe' | 'mosaic' | 'mosaic2'}
+          onModeChange={(newMode) => setMode(newMode as ViewMode)}
+        />
 
         {/* Drawer Toggle Button - positioned over the map */}
         <IconButton
