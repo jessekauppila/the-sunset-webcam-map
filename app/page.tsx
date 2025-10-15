@@ -47,6 +47,7 @@ export default function Home() {
         <MainViewContainer userLocation={userLocation} mode={mode} />
 
         {/* Mode Toggle */}
+        {/* Mode Toggle */}
         <MapMosaicModeToggle mode={mode} onModeChange={setMode} />
 
         {/* Drawer Toggle Button - positioned over the map */}

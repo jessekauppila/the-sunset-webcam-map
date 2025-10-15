@@ -206,3 +206,14 @@ without explicit written permission from the copyright holder.
 8️⃣ DATA SYNC
 🔄 Next SWR refresh (60s) picks up the changes
 └── Updates Zustand store with persisted data
+
+---
+
+## Rating Calculation Logic
+
+When a user rates a snapshot:
+
+1. Upsert rating in `webcam_snapshot_ratings` (one per user per snapshot)
+2. Calculate average: `SELECT AVG(rating) FROM webcam_snapshot_ratings WHERE snapshot_id = ?`
+3. Update `webcam_snapshots.calculated_rating` with the average
+4. This keeps reads fast (no JOIN needed) while maintaining data integrity
