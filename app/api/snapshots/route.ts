@@ -21,6 +21,21 @@ interface Snapshot {
   ratingCount: number;
 }
 
+interface SnapshotRow {
+  id: number;
+  webcam_id: number;
+  phase: string;
+  rank: number | null;
+  initial_rating: number | null;
+  calculated_rating: number | null;
+  ai_rating: number | null;
+  firebase_url: string;
+  firebase_path: string;
+  captured_at: string;
+  created_at: string;
+  rating_count: number;
+}
+
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
@@ -77,20 +92,22 @@ export async function GET(request: Request) {
       OFFSET ${offset}
     `;
 
-    const snapshots: Snapshot[] = rows.map((row: any) => ({
-      id: row.id,
-      webcamId: row.webcam_id,
-      phase: row.phase,
-      rank: row.rank,
-      initialRating: row.initial_rating,
-      calculatedRating: row.calculated_rating,
-      aiRating: row.ai_rating,
-      firebaseUrl: row.firebase_url,
-      firebasePath: row.firebase_path,
-      capturedAt: row.captured_at,
-      createdAt: row.created_at,
-      ratingCount: row.rating_count,
-    }));
+    const snapshots: Snapshot[] = (rows as SnapshotRow[]).map(
+      (row) => ({
+        id: row.id,
+        webcamId: row.webcam_id,
+        phase: row.phase,
+        rank: row.rank,
+        initialRating: row.initial_rating,
+        calculatedRating: row.calculated_rating,
+        aiRating: row.ai_rating,
+        firebaseUrl: row.firebase_url,
+        firebasePath: row.firebase_path,
+        capturedAt: row.captured_at,
+        createdAt: row.created_at,
+        ratingCount: row.rating_count,
+      })
+    );
 
     // Get total count for pagination
     const countResult = await sql`
