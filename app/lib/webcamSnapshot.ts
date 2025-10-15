@@ -7,7 +7,18 @@ import type { WindyWebcam } from './types';
  * Download an image from a URL and return as a Buffer
  */
 export async function downloadImage(url: string): Promise<Buffer> {
-  const response = await fetch(url);
+  const response = await fetch(url, {
+    headers: {
+      'User-Agent':
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      Accept: 'image/webp,image/apng,image/*,*/*;q=0.8',
+      'Accept-Language': 'en-US,en;q=0.9',
+      Referer: 'https://www.windy.com/',
+      'Sec-Fetch-Dest': 'image',
+      'Sec-Fetch-Mode': 'no-cors',
+      'Sec-Fetch-Site': 'cross-site',
+    },
+  });
 
   if (!response.ok) {
     throw new Error(
@@ -80,7 +91,7 @@ export async function captureWebcamSnapshot(
   webcam: WindyWebcam
 ): Promise<{ url: string; path: string } | null> {
   try {
-    // Get the preview image URL from the webcam
+    // Get the thumbnail, tried preview, wasn't able to authenticate image URL from the webcam
     const imageUrl = webcam.images?.current?.preview;
 
     if (!imageUrl) {
