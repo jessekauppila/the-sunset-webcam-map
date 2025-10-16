@@ -141,21 +141,21 @@ async function captureSnapshots(request: Request) {
         }
 
         // Save metadata to database
-        const dbRows = await sql`
-          INSERT INTO webcam_snapshots (
-            webcam_id, phase, rank, initial_rating, firebase_url, firebase_path, captured_at
-          )
-          VALUES (
-            ${webcam.webcamId},
-            ${webcam.phase || 'unknown'},
-            ${webcam.rank || null},
-            ${webcam.rating || null},
-            ${snapshot.url},
-            ${snapshot.path},
-            NOW()
-          )
-          RETURNING id
-        `;
+        // const dbRows = await sql`
+        //   INSERT INTO webcam_snapshots (
+        //     webcam_id, phase, rank, initial_rating, firebase_url, firebase_path, captured_at
+        //   )
+        //   VALUES (
+        //     ${webcam.webcamId},
+        //     ${webcam.phase || 'unknown'},
+        //     ${webcam.rank || null},
+        //     ${webcam.rating || null},
+        //     ${snapshot.url},
+        //     ${snapshot.path},
+        //     NOW()
+        //   )
+        //   RETURNING id
+        // `;
 
         console.log(
           `Successfully captured webcam ${webcam.webcamId}`

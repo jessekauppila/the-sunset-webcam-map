@@ -1,4 +1,4 @@
-import type { Snapshot } from './types';
+import type { Snapshot, Orientation } from './types';
 
 // Database row structure from JOIN query
 export interface SnapshotRow {
@@ -28,10 +28,10 @@ export interface SnapshotRow {
   region: string | null;
   country: string | null;
   continent: string | null;
-  images: any;
-  urls: any;
-  player: any;
-  categories: any;
+  images: unknown;
+  urls: unknown;
+  player: unknown;
+  categories: unknown;
   last_fetched_at: string;
   webcam_rating: number | null;
   orientation: string | null;
@@ -81,7 +81,7 @@ export function transformSnapshot(row: SnapshotRow): Snapshot {
     source: row.source,
     externalId: row.external_id,
     rating: row.webcam_rating ?? undefined,
-    orientation: row.orientation as any,
+    orientation: (row.orientation as Orientation) ?? undefined,
 
     // Snapshot metadata
     snapshot: {

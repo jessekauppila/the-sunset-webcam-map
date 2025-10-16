@@ -85,7 +85,7 @@ export const useSnapshotStore = create<State>()((set) => ({
                 snapshot: {
                   ...s.snapshot,
                   userRating: rating,
-                  calculatedRating: result.calculatedRating,
+                  calculatedRating: result.calculatedRating ?? null,
                   ratingCount: result.ratingCount,
                 },
               }
@@ -102,7 +102,7 @@ export const useSnapshotStore = create<State>()((set) => ({
                 snapshot: {
                   ...s.snapshot,
                   userRating: originalUserRating,
-                  calculatedRating: originalCalculatedRating,
+                  calculatedRating: originalCalculatedRating ?? null,
                   ratingCount: originalRatingCount || 0,
                 },
               }
