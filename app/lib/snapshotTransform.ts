@@ -77,10 +77,10 @@ export function transformSnapshot(row: SnapshotRow): Snapshot {
         : row.urls
       : null,
     phase: row.phase,
-    rank: row.rank,
+    rank: row.rank ?? undefined,
     source: row.source,
     externalId: row.external_id,
-    rating: row.webcam_rating || undefined,
+    rating: row.webcam_rating ?? undefined,
     orientation: row.orientation as any,
 
     // Snapshot metadata
@@ -97,7 +97,7 @@ export function transformSnapshot(row: SnapshotRow): Snapshot {
       capturedAt: row.captured_at,
       createdAt: row.created_at,
       ratingCount: row.rating_count,
-      userRating: row.user_rating || undefined,
+      userRating: row.user_rating ?? undefined,
     },
   };
 }
