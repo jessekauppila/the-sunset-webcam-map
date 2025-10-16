@@ -92,3 +92,44 @@ body {
 .webcam-console-details {
   @apply text-xs text-gray-500;
 }
+
+/* Console Components - Shared styles for WebcamConsole and SnapshotConsole */
+.console-container {
+  @apply p-4 bg-gray-200 rounded-lg;
+}
+
+.console-grid {
+  @apply grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3;
+}
+
+.console-card {
+  @apply bg-white p-3 rounded border;
+}
+
+.console-card-image {
+  @apply w-full h-24 object-contain rounded;
+}
+
+.console-card-title {
+  @apply font-semibold text-gray-900 text-sm mb-1;
+}
+
+.rating-controls {
+  @apply mt-2 mb-2;
+}
+
+.rating-button {
+  @apply w-6 h-6 text-xs rounded border cursor-pointer;
+}
+
+.rating-button-active {
+  @apply bg-yellow-400 border-yellow-500 text-yellow-900;
+}
+
+.rating-button-inactive {
+  @apply bg-gray-100 border-gray-300 text-gray-600 hover:bg-gray-200;
+}
+
+.rating-button-disabled {
+  @apply opacity-50 cursor-not-allowed;
+}

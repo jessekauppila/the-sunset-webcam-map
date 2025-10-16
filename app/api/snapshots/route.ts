@@ -3,38 +3,13 @@
 //
 import { NextResponse } from 'next/server';
 import { sql } from '@/app/lib/db';
+import {
+  transformSnapshot,
+  type SnapshotRow,
+} from '@/app/lib/snapshotTransform';
+import type { Snapshot } from '@/app/lib/types';
 
 export const dynamic = 'force-dynamic';
-
-interface Snapshot {
-  id: number;
-  webcamId: number;
-  phase: string;
-  rank: number | null;
-  initialRating: number | null;
-  calculatedRating: number | null;
-  aiRating: number | null;
-  firebaseUrl: string;
-  firebasePath: string;
-  capturedAt: string;
-  createdAt: string;
-  ratingCount: number;
-}
-
-interface SnapshotRow {
-  id: number;
-  webcam_id: number;
-  phase: string;
-  rank: number | null;
-  initial_rating: number | null;
-  calculated_rating: number | null;
-  ai_rating: number | null;
-  firebase_url: string;
-  firebase_path: string;
-  captured_at: string;
-  created_at: string;
-  rating_count: number;
-}
 
 export async function GET(request: Request) {
   try {
@@ -44,6 +19,7 @@ export async function GET(request: Request) {
     const webcamId = searchParams.get('webcam_id');
     const phase = searchParams.get('phase');
     const minRating = searchParams.get('min_rating');
+    const userSessionId = searchParams.get('user_session_id');
     const limit = parseInt(searchParams.get('limit') || '100', 10);
     const offset = parseInt(searchParams.get('offset') || '0', 10);
 
@@ -68,10 +44,10 @@ export async function GET(request: Request) {
 
     const whereClause = conditions.join(' AND ');
 
-    // Query snapshots with rating counts
+    // Query snapshots with webcam data, rating counts, and user's rating
     const rows = await sql`
       SELECT 
-        s.id,
+        s.id as snapshot_id,
         s.webcam_id,
         s.phase,
         s.rank,
@@ -82,31 +58,41 @@ export async function GET(request: Request) {
         s.firebase_path,
         s.captured_at,
         s.created_at,
-        COUNT(r.id)::int as rating_count
+        COUNT(DISTINCT r.id)::int as rating_count,
+        ur.rating as user_rating,
+        w.id as w_id,
+        w.source,
+        w.external_id,
+        w.title,
+        w.status,
+        w.view_count,
+        w.lat,
+        w.lng,
+        w.city,
+        w.region,
+        w.country,
+        w.continent,
+        w.images,
+        w.urls,
+        w.player,
+        w.categories,
+        w.last_fetched_at,
+        w.rating as webcam_rating,
+        w.orientation
       FROM webcam_snapshots s
+      JOIN webcams w ON w.id = s.webcam_id
       LEFT JOIN webcam_snapshot_ratings r ON r.snapshot_id = s.id
+      LEFT JOIN webcam_snapshot_ratings ur ON ur.snapshot_id = s.id 
+        AND ur.user_session_id = ${userSessionId || ''}
       WHERE ${sql.unsafe(whereClause)}
-      GROUP BY s.id
+      GROUP BY s.id, w.id, ur.rating
       ORDER BY s.captured_at DESC
       LIMIT ${limit}
       OFFSET ${offset}
     `;
 
-    const snapshots: Snapshot[] = (rows as SnapshotRow[]).map(
-      (row) => ({
-        id: row.id,
-        webcamId: row.webcam_id,
-        phase: row.phase,
-        rank: row.rank,
-        initialRating: row.initial_rating,
-        calculatedRating: row.calculated_rating,
-        aiRating: row.ai_rating,
-        firebaseUrl: row.firebase_url,
-        firebasePath: row.firebase_path,
-        capturedAt: row.captured_at,
-        createdAt: row.created_at,
-        ratingCount: row.rating_count,
-      })
+    const snapshots: Snapshot[] = (rows as SnapshotRow[]).map((row) =>
+      transformSnapshot(row)
     );
 
     // Get total count for pagination

@@ -141,3 +141,25 @@ export interface WebcamAPIResponse {
   total: number;
   source: WebcamSource;
 }
+
+// Snapshot types for archived webcam images
+export interface SnapshotMetadata {
+  id: number;
+  webcamId: number;
+  phase: 'sunrise' | 'sunset';
+  rank: number | null;
+  initialRating: number; // Rating when captured
+  calculatedRating: number | null; // Average of user ratings
+  aiRating: number | null; // Future AI rating
+  firebaseUrl: string;
+  firebasePath: string;
+  capturedAt: string;
+  createdAt: string;
+  ratingCount: number; // Number of user ratings
+  userRating?: number; // Current user's rating (if rated)
+}
+
+// Snapshot = WindyWebcam data + snapshot metadata
+export interface Snapshot extends WindyWebcam {
+  snapshot: SnapshotMetadata;
+}

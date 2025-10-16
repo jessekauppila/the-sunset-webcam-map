@@ -4,11 +4,14 @@ import { useState } from 'react';
 import MainViewContainer from './components/MainViewContainer';
 import { useLoadTerminatorWebcams } from '@/app/store/useLoadTerminatorWebcams';
 import { useLoadAllWebcams } from '@/app/store/useLoadAllWebcams';
+import { useLoadSnapshots } from '@/app/store/useLoadSnapshots';
 
 import { useMemo } from 'react';
 import { useTerminatorStore } from '@/app/store/useTerminatorStore';
 import { useAllWebcamsStore } from '@/app/store/useAllWebcamsStore';
+import { useSnapshotStore } from '@/app/store/useSnapshotStore';
 import { WebcamConsole } from './components/WebcamConsole';
+import { SnapshotConsole } from './components/SnapshotConsole';
 import { Tabs, Tab, Drawer, Box, IconButton } from '@mui/material';
 import {
   KeyboardArrowUp,
@@ -33,6 +36,7 @@ export default function Home() {
   // Splits webcams into sunrise[] and sunset[] arrays by phase
   useLoadTerminatorWebcams();
   useLoadAllWebcams();
+  useLoadSnapshots(); // Load archived snapshots
 
   // Note: Snapshot archiving now handled by cron job at /api/cron/capture-snapshots
 
@@ -40,6 +44,7 @@ export default function Home() {
   const sunriseWebcams = useTerminatorStore((t) => t.sunrise);
   const sunsetWebcams = useTerminatorStore((t) => t.sunset);
   const allWebcams = useAllWebcamsStore((t) => t.allWebcams);
+  const snapshots = useSnapshotStore((t) => t.snapshots);
 
   return (
     <main className="relative w-full">
@@ -114,6 +119,7 @@ export default function Home() {
             >
               <Tab label="Current Terminator" />
               <Tab label="All Webcams" />
+              <Tab label="Snapshot Archive" />
             </Tabs>
 
             {/* Tab Content */}
@@ -145,6 +151,16 @@ export default function Home() {
                   <WebcamConsole
                     webcams={allWebcams || []}
                     title={'All Webcams'}
+                  />
+                </Box>
+              )}
+
+              {tabValue === 2 && (
+                // Snapshot Archive Tab
+                <Box>
+                  <SnapshotConsole
+                    snapshots={snapshots || []}
+                    title={'Snapshot Archive'}
                   />
                 </Box>
               )}

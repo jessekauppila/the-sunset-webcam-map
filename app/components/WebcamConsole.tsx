@@ -55,7 +55,7 @@ export function WebcamConsole({
     }
   };
   return (
-    <div className="p-4 bg-gray-200 rounded-lg">
+    <div className="console-container">
       <h3 className="text-lg font-bold text-gray-700 mb-2">
         {title}: {webcams.length} Webcams
       </h3>
@@ -65,12 +65,9 @@ export function WebcamConsole({
           No webcams found in this area.
         </p>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+        <div className="console-grid">
           {webcams.map((webcam) => (
-            <div
-              key={webcam.webcamId}
-              className="bg-white p-3 rounded border"
-            >
+            <div key={webcam.webcamId} className="console-card">
               {/* Webcam Image */}
               {webcam.images?.current?.preview && (
                 <Image
@@ -78,14 +75,12 @@ export function WebcamConsole({
                   alt={webcam.title}
                   width={600}
                   height={300}
-                  className="w-full h-24 object-contain rounded"
+                  className="console-card-image"
                   unoptimized
                 />
               )}
 
-              <h4 className="font-semibold text-gray-900 text-sm mb-1">
-                {webcam.title}
-              </h4>
+              <h4 className="console-card-title">{webcam.title}</h4>
 
               {/* Location Info */}
               <p className="webcam-console-details">
@@ -133,7 +128,7 @@ export function WebcamConsole({
               </p>
 
               {/* Rating Controls */}
-              <div className="mt-2 mb-2">
+              <div className="rating-controls">
                 <label className="webcam-console-details">
                   Set Rating:
                 </label>
@@ -145,14 +140,14 @@ export function WebcamConsole({
                         handleRatingChange(webcam.webcamId, rating)
                       }
                       disabled={updatingWebcams.has(webcam.webcamId)}
-                      className={`w-6 h-6 text-xs rounded border ${
+                      className={`rating-button ${
                         webcam.rating === rating
-                          ? 'bg-yellow-400 border-yellow-500 text-yellow-900'
-                          : 'bg-gray-100 border-gray-300 text-gray-600 hover:bg-gray-200'
+                          ? 'rating-button-active'
+                          : 'rating-button-inactive'
                       } ${
                         updatingWebcams.has(webcam.webcamId)
-                          ? 'opacity-50 cursor-not-allowed'
-                          : 'cursor-pointer'
+                          ? 'rating-button-disabled'
+                          : ''
                       }`}
                     >
                       {rating}
