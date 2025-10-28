@@ -122,10 +122,10 @@ export function WebcamConsole({
               </p>
 
               {/* Rating */}
-              <p className="webcam-console-details">
+              <div className="webcam-console-details">
                 Saved Rating:{' '}
                 {<StarRating rating={webcam.rating ?? 0} />}
-              </p>
+              </div>
 
               {/* Rating Controls */}
               <div className="rating-controls">

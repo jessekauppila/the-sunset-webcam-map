@@ -103,17 +103,17 @@ export function SnapshotConsole({
               </p>
 
               {/* Initial Rating (when captured) */}
-              <p className="webcam-console-details">
+              <div className="webcam-console-details">
                 Initial Rating:{' '}
                 {
                   <StarRating
                     rating={snapshot.snapshot.initialRating ?? 0}
                   />
                 }
-              </p>
+              </div>
 
               {/* Calculated Rating (average of user ratings) */}
-              <p className="webcam-console-details">
+              <div className="webcam-console-details">
                 Calculated Rating:{' '}
                 {snapshot.snapshot.calculatedRating ? (
                   <>
@@ -122,20 +122,23 @@ export function SnapshotConsole({
                         snapshot.snapshot.calculatedRating
                       )}
                     />{' '}
-                    ({snapshot.snapshot.calculatedRating.toFixed(1)}){' '}
-                    ({snapshot.snapshot.ratingCount} ratings)
+                    (
+                    {Number(
+                      snapshot.snapshot.calculatedRating
+                    ).toFixed(1)}
+                    ) ({snapshot.snapshot.ratingCount} ratings)
                   </>
                 ) : (
                   'Not rated yet'
                 )}
-              </p>
+              </div>
 
               {/* User's Rating */}
               {snapshot.snapshot.userRating && (
-                <p className="webcam-console-details">
+                <div className="webcam-console-details">
                   Your Rating:{' '}
                   <StarRating rating={snapshot.snapshot.userRating} />
-                </p>
+                </div>
               )}
 
               {/* Rating Controls */}
