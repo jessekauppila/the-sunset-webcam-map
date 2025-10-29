@@ -4,12 +4,19 @@ import { useState, useEffect, useCallback } from 'react';
 import { useSnapshotStore } from '@/app/store/useSnapshotStore';
 import { SnapshotCard } from './SnapshotCard';
 import { SwipeControls } from './SwipeControls';
-import { Box, Typography } from '@mui/material';
+import {
+  Box,
+  Typography,
+  ToggleButtonGroup,
+  ToggleButton,
+} from '@mui/material';
 
 export function SwipeSnapshotGallery() {
   const {
     snapshots,
-    fetchUnrated,
+    viewMode,
+    setViewMode,
+    fetchSnapshots,
     setRating,
     undoLastRating,
     actionHistory,
@@ -17,10 +24,19 @@ export function SwipeSnapshotGallery() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isAnimating, setIsAnimating] = useState(false);
 
-  // Fetch unrated snapshots on mount
+  // Fetch snapshots on mount or when view mode changes
   useEffect(() => {
-    fetchUnrated();
-  }, [fetchUnrated]);
+    fetchSnapshots();
+  }, [fetchSnapshots]);
+
+  // Handle mode toggle
+  const handleModeChange = useCallback(
+    (newMode: 'unrated' | 'curated') => {
+      setViewMode(newMode);
+      setCurrentIndex(0); // Reset to first card
+    },
+    [setViewMode]
+  );
 
   // Get current snapshot
   const currentSnapshot = snapshots?.[currentIndex] || null;
@@ -192,6 +208,49 @@ export function SwipeSnapshotGallery() {
         overflow: 'hidden',
       }}
     >
+      {/* Mode Toggle - Top Left */}
+      <Box
+        sx={{
+          position: 'absolute',
+          top: 16,
+          left: 16,
+          zIndex: 10,
+        }}
+      >
+        <ToggleButtonGroup
+          value={viewMode}
+          exclusive
+          onChange={(_, newMode) => {
+            if (newMode !== null) {
+              handleModeChange(newMode);
+            }
+          }}
+          size="small"
+          sx={{
+            backgroundColor: 'rgba(0, 0, 0, 0.7)',
+            '& .MuiToggleButton-root': {
+              color: 'white',
+              borderColor: 'rgba(255, 255, 255, 0.3)',
+              padding: '8px 16px',
+              fontSize: '14px',
+              '&.Mui-selected': {
+                backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                color: 'white',
+                '&:hover': {
+                  backgroundColor: 'rgba(255, 255, 255, 0.3)',
+                },
+              },
+              '&:hover': {
+                backgroundColor: 'rgba(255, 255, 255, 0.1)',
+              },
+            },
+          }}
+        >
+          <ToggleButton value="unrated">Unrated</ToggleButton>
+          <ToggleButton value="curated">Curated Mix</ToggleButton>
+        </ToggleButtonGroup>
+      </Box>
+
       {/* Card Stack Effect - Show current and next */}
       <Box
         sx={{

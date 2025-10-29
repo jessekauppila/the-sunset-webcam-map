@@ -8,6 +8,7 @@ type State = {
   loading: boolean;
   error?: string;
   snapshots: Snapshot[];
+  viewMode: 'unrated' | 'curated'; // Toggle between unrated only and curated mix
   actionHistory: Array<{
     snapshotId: number;
     rating: number;
@@ -17,12 +18,19 @@ type State = {
   setSnapshots: (snapshots: Snapshot[]) => void;
   setLoading: (v: boolean) => void;
   setError: (e?: string) => void;
+  setViewMode: (mode: 'unrated' | 'curated') => void;
 
   // Rate a snapshot
   setRating: (snapshotId: number, rating: number) => Promise<void>;
 
-  // Fetch only unrated snapshots
+  // Fetch unrated snapshots only
   fetchUnrated: () => Promise<void>;
+
+  // Fetch curated mix (highly rated + unrated recent + random)
+  fetchCuratedMix: () => Promise<void>;
+
+  // Fetch snapshots based on current viewMode
+  fetchSnapshots: () => Promise<void>;
 
   // Get next unrated snapshot
   getNextUnrated: () => Snapshot | null;
@@ -37,11 +45,13 @@ type State = {
 export const useSnapshotStore = create<State>()((set, get) => ({
   loading: false,
   snapshots: [],
+  viewMode: 'unrated', // Default to unrated mode
   actionHistory: [],
 
   setSnapshots: (snapshots) => set({ snapshots }),
   setLoading: (v) => set({ loading: v }),
   setError: (e) => set({ error: e }),
+  setViewMode: (mode) => set({ viewMode: mode }),
   clearSnapshots: () => set({ snapshots: [], actionHistory: [] }),
 
   fetchUnrated: async () => {
@@ -59,6 +69,35 @@ export const useSnapshotStore = create<State>()((set, get) => ({
         loading: false,
       });
       console.error('Failed to fetch unrated snapshots:', error);
+    }
+  },
+
+  // Fetch curated mix: 40% highly rated, 40% unrated recent, 20% random
+  fetchCuratedMix: async () => {
+    set({ loading: true });
+    try {
+      const userSessionId = getUserSessionId();
+      const response = await fetch(
+        `/api/snapshots?user_session_id=${userSessionId}&curated_mix=true&limit=1000`
+      );
+      const data = await response.json();
+      set({ snapshots: data.snapshots, loading: false });
+    } catch (error) {
+      set({
+        error: 'Failed to fetch curated mix snapshots',
+        loading: false,
+      });
+      console.error('Failed to fetch curated mix snapshots:', error);
+    }
+  },
+
+  // Fetch based on current viewMode (wrapper method)
+  fetchSnapshots: async () => {
+    const state = get();
+    if (state.viewMode === 'curated') {
+      await state.fetchCuratedMix();
+    } else {
+      await state.fetchUnrated();
     }
   },
 
