@@ -44,35 +44,23 @@ export function SwipeSnapshotGallery() {
   // Handle swipe actions
   const handleLike = useCallback(async () => {
     if (!currentSnapshot || isAnimating) return;
-    setIsAnimating(true);
 
     try {
       await setRating(currentSnapshot.snapshot.id, 5);
-      // Move to next
-      setTimeout(() => {
-        setCurrentIndex((prev) => prev + 1);
-        setIsAnimating(false);
-      }, 300);
+      // Don't auto-advance - let user manually move to next
     } catch (error) {
       console.error('Failed to like snapshot:', error);
-      setIsAnimating(false);
     }
   }, [currentSnapshot, isAnimating, setRating]);
 
   const handleDislike = useCallback(async () => {
     if (!currentSnapshot || isAnimating) return;
-    setIsAnimating(true);
 
     try {
       await setRating(currentSnapshot.snapshot.id, 1);
-      // Move to next
-      setTimeout(() => {
-        setCurrentIndex((prev) => prev + 1);
-        setIsAnimating(false);
-      }, 300);
+      // Don't auto-advance - let user manually move to next
     } catch (error) {
       console.error('Failed to dislike snapshot:', error);
-      setIsAnimating(false);
     }
   }, [currentSnapshot, isAnimating, setRating]);
 
@@ -135,7 +123,6 @@ export function SwipeSnapshotGallery() {
 
   // Calculate stats - show progress through loaded snapshots
   const totalLoaded = snapshots?.length || 0;
-  const currentPosition = currentIndex + 1; // 1-indexed for display
 
   // Count snapshots with user ratings (rated by current user)
   const ratedByUser =
@@ -187,7 +174,7 @@ export function SwipeSnapshotGallery() {
           variant="h6"
           sx={{ color: 'rgba(255,255,255,0.7)', textAlign: 'center' }}
         >
-          You've rated all available snapshots.
+          You&apos;ve rated all available snapshots.
         </Typography>
         <Typography
           variant="body1"
