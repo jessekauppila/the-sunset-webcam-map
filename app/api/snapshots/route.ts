@@ -21,7 +21,7 @@ export async function GET(request: Request) {
     const minRating = searchParams.get('min_rating');
     const unratedOnly = searchParams.get('unrated_only') === 'true';
     const userSessionId = searchParams.get('user_session_id');
-    const limit = parseInt(searchParams.get('limit') || '100', 10);
+    const limit = parseInt(searchParams.get('limit') || '1000', 10);
     const offset = parseInt(searchParams.get('offset') || '0', 10);
 
     // Build the WHERE clause dynamically

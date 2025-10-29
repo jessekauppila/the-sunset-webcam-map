@@ -217,3 +217,188 @@ When a user rates a snapshot:
 2. Calculate average: `SELECT AVG(rating) FROM webcam_snapshot_ratings WHERE snapshot_id = ?`
 3. Update `webcam_snapshots.calculated_rating` with the average
 4. This keeps reads fast (no JOIN needed) while maintaining data integrity
+
+┌─────────────────────────────────────────────────────────────────────┐
+│ SWIPE GALLERY SYSTEM │
+└─────────────────────────────────────────────────────────────────────┘
+
+1. DATA FLOW
+   ───────────────────────────────────────────────────────────────────────
+
+┌──────────────┐ ┌─────────────────┐ ┌──────────────────┐
+│ Page.tsx │──────▶│SwipeSnapshot │──────▶│ useSnapshotStore │
+│ │ mode │Gallery │ │ │
+└──────────────┘ 'swipe'└─────────────────┘ └────────┬─────────┘
+fetchUnrated│
+│
+▼
+┌──────────────────┐
+│ /api/snapshots │
+│ ?unrated_only= │
+│ true │
+└────────┬─────────┘
+│ SQL JOIN
+▼
+┌──────────────────┐
+┌───────▶│ webcam_snapshots │
+│ │ JOIN │
+│ │ webcams │
+│ │ LEFT JOIN │
+│ │snapshot_ratings │
+│ └──────────────────┘
+│
+│ Returns: Snapshot[]
+│ (sorted by captured_at DESC)
+│
+▼
+┌──────────────────┐
+┌───────▶│SnapshotCard │
+│ │ (animated card) │
+│ └──────────────────┘
+│
+│ User Swipes Right/Like
+│
+▼
+┌──────────────────────────────────┐
+│ handleLike() / handleDislike() │
+└──────────────┬───────────────────┘
+│
+│ POST /api/snapshots/[id]/rate
+│ { userSessionId, rating: 5 or 1 }
+▼
+┌──────────────────────────────────┐
+│ webcam_snapshot_ratings table │
+│ (INSERT rating) │
+└──────────────┬───────────────────┘
+│
+│ Recalculate avg rating
+│ UPDATE webcam_snapshots
+│ SET calculated_rating = AVG(...)
+▼
+┌──────────────────────────────────┐
+│ Store updates with optimistic UI │
+│ Add to actionHistory for undo │
+└──────────────┬───────────────────┘
+│
+│ Auto-advance to next
+│ currentIndex += 1
+▼
+┌──────────────────────────────────┐
+│ Next unrated snapshot loads │
+│ (newest remaining) │
+└──────────────────────────────────┘
+
+2. COMPONENT HIERARCHY
+   ───────────────────────────────────────────────────────────────────────
+
+Page.tsx
+│
+├─▶ MainViewContainer (mode='swipe')
+│ │
+│ └─▶ SwipeSnapshotGallery
+│ │
+│ ├─▶ SnapshotCard (current)
+│ │ ├─ Image: snapshot.firebaseUrl
+│ │ ├─ Metadata overlay
+│ │ └─ Swipe gestures (framer-motion)
+│ │
+│ ├─▶ SnapshotCard (preview, behind current)
+│ │ └─ Shows next card
+│ │
+│ └─▶ SwipeControls (bottom)
+│ ├─ Progress bar (rated/total counts)
+│ ├─ Dislike | Skip | Like buttons
+│ └─ Undo button (conditional)
+│
+└─▶ MapMosaicModeToggle
+└─ "Rate" button (sets mode='swipe')
+
+3. STATE MANAGEMENT (Zustand)
+   ───────────────────────────────────────────────────────────────────────
+
+useSnapshotStore
+├─ snapshots: Snapshot[]
+│ └─ From API: unrated snapshots sorted DESC
+│
+├─ currentIndex: number
+│ └─ Managed in SwipeSnapshotGallery
+│
+├─ actionHistory: Array<{
+│ snapshotId: number
+│ rating: number
+│ timestamp: number
+│ }>
+│ └─ Tracks last action for undo
+│
+├─ Methods:
+│ ├─ fetchUnrated()
+│ │ └─ Calls /api/snapshots?unrated_only=true
+│ │
+│ ├─ setRating(id, rating)
+│ │ ├─ Optimistic UI update
+│ │ ├─ API call
+│ │ ├─ Update actionHistory
+│ │ └─ Rollback on error
+│ │
+│ └─ undoLastRating()
+│ ├─ Remove from actionHistory
+│ ├─ DELETE /api/snapshots/[id]/rate
+│ └─ Remove userRating from state
+
+4. DATABASE SCHEMA
+   ───────────────────────────────────────────────────────────────────────
+
+webcam_snapshots
+├─ id (PK)
+├─ webcam_id (FK → webcams)
+├─ phase ('sunrise' | 'sunset')
+├─ rank
+├─ initial_rating (4 or 5)
+├─ calculated_rating (AVG of user ratings)
+├─ firebase_url (image URL)
+├─ firebase_path
+└─ captured_at
+
+webcam_snapshot_ratings
+├─ id (PK)
+├─ snapshot_id (FK → webcam_snapshots)
+├─ user_session_id (anonymous user)
+├─ rating (1-5)
+└─ created_at
+
+5. KEYBOARD SHORTCUTS
+   ───────────────────────────────────────────────────────────────────────
+
+← (Left Arrow) → handleDislike()
+→ (Right Arrow) → handleLike()
+[Space] → handleSkip()
+Cmd/Ctrl + Z → handleUndo()
+
+6. USER SESSION TRACKING
+   ───────────────────────────────────────────────────────────────────────
+
+getUserSessionId()
+├─ Check localStorage/cookie
+├─ Generate UUID if doesn't exist
+└─ Store in localStorage + cookie
+
+└─ Used for:
+├─ Filtering unrated snapshots (LEFT JOIN with user_session_id)
+├─ POSTing ratings
+└─ DELETEing ratings (undo)
+
+7. API ENDPOINTS
+   ───────────────────────────────────────────────────────────────────────
+
+GET /api/snapshots
+├─ ?user_session_id=xxx
+├─ ?unrated_only=true
+└─ Returns: { snapshots, total, unrated, limit, offset }
+
+POST /api/snapshots/[id]/rate
+├─ Body: { userSessionId, rating }
+└─ Inserts rating, recalculates avg
+
+DELETE /api/snapshots/[id]/rate
+├─ Body: { userSessionId }
+└─ Removes rating, recalculates avg

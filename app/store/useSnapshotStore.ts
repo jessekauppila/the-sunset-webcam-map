@@ -49,7 +49,7 @@ export const useSnapshotStore = create<State>()((set, get) => ({
     try {
       const userSessionId = getUserSessionId();
       const response = await fetch(
-        `/api/snapshots?user_session_id=${userSessionId}&unrated_only=true&limit=100`
+        `/api/snapshots?user_session_id=${userSessionId}&unrated_only=true&limit=1000`
       );
       const data = await response.json();
       set({ snapshots: data.snapshots, loading: false });
