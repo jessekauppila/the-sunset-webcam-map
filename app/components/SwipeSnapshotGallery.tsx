@@ -133,10 +133,14 @@ export function SwipeSnapshotGallery() {
     handleUndo,
   ]);
 
-  // Calculate stats
-  const ratedCount =
+  // Calculate stats - show progress through loaded snapshots
+  const totalLoaded = snapshots?.length || 0;
+  const currentPosition = currentIndex + 1; // 1-indexed for display
+
+  // Count snapshots with user ratings (rated by current user)
+  const ratedByUser =
     snapshots?.filter((s) => s.snapshot.userRating).length || 0;
-  const unratedCount = (snapshots?.length || 0) - ratedCount;
+  const remainingCount = Math.max(0, totalLoaded - ratedByUser);
 
   // Loading state
   if (!snapshots || snapshots.length === 0) {
@@ -313,8 +317,8 @@ export function SwipeSnapshotGallery() {
         onSkip={handleSkip}
         onUndo={handleUndo}
         canUndo={actionHistory.length > 0}
-        ratedCount={ratedCount}
-        unratedCount={unratedCount}
+        ratedCount={ratedByUser}
+        unratedCount={remainingCount}
       />
     </Box>
   );
