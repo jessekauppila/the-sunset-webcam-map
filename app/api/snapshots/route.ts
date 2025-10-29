@@ -52,7 +52,9 @@ export async function GET(request: Request) {
     // CURATED MIX MODE: Fetch mix of highly rated, unrated recent, and random snapshots
     if (curatedMix && userSessionId) {
       try {
-        // Query 1: Highly rated snapshots (40% - 400 snapshots)
+        console.log('Curated mix mode activated');
+
+        // Query 1: Highly rated snapshots (40% - 40 snapshots)
         const highlyRated = await sql`
           SELECT 
             s.id as snapshot_id,
@@ -95,10 +97,10 @@ export async function GET(request: Request) {
           WHERE s.calculated_rating >= 4.5
           GROUP BY s.id, w.id, ur.rating
           ORDER BY s.calculated_rating DESC, s.captured_at DESC
-          LIMIT 400
+          LIMIT 40
         `;
 
-        // Query 2: Unrated recent snapshots (40% - 400 snapshots)
+        // Query 2: Unrated recent snapshots (40% - 40 snapshots)
         const unratedRecent = await sql`
           SELECT 
             s.id as snapshot_id,
@@ -141,10 +143,10 @@ export async function GET(request: Request) {
           WHERE ur.rating IS NULL
           GROUP BY s.id, w.id, ur.rating
           ORDER BY s.captured_at DESC
-          LIMIT 400
+          LIMIT 40
         `;
 
-        // Query 3: Random snapshots (20% - 200 snapshots)
+        // Query 3: Random snapshots (20% - 20 snapshots)
         const randomSnapshots = await sql`
           SELECT 
             s.id as snapshot_id,
@@ -187,7 +189,7 @@ export async function GET(request: Request) {
           WHERE ${sql.unsafe(whereClause)}
           GROUP BY s.id, w.id, ur.rating
           ORDER BY RANDOM()
-          LIMIT 200
+          LIMIT 20
         `;
 
         // Combine all three result sets
@@ -197,13 +199,25 @@ export async function GET(request: Request) {
           ...(randomSnapshots as SnapshotRow[]),
         ];
 
+        console.log(
+          `Curated mix queries returned: ${highlyRated.length} highly rated, ${unratedRecent.length} unrated, ${randomSnapshots.length} random`
+        );
+
         // Shuffle the combined array for variety
         const shuffledSnapshots = shuffleArray(combinedSnapshots);
+
+        console.log(
+          `Combined ${combinedSnapshots.length} snapshots, shuffling...`
+        );
 
         // Transform to Snapshot type and limit
         const snapshots: Snapshot[] = shuffledSnapshots
           .slice(0, limit)
           .map((row) => transformSnapshot(row));
+
+        console.log(
+          `Returning ${snapshots.length} shuffled snapshots`
+        );
 
         // Get total count for pagination
         const countResult = await sql`

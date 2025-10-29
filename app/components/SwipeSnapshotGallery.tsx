@@ -44,23 +44,35 @@ export function SwipeSnapshotGallery() {
   // Handle swipe actions
   const handleLike = useCallback(async () => {
     if (!currentSnapshot || isAnimating) return;
+    setIsAnimating(true);
 
     try {
       await setRating(currentSnapshot.snapshot.id, 5);
-      // Don't auto-advance - let user manually move to next
+      // Move to next
+      setTimeout(() => {
+        setCurrentIndex((prev) => prev + 1);
+        setIsAnimating(false);
+      }, 300);
     } catch (error) {
       console.error('Failed to like snapshot:', error);
+      setIsAnimating(false);
     }
   }, [currentSnapshot, isAnimating, setRating]);
 
   const handleDislike = useCallback(async () => {
     if (!currentSnapshot || isAnimating) return;
+    setIsAnimating(true);
 
     try {
       await setRating(currentSnapshot.snapshot.id, 1);
-      // Don't auto-advance - let user manually move to next
+      // Move to next
+      setTimeout(() => {
+        setCurrentIndex((prev) => prev + 1);
+        setIsAnimating(false);
+      }, 300);
     } catch (error) {
       console.error('Failed to dislike snapshot:', error);
+      setIsAnimating(false);
     }
   }, [currentSnapshot, isAnimating, setRating]);
 
