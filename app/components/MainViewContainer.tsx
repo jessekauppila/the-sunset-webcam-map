@@ -4,9 +4,16 @@ import { useRef, useState, useEffect } from 'react';
 import SimpleMap from './Map/SimpleMap';
 import { MosaicCanvas } from './MosaicCanvas';
 import { useTerminatorStore } from '@/app/store/useTerminatorStore';
+import { SwipeSnapshotGallery } from './SwipeSnapshotGallery';
 import type { Location } from '../lib/types';
 
-export type ViewMode = 'map' | 'globe' | 'mosaic';
+export type ViewMode =
+  | 'map'
+  | 'globe'
+  | 'mosaic'
+  | 'mosaic2'
+  | 'swipe'
+  | 'gallery';
 
 interface MainViewContainerProps {
   userLocation: Location;
@@ -124,6 +131,17 @@ export default function MainViewContainer({
             </div>
           </div>
         </section>
+      );
+
+    case 'swipe':
+      return <SwipeSnapshotGallery />;
+
+    case 'gallery':
+      // TODO: Implement SnapshotGallery component
+      return (
+        <div className="w-full h-screen flex items-center justify-center bg-black">
+          <p className="text-white">Gallery view coming soon...</p>
+        </div>
       );
 
     default:

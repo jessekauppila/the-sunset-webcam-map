@@ -54,7 +54,15 @@ export default function Home() {
 
         {/* Mode Toggle */}
         <MapMosaicModeToggle
-          mode={mode as 'map' | 'globe' | 'mosaic' | 'mosaic2'}
+          mode={
+            mode as
+              | 'map'
+              | 'globe'
+              | 'mosaic'
+              | 'mosaic2'
+              | 'swipe'
+              | 'gallery'
+          }
           onModeChange={(newMode) => setMode(newMode as ViewMode)}
         />
 

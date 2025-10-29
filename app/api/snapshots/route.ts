@@ -19,6 +19,7 @@ export async function GET(request: Request) {
     const webcamId = searchParams.get('webcam_id');
     const phase = searchParams.get('phase');
     const minRating = searchParams.get('min_rating');
+    const unratedOnly = searchParams.get('unrated_only') === 'true';
     const userSessionId = searchParams.get('user_session_id');
     const limit = parseInt(searchParams.get('limit') || '100', 10);
     const offset = parseInt(searchParams.get('offset') || '0', 10);
@@ -40,6 +41,11 @@ export async function GET(request: Request) {
     if (minRating) {
       conditions.push(`s.calculated_rating >= $${params.length + 1}`);
       params.push(parseFloat(minRating));
+    }
+
+    // Filter for unrated snapshots if requested
+    if (unratedOnly && userSessionId) {
+      conditions.push(`ur.rating IS NULL`);
     }
 
     const whereClause = conditions.join(' AND ');
@@ -104,9 +110,23 @@ export async function GET(request: Request) {
 
     const total = countResult[0]?.total || 0;
 
+    // Get unrated count if unratedOnly filter is active
+    let unrated = undefined;
+    if (unratedOnly && userSessionId) {
+      const unratedResult = await sql`
+        SELECT COUNT(*)::int as unrated_count
+        FROM webcam_snapshots s
+        LEFT JOIN webcam_snapshot_ratings ur ON ur.snapshot_id = s.id 
+          AND ur.user_session_id = ${userSessionId}
+        WHERE ur.rating IS NULL
+      `;
+      unrated = unratedResult[0]?.unrated_count || 0;
+    }
+
     return NextResponse.json({
       snapshots,
       total,
+      unrated,
       limit,
       offset,
     });
