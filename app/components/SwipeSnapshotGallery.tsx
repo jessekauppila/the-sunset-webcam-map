@@ -23,7 +23,7 @@ export function SwipeSnapshotGallery() {
   }, [fetchUnrated]);
 
   // Get current snapshot
-  const currentSnapshot = snapshots[currentIndex];
+  const currentSnapshot = snapshots?.[currentIndex] || null;
 
   // Handle swipe actions
   const handleLike = useCallback(async () => {
@@ -118,13 +118,12 @@ export function SwipeSnapshotGallery() {
   ]);
 
   // Calculate stats
-  const ratedCount = snapshots.filter(
-    (s) => s.snapshot.userRating
-  ).length;
-  const unratedCount = snapshots.length - ratedCount;
+  const ratedCount =
+    snapshots?.filter((s) => s.snapshot.userRating).length || 0;
+  const unratedCount = (snapshots?.length || 0) - ratedCount;
 
   // Loading state
-  if (snapshots.length === 0 && currentIndex === 0) {
+  if (!snapshots || snapshots.length === 0) {
     return (
       <Box
         sx={{
@@ -203,7 +202,7 @@ export function SwipeSnapshotGallery() {
         }}
       >
         {/* Next card (behind current) - disabled for preview only */}
-        {snapshots[currentIndex + 1] && (
+        {snapshots?.[currentIndex + 1] && (
           <Box
             sx={{
               position: 'absolute',
@@ -217,7 +216,7 @@ export function SwipeSnapshotGallery() {
             }}
           >
             <SnapshotCard
-              snapshot={snapshots[currentIndex + 1]}
+              snapshot={snapshots![currentIndex + 1]}
               onSwipe={(dir) => {
                 // Disabled - this is just a preview
                 console.log('Preview card swipe:', dir);

@@ -43,10 +43,7 @@ export async function GET(request: Request) {
       params.push(parseFloat(minRating));
     }
 
-    // Filter for unrated snapshots if requested
-    if (unratedOnly && userSessionId) {
-      conditions.push(`ur.rating IS NULL`);
-    }
+    // Note: unrated filter is now applied directly in the SQL query
 
     const whereClause = conditions.join(' AND ');
 
@@ -91,6 +88,11 @@ export async function GET(request: Request) {
       LEFT JOIN webcam_snapshot_ratings ur ON ur.snapshot_id = s.id 
         AND ur.user_session_id = ${userSessionId || ''}
       WHERE ${sql.unsafe(whereClause)}
+        ${
+          unratedOnly && userSessionId
+            ? sql`AND ur.rating IS NULL`
+            : sql``
+        }
       GROUP BY s.id, w.id, ur.rating
       ORDER BY s.captured_at DESC
       LIMIT ${limit}
