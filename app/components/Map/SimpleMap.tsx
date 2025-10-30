@@ -62,24 +62,23 @@ export default function SimpleMap({
   const {
     currentWebcam: nextLatitudeNorthSunsetWebCam,
     currentWebcamLocation: nextLatitudeNorthSunsetLocation,
-    pause,
-    resume,
   } = useCyclingWebcams(allTerminatorWebcams, {
-    startIndex: 0, // index
+    startIndex: 0,
     intervalMs: 3000,
     autoStart: true,
   });
 
-  // Add map interaction pause functionality
-  // this isn't working as expected...
+  // Track if user has interacted with the map
   const { isPaused } = useMapInteractionPause({
     map,
     mapReady: mapReady && mode === 'map',
-    onPause: pause,
-    onResume: resume,
-    pauseDelayMs: 0, // Immediate pause when interaction starts
-    resumeDelayMs: 10000, // Resume after 15 seconds
   });
+
+  console.log(
+    `🎮 Auto-fly ${
+      isPaused ? 'paused' : 'running'
+    } due to user interaction`
+  );
 
   console.log(
     `🎮 Cycling webcams ${
