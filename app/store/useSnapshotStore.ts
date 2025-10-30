@@ -58,7 +58,10 @@ const loadCuratedSeen = (): Set<number> => {
       return new Set(ids);
     }
   } catch (error) {
-    console.error('Error loading curated seen from sessionStorage:', error);
+    console.error(
+      'Error loading curated seen from sessionStorage:',
+      error
+    );
   }
   return new Set();
 };
@@ -67,9 +70,15 @@ const loadCuratedSeen = (): Set<number> => {
 const saveCuratedSeen = (seen: Set<number>) => {
   if (typeof window === 'undefined') return;
   try {
-    sessionStorage.setItem('snapshot_curated_seen', JSON.stringify([...seen]));
+    sessionStorage.setItem(
+      'snapshot_curated_seen',
+      JSON.stringify([...seen])
+    );
   } catch (error) {
-    console.error('Error saving curated seen to sessionStorage:', error);
+    console.error(
+      'Error saving curated seen to sessionStorage:',
+      error
+    );
   }
 };
 
@@ -115,18 +124,22 @@ export const useSnapshotStore = create<State>()((set, get) => ({
       const totalPages = Math.ceil(archiveTotal / archivePageSize);
       const targetPage = Math.max(1, Math.min(page, totalPages));
       set({ archivePage: targetPage });
-      
+
       // If page is beyond current buffer, fetch more
-      const bufferEndPage = Math.floor(archive.length / archivePageSize);
+      const bufferEndPage = Math.floor(
+        archive.length / archivePageSize
+      );
       if (targetPage > bufferEndPage) {
         get().fetchMore('archive');
       }
     } else {
       set({ curatedPage: page });
-      
+
       // Check if we need to fetch more for curated view
       const { curated, curatedPageSize } = get();
-      const bufferEndPage = Math.floor(curated.length / curatedPageSize);
+      const bufferEndPage = Math.floor(
+        curated.length / curatedPageSize
+      );
       if (page > bufferEndPage) {
         get().fetchMore('curated');
       }
@@ -135,29 +148,32 @@ export const useSnapshotStore = create<State>()((set, get) => ({
 
   nextPage: (mode) => {
     const { goToPage, archivePage, curatedPage } = get();
-    const currentPage = mode === 'archive' ? archivePage : curatedPage;
+    const currentPage =
+      mode === 'archive' ? archivePage : curatedPage;
     goToPage(mode, currentPage + 1);
   },
 
   prevPage: (mode) => {
     const { goToPage, archivePage, curatedPage } = get();
-    const currentPage = mode === 'archive' ? archivePage : curatedPage;
+    const currentPage =
+      mode === 'archive' ? archivePage : curatedPage;
     goToPage(mode, currentPage - 1);
   },
 
   // Reset operations
-  resetArchive: () => set({ 
-    archive: [], 
-    archivePage: 1, 
-    archiveTotal: 0 
-  }),
+  resetArchive: () =>
+    set({
+      archive: [],
+      archivePage: 1,
+      archiveTotal: 0,
+    }),
 
   resetCurated: () => {
-    set({ 
-      curated: [], 
-      curatedPage: 1, 
+    set({
+      curated: [],
+      curatedPage: 1,
       curatedTotal: 0,
-      curatedSeen: new Set() 
+      curatedSeen: new Set(),
     });
     saveCuratedSeen(new Set());
   },
@@ -178,13 +194,20 @@ export const useSnapshotStore = create<State>()((set, get) => ({
       } else {
         const { curatedSeen } = state;
         const seenIdsArray = [...curatedSeen];
-        const excludeIds = seenIdsArray.length > 0 ? seenIdsArray.join(',') : '';
-        url = `/api/snapshots?mode=curated&limit=100&user_session_id=${userSessionId}${excludeIds ? `&exclude_ids=${excludeIds}` : ''}`;
+        const excludeIds =
+          seenIdsArray.length > 0 ? seenIdsArray.join(',') : '';
+        url = `/api/snapshots?mode=curated&limit=100&user_session_id=${userSessionId}${
+          excludeIds ? `&exclude_ids=${excludeIds}` : ''
+        }`;
       }
 
       const response = await fetch(url);
       if (!response.ok) {
-        throw new Error('Failed to fetch snapshots');
+        const errorText = await response.text();
+        console.error('API error response:', errorText);
+        throw new Error(
+          `Failed to fetch snapshots: ${response.status} ${response.statusText}`
+        );
       }
 
       const data = await response.json();
@@ -194,37 +217,46 @@ export const useSnapshotStore = create<State>()((set, get) => ({
         const { archive, archivePage, archivePageSize } = get();
         const startIdx = (archivePage - 1) * archivePageSize;
         const endIdx = startIdx + archivePageSize;
-        
+
         // Expand archive array if needed
         const newArchive = [...archive];
-        for (let i = startIdx; i < startIdx + data.snapshots.length; i++) {
+        for (
+          let i = startIdx;
+          i < startIdx + data.snapshots.length;
+          i++
+        ) {
           newArchive[i] = data.snapshots[i - startIdx];
         }
 
-        set({ 
-          archive: newArchive, 
+        set({
+          archive: newArchive,
           archiveTotal: data.total,
-          loading: false 
+          loading: false,
         });
       } else {
         // Curated mode: append to buffer and update seen set
         const { curatedSeen } = get();
         const newSeen = new Set(curatedSeen);
-        (data.returnedIds as number[]).forEach((id) => newSeen.add(id));
-        
-        set({ 
+        (data.returnedIds as number[]).forEach((id) =>
+          newSeen.add(id)
+        );
+
+        set({
           curated: [...get().curated, ...data.snapshots],
           curatedSeen: newSeen,
           curatedTotal: data.total,
-          loading: false 
+          loading: false,
         });
         saveCuratedSeen(newSeen);
       }
     } catch (error) {
       console.error('Error fetching snapshots:', error);
-      set({ 
-        error: error instanceof Error ? error.message : 'Failed to fetch snapshots',
-        loading: false 
+      set({
+        error:
+          error instanceof Error
+            ? error.message
+            : 'Failed to fetch snapshots',
+        loading: false,
       });
     }
   },
@@ -232,17 +264,19 @@ export const useSnapshotStore = create<State>()((set, get) => ({
   setRating: async (snapshotId, rating) => {
     // Store original snapshots for rollback (check all lists)
     const state = useSnapshotStore.getState();
-    const originalSnapshot = 
+    const originalSnapshot =
       state.snapshots.find((s) => s.snapshot.id === snapshotId) ||
       state.archive.find((s) => s.snapshot.id === snapshotId) ||
       state.curated.find((s) => s.snapshot.id === snapshotId);
-      
+
     const originalUserRating = originalSnapshot?.snapshot.userRating;
-    const originalCalculatedRating = originalSnapshot?.snapshot.calculatedRating;
-    const originalRatingCount = originalSnapshot?.snapshot.ratingCount;
+    const originalCalculatedRating =
+      originalSnapshot?.snapshot.calculatedRating;
+    const originalRatingCount =
+      originalSnapshot?.snapshot.ratingCount;
 
     // Update helper function
-    const updateSnapshotInList = (snapshots: Snapshot[]) => 
+    const updateSnapshotInList = (snapshots: Snapshot[]) =>
       snapshots.map((s) =>
         s.snapshot.id === snapshotId
           ? {
@@ -266,13 +300,16 @@ export const useSnapshotStore = create<State>()((set, get) => ({
     try {
       const userSessionId = getUserSessionId();
 
-      const response = await fetch(`/api/snapshots/${snapshotId}/rate`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ userSessionId, rating }),
-      });
+      const response = await fetch(
+        `/api/snapshots/${snapshotId}/rate`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ userSessionId, rating }),
+        }
+      );
 
       if (!response.ok) {
         throw new Error('Failed to update rating');
@@ -281,7 +318,9 @@ export const useSnapshotStore = create<State>()((set, get) => ({
       const result = await response.json();
 
       // Update with server response (calculated rating and count)
-      const updateSnapshotWithServerResult = (snapshots: Snapshot[]) =>
+      const updateSnapshotWithServerResult = (
+        snapshots: Snapshot[]
+      ) =>
         snapshots.map((s) =>
           s.snapshot.id === snapshotId
             ? {

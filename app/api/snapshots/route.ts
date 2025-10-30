@@ -22,7 +22,8 @@ export async function GET(request: Request) {
     const userSessionId = searchParams.get('user_session_id');
     const limit = parseInt(searchParams.get('limit') || '100', 10);
     const offset = parseInt(searchParams.get('offset') || '0', 10);
-    const mode = searchParams.get('mode') === 'curated' ? 'curated' : 'archive';
+    const mode =
+      searchParams.get('mode') === 'curated' ? 'curated' : 'archive';
     const excludeIdsParam = searchParams.get('exclude_ids');
     const excludeIds = excludeIdsParam
       ? excludeIdsParam
@@ -62,24 +63,27 @@ export async function GET(request: Request) {
     const whereClause = conditions.join(' AND ');
 
     // CURATED MIX MODE: Fetch mix of highly rated, unrated recent, and random snapshots
-    if (mode === 'curated' && userSessionId) {
-      try {
-        // Helper function to shuffle array
-        const shuffleArray = <T,>(array: T[]): T[] => {
-          const shuffled = [...array];
-          for (let i = shuffled.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
-            [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-          }
-          return shuffled;
-        };
+    if (mode === 'curated') {
+      // Fall back to archive mode if no user session
+      if (!userSessionId) {
+        console.warn(
+          'Curated mode requested but no user_session_id provided, falling back to archive mode'
+        );
+        // Will fall through to archive mode below
+      } else {
+        try {
+          // Helper function to shuffle array
+          const shuffleArray = <T>(array: T[]): T[] => {
+            const shuffled = [...array];
+            for (let i = shuffled.length - 1; i > 0; i--) {
+              const j = Math.floor(Math.random() * (i + 1));
+              [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+            }
+            return shuffled;
+          };
 
-        // Query 1: Highly rated snapshots (40% - 400 snapshots)
-        const highlyRatedWhere = webcamId || phase || excludeIds.length > 0
-          ? `${whereClause} AND s.calculated_rating >= 4.5`
-          : 's.calculated_rating >= 4.5';
-        
-        const highlyRated = await sql.unsafe(`
+          // Query 1: Highly rated snapshots (40% - 400 snapshots)
+          const highlyRated = await sql`
           SELECT 
             s.id as snapshot_id,
             s.webcam_id,
@@ -117,19 +121,17 @@ export async function GET(request: Request) {
           JOIN webcams w ON w.id = s.webcam_id
           LEFT JOIN webcam_snapshot_ratings r ON r.snapshot_id = s.id
           LEFT JOIN webcam_snapshot_ratings ur ON ur.snapshot_id = s.id 
-            AND ur.user_session_id = '${userSessionId}'
-          WHERE ${highlyRatedWhere}
+            AND ur.user_session_id = ${userSessionId}
+          WHERE ${sql.unsafe(
+            whereClause
+          )} AND s.calculated_rating >= 4.5
           GROUP BY s.id, w.id, ur.rating
           ORDER BY s.calculated_rating DESC, s.captured_at DESC
           LIMIT 400
-        `);
+        `;
 
-        // Query 2: Unrated recent snapshots (40% - 400 snapshots)
-        const unratedWhere = webcamId || phase || excludeIds.length > 0
-          ? `${whereClause} AND ur.rating IS NULL`
-          : 'ur.rating IS NULL';
-
-        const unratedRecent = await sql.unsafe(`
+          // Query 2: Unrated recent snapshots (40% - 400 snapshots)
+          const unratedRecent = await sql`
           SELECT 
             s.id as snapshot_id,
             s.webcam_id,
@@ -167,15 +169,15 @@ export async function GET(request: Request) {
           JOIN webcams w ON w.id = s.webcam_id
           LEFT JOIN webcam_snapshot_ratings r ON r.snapshot_id = s.id
           LEFT JOIN webcam_snapshot_ratings ur ON ur.snapshot_id = s.id 
-            AND ur.user_session_id = '${userSessionId}'
-          WHERE ${unratedWhere}
+            AND ur.user_session_id = ${userSessionId}
+          WHERE ${sql.unsafe(whereClause)} AND ur.rating IS NULL
           GROUP BY s.id, w.id, ur.rating
           ORDER BY s.captured_at DESC
           LIMIT 400
-        `);
+        `;
 
-        // Query 3: Random snapshots (20% - 200 snapshots)
-        const randomSnapshots = await sql`
+          // Query 3: Random snapshots (20% - 200 snapshots)
+          const randomSnapshots = await sql`
           SELECT 
             s.id as snapshot_id,
             s.webcam_id,
@@ -220,43 +222,44 @@ export async function GET(request: Request) {
           LIMIT 200
         `;
 
-        // Combine all three result sets
-        const combinedSnapshots = [
-          ...(highlyRated as SnapshotRow[]),
-          ...(unratedRecent as SnapshotRow[]),
-          ...(randomSnapshots as SnapshotRow[]),
-        ];
+          // Combine all three result sets
+          const combinedSnapshots = [
+            ...(highlyRated as SnapshotRow[]),
+            ...(unratedRecent as SnapshotRow[]),
+            ...(randomSnapshots as SnapshotRow[]),
+          ];
 
-        // Shuffle the combined array for variety
-        const shuffledSnapshots = shuffleArray(combinedSnapshots);
+          // Shuffle the combined array for variety
+          const shuffledSnapshots = shuffleArray(combinedSnapshots);
 
-        // Transform to Snapshot type and limit
-        const snapshots: Snapshot[] = shuffledSnapshots
-          .slice(0, limit)
-          .map((row) => transformSnapshot(row));
+          // Transform to Snapshot type and limit
+          const snapshots: Snapshot[] = shuffledSnapshots
+            .slice(0, limit)
+            .map((row) => transformSnapshot(row));
 
-        // Return IDs for client de-duplication
-        const returnedIds = snapshots.map((s) => s.snapshot.id);
+          // Return IDs for client de-duplication
+          const returnedIds = snapshots.map((s) => s.snapshot.id);
 
-        // Get total count for pagination
-        const countResult = await sql`
+          // Get total count for pagination
+          const countResult = await sql`
           SELECT COUNT(*)::int as total
           FROM webcam_snapshots s
           WHERE ${sql.unsafe(whereClause)}
         `;
 
-        const total = countResult[0]?.total || 0;
+          const total = countResult[0]?.total || 0;
 
-        return NextResponse.json({
-          snapshots,
-          returnedIds,
-          total,
-          limit,
-          offset,
-        });
-      } catch (error) {
-        console.error('Error in curated mix query:', error);
-        throw error;
+          return NextResponse.json({
+            snapshots,
+            returnedIds,
+            total,
+            limit,
+            offset,
+          });
+        } catch (error) {
+          console.error('Error in curated mix query:', error);
+          throw error;
+        }
       }
     }
 
