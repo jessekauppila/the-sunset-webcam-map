@@ -32,35 +32,37 @@ export async function GET(request: Request) {
           .filter((n) => Number.isFinite(n) && n > 0)
       : [];
 
-    // Build the WHERE clause dynamically
-    const conditions: string[] = ['1=1'];
-    const params: (string | number)[] = [];
+    // Build WHERE clause fragments for use with sql.unsafe()
+    // Since excludeIds are already validated integers, we can safely format them
+    const buildWhereClause = () => {
+      const conditions: string[] = [];
 
-    if (webcamId) {
-      conditions.push(`s.webcam_id = $${params.length + 1}`);
-      params.push(parseInt(webcamId, 10));
-    }
+      if (webcamId) {
+        const id = parseInt(webcamId, 10);
+        conditions.push(`s.webcam_id = ${id}`);
+      }
 
-    if (phase && (phase === 'sunrise' || phase === 'sunset')) {
-      conditions.push(`s.phase = $${params.length + 1}`);
-      params.push(phase);
-    }
+      if (phase && (phase === 'sunrise' || phase === 'sunset')) {
+        // Escape single quotes for SQL safety
+        const escapedPhase = phase.replace(/'/g, "''");
+        conditions.push(`s.phase = '${escapedPhase}'`);
+      }
 
-    if (minRating) {
-      conditions.push(`s.calculated_rating >= $${params.length + 1}`);
-      params.push(parseFloat(minRating));
-    }
+      if (minRating) {
+        const rating = parseFloat(minRating);
+        conditions.push(`s.calculated_rating >= ${rating}`);
+      }
 
-    // Add exclude_ids filter if provided
-    if (excludeIds.length > 0) {
-      const placeholders = excludeIds
-        .map((_, i) => `$${params.length + i + 1}`)
-        .join(', ');
-      conditions.push(`s.id NOT IN (${placeholders})`);
-      params.push(...excludeIds);
-    }
+      // Add exclude_ids filter - excludeIds are already validated as integers
+      if (excludeIds.length > 0) {
+        const idsString = excludeIds.join(', ');
+        conditions.push(`s.id NOT IN (${idsString})`);
+      }
 
-    const whereClause = conditions.join(' AND ');
+      return conditions.length > 0 ? conditions.join(' AND ') : '1=1';
+    };
+
+    const whereClause = buildWhereClause();
 
     // CURATED MIX MODE: Fetch mix of highly rated, unrated recent, and random snapshots
     if (mode === 'curated') {

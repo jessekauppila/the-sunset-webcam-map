@@ -14,7 +14,9 @@ export function useMapInteractionPause({
   // Reset interaction state when mode changes
   useEffect(() => {
     if (mode !== undefined) {
-      console.log('🔄 Mode changed, resetting interaction pause state');
+      console.log(
+        '🔄 Mode changed, resetting interaction pause state'
+      );
       setHasInteracted(false);
     }
   }, [mode]);
