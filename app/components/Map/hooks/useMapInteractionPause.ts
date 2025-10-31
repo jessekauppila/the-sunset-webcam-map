@@ -1,47 +1,56 @@
-import { useEffect, useState } from 'react';
-//import mapboxgl  from 'mapbox-gl';
+import { useEffect, useState, RefObject } from 'react';
 
 interface UseMapInteractionPauseProps {
-  map: mapboxgl.Map | null;
-  mapReady: boolean;
+  containerRef: RefObject<HTMLDivElement | null>;
+  mode?: string; // Add mode to detect mode changes
 }
 
 export function useMapInteractionPause({
-  map,
-  mapReady,
+  containerRef,
+  mode,
 }: UseMapInteractionPauseProps) {
   const [hasInteracted, setHasInteracted] = useState(false);
 
+  // Reset interaction state when mode changes
   useEffect(() => {
-    if (!map || !mapReady) return;
+    if (mode !== undefined) {
+      console.log('🔄 Mode changed, resetting interaction pause state');
+      setHasInteracted(false);
+    }
+  }, [mode]);
 
-    // List of events that indicate user interaction
+  useEffect(() => {
+    if (!containerRef?.current) return;
+
+    const container = containerRef.current;
+
+    const handleInteraction = () => {
+      console.log('🗺️ Interaction detected - pausing auto-fly');
+      setHasInteracted(true);
+    };
+
+    // List of DOM events that indicate user interaction
     const interactionEvents = [
       'mousedown',
       'touchstart',
       'wheel',
-      'zoomstart',
-      'rotatestart',
-      'pitchstart',
+      'pointerdown',
     ];
-
-    const handleInteraction = () => {
-      console.log('🗺️ Map interaction detected - pausing auto-fly');
-      setHasInteracted(true);
-    };
 
     // Add event listeners for all interaction events
     interactionEvents.forEach((event) => {
-      map.on(event, handleInteraction);
+      container.addEventListener(event, handleInteraction, {
+        passive: true,
+      });
     });
 
     // Cleanup function
     return () => {
       interactionEvents.forEach((event) => {
-        map.off(event, handleInteraction);
+        container.removeEventListener(event, handleInteraction);
       });
     };
-  }, [map, mapReady]);
+  }, [containerRef]);
 
   return {
     isPaused: hasInteracted,

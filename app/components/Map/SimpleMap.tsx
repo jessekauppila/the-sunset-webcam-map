@@ -1,22 +1,17 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {} from '@mui/icons-material';
 import { useMap } from './hooks/useMap';
 import { useFlyTo } from './hooks/useFlyTo';
 import { useSetMarker } from './hooks/useSetMarker';
 import { useSetWebcamMarkers } from './hooks/useSetWebcamMarkers';
-// import { WebcamDisplay } from '../WebcamDisplay';
 import { useUpdateTerminatorRing } from './hooks/useUpdateTerminatorRing';
 import { useMapInteractionPause } from './hooks/useMapInteractionPause';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import type { Location } from '../../lib/types';
-//import { useWebcamFetchArray } from '../hooks/useWebCamFetchArray';
-//import { useClosestWebcams } from './hooks/useClosestWebcams';
 import { useCyclingWebcams } from './hooks/useCyclingWebcams';
-// import { useCombineSunriseSunsetWebcams } from './hooks/useCombinedSunriseSunsetWebcams';
 import dynamic from 'next/dynamic';
-
 const GlobeMap = dynamic(() => import('./GlobeMap'), {
   ssr: false, // Disable server-side rendering for Deck.gl
   loading: () => <div>Loading 3D Globe...</div>,
@@ -40,6 +35,9 @@ export default function SimpleMap({
     userLocation,
     mode === 'map'
   );
+
+  // Create a shared container ref for interaction detection
+  const interactionContainerRef = useRef<HTMLDivElement>(null);
 
   //this used to call the api, but now is just used for updating the terminator ring visuals...
   useEffect(() => {
@@ -68,10 +66,10 @@ export default function SimpleMap({
     autoStart: true,
   });
 
-  // Track if user has interacted with the map
+  // Track if user has interacted with the map (works for both mapbox and globe)
   const { isPaused } = useMapInteractionPause({
-    map,
-    mapReady: mapReady && mode === 'map',
+    containerRef: interactionContainerRef,
+    mode, // Pass mode so pause state resets on mode change
   });
 
   console.log(
@@ -102,14 +100,18 @@ export default function SimpleMap({
   useFlyTo(
     map,
     mapLoaded,
-    mode === 'map' ? nextLatitudeNorthSunsetLocation ?? null : null
+    mode === 'map' ? nextLatitudeNorthSunsetLocation ?? null : null,
+    isPaused,
+    mode // Pass mode so it can detect mode changes
   );
 
   return (
     <div>
       {/* First Section - Full Screen Map */}
       <section className="map-container w-full h-screen">
-        <div className="w-full h-full">
+        <div ref={interactionContainerRef} className="w-full h-full">
+          {' '}
+          {/* Add ref here */}
           {mode === 'map' ? (
             <div
               ref={mapContainer}
@@ -143,10 +145,11 @@ export default function SimpleMap({
                       }
                     : null
                 }
+                isPaused={isPaused}
+                mode={mode}
               />
             </div>
           )}
-
           {/* Loading Overlay */}
           {mode === 'map' && !mapLoaded && (
             <div

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useRef } from 'react';
 import { DeckGL } from '@deck.gl/react';
 import {
   COORDINATE_SYSTEM,
@@ -39,6 +39,8 @@ interface GlobeMapProps {
   currentTime: Date;
   initialViewState?: GlobeViewState;
   targetLocation?: { longitude: number; latitude: number } | null;
+  isPaused?: boolean;
+  mode?: string; // Add mode to detect when switching
 }
 
 export default function GlobeMap({
@@ -48,6 +50,8 @@ export default function GlobeMap({
   currentTime,
   initialViewState = { longitude: 0, latitude: 20, zoom: 0 },
   targetLocation = null,
+  isPaused = false,
+  mode, // Add mode parameter
 }: GlobeMapProps) {
   // Sync lighting with current time
   sunLight.timestamp = currentTime.getTime();
@@ -60,8 +64,35 @@ export default function GlobeMap({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const previousLocationRef = useRef<{
+    longitude: number;
+    latitude: number;
+  } | null>(null);
+  const previousModeRef = useRef<string | undefined>(undefined);
+
   useEffect(() => {
-    if (!targetLocation) return;
+    // If mode changed, reset previous location so it flies on mode switch
+    if (mode !== undefined && mode !== previousModeRef.current) {
+      console.log('🔄 Globe mode changed, resetting fly-to tracking');
+      previousLocationRef.current = null;
+      previousModeRef.current = mode;
+    }
+
+    if (!targetLocation || isPaused) return;
+
+    // Check if location changed OR mode changed
+    const prevLocation = previousLocationRef.current;
+    const shouldFly =
+      !prevLocation ||
+      prevLocation.longitude !== targetLocation.longitude ||
+      prevLocation.latitude !== targetLocation.latitude ||
+      (mode !== undefined && mode !== previousModeRef.current);
+
+    if (!shouldFly) return;
+
+    console.log('🎯 Globe flying to location:', targetLocation);
+    previousLocationRef.current = targetLocation;
+
     setViewState((prev) => ({
       ...prev,
       longitude: targetLocation.longitude,
@@ -70,7 +101,7 @@ export default function GlobeMap({
       transitionDuration: 2000,
       transitionInterpolator: new FlyToInterpolator(),
     }));
-  }, [targetLocation]);
+  }, [targetLocation, isPaused, mode]); // Add mode to dependencies
 
   const backgroundLayers = useMemo(
     () => [
