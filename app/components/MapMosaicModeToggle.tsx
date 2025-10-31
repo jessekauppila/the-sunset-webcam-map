@@ -3,9 +3,19 @@
 import { Box, ToggleButton, ToggleButtonGroup } from '@mui/material';
 
 interface MapMosaicModeToggleProps {
-  mode: 'map' | 'globe' | 'sunrise-mosaic' | 'sunset-mosaic';
+  mode:
+    | 'map'
+    | 'globe'
+    | 'sunrise-mosaic'
+    | 'sunset-mosaic'
+    | 'rating';
   onModeChange: (
-    mode: 'map' | 'globe' | 'sunrise-mosaic' | 'sunset-mosaic'
+    mode:
+      | 'map'
+      | 'globe'
+      | 'sunrise-mosaic'
+      | 'sunset-mosaic'
+      | 'rating'
   ) => void;
 }
 
@@ -61,6 +71,7 @@ export function MapMosaicModeToggle({
         <ToggleButton value="sunset-mosaic">
           Sunset Mosaics
         </ToggleButton>
+        <ToggleButton value="rating">Rating</ToggleButton>
       </ToggleButtonGroup>
     </Box>
   );

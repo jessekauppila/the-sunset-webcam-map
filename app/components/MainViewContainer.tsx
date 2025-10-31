@@ -2,6 +2,7 @@
 
 import { useRef, useState, useEffect } from 'react';
 import SimpleMap from './Map/SimpleMap';
+import { RatingPanel } from './Rating/RatingPanel';
 import { MosaicCanvas } from './MosaicCanvas';
 import { useTerminatorStore } from '@/app/store/useTerminatorStore';
 import type { Location } from '../lib/types';
@@ -10,7 +11,8 @@ export type ViewMode =
   | 'map'
   | 'globe'
   | 'sunrise-mosaic'
-  | 'sunset-mosaic';
+  | 'sunset-mosaic'
+  | 'rating';
 
 interface MainViewContainerProps {
   userLocation: Location;
@@ -83,6 +85,17 @@ export default function MainViewContainer({
     case 'map':
     case 'globe':
       return <SimpleMap userLocation={userLocation} mode={mode} />;
+
+    case 'rating':
+      return (
+        <section className="map-container w-full h-screen">
+          <div className="flex flex-col h-full">
+            <div className="flex-1" style={{ position: 'relative' }}>
+              <RatingPanel variant="fullscreen" />
+            </div>
+          </div>
+        </section>
+      );
 
     case 'sunset-mosaic':
       return (
