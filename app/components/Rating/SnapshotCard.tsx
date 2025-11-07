@@ -1,27 +1,42 @@
-"use client";
+'use client';
 
-import Image from "next/image";
-import { motion, useMotionValue, useTransform } from "framer-motion";
-import type { Snapshot } from "@/app/lib/types";
+import Image from 'next/image';
+import {
+  motion,
+  useMotionValue,
+  useTransform,
+  type PanInfo,
+} from 'framer-motion';
+import type { Snapshot } from '@/app/lib/types';
 
 interface SnapshotCardProps {
   snapshot: Snapshot;
-  onSwipe: (direction: "like" | "dislike") => void;
+  onSwipe: (direction: 'like' | 'dislike') => void;
 }
 
-export function SnapshotCard({ snapshot, onSwipe }: SnapshotCardProps) {
+export function SnapshotCard({
+  snapshot,
+  onSwipe,
+}: SnapshotCardProps) {
   const x = useMotionValue(0);
   const rotate = useTransform(x, [-200, 200], [-25, 25]);
-  const opacity = useTransform(x, [-200, -100, 0, 100, 200], [0, 1, 1, 1, 0]);
+  const opacity = useTransform(
+    x,
+    [-200, -100, 0, 100, 200],
+    [0, 1, 1, 1, 0]
+  );
 
   const likeOpacity = useTransform(x, [0, 100], [0, 1]);
   const dislikeOpacity = useTransform(x, [-100, 0], [1, 0]);
 
-  const handleDragEnd = (_e: any, info: any) => {
+  const handleDragEnd = (
+    _e: PointerEvent | TouchEvent | MouseEvent,
+    info: PanInfo
+  ) => {
     if (info.offset.x > 100) {
-      onSwipe("like");
+      onSwipe('like');
     } else if (info.offset.x < -100) {
-      onSwipe("dislike");
+      onSwipe('dislike');
     }
   };
 
@@ -32,10 +47,11 @@ export function SnapshotCard({ snapshot, onSwipe }: SnapshotCardProps) {
     const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
     const diffDays = Math.floor(diffHours / 24);
 
-    if (diffDays > 0) return `${diffDays} day${diffDays > 1 ? "s" : ""} ago`;
+    if (diffDays > 0)
+      return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
     if (diffHours > 0)
-      return `${diffHours} hour${diffHours > 1 ? "s" : ""} ago`;
-    return "Just now";
+      return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
+    return 'Just now';
   };
 
   return (
@@ -77,7 +93,9 @@ export function SnapshotCard({ snapshot, onSwipe }: SnapshotCardProps) {
 
       <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-6">
         <div className="space-y-2">
-          <h3 className="text-2xl font-bold text-white">{snapshot.title}</h3>
+          <h3 className="text-2xl font-bold text-white">
+            {snapshot.title}
+          </h3>
           <div className="flex items-center gap-3 text-white/80 text-sm">
             <span>
               📍 {snapshot.location.city}, {snapshot.location.region}
@@ -85,17 +103,25 @@ export function SnapshotCard({ snapshot, onSwipe }: SnapshotCardProps) {
           </div>
           <div className="flex items-center gap-4 text-white/80 text-sm">
             <span>
-              {snapshot.snapshot.phase === "sunset" ? "🌅" : "🌄"} {snapshot.snapshot.phase.toUpperCase()}
+              {snapshot.snapshot.phase === 'sunset' ? '🌅' : '🌄'}{' '}
+              {snapshot.snapshot.phase.toUpperCase()}
             </span>
-            {snapshot.snapshot.rank && <span>Rank #{snapshot.snapshot.rank}</span>}
+            {snapshot.snapshot.rank && (
+              <span>Rank #{snapshot.snapshot.rank}</span>
+            )}
           </div>
           {snapshot.snapshot.calculatedRating && (
             <div className="flex items-center gap-2 text-white/80">
               <span>⭐</span>
               <span>
-                {Number(snapshot.snapshot.calculatedRating).toFixed(1)} avg
+                {Number(snapshot.snapshot.calculatedRating).toFixed(
+                  1
+                )}{' '}
+                avg
               </span>
-              <span className="text-white/60">({snapshot.snapshot.ratingCount} ratings)</span>
+              <span className="text-white/60">
+                ({snapshot.snapshot.ratingCount} ratings)
+              </span>
             </div>
           )}
           <div className="text-white/60 text-xs">
@@ -106,5 +132,3 @@ export function SnapshotCard({ snapshot, onSwipe }: SnapshotCardProps) {
     </motion.div>
   );
 }
-
-

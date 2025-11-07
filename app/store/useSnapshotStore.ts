@@ -216,7 +216,7 @@ export const useSnapshotStore = create<State>()((set, get) => ({
         // Archive mode: replace the current page's snapshots
         const { archive, archivePage, archivePageSize } = get();
         const startIdx = (archivePage - 1) * archivePageSize;
-        const endIdx = startIdx + archivePageSize;
+        //const endIdx = startIdx + archivePageSize;
 
         // Expand archive array if needed
         const newArchive = [...archive];
