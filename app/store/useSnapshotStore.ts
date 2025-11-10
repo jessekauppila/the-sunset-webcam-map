@@ -264,10 +264,13 @@ export const useSnapshotStore = create<State>()((set, get) => ({
   setRating: async (snapshotId, rating) => {
     // Store original snapshots for rollback (check all lists)
     const state = useSnapshotStore.getState();
+    const findSnapshotById = (list: Snapshot[]) =>
+      list.find((entry) => entry && entry.snapshot?.id === snapshotId);
+
     const originalSnapshot =
-      state.snapshots.find((s) => s.snapshot.id === snapshotId) ||
-      state.archive.find((s) => s.snapshot.id === snapshotId) ||
-      state.curated.find((s) => s.snapshot.id === snapshotId);
+      findSnapshotById(state.snapshots) ||
+      findSnapshotById(state.archive) ||
+      findSnapshotById(state.curated);
 
     const originalUserRating = originalSnapshot?.snapshot.userRating;
     const originalCalculatedRating =
@@ -277,17 +280,19 @@ export const useSnapshotStore = create<State>()((set, get) => ({
 
     // Update helper function
     const updateSnapshotInList = (snapshots: Snapshot[]) =>
-      snapshots.map((s) =>
-        s.snapshot.id === snapshotId
-          ? {
-              ...s,
-              snapshot: {
-                ...s.snapshot,
-                userRating: rating,
-              },
-            }
-          : s
-      );
+      snapshots.map((entry) => {
+        if (!entry || entry.snapshot?.id !== snapshotId) {
+          return entry;
+        }
+
+        return {
+          ...entry,
+          snapshot: {
+            ...entry.snapshot,
+            userRating: rating,
+          },
+        };
+      });
 
     // Optimistic update - update all lists immediately
     set((state) => ({
@@ -318,22 +323,22 @@ export const useSnapshotStore = create<State>()((set, get) => ({
       const result = await response.json();
 
       // Update with server response (calculated rating and count)
-      const updateSnapshotWithServerResult = (
-        snapshots: Snapshot[]
-      ) =>
-        snapshots.map((s) =>
-          s.snapshot.id === snapshotId
-            ? {
-                ...s,
-                snapshot: {
-                  ...s.snapshot,
-                  userRating: rating,
-                  calculatedRating: result.calculatedRating ?? null,
-                  ratingCount: result.ratingCount,
-                },
-              }
-            : s
-        );
+      const updateSnapshotWithServerResult = (snapshots: Snapshot[]) =>
+        snapshots.map((entry) => {
+          if (!entry || entry.snapshot?.id !== snapshotId) {
+            return entry;
+          }
+
+          return {
+            ...entry,
+            snapshot: {
+              ...entry.snapshot,
+              userRating: rating,
+              calculatedRating: result.calculatedRating ?? null,
+              ratingCount: result.ratingCount,
+            },
+          };
+        });
 
       set((state) => ({
         snapshots: updateSnapshotWithServerResult(state.snapshots),
@@ -343,19 +348,21 @@ export const useSnapshotStore = create<State>()((set, get) => ({
     } catch (error) {
       // Rollback on failure - restore original ratings
       const rollbackSnapshot = (snapshots: Snapshot[]) =>
-        snapshots.map((s) =>
-          s.snapshot.id === snapshotId
-            ? {
-                ...s,
-                snapshot: {
-                  ...s.snapshot,
-                  userRating: originalUserRating,
-                  calculatedRating: originalCalculatedRating ?? null,
-                  ratingCount: originalRatingCount || 0,
-                },
-              }
-            : s
-        );
+        snapshots.map((entry) => {
+          if (!entry || entry.snapshot?.id !== snapshotId) {
+            return entry;
+          }
+
+          return {
+            ...entry,
+            snapshot: {
+              ...entry.snapshot,
+              userRating: originalUserRating,
+              calculatedRating: originalCalculatedRating ?? null,
+              ratingCount: originalRatingCount || 0,
+            },
+          };
+        });
 
       set((state) => ({
         snapshots: rollbackSnapshot(state.snapshots),
