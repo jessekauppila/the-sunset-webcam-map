@@ -60,6 +60,8 @@ export default function SimpleMap({
   const {
     currentWebcam: nextLatitudeNorthSunsetWebCam,
     currentWebcamLocation: nextLatitudeNorthSunsetLocation,
+    next: goToNextWebcam,
+    resume: resumeWebcamCycling,
   } = useCyclingWebcams(allTerminatorWebcams, {
     startIndex: 0,
     intervalMs: 3000,
@@ -67,10 +69,11 @@ export default function SimpleMap({
   });
 
   // Track if user has interacted with the map (works for both mapbox and globe)
-  const { isPaused } = useMapInteractionPause({
-    containerRef: interactionContainerRef,
-    mode, // Pass mode so pause state resets on mode change
-  });
+  const { isPaused, reset: resetInteractionPause } =
+    useMapInteractionPause({
+      containerRef: interactionContainerRef,
+      mode, // Pass mode so pause state resets on mode change
+    });
 
   console.log(
     `🎮 Auto-fly ${
@@ -94,7 +97,18 @@ export default function SimpleMap({
   useSetWebcamMarkers(
     map,
     mapLoaded,
-    mode === 'map' ? allTerminatorWebcams : []
+    mode === 'map' ? allTerminatorWebcams : [],
+    mode === 'map'
+      ? {
+          activeWebcamId:
+            nextLatitudeNorthSunsetWebCam?.webcamId ?? null,
+          onAdvance: () => {
+            resetInteractionPause();
+            resumeWebcamCycling();
+            goToNextWebcam();
+          },
+        }
+      : undefined
   );
 
   useFlyTo(

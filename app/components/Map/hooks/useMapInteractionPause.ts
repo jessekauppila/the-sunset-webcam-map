@@ -10,6 +10,7 @@ export function useMapInteractionPause({
   mode,
 }: UseMapInteractionPauseProps) {
   const [hasInteracted, setHasInteracted] = useState(false);
+  const reset = () => setHasInteracted(false);
 
   // Reset interaction state when mode changes
   useEffect(() => {
@@ -17,7 +18,7 @@ export function useMapInteractionPause({
       console.log(
         '🔄 Mode changed, resetting interaction pause state'
       );
-      setHasInteracted(false);
+      reset();
     }
   }, [mode]);
 
@@ -56,5 +57,6 @@ export function useMapInteractionPause({
 
   return {
     isPaused: hasInteracted,
+    reset,
   };
 }
