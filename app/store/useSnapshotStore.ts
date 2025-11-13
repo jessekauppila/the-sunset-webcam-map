@@ -265,7 +265,9 @@ export const useSnapshotStore = create<State>()((set, get) => ({
     // Store original snapshots for rollback (check all lists)
     const state = useSnapshotStore.getState();
     const findSnapshotById = (list: Snapshot[]) =>
-      list.find((entry) => entry && entry.snapshot?.id === snapshotId);
+      list.find(
+        (entry) => entry && entry.snapshot?.id === snapshotId
+      );
 
     const originalSnapshot =
       findSnapshotById(state.snapshots) ||
@@ -323,7 +325,9 @@ export const useSnapshotStore = create<State>()((set, get) => ({
       const result = await response.json();
 
       // Update with server response (calculated rating and count)
-      const updateSnapshotWithServerResult = (snapshots: Snapshot[]) =>
+      const updateSnapshotWithServerResult = (
+        snapshots: Snapshot[]
+      ) =>
         snapshots.map((entry) => {
           if (!entry || entry.snapshot?.id !== snapshotId) {
             return entry;

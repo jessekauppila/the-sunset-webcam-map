@@ -30,16 +30,27 @@ type FeedbackTone = RateResult['tone'];
 const SNACKBAR_ID = 'webcam-rating-snackbar';
 
 function createMarkerElement(webcam: WindyWebcam) {
-  const element = document.createElement('div');
-  element.className = 'webcam-marker';
-  element.style.cssText = `
+  const wrapper = document.createElement('div');
+  wrapper.className = 'webcam-marker';
+  wrapper.style.cssText = `
     width: 60px;
     height: 60px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: auto;
+  `;
+
+  const inner = document.createElement('div');
+  inner.className = 'webcam-marker-inner';
+  inner.style.cssText = `
+    width: 100%;
+    height: 100%;
     border-radius: 50%;
     border: 1px solid rgba(87, 87, 87, 0.64);
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0);
     overflow: hidden;
-    cursor: pointer;
     background: rgba(0, 0, 0, 0);
     display: flex;
     align-items: center;
@@ -59,25 +70,33 @@ function createMarkerElement(webcam: WindyWebcam) {
       height: 100%;
       object-fit: cover;
     `;
-    element.appendChild(img);
+    inner.appendChild(img);
   } else {
-    element.textContent = '🌅';
+    inner.textContent = '🌅';
   }
 
-  return element;
+  wrapper.appendChild(inner);
+  return wrapper;
+}
+
+function getInnerElement(element: HTMLElement): HTMLElement {
+  const inner = element.firstElementChild;
+  return inner instanceof HTMLElement ? inner : element;
 }
 
 function animateMarkerIn(element: HTMLElement, index: number) {
+  const target = getInnerElement(element);
   const delay = Math.min(index, 30) * 25;
   setTimeout(() => {
-    element.style.opacity = '1';
-    element.style.transform = 'scale(1)';
+    target.style.opacity = '1';
+    target.style.transform = 'scale(1)';
   }, delay);
 }
 
 function animateMarkerOut(element: HTMLElement, onDone: () => void) {
-  element.style.opacity = '0';
-  element.style.transform = 'scale(0.88)';
+  const target = getInnerElement(element);
+  target.style.opacity = '0';
+  target.style.transform = 'scale(0.88)';
   setTimeout(onDone, 240);
 }
 
@@ -157,7 +176,9 @@ export function useSetWebcamMarkers(
   options?: UseSetWebcamMarkersOptions
 ) {
   const markersRef = useRef<Map<number, MarkerEntry>>(new Map());
-  const optionsRef = useRef<UseSetWebcamMarkersOptions | undefined>(options);
+  const optionsRef = useRef<UseSetWebcamMarkersOptions | undefined>(
+    options
+  );
   const pendingAutoOpenRef = useRef(false);
 
   useEffect(() => {
@@ -262,7 +283,9 @@ export function useSetWebcamMarkers(
             <RatingCard
               webcam={cam}
               initialRating={entry.latestRating ?? cam.rating ?? null}
-              onRate={async (selected) => handleRate(cam, entry, selected)}
+              onRate={async (selected) =>
+                handleRate(cam, entry, selected)
+              }
             />
           );
         };
@@ -309,4 +332,3 @@ export function useSetWebcamMarkers(
     };
   }, []);
 }
-
