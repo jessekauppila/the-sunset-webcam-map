@@ -7,10 +7,6 @@
     {
       "path": "/api/cron/capture-snapshots",
       "schedule": "*/15 * * * *"
-    },
-    {
-      "path": "/api/snapshots/cleanup",
-      "schedule": "0 2 * * *"
     }
   ]
 }
