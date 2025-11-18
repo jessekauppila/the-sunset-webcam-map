@@ -72,6 +72,7 @@ async function findOrCreateSnapshot(
     FROM webcam_snapshots
     WHERE webcam_id = ${payload.webcamId}
       AND phase = ${payload.phase}
+      AND captured_at >= NOW() - INTERVAL '30 minutes'
     ORDER BY captured_at DESC
     LIMIT 1
   `;
@@ -172,6 +173,13 @@ export async function POST(request: Request) {
     if (body.phase !== 'sunrise' && body.phase !== 'sunset') {
       return NextResponse.json(
         { error: 'phase must be either sunrise or sunset' },
+        { status: 400 }
+      );
+    }
+
+    if (body.rating === null || body.rating === undefined || body.rating === 0) {
+      return NextResponse.json(
+        { error: 'rating is required and must be between 1 and 5' },
         { status: 400 }
       );
     }

@@ -235,14 +235,25 @@ export const useSnapshotStore = create<State>()((set, get) => ({
         });
       } else {
         // Curated mode: append to buffer and update seen set
-        const { curatedSeen } = get();
+        const { curated, curatedSeen } = get();
         const newSeen = new Set(curatedSeen);
         (data.returnedIds as number[]).forEach((id) =>
           newSeen.add(id)
         );
 
+        // Deduplicate: filter out snapshots that already exist in curated array
+        const existingIds = new Set(
+          curated
+            .map((s) => s?.snapshot?.id)
+            .filter((id): id is number => id !== undefined)
+        );
+        const newSnapshots = (data.snapshots as Snapshot[]).filter(
+          (snapshot: Snapshot) =>
+            !existingIds.has(snapshot.snapshot.id)
+        );
+
         set({
-          curated: [...get().curated, ...data.snapshots],
+          curated: [...curated, ...newSnapshots],
           curatedSeen: newSeen,
           curatedTotal: data.total,
           loading: false,
