@@ -2,7 +2,6 @@
 
 import Image from 'next/image';
 import { useState, useEffect } from 'react';
-import type { Snapshot } from '@/app/lib/types';
 import { useSnapshotStore } from '@/app/store/useSnapshotStore';
 import StarRating from './console/StarRating';
 
