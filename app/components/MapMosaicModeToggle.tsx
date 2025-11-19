@@ -68,16 +68,17 @@ export function MapMosaicModeToggle({
         }}
       >
         <ToggleButton value="map">Map</ToggleButton>
-        <ToggleButton value="globe">Globe</ToggleButton>
+        {/* <ToggleButton value="globe">Globe</ToggleButton> */}
+        {/* Commented out modes - uncomment to re-enable */}
         <ToggleButton value="sunrise-mosaic">
           Sunrise Mosaics
         </ToggleButton>
         <ToggleButton value="sunset-mosaic">
           Sunset Mosaics
         </ToggleButton>
-        <ToggleButton value="rating">Rating</ToggleButton>
+        {/*<ToggleButton value="rating">Rating</ToggleButton>
         <ToggleButton value="swipe">Swipe</ToggleButton>
-        <ToggleButton value="gallery">Gallery</ToggleButton>
+        <ToggleButton value="gallery">Gallery</ToggleButton> */}
       </ToggleButtonGroup>
     </Box>
   );

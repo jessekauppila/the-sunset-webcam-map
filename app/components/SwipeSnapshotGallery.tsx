@@ -12,14 +12,11 @@ import {
 } from '@mui/material';
 
 export function SwipeSnapshotGallery() {
-  const [viewMode, setViewMode] = useState<'unrated' | 'curated'>('unrated');
-  const {
-    archive,
-    curated,
-    fetchMore,
-    setRating,
-    loading,
-  } = useSnapshotStore();
+  const [viewMode, setViewMode] = useState<'unrated' | 'curated'>(
+    'unrated'
+  );
+  const { archive, curated, fetchMore, setRating, loading } =
+    useSnapshotStore();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isAnimating, setIsAnimating] = useState(false);
 
@@ -113,12 +110,7 @@ export function SwipeSnapshotGallery() {
     window.addEventListener('keydown', handleKeyPress);
     return () =>
       window.removeEventListener('keydown', handleKeyPress);
-  }, [
-    isAnimating,
-    handleLike,
-    handleDislike,
-    handleSkip,
-  ]);
+  }, [isAnimating, handleLike, handleDislike, handleSkip]);
 
   // Calculate stats - show progress through loaded snapshots
   const totalLoaded = snapshots?.length || 0;
@@ -129,7 +121,7 @@ export function SwipeSnapshotGallery() {
   const remainingCount = Math.max(0, totalLoaded - ratedByUser);
 
   // Loading state
-  if (loading || (!snapshots || snapshots.length === 0)) {
+  if (loading || !snapshots || snapshots.length === 0) {
     return (
       <Box
         sx={{
