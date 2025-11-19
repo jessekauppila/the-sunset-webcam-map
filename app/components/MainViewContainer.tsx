@@ -2,11 +2,20 @@
 
 import { useRef, useState, useEffect } from 'react';
 import SimpleMap from './Map/SimpleMap';
+import { RatingPanel } from './Rating/RatingPanel';
 import { MosaicCanvas } from './MosaicCanvas';
 import { useTerminatorStore } from '@/app/store/useTerminatorStore';
+import { SwipeSnapshotGallery } from './SwipeSnapshotGallery';
 import type { Location } from '../lib/types';
 
-export type ViewMode = 'map' | 'globe' | 'mosaic';
+export type ViewMode =
+  | 'map'
+  | 'globe'
+  | 'sunrise-mosaic'
+  | 'sunset-mosaic'
+  | 'rating'
+  | 'swipe'
+  | 'gallery';
 
 interface MainViewContainerProps {
   userLocation: Location;
@@ -21,22 +30,25 @@ export default function MainViewContainer({
   const sunriseWebcams = useTerminatorStore((t) => t.sunrise);
   const sunsetWebcams = useTerminatorStore((t) => t.sunset);
 
-  // Refs for measuring actual available space
+  // Refs for measuring actual available space (full screen for each mode)
   const sunsetContainerRef = useRef<HTMLDivElement>(null);
   const sunriseContainerRef = useRef<HTMLDivElement>(null);
-  const [dimensions, setDimensions] = useState({
-    width:
-      typeof window !== 'undefined' ? window.innerWidth / 2 : 900,
+  const [sunsetDimensions, setSunsetDimensions] = useState({
+    width: typeof window !== 'undefined' ? window.innerWidth : 900,
+    height: typeof window !== 'undefined' ? window.innerHeight : 800,
+  });
+  const [sunriseDimensions, setSunriseDimensions] = useState({
+    width: typeof window !== 'undefined' ? window.innerWidth : 900,
     height: typeof window !== 'undefined' ? window.innerHeight : 800,
   });
 
-  // Measure actual available space in containers
+  // Measure actual available space for sunset container
   useEffect(() => {
     const updateDimensions = () => {
       if (sunsetContainerRef.current) {
         const rect =
           sunsetContainerRef.current.getBoundingClientRect();
-        setDimensions({
+        setSunsetDimensions({
           width: rect.width,
           height: rect.height,
         });
@@ -49,7 +61,25 @@ export default function MainViewContainer({
       window.removeEventListener('resize', updateDimensions);
   }, []);
 
-  //const canvasImageRows = 12;
+  // Measure actual available space for sunrise container
+  useEffect(() => {
+    const updateDimensions = () => {
+      if (sunriseContainerRef.current) {
+        const rect =
+          sunriseContainerRef.current.getBoundingClientRect();
+        setSunriseDimensions({
+          width: rect.width,
+          height: rect.height,
+        });
+      }
+    };
+
+    updateDimensions();
+    window.addEventListener('resize', updateDimensions);
+    return () =>
+      window.removeEventListener('resize', updateDimensions);
+  }, []);
+
   const canvasMaxImages = 90;
   const canvasPadding = 2;
 
@@ -59,71 +89,96 @@ export default function MainViewContainer({
     case 'globe':
       return <SimpleMap userLocation={userLocation} mode={mode} />;
 
-    case 'mosaic':
+    case 'rating':
       return (
         <section className="map-container w-full h-screen">
-          <div className="grid grid-cols-2 h-full">
-            <div className="flex flex-col h-full">
-              <h1
-                className="text-center text-gray-500 text-xl py-2"
-                style={{ fontFamily: 'Roboto, Arial, sans-serif' }}
-              >
-                Sunsets
-              </h1>
-              <div ref={sunsetContainerRef} className="flex-1">
-                {dimensions.height > 0 && (
-                  <MosaicCanvas
-                    webcams={sunsetWebcams || []}
-                    width={dimensions.width}
-                    height={dimensions.height}
-                    maxImages={canvasMaxImages}
-                    padding={canvasPadding}
-                    ratingSizeEffect={0.75}
-                    viewSizeEffect={0.1}
-                    fillScreenHeight={true}
-                    onSelect={(webcam) => {
-                      console.log(
-                        'Selected webcam:',
-                        webcam.webcamId,
-                        webcam.title
-                      );
-                    }}
-                  />
-                )}
-              </div>
-            </div>
-
-            <div className="flex flex-col h-full">
-              <h1
-                className="text-center text-gray-500 text-xl py-2"
-                style={{ fontFamily: 'Roboto, Arial, sans-serif' }}
-              >
-                Sunrises
-              </h1>
-              <div ref={sunriseContainerRef} className="flex-1">
-                {dimensions.height > 0 && (
-                  <MosaicCanvas
-                    webcams={sunriseWebcams || []}
-                    width={dimensions.width}
-                    height={dimensions.height}
-                    maxImages={canvasMaxImages}
-                    padding={canvasPadding}
-                    ratingSizeEffect={0.75}
-                    viewSizeEffect={0.1}
-                    fillScreenHeight={true}
-                    onSelect={(webcam) => {
-                      console.log(
-                        'Selected webcam:',
-                        webcam.webcamId,
-                        webcam.title
-                      );
-                    }}
-                  />
-                )}
-              </div>
+          <div className="flex flex-col h-full">
+            <div className="flex-1" style={{ position: 'relative' }}>
+              <RatingPanel variant="fullscreen" />
             </div>
           </div>
         </section>
+      );
+
+    case 'sunset-mosaic':
+      return (
+        <section className="map-container w-full h-screen">
+          <div className="flex flex-col h-full">
+            {/* <h1
+              className="text-center text-gray-500 text-xl py-2"
+              style={{ fontFamily: 'Roboto, Arial, sans-serif' }}
+            >
+              Sunsets
+            </h1> */}
+            <div ref={sunsetContainerRef} className="flex-1">
+              {sunsetDimensions.height > 0 && (
+                <MosaicCanvas
+                  webcams={sunsetWebcams || []}
+                  width={sunsetDimensions.width}
+                  height={sunsetDimensions.height}
+                  maxImages={canvasMaxImages}
+                  padding={canvasPadding}
+                  ratingSizeEffect={0.75}
+                  viewSizeEffect={0.1}
+                  fillScreenHeight={true}
+                  onSelect={(webcam) => {
+                    console.log(
+                      'Selected webcam:',
+                      webcam.webcamId,
+                      webcam.title
+                    );
+                  }}
+                />
+              )}
+            </div>
+          </div>
+        </section>
+      );
+
+    case 'sunrise-mosaic':
+      return (
+        <section className="map-container w-full h-screen">
+          <div className="flex flex-col h-full">
+            {/* <h1
+              className="text-center text-gray-500 text-xl py-2"
+              style={{ fontFamily: 'Roboto, Arial, sans-serif' }}
+            >
+              Sunrises
+            </h1> */}
+            <div ref={sunriseContainerRef} className="flex-1">
+              {sunriseDimensions.height > 0 && (
+                <MosaicCanvas
+                  webcams={sunriseWebcams || []}
+                  width={sunriseDimensions.width}
+                  height={sunriseDimensions.height}
+                  maxImages={canvasMaxImages}
+                  padding={canvasPadding}
+                  ratingSizeEffect={0.75}
+                  viewSizeEffect={0.1}
+                  fillScreenHeight={true}
+                  onSelect={(webcam) => {
+                    console.log(
+                      'Selected webcam:',
+                      webcam.webcamId,
+                      webcam.title
+                    );
+                  }}
+                />
+              )}
+            </div>
+          </div>
+        </section>
+      );
+
+    case 'swipe':
+      return <SwipeSnapshotGallery />;
+
+    case 'gallery':
+      // TODO: Implement SnapshotGallery component
+      return (
+        <div className="w-full h-screen flex items-center justify-center bg-black">
+          <p className="text-white">Gallery view coming soon...</p>
+        </div>
       );
 
     default:

@@ -1,110 +1,62 @@
-import { useEffect, useRef, useCallback } from 'react';
-//import mapboxgl  from 'mapbox-gl';
+import { useEffect, useState, RefObject } from 'react';
 
 interface UseMapInteractionPauseProps {
-  map: mapboxgl.Map | null;
-  mapReady: boolean;
-  onPause: () => void;
-  onResume: () => void;
-  pauseDelayMs?: number;
-  resumeDelayMs?: number;
+  containerRef: RefObject<HTMLDivElement | null>;
+  mode?: string; // Add mode to detect mode changes
 }
 
 export function useMapInteractionPause({
-  map,
-  mapReady,
-  onPause,
-  onResume,
-  pauseDelayMs = 0, // Immediate pause when interaction starts
-  resumeDelayMs = 10000, // Resume after 15 seconds
+  containerRef,
+  mode,
 }: UseMapInteractionPauseProps) {
-  const pauseTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const resumeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const isPausedRef = useRef(false);
+  const [hasInteracted, setHasInteracted] = useState(false);
+  const reset = () => setHasInteracted(false);
 
-  // Clear all timeouts
-  const clearAllTimeouts = useCallback(() => {
-    if (pauseTimeoutRef.current) {
-      clearTimeout(pauseTimeoutRef.current);
-      pauseTimeoutRef.current = null;
-    }
-    if (resumeTimeoutRef.current) {
-      clearTimeout(resumeTimeoutRef.current);
-      resumeTimeoutRef.current = null;
-    }
-  }, []);
-
-  // Handle map interaction start
-  const handleInteractionStart = useCallback(() => {
-    console.log(
-      '🗺️ Map interaction started - pausing cycling webcams'
-    );
-
-    // Clear any existing timeouts
-    clearAllTimeouts();
-
-    // If not already paused, pause after the specified delay
-    if (!isPausedRef.current) {
-      pauseTimeoutRef.current = setTimeout(() => {
-        onPause();
-        isPausedRef.current = true;
-
-        // Set resume timeout
-        resumeTimeoutRef.current = setTimeout(() => {
-          console.log(
-            '🔄 Resuming cycling webcams after interaction'
-          );
-          onResume();
-          isPausedRef.current = false;
-        }, resumeDelayMs);
-      }, pauseDelayMs);
-    }
-  }, [
-    onPause,
-    onResume,
-    pauseDelayMs,
-    resumeDelayMs,
-    clearAllTimeouts,
-  ]);
-
-  // Set up map event listeners
+  // Reset interaction state when mode changes
   useEffect(() => {
-    if (!map || !mapReady) return;
+    if (mode !== undefined) {
+      console.log(
+        '🔄 Mode changed, resetting interaction pause state'
+      );
+      reset();
+    }
+  }, [mode]);
 
-    // List of events that indicate user interaction
+  useEffect(() => {
+    if (!containerRef?.current) return;
+
+    const container = containerRef.current;
+
+    const handleInteraction = () => {
+      console.log('🗺️ Interaction detected - pausing auto-fly');
+      setHasInteracted(true);
+    };
+
+    // List of DOM events that indicate user interaction
     const interactionEvents = [
       'mousedown',
       'touchstart',
       'wheel',
-      //'movestart',
-      'zoomstart',
-      'rotatestart',
-      'pitchstart',
+      'pointerdown',
     ];
 
     // Add event listeners for all interaction events
     interactionEvents.forEach((event) => {
-      map.on(event, handleInteractionStart);
+      container.addEventListener(event, handleInteraction, {
+        passive: true,
+      });
     });
 
     // Cleanup function
     return () => {
-      clearAllTimeouts();
       interactionEvents.forEach((event) => {
-        map.off(event, handleInteractionStart);
+        container.removeEventListener(event, handleInteraction);
       });
     };
-  }, [map, mapReady, handleInteractionStart, clearAllTimeouts]);
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      clearAllTimeouts();
-    };
-  }, [clearAllTimeouts]);
+  }, [containerRef]);
 
   return {
-    isPaused: isPausedRef.current,
-    clearTimeouts: clearAllTimeouts,
+    isPaused: hasInteracted,
+    reset,
   };
 }

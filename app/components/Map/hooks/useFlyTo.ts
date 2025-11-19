@@ -4,38 +4,58 @@ import type { Location } from '../../../lib/types';
 export function useFlyTo(
   map: mapboxgl.Map | null,
   mapLoaded: boolean,
-  location: Location | null
+  location: Location | null,
+  isPaused: boolean = false,
+  mode?: string // Add mode to detect when switching between map/globe
 ) {
-  const hasFlownRef = useRef(false);
+  const previousLocationRef = useRef<Location | null>(null);
+  const previousModeRef = useRef<string | undefined>(undefined);
 
   useEffect(() => {
     // Only run on client side
     if (typeof window === 'undefined') return;
 
+    // If mode changed, reset previous location so it flies on mode switch
+    if (mode !== undefined && mode !== previousModeRef.current) {
+      console.log('🔄 Mode changed, resetting fly-to tracking');
+      previousLocationRef.current = null;
+      previousModeRef.current = mode;
+    }
+
     console.log('🔍 useFlyTo effect running:', {
       hasMap: !!map,
       mapLoaded,
       hasLocation: !!location,
-      hasFlownBefore: hasFlownRef.current,
+      isPaused,
+      mode,
     });
 
     if (!map || !mapLoaded || !location) {
-      console.log('⚠️ Skipping fly to - missing requirements:', {
-        hasMap: !!map,
-        mapLoaded,
-        hasLocation: !!location,
-      });
       return;
     }
 
-    // Only fly to location once (on first render)
-    if (hasFlownRef.current) {
-      console.log('🚫 Skipping fly to - already flown before');
+    // Don't fly if paused
+    if (isPaused) {
+      console.log(
+        '🚫 Skipping fly to - paused due to user interaction'
+      );
       return;
     }
 
-    console.log('🎯 Flying to location (first time):', location);
-    hasFlownRef.current = true; //have to make this true so it only runs once at load...
+    // Check if location actually changed OR if mode changed
+    const prevLocation = previousLocationRef.current;
+    const shouldFly =
+      !prevLocation ||
+      prevLocation.lat !== location.lat ||
+      prevLocation.lng !== location.lng ||
+      (mode !== undefined && mode !== previousModeRef.current);
+
+    if (!shouldFly) {
+      return; // Location hasn't changed and mode hasn't changed
+    }
+
+    console.log('🎯 Flying to location:', location);
+    previousLocationRef.current = location;
 
     // Smoothly fly to sunset location
     map.flyTo({
@@ -44,5 +64,5 @@ export function useFlyTo(
       duration: 2000,
       easing: (t) => t * (2 - t),
     });
-  }, [map, mapLoaded, location]);
+  }, [map, mapLoaded, location, isPaused, mode]); // Add mode to dependencies
 }

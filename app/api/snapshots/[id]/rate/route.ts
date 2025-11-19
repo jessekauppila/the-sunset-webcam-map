@@ -10,6 +10,10 @@ interface RateRequest {
   rating: number;
 }
 
+interface DeleteRequest {
+  userSessionId: string;
+}
+
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -101,6 +105,82 @@ export async function POST(
     });
   } catch (error) {
     console.error('Error in rate route:', error);
+    return NextResponse.json(
+      {
+        error: 'Internal server error',
+        details:
+          error instanceof Error ? error.message : 'Unknown error',
+      },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params;
+    const snapshotId = parseInt(id, 10);
+
+    if (isNaN(snapshotId)) {
+      return NextResponse.json(
+        { error: 'Invalid snapshot ID' },
+        { status: 400 }
+      );
+    }
+
+    const body = (await request.json()) as DeleteRequest;
+    const { userSessionId } = body;
+
+    // Validate userSessionId
+    if (!userSessionId || typeof userSessionId !== 'string') {
+      return NextResponse.json(
+        { error: 'User session ID required' },
+        { status: 400 }
+      );
+    }
+
+    // Delete the rating
+    await sql`
+      DELETE FROM webcam_snapshot_ratings
+      WHERE snapshot_id = ${snapshotId} 
+        AND user_session_id = ${userSessionId}
+    `;
+
+    // Recalculate average rating
+    const avgResult = await sql`
+      SELECT AVG(rating)::DECIMAL(3,2) as avg_rating
+      FROM webcam_snapshot_ratings
+      WHERE snapshot_id = ${snapshotId}
+    `;
+
+    const avgRating = avgResult[0]?.avg_rating || null;
+
+    // Update the calculated_rating in webcam_snapshots
+    await sql`
+      UPDATE webcam_snapshots
+      SET calculated_rating = ${avgRating}
+      WHERE id = ${snapshotId}
+    `;
+
+    // Get rating count
+    const countResult = await sql`
+      SELECT COUNT(*)::int as rating_count
+      FROM webcam_snapshot_ratings
+      WHERE snapshot_id = ${snapshotId}
+    `;
+
+    const ratingCount = countResult[0]?.rating_count || 0;
+
+    return NextResponse.json({
+      success: true,
+      calculatedRating: avgRating,
+      ratingCount,
+    });
+  } catch (error) {
+    console.error('Error in DELETE rating route:', error);
     return NextResponse.json(
       {
         error: 'Internal server error',

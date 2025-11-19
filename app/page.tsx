@@ -9,6 +9,7 @@ import { useMemo } from 'react';
 import { useTerminatorStore } from '@/app/store/useTerminatorStore';
 import { useAllWebcamsStore } from '@/app/store/useAllWebcamsStore';
 import { WebcamConsole } from './components/WebcamConsole';
+import { SnapshotConsole } from './components/SnapshotConsole';
 import { Tabs, Tab, Drawer, Box, IconButton } from '@mui/material';
 import {
   KeyboardArrowUp,
@@ -20,7 +21,7 @@ import type { ViewMode } from './components/MainViewContainer';
 export default function Home() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [tabValue, setTabValue] = useState(0); // Add tab state
-  const [mode, setMode] = useState<ViewMode>('globe');
+  const [mode, setMode] = useState<ViewMode>('map');
 
   // Bellingham, Washington location need to put in user's location eventually
   const userLocation = useMemo(
@@ -35,6 +36,7 @@ export default function Home() {
   useLoadAllWebcams();
 
   // Note: Snapshot archiving now handled by cron job at /api/cron/capture-snapshots
+  // Snapshot loading is now handled by SnapshotConsole component using fetchMore()
 
   //Bring in terminator webcams from Zustand Store
   const sunriseWebcams = useTerminatorStore((t) => t.sunrise);
@@ -49,7 +51,16 @@ export default function Home() {
 
         {/* Mode Toggle */}
         <MapMosaicModeToggle
-          mode={mode as 'map' | 'globe' | 'mosaic' | 'mosaic2'}
+          mode={
+            mode as
+              | 'map'
+              | 'globe'
+              | 'sunrise-mosaic'
+              | 'sunset-mosaic'
+              | 'rating'
+              | 'swipe'
+              | 'gallery'
+          }
           onModeChange={(newMode) => setMode(newMode as ViewMode)}
         />
 
@@ -112,8 +123,10 @@ export default function Home() {
                 },
               }}
             >
-              <Tab label="Current Terminator" />
-              <Tab label="All Webcams" />
+              <Tab label="Current Sunrises/Sunsets" />
+              <Tab label="Snapshot Archive" />
+              {/* <Tab label="Curated" /> */}
+              {/* <Tab label="All Webcams" /> */}
             </Tabs>
 
             {/* Tab Content */}
@@ -140,6 +153,26 @@ export default function Home() {
               )}
 
               {tabValue === 1 && (
+                // Snapshot Archive Tab
+                <Box>
+                  <SnapshotConsole
+                    mode="archive"
+                    title={'Snapshot Archive'}
+                  />
+                </Box>
+              )}
+
+              {/* {tabValue === 2 && (
+                // Curated Tab
+                <Box>
+                  <SnapshotConsole
+                    mode="curated"
+                    title={'Curated Snapshots'}
+                  />
+                </Box>
+              )} */}
+
+              {/* {tabValue === 3 && (
                 // All Webcams Tab
                 <Box>
                   <WebcamConsole
@@ -147,29 +180,11 @@ export default function Home() {
                     title={'All Webcams'}
                   />
                 </Box>
-              )}
+              )} */}
             </Box>
           </Box>
         </Drawer>
       </div>
     </main>
   );
-}
-
-//allWebcams
-
-{
-  /*
-<Box sx={{ p: 3, height: '100%', overflow: 'auto' }}>
-            {/* Webcam Display 
-            <Box sx={{ mb: 4 }}>
-              {/* <div className="canvas-container">
-              {nextLatitudeNorthSunsetWebCam && (
-                <WebcamDisplay
-                  webcam={nextLatitudeNorthSunsetWebCam}
-                />
-              )}
-            </div> 
-            </Box>
-            */
 }
