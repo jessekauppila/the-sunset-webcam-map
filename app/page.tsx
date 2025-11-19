@@ -123,10 +123,10 @@ export default function Home() {
                 },
               }}
             >
-              <Tab label="Current Terminator" />
-              <Tab label="All Webcams" />
+              <Tab label="Current Sunrises/Sunsets" />
               <Tab label="Snapshot Archive" />
-              <Tab label="Curated" />
+              {/* <Tab label="Curated" /> */}
+              {/* <Tab label="All Webcams" /> */}
             </Tabs>
 
             {/* Tab Content */}
@@ -153,16 +153,6 @@ export default function Home() {
               )}
 
               {tabValue === 1 && (
-                // All Webcams Tab
-                <Box>
-                  <WebcamConsole
-                    webcams={allWebcams || []}
-                    title={'All Webcams'}
-                  />
-                </Box>
-              )}
-
-              {tabValue === 2 && (
                 // Snapshot Archive Tab
                 <Box>
                   <SnapshotConsole
@@ -172,7 +162,7 @@ export default function Home() {
                 </Box>
               )}
 
-              {tabValue === 3 && (
+              {/* {tabValue === 2 && (
                 // Curated Tab
                 <Box>
                   <SnapshotConsole
@@ -180,7 +170,17 @@ export default function Home() {
                     title={'Curated Snapshots'}
                   />
                 </Box>
-              )}
+              )} */}
+
+              {/* {tabValue === 3 && (
+                // All Webcams Tab
+                <Box>
+                  <WebcamConsole
+                    webcams={allWebcams || []}
+                    title={'All Webcams'}
+                  />
+                </Box>
+              )} */}
             </Box>
           </Box>
         </Drawer>
