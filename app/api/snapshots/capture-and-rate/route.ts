@@ -33,7 +33,9 @@ function parseJSONField<T>(value: unknown): T | null {
   return value as T;
 }
 
-function mapDatabaseRowToWebcam(row: Record<string, unknown>): WindyWebcam {
+function mapDatabaseRowToWebcam(
+  row: Record<string, unknown>
+): WindyWebcam {
   return {
     webcamId: Number(row.id),
     title: (row.title as string) || 'Unknown',
@@ -67,15 +69,14 @@ async function findOrCreateSnapshot(
   payload: CaptureAndRatePayload,
   webcam: WindyWebcam
 ): Promise<{ snapshot: SnapshotRow; alreadyExisted: boolean }> {
-  const [existing] = await sql<SnapshotRow[]>`
+  const [existing] = (await sql`
     SELECT id, firebase_url, firebase_path, captured_at
     FROM webcam_snapshots
     WHERE webcam_id = ${payload.webcamId}
-      AND phase = ${payload.phase}
       AND captured_at >= NOW() - INTERVAL '30 minutes'
     ORDER BY captured_at DESC
     LIMIT 1
-  `;
+  `) as SnapshotRow[];
 
   if (existing) {
     return { snapshot: existing, alreadyExisted: true };
@@ -87,7 +88,7 @@ async function findOrCreateSnapshot(
     throw new Error('Unable to capture webcam image');
   }
 
-  const [inserted] = await sql<SnapshotRow[]>`
+  const [inserted] = (await sql`
     INSERT INTO webcam_snapshots (
       webcam_id,
       phase,
@@ -107,7 +108,7 @@ async function findOrCreateSnapshot(
       NOW()
     )
     RETURNING id, firebase_url, firebase_path, captured_at
-  `;
+  `) as SnapshotRow[];
 
   return {
     snapshot: inserted,
@@ -130,17 +131,17 @@ async function upsertRating(
     DO UPDATE SET rating = ${payload.rating}, created_at = NOW()
   `;
 
-  const [avgResult] = await sql<{ avg_rating: number | null }[]>`
+  const [avgResult] = (await sql`
     SELECT AVG(rating)::DECIMAL(3,2) AS avg_rating
     FROM webcam_snapshot_ratings
     WHERE snapshot_id = ${snapshotId}
-  `;
+  `) as { avg_rating: number | null }[];
 
-  const [countResult] = await sql<{ rating_count: number }[]>`
+  const [countResult] = (await sql`
     SELECT COUNT(*)::int AS rating_count
     FROM webcam_snapshot_ratings
     WHERE snapshot_id = ${snapshotId}
-  `;
+  `) as { rating_count: number }[];
 
   await sql`
     UPDATE webcam_snapshots
@@ -177,7 +178,11 @@ export async function POST(request: Request) {
       );
     }
 
-    if (body.rating === null || body.rating === undefined || body.rating === 0) {
+    if (
+      body.rating === null ||
+      body.rating === undefined ||
+      body.rating === 0
+    ) {
       return NextResponse.json(
         { error: 'rating is required and must be between 1 and 5' },
         { status: 400 }
@@ -196,14 +201,17 @@ export async function POST(request: Request) {
       );
     }
 
-    if (!body.userSessionId || typeof body.userSessionId !== 'string') {
+    if (
+      !body.userSessionId ||
+      typeof body.userSessionId !== 'string'
+    ) {
       return NextResponse.json(
         { error: 'userSessionId is required' },
         { status: 400 }
       );
     }
 
-    const [webcamRow] = await sql<Record<string, unknown>[]>`
+    const [webcamRow] = (await sql`
       SELECT 
         w.*,
         s.phase,
@@ -213,7 +221,7 @@ export async function POST(request: Request) {
         ON s.webcam_id = w.id
       WHERE w.id = ${body.webcamId}
       LIMIT 1
-    `;
+    `) as Record<string, unknown>[];
 
     if (!webcamRow) {
       return NextResponse.json(
@@ -248,11 +256,10 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         error: 'Internal server error',
-        details: error instanceof Error ? error.message : 'Unknown error',
+        details:
+          error instanceof Error ? error.message : 'Unknown error',
       },
       { status: 500 }
     );
   }
 }
-
-

@@ -23,6 +23,7 @@ type MarkerEntry = {
 type UseSetWebcamMarkersOptions = {
   activeWebcamId?: number | null;
   onAdvance?: () => void;
+  onPopupStateChange?: (isOpen: boolean) => void;
 };
 
 type FeedbackTone = RateResult['tone'];
@@ -180,6 +181,7 @@ export function useSetWebcamMarkers(
     options
   );
   const pendingAutoOpenRef = useRef(false);
+  const openPopupCountRef = useRef(0);
 
   useEffect(() => {
     optionsRef.current = options;
@@ -190,6 +192,13 @@ export function useSetWebcamMarkers(
     if (!map || !mapLoaded) return;
 
     let cancelled = false;
+
+    const updatePopupState = () => {
+      const entryOptions = optionsRef.current;
+      entryOptions?.onPopupStateChange?.(
+        openPopupCountRef.current > 0
+      );
+    };
 
     import('mapbox-gl').then((mapboxgl) => {
       if (cancelled) return;
@@ -254,6 +263,20 @@ export function useSetWebcamMarkers(
           closeButton: true,
         }).setDOMContent(popupContainer);
 
+        // Track popup open/close events
+        popup.on('open', () => {
+          openPopupCountRef.current++;
+          updatePopupState();
+        });
+
+        popup.on('close', () => {
+          openPopupCountRef.current = Math.max(
+            0,
+            openPopupCountRef.current - 1
+          );
+          updatePopupState();
+        });
+
         const marker = new mapboxgl.default.Marker(markerElement)
           .setLngLat([
             webcam.location.longitude,
@@ -272,7 +295,18 @@ export function useSetWebcamMarkers(
           latestRating: webcam.rating ?? null,
           render: () => {},
           cleanup: () => {
-            root.unmount();
+            // If this popup was open, decrement count
+            if (popup.isOpen()) {
+              openPopupCountRef.current = Math.max(
+                0,
+                openPopupCountRef.current - 1
+              );
+              updatePopupState();
+            }
+            // Defer unmount to avoid React render cycle conflicts
+            setTimeout(() => {
+              root.unmount();
+            }, 0);
             popup.remove();
             marker.remove();
           },
@@ -325,8 +359,8 @@ export function useSetWebcamMarkers(
   }, [map, mapLoaded, options?.activeWebcamId]);
 
   useEffect(() => {
+    const markers = markersRef.current;
     return () => {
-      const markers = markersRef.current;
       markers.forEach((entry) => entry.cleanup());
       markers.clear();
     };

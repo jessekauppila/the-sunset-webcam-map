@@ -56,19 +56,23 @@ body {
 
 /* Mapbox popup close button styling */
 .mapboxgl-popup-close-button {
-  color: #9e9e9e !important; /* Light gray color for dark background */
-  font-size: 10px !important;
+  color: #6b7280 !important; /* Gray color for light background */
+  font-size: 18px !important;
   font-weight: bold !important;
-  opacity: 0.8 !important;
+  opacity: 0.7 !important;
   transition: opacity 0.2s ease !important;
-  top: -8px !important; /* Move closer to top */
-  right: 1px !important; /* Move closer to right corner */
-  padding: 1px !important; /* Reduce padding for tighter positioning */
+  top: 4px !important; /* Position on top of card */
+  right: 4px !important; /* Position on top of card */
+  padding: 4px !important;
+  width: 24px !important;
+  height: 24px !important;
+  line-height: 24px !important;
+  text-align: center !important;
 }
 
 .mapboxgl-popup-close-button:hover {
   opacity: 1 !important;
-  color: #5b5b5b !important; /* Even lighter on hover */
+  color: #374151 !important; /* Darker on hover */
 }
 
 /* Mode toggle buttons */

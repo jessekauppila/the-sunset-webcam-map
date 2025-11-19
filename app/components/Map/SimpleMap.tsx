@@ -62,6 +62,7 @@ export default function SimpleMap({
     currentWebcamLocation: nextLatitudeNorthSunsetLocation,
     next: goToNextWebcam,
     resume: resumeWebcamCycling,
+    pause: pauseWebcamCycling,
   } = useCyclingWebcams(allTerminatorWebcams, {
     startIndex: 0,
     intervalMs: 3000,
@@ -106,6 +107,13 @@ export default function SimpleMap({
             resetInteractionPause();
             resumeWebcamCycling();
             goToNextWebcam();
+          },
+          onPopupStateChange: (isOpen: boolean) => {
+            if (isOpen) {
+              pauseWebcamCycling();
+            } else {
+              resumeWebcamCycling();
+            }
           },
         }
       : undefined

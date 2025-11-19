@@ -30,11 +30,6 @@ function inferLocation(webcam: WindyWebcam) {
   return parts.length > 0 ? parts.join(', ') : null;
 }
 
-const phaseLabels: Record<string, string> = {
-  sunrise: 'Sunrise',
-  sunset: 'Sunset',
-};
-
 export function RatingCard({
   webcam,
   initialRating = null,
@@ -53,9 +48,30 @@ export function RatingCard({
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const locationLabel = useMemo(() => inferLocation(webcam), [webcam]);
-  const phaseLabel =
-    (webcam.phase && phaseLabels[webcam.phase]) || 'Sunset Moment';
+  const locationLabel = useMemo(
+    () => inferLocation(webcam),
+    [webcam]
+  );
+  const rateText =
+    webcam.phase === 'sunrise'
+      ? 'Rate this sunrise'
+      : 'Rate this sunset';
+
+  // Format location label with bold first part (webcam title)
+  const formattedLocation = useMemo(() => {
+    if (!locationLabel) return null;
+    if (!webcam.title) return locationLabel;
+
+    // Check if location starts with webcam title (handle with or without comma/space)
+    const titleTrimmed = webcam.title.trim();
+    if (locationLabel.startsWith(titleTrimmed)) {
+      const rest = locationLabel.slice(titleTrimmed.length);
+      return { bold: titleTrimmed, rest };
+    }
+
+    // Fallback: just return the location as-is
+    return locationLabel;
+  }, [locationLabel, webcam.title]);
 
   useEffect(() => {
     if (typeof initialRating === 'number') {
@@ -86,7 +102,9 @@ export function RatingCard({
       }
     } catch (err) {
       const message =
-        err instanceof Error ? err.message : 'Failed to submit rating';
+        err instanceof Error
+          ? err.message
+          : 'Failed to submit rating';
       setError(message);
     } finally {
       setSubmitting(false);
@@ -95,55 +113,55 @@ export function RatingCard({
 
   const feedbackToneClass =
     feedback?.tone === 'positive'
-      ? 'bg-emerald-500/15 text-emerald-200 border-emerald-400/30'
+      ? 'bg-emerald-100 text-emerald-700 border-emerald-300'
       : feedback?.tone === 'negative'
-      ? 'bg-red-500/15 text-red-200 border-red-400/30'
-      : 'bg-slate-700/40 text-slate-200 border-slate-600/40';
+      ? 'bg-red-100 text-red-700 border-red-300'
+      : 'bg-gray-300 text-gray-700 border-gray-400';
 
   return (
     <div
-      className={`webcam-rating-card w-64 max-w-xs rounded-xl bg-slate-900/95 text-slate-100 shadow-xl border border-slate-700/60 overflow-hidden ${className}`}
+      className={`webcam-rating-card w-64 max-w-xs rounded-md bg-gray-200 text-gray-800 shadow-xl border border-gray-300 overflow-hidden relative ${className}`}
     >
-      <div className="relative">
+      <div className="px-3 pt-3">
         {webcam.images?.current?.preview ? (
           <img
             src={webcam.images.current.preview}
             alt={webcam.title}
-            className="h-40 w-full object-cover"
+            className="h-32 w-full object-cover rounded"
             loading="lazy"
           />
         ) : (
-          <div className="h-40 w-full bg-gradient-to-br from-amber-500 to-rose-500 flex items-center justify-center text-4xl">
+          <div className="h-32 w-full bg-gradient-to-br from-amber-500 to-rose-500 flex items-center justify-center text-4xl rounded">
             🌅
           </div>
         )}
-
-        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/75 to-transparent px-4 py-3">
-          <p className="text-xs uppercase tracking-wide text-amber-200/80">
-            {phaseLabel}
-          </p>
-          <h3 className="text-sm font-semibold leading-tight text-white">
-            {webcam.title}
-          </h3>
-        </div>
       </div>
 
-      <div className="space-y-3 px-4 py-4">
+      <div className="space-y-3 px-4 pt-5 pb-4">
         {heading ? (
-          <p className="text-xs uppercase tracking-wide text-slate-400">
+          <p className="text-xs uppercase tracking-wide text-gray-500">
             {heading}
           </p>
         ) : null}
 
-        {locationLabel ? (
-          <p className="text-sm text-slate-300 leading-tight">
-            {locationLabel}
+        {formattedLocation ? (
+          <p className="text-sm text-gray-600 leading-tight">
+            {typeof formattedLocation === 'string' ? (
+              formattedLocation
+            ) : (
+              <>
+                <span className="font-semibold text-gray-700">
+                  {formattedLocation.bold}
+                </span>
+                {formattedLocation.rest}
+              </>
+            )}
           </p>
         ) : null}
 
         <div className="flex flex-col items-start gap-1">
-          <p className="text-xs text-slate-400 uppercase tracking-wide">
-            Rate this moment
+          <p className="text-xs text-gray-500 uppercase tracking-wide">
+            {rateText}
           </p>
           <StarRating
             rating={currentRating}
@@ -154,7 +172,9 @@ export function RatingCard({
             className={submitting ? 'opacity-75' : ''}
           />
           {submitting ? (
-            <p className="text-xs text-slate-400">Saving your rating…</p>
+            <p className="text-xs text-gray-500">
+              Saving your rating…
+            </p>
           ) : null}
         </div>
 
@@ -167,7 +187,7 @@ export function RatingCard({
         ) : null}
 
         {error ? (
-          <div className="rounded-lg border border-red-500/40 bg-red-600/15 px-3 py-2 text-xs text-red-200">
+          <div className="rounded-lg border border-red-400 bg-red-100 px-3 py-2 text-xs text-red-700">
             {error}
           </div>
         ) : null}
@@ -177,4 +197,3 @@ export function RatingCard({
 }
 
 export default RatingCard;
-
