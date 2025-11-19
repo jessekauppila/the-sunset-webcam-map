@@ -188,21 +188,3 @@ export default function Home() {
     </main>
   );
 }
-
-//allWebcams
-
-{
-  /*
-<Box sx={{ p: 3, height: '100%', overflow: 'auto' }}>
-            {/* Webcam Display 
-            <Box sx={{ mb: 4 }}>
-              {/* <div className="canvas-container">
-              {nextLatitudeNorthSunsetWebCam && (
-                <WebcamDisplay
-                  webcam={nextLatitudeNorthSunsetWebCam}
-                />
-              )}
-            </div> 
-            </Box>
-            */
-}

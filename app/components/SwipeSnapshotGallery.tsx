@@ -12,22 +12,27 @@ import {
 } from '@mui/material';
 
 export function SwipeSnapshotGallery() {
+  const [viewMode, setViewMode] = useState<'unrated' | 'curated'>('unrated');
   const {
-    snapshots,
-    viewMode,
-    setViewMode,
-    fetchSnapshots,
+    archive,
+    curated,
+    fetchMore,
     setRating,
-    undoLastRating,
-    actionHistory,
+    loading,
   } = useSnapshotStore();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isAnimating, setIsAnimating] = useState(false);
 
+  // Get snapshots based on current mode
+  const snapshots = viewMode === 'curated' ? curated : archive;
+
   // Fetch snapshots on mount or when view mode changes
   useEffect(() => {
-    fetchSnapshots();
-  }, [fetchSnapshots]);
+    const mode = viewMode === 'curated' ? 'curated' : 'archive';
+    if (snapshots.length === 0) {
+      fetchMore(mode);
+    }
+  }, [viewMode, fetchMore, snapshots.length]);
 
   // Handle mode toggle
   const handleModeChange = useCallback(
@@ -35,7 +40,7 @@ export function SwipeSnapshotGallery() {
       setViewMode(newMode);
       setCurrentIndex(0); // Reset to first card
     },
-    [setViewMode]
+    []
   );
 
   // Get current snapshot
@@ -81,26 +86,11 @@ export function SwipeSnapshotGallery() {
     setCurrentIndex((prev) => prev + 1);
   }, [currentSnapshot, isAnimating]);
 
-  const handleUndo = useCallback(async () => {
-    if (!actionHistory.length || isAnimating) return;
-    setIsAnimating(true);
-
-    try {
-      await undoLastRating();
-      if (currentIndex > 0) {
-        setCurrentIndex((prev) => prev - 1);
-      }
-      setIsAnimating(false);
-    } catch (error) {
-      console.error('Failed to undo rating:', error);
-      setIsAnimating(false);
-    }
-  }, [
-    actionHistory.length,
-    isAnimating,
-    undoLastRating,
-    currentIndex,
-  ]);
+  const handleUndo = useCallback(() => {
+    // Undo functionality not available in current store implementation
+    // Could be implemented later if needed
+    console.warn('Undo functionality not available');
+  }, []);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -116,10 +106,8 @@ export function SwipeSnapshotGallery() {
       } else if (e.key === ' ' || e.key === 'ArrowDown') {
         e.preventDefault();
         handleSkip();
-      } else if (e.key === 'z' && (e.metaKey || e.ctrlKey)) {
-        e.preventDefault();
-        handleUndo();
       }
+      // Undo disabled - functionality not available in current store
     };
 
     window.addEventListener('keydown', handleKeyPress);
@@ -130,7 +118,6 @@ export function SwipeSnapshotGallery() {
     handleLike,
     handleDislike,
     handleSkip,
-    handleUndo,
   ]);
 
   // Calculate stats - show progress through loaded snapshots
@@ -142,7 +129,7 @@ export function SwipeSnapshotGallery() {
   const remainingCount = Math.max(0, totalLoaded - ratedByUser);
 
   // Loading state
-  if (!snapshots || snapshots.length === 0) {
+  if (loading || (!snapshots || snapshots.length === 0)) {
     return (
       <Box
         sx={{
@@ -315,7 +302,7 @@ export function SwipeSnapshotGallery() {
         onDislike={handleDislike}
         onSkip={handleSkip}
         onUndo={handleUndo}
-        canUndo={actionHistory.length > 0}
+        canUndo={false}
         ratedCount={ratedByUser}
         unratedCount={remainingCount}
       />

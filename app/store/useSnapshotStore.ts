@@ -65,7 +65,6 @@ const loadCuratedSeen = (): Set<number> => {
   }
   return new Set();
 };
->>>>>>> Dev_All_Tabs
 
 // Save curatedSeen to sessionStorage
 const saveCuratedSeen = (seen: Set<number>) => {

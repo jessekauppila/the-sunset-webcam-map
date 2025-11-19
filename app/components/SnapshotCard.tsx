@@ -1,7 +1,12 @@
 'use client';
 
 import Image from 'next/image';
-import { motion, useMotionValue, useTransform } from 'framer-motion';
+import {
+  motion,
+  useMotionValue,
+  useTransform,
+  type PanInfo,
+} from 'framer-motion';
 import type { Snapshot } from '@/app/lib/types';
 
 interface SnapshotCardProps {
@@ -25,7 +30,10 @@ export function SnapshotCard({
   const likeOpacity = useTransform(x, [0, 100], [0, 1]);
   const dislikeOpacity = useTransform(x, [-100, 0], [1, 0]);
 
-  const handleDragEnd = (_e: any, info: any) => {
+  const handleDragEnd = (
+    _e: PointerEvent | TouchEvent | MouseEvent,
+    info: PanInfo
+  ) => {
     // Threshold for swipe action
     if (info.offset.x > 100) {
       onSwipe('like');
