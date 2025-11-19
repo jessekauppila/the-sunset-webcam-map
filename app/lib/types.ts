@@ -35,12 +35,12 @@ export interface WindyWebcam {
     };
   };
   location: {
-    city: string;
-    region: string;
+    city?: string;
+    region?: string;
     longitude: number;
     latitude: number;
-    country: string;
-    continent: string;
+    country?: string;
+    continent?: string;
   };
   categories: Array<{
     id: string;

@@ -53,7 +53,7 @@ app/
 
 ## Terminator Ring Layer
 
-useSetWebCamMarkers: "const INITIAL_IMMEDIATE_BATCHES = 17; // or pass this in from caller later"
+useSetWebCam s: "const INITIAL_IMMEDIATE_BATCHES = 17; // or pass this in from caller later"
 
 - needs to be adjust for greater terminator ring fidelity down the road.
 

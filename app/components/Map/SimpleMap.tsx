@@ -1,22 +1,17 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {} from '@mui/icons-material';
 import { useMap } from './hooks/useMap';
 import { useFlyTo } from './hooks/useFlyTo';
 import { useSetMarker } from './hooks/useSetMarker';
 import { useSetWebcamMarkers } from './hooks/useSetWebcamMarkers';
-// import { WebcamDisplay } from '../WebcamDisplay';
 import { useUpdateTerminatorRing } from './hooks/useUpdateTerminatorRing';
 import { useMapInteractionPause } from './hooks/useMapInteractionPause';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import type { Location } from '../../lib/types';
-//import { useWebcamFetchArray } from '../hooks/useWebCamFetchArray';
-//import { useClosestWebcams } from './hooks/useClosestWebcams';
 import { useCyclingWebcams } from './hooks/useCyclingWebcams';
-// import { useCombineSunriseSunsetWebcams } from './hooks/useCombinedSunriseSunsetWebcams';
 import dynamic from 'next/dynamic';
-
 const GlobeMap = dynamic(() => import('./GlobeMap'), {
   ssr: false, // Disable server-side rendering for Deck.gl
   loading: () => <div>Loading 3D Globe...</div>,
@@ -41,6 +36,9 @@ export default function SimpleMap({
     mode === 'map'
   );
 
+  // Create a shared container ref for interaction detection
+  const interactionContainerRef = useRef<HTMLDivElement>(null);
+
   //this used to call the api, but now is just used for updating the terminator ring visuals...
   useEffect(() => {
     const id = setInterval(() => setCurrentTime(new Date()), 60_000);
@@ -62,24 +60,27 @@ export default function SimpleMap({
   const {
     currentWebcam: nextLatitudeNorthSunsetWebCam,
     currentWebcamLocation: nextLatitudeNorthSunsetLocation,
-    pause,
-    resume,
+    next: goToNextWebcam,
+    resume: resumeWebcamCycling,
+    pause: pauseWebcamCycling,
   } = useCyclingWebcams(allTerminatorWebcams, {
-    startIndex: 0, // index
+    startIndex: 0,
     intervalMs: 3000,
     autoStart: true,
   });
 
-  // Add map interaction pause functionality
-  // this isn't working as expected...
-  const { isPaused } = useMapInteractionPause({
-    map,
-    mapReady: mapReady && mode === 'map',
-    onPause: pause,
-    onResume: resume,
-    pauseDelayMs: 0, // Immediate pause when interaction starts
-    resumeDelayMs: 10000, // Resume after 15 seconds
-  });
+  // Track if user has interacted with the map (works for both mapbox and globe)
+  const { isPaused, reset: resetInteractionPause } =
+    useMapInteractionPause({
+      containerRef: interactionContainerRef,
+      mode, // Pass mode so pause state resets on mode change
+    });
+
+  console.log(
+    `🎮 Auto-fly ${
+      isPaused ? 'paused' : 'running'
+    } due to user interaction`
+  );
 
   console.log(
     `🎮 Cycling webcams ${
@@ -97,20 +98,42 @@ export default function SimpleMap({
   useSetWebcamMarkers(
     map,
     mapLoaded,
-    mode === 'map' ? allTerminatorWebcams : []
+    mode === 'map' ? allTerminatorWebcams : [],
+    mode === 'map'
+      ? {
+          activeWebcamId:
+            nextLatitudeNorthSunsetWebCam?.webcamId ?? null,
+          onAdvance: () => {
+            resetInteractionPause();
+            resumeWebcamCycling();
+            goToNextWebcam();
+          },
+          onPopupStateChange: (isOpen: boolean) => {
+            if (isOpen) {
+              pauseWebcamCycling();
+            } else {
+              resumeWebcamCycling();
+            }
+          },
+        }
+      : undefined
   );
 
   useFlyTo(
     map,
     mapLoaded,
-    mode === 'map' ? nextLatitudeNorthSunsetLocation ?? null : null
+    mode === 'map' ? nextLatitudeNorthSunsetLocation ?? null : null,
+    isPaused,
+    mode // Pass mode so it can detect mode changes
   );
 
   return (
     <div>
       {/* First Section - Full Screen Map */}
       <section className="map-container w-full h-screen">
-        <div className="w-full h-full">
+        <div ref={interactionContainerRef} className="w-full h-full">
+          {' '}
+          {/* Add ref here */}
           {mode === 'map' ? (
             <div
               ref={mapContainer}
@@ -144,10 +167,11 @@ export default function SimpleMap({
                       }
                     : null
                 }
+                isPaused={isPaused}
+                mode={mode}
               />
             </div>
           )}
-
           {/* Loading Overlay */}
           {mode === 'map' && !mapLoaded && (
             <div
