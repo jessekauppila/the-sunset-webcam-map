@@ -103,24 +103,19 @@ export async function GET(req: Request) {
 
   const now = new Date();
   const { raHours, gmstHours } = subsolarPoint(now);
+  
+  // Use 4° precision instead of 2° + midpoints
+  // This gives us 90 points instead of 360, reducing API calls by 75%
+  const precisionDeg = 4;
   const { sunriseCoords, sunsetCoords } = createTerminatorRing(
     now,
     raHours,
-    gmstHours
+    gmstHours,
+    precisionDeg
   );
 
-  const coords: Location[] = [...sunriseCoords, ...sunsetCoords];
-  // Keep midpoint sampling to improve recall
-  const additional: Location[] = [];
-  for (let i = 0; i < coords.length; i++) {
-    const a = coords[i];
-    const b = coords[(i + 1) % coords.length];
-    additional.push({
-      lat: (a.lat + b.lat) / 2,
-      lng: (a.lng + b.lng) / 2,
-    });
-  }
-  const allCoords = [...coords, ...additional];
+  // No midpoint sampling - precision is controlled directly via precisionDeg parameter
+  const allCoords = [...sunriseCoords, ...sunsetCoords];
 
   console.log(`🔍 Total coordinates to search: ${allCoords.length}`);
   console.log(`🔍 First few coordinates:`, allCoords.slice(0, 3));

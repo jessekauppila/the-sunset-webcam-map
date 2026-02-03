@@ -105,16 +105,21 @@ export async function GET(req: Request) {
 
   const now = new Date();
   const { raHours, gmstHours } = subsolarPoint(now);
+  
+  // Use 4° precision instead of 2° + midpoints
+  // This gives us 90 points instead of 360, reducing API calls by 75%
+  const precisionDeg = 4;
   const { sunriseCoords, sunsetCoords } = createTerminatorRing(
     now,
     raHours,
-    gmstHours
+    gmstHours,
+    precisionDeg
   );
 
   // Analyze coverage efficiency
-  const coverage = analyzeCoverage(2, 5); // 2° precision, 5° search radius
+  const coverage = analyzeCoverage(precisionDeg, 5); // 4° precision, 5° search radius
   console.log('📊 Coverage Analysis:', {
-    precision: '2°',
+    precision: `${precisionDeg}°`,
     terminatorPoints: coverage.pointsAroundGlobe,
     distanceBetweenPoints: `${coverage.distanceBetweenPointsKm} km`,
     searchRadius: `${coverage.searchRadiusKm} km`,
@@ -132,25 +137,9 @@ export async function GET(req: Request) {
   });
 
   // Fetch webcams at coords; de-dup by provider id
-  const coords = [...sunriseCoords, ...sunsetCoords];
-  console.log(`🌐 Terminator coordinates: ${coords.length}`);
-
-  // Add midpoint sampling for extra coverage (catches webcams between terminator points)
-  const additionalCoords: Location[] = [];
-  for (let i = 0; i < coords.length; i++) {
-    const current = coords[i];
-    const next = coords[(i + 1) % coords.length];
-
-    // Add midpoint between consecutive terminator points for denser coverage
-    const midLat = (current.lat + next.lat) / 2;
-    const midLng = (current.lng + next.lng) / 2;
-    additionalCoords.push({ lat: midLat, lng: midLng });
-  }
-
-  const allCoords = [...coords, ...additionalCoords];
-  console.log(
-    `🌐 Total coordinates (with midpoint sampling): ${allCoords.length}`
-  );
+  // No midpoint sampling - precision is controlled directly via precisionDeg parameter
+  const allCoords = [...sunriseCoords, ...sunsetCoords];
+  console.log(`🌐 Total terminator coordinates: ${allCoords.length}`);
 
   // Rate limit the requests to avoid API throttling
   const batches: WindyWebcam[][] = [];

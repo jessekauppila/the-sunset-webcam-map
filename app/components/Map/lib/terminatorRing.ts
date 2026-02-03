@@ -38,7 +38,8 @@ export function terminatorPolygon(
 export function createTerminatorRing(
   date: Date,
   RA: number,
-  GMST: number
+  GMST: number,
+  precisionDeg: number = 2
 ): {
   sunriseCoords: Location[];
   sunsetCoords: Location[];
@@ -48,7 +49,7 @@ export function createTerminatorRing(
   entireTerminatorRing: Feature<LineString>;
 } {
   //const { raHours: RA, gmstHours: GMST } = subsolarPoint(date);
-  const ring = terminatorPolygon(date).coordinates[0]; // [ [lon,lat], ... , first point repeats ]
+  const ring = terminatorPolygon(date, precisionDeg).coordinates[0]; // [ [lon,lat], ... , first point repeats ]
 
   // We’ll traverse segments and allocate them into sunrise/sunset by HA sign.
   const sunriseCoords: Location[] = [];

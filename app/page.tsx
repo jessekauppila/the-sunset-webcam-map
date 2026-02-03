@@ -7,7 +7,7 @@ import { useLoadAllWebcams } from '@/app/store/useLoadAllWebcams';
 
 import { useMemo } from 'react';
 import { useTerminatorStore } from '@/app/store/useTerminatorStore';
-import { useAllWebcamsStore } from '@/app/store/useAllWebcamsStore';
+//import { useAllWebcamsStore } from '@/app/store/useAllWebcamsStore';
 import { WebcamConsole } from './components/WebcamConsole';
 import { SnapshotConsole } from './components/SnapshotConsole';
 import { Tabs, Tab, Drawer, Box, IconButton } from '@mui/material';
@@ -41,7 +41,7 @@ export default function Home() {
   //Bring in terminator webcams from Zustand Store
   const sunriseWebcams = useTerminatorStore((t) => t.sunrise);
   const sunsetWebcams = useTerminatorStore((t) => t.sunset);
-  const allWebcams = useAllWebcamsStore((t) => t.allWebcams);
+  //const allWebcams = useAllWebcamsStore((t) => t.allWebcams);
 
   return (
     <main className="relative w-full">
