@@ -90,8 +90,8 @@ export function makeTerminatorLayers(opts: {
         filled: true,
         lineWidthMinPixels: 1,
         lineWidthMaxPixels: 2,
-        getLineColor: [100, 150, 255, 150], // Semi-transparent blue outline
-        getFillColor: [100, 150, 255, 30], // Very transparent blue fill
+        getLineColor: [100, 150, 255, 255], // Fully opaque blue outline (was 150 - too transparent)
+        getFillColor: [100, 150, 255, 80], // More visible blue fill (was 30 - too transparent)
         pickable: false,
         updateTriggers: {
           getLineColor: [showSearchRadius, searchRadiusDegrees],
@@ -121,12 +121,19 @@ export function makeTerminatorLayers(opts: {
         filled: true,
         pointRadiusMinPixels: 3,
         pointRadiusMaxPixels: 5,
-        getFillColor: [255, 100, 100, 200], // Red points
+        getFillColor: [255, 0, 0, 255], // Bright red points (fully opaque)
         pickable: false,
       })
     );
   }
 
   console.log('🎯 Created', layers.length, 'GeoJsonLayers');
+  if (showSearchRadius) {
+    console.log('🔍 Search radius visualization enabled:', {
+      terminatorPoints: terminatorPoints.length,
+      searchRadiusDegrees,
+      layersCreated: layers.length,
+    });
+  }
   return layers;
 }

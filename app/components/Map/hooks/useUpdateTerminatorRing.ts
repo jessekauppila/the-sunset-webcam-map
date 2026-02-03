@@ -84,12 +84,16 @@ export function useUpdateTerminatorRing(
     }
 
     if (!overlayRef.current) {
+      console.log('🎨 Creating MapboxOverlay with', sunSetRiseRingLineLayer.length, 'layers');
       overlayRef.current = new MapboxOverlay({
-        interleaved: true,
+        interleaved: false, // false = render on top of all map layers (better for visibility)
+        // interleaved: true, // true = render between map layers (may be hidden)
         layers: sunSetRiseRingLineLayer,
       });
       map.addControl(overlayRef.current);
+      console.log('✅ MapboxOverlay added to map');
     } else {
+      console.log('🔄 Updating MapboxOverlay with', sunSetRiseRingLineLayer.length, 'layers');
       overlayRef.current.setProps({
         layers: sunSetRiseRingLineLayer,
       });

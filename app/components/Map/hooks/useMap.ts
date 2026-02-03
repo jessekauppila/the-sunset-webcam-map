@@ -79,7 +79,16 @@ export function useMap(
 
     map.current = new mapboxgl.Map({
       container: mapContainer.current,
-      style: 'mapbox://styles/mapbox/dark-v11',
+
+      //style: 'mapbox://styles/mapbox/dark-v11',
+      //this is the older dark version that was fantastic...!
+
+      
+      // Use dark style - terminator visualization should be visible on top
+      // To see ONLY the terminator visualization, you can set map opacity via CSS
+      style: 'mapbox://styles/mapbox/dark-v11', // Normal dark map
+      // Alternative: Use a very minimal style (may cause errors if not properly formatted)
+      // style: { version: 8, sources: {}, layers: [] } as mapboxgl.Style,
       center: initialCenterRef.current, // ← Use the ref instead
       zoom: 6,
     });

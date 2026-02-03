@@ -145,6 +145,9 @@ export default function SimpleMap({
               style={{
                 position: 'relative',
                 zIndex: 1,
+                // Make map semi-transparent to see terminator visualization better
+                // Remove this style to restore full opacity
+                opacity: 1, // 30% opacity - adjust as needed (0.0 = invisible, 1.0 = fully opaque)
               }}
             />
           ) : (
