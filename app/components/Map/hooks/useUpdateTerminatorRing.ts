@@ -9,10 +9,18 @@ export function useUpdateTerminatorRing(
   map: mapboxgl.Map | null,
   mapLoaded: boolean,
   currentTime: Date,
-  options?: { attachToMap?: boolean }
+  options?: {
+    attachToMap?: boolean;
+    showSearchRadius?: boolean;
+    precisionDeg?: number; // Use same precision as cron job (default: 4°)
+    searchRadiusDegrees?: number; // Search radius used in API calls (default: 5°)
+  }
 ) {
   const overlayRef = useRef<MapboxOverlay | null>(null);
   const attachToMap = options?.attachToMap ?? true;
+  const showSearchRadius = options?.showSearchRadius ?? false;
+  const precisionDeg = options?.precisionDeg ?? 4; // Match cron job precision
+  const searchRadiusDegrees = options?.searchRadiusDegrees ?? 5; // Match cron job search radius
 
   const { lat, lng, raHours, gmstHours } = useMemo(() => {
     return subsolarPoint(currentTime);
@@ -24,6 +32,7 @@ export function useUpdateTerminatorRing(
     return createTerminatorRingHiRes(currentTime);
   }, [currentTime]);
 
+  // Use the same precision as the cron job for accurate visualization
   const {
     sunriseCoords,
     sunsetCoords,
@@ -32,8 +41,8 @@ export function useUpdateTerminatorRing(
     sunset,
     entireTerminatorRing,
   } = useMemo(() => {
-    return createTerminatorRing(currentTime, raHours, gmstHours);
-  }, [currentTime, raHours, gmstHours]);
+    return createTerminatorRing(currentTime, raHours, gmstHours, precisionDeg);
+  }, [currentTime, raHours, gmstHours, precisionDeg]);
 
   // Memoize the coordinate arrays to prevent unnecessary re-renders
 
@@ -46,11 +55,19 @@ export function useUpdateTerminatorRing(
     [sunsetCoords]
   );
 
+  // Combine sunrise and sunset coords to get all terminator points used for API queries
+  const allTerminatorPoints = useMemo(() => {
+    return [...sunriseCoords, ...sunsetCoords];
+  }, [sunriseCoords, sunsetCoords]);
+
   const sunSetRiseRingLineLayer = makeTerminatorLayers({
     sunrise,
     sunset,
     entireTerminatorRing,
     entireHiResTerminatorRing,
+    showSearchRadius,
+    searchRadiusDegrees,
+    terminatorPoints: allTerminatorPoints,
   });
 
   // Move overlay management here
@@ -86,7 +103,13 @@ export function useUpdateTerminatorRing(
         overlayRef.current = null;
       }
     };
-  }, [map, mapLoaded, attachToMap, sunSetRiseRingLineLayer]);
+  }, [
+    map,
+    mapLoaded,
+    attachToMap,
+    sunSetRiseRingLineLayer,
+    showSearchRadius,
+  ]);
 
   return {
     subsolarLocation,

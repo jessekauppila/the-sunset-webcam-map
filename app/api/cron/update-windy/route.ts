@@ -6,15 +6,20 @@ import { subsolarPoint } from '@/app/components/Map/lib/subsolarLocation';
 import { createTerminatorRing } from '@/app/components/Map/lib/terminatorRing';
 import type { Location, WindyWebcam } from '@/app/lib/types';
 
+// Configuration constants - single source of truth for terminator search parameters
+export const TERMINATOR_PRECISION_DEG = 4; // Terminator ring precision in degrees
+export const SEARCH_RADIUS_DEG = 5; // Search radius per API call in degrees
+export const CIRCLE_RENDERING_PRECISION_DEG = 2; // Precision for rendering search radius circles (degrees)
+
 /**
  * Analyzes coverage efficiency based on terminator precision and search radius
  * @param precisionDeg - Terminator ring precision in degrees
- * @param searchRadiusDeg - Search radius per API call in degrees (default: 5)
+ * @param searchRadiusDeg - Search radius per API call in degrees
  * @returns Coverage analysis metrics
  */
 function analyzeCoverage(
   precisionDeg: number,
-  searchRadiusDeg: number = 5
+  searchRadiusDeg: number
 ) {
   const pointsAroundGlobe = 360 / precisionDeg;
   const earthCircumferenceKm = 40075; // km at equator
@@ -43,9 +48,9 @@ async function fetchWebcamsFor(loc: Location, delayMs = 0) {
   }
 
   const url = `https://api.windy.com/webcams/api/v3/map/clusters?lang=en&northLat=${
-    loc.lat + 5
-  }&southLat=${loc.lat - 5}&eastLon=${loc.lng + 5}&westLon=${
-    loc.lng - 5
+    loc.lat + SEARCH_RADIUS_DEG
+  }&southLat=${loc.lat - SEARCH_RADIUS_DEG}&eastLon=${loc.lng + SEARCH_RADIUS_DEG}&westLon=${
+    loc.lng - SEARCH_RADIUS_DEG
   }&zoom=4&include=images&include=urls&include=player&include=location&include=categories`;
 
   console.log(
@@ -106,20 +111,18 @@ export async function GET(req: Request) {
   const now = new Date();
   const { raHours, gmstHours } = subsolarPoint(now);
   
-  // Use 4° precision instead of 2° + midpoints
-  // This gives us 90 points instead of 360, reducing API calls by 75%
-  const precisionDeg = 4;
+  // Use configured precision - gives us 90 points instead of 360, reducing API calls by 75%
   const { sunriseCoords, sunsetCoords } = createTerminatorRing(
     now,
     raHours,
     gmstHours,
-    precisionDeg
+    TERMINATOR_PRECISION_DEG
   );
 
   // Analyze coverage efficiency
-  const coverage = analyzeCoverage(precisionDeg, 5); // 4° precision, 5° search radius
+  const coverage = analyzeCoverage(TERMINATOR_PRECISION_DEG, SEARCH_RADIUS_DEG);
   console.log('📊 Coverage Analysis:', {
-    precision: `${precisionDeg}°`,
+    precision: `${TERMINATOR_PRECISION_DEG}°`,
     terminatorPoints: coverage.pointsAroundGlobe,
     distanceBetweenPoints: `${coverage.distanceBetweenPointsKm} km`,
     searchRadius: `${coverage.searchRadiusKm} km`,

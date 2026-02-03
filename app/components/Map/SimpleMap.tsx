@@ -19,6 +19,7 @@ const GlobeMap = dynamic(() => import('./GlobeMap'), {
 
 //import type { WindyWebcam } from '../../lib/types';
 import { useTerminatorStore } from '@/app/store/useTerminatorStore';
+import { TERMINATOR_PRECISION_DEG, SEARCH_RADIUS_DEG } from '@/app/api/cron/update-windy/route';
 
 interface SimpleMapProps {
   userLocation: Location;
@@ -54,6 +55,9 @@ export default function SimpleMap({
     currentTime,
     {
       attachToMap: mode === 'map',
+      showSearchRadius: true, // Enable search radius visualization
+      precisionDeg: TERMINATOR_PRECISION_DEG, // Match cron job precision
+      searchRadiusDegrees: SEARCH_RADIUS_DEG, // Match cron job search radius
     }
   );
 
