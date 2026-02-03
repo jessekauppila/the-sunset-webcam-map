@@ -62,6 +62,14 @@ export function makeTerminatorLayers(opts: {
       lineWidthMaxPixels: lineWidth * 2,
       getLineColor: terminatorColor,
       pickable: false,
+      // Enable 3D rendering - layers will follow map tilt/pitch
+      extruded: false, // Keep as 2D lines on the globe surface
+      // Disable depth testing so layers always render on top (even when interleaved)
+      // This allows 3D transformation while keeping visibility
+      parameters: {
+        depthTest: false, // Disable depth testing to ensure layers are always visible
+        depthMask: false, // Don't write to depth buffer
+      },
       updateTriggers: {
         getLineColor: [terminatorColor],
       },
@@ -93,6 +101,13 @@ export function makeTerminatorLayers(opts: {
         getLineColor: [100, 150, 255, 255], // Fully opaque blue outline (was 150 - too transparent)
         getFillColor: [100, 150, 255, 80], // More visible blue fill (was 30 - too transparent)
         pickable: false,
+        // Enable 3D rendering - circles will follow map tilt/pitch
+        extruded: false, // Keep as 2D polygons on the globe surface
+        // Disable depth testing so layers always render on top (even when interleaved)
+        parameters: {
+          depthTest: false, // Disable depth testing to ensure layers are always visible
+          depthMask: false, // Don't write to depth buffer
+        },
         updateTriggers: {
           getLineColor: [showSearchRadius, searchRadiusDegrees],
           getFillColor: [showSearchRadius, searchRadiusDegrees],

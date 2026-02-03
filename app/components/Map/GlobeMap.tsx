@@ -107,15 +107,15 @@ export default function GlobeMap({
     () => [
       new SimpleMeshLayer({
         id: 'earth-sphere',
-        data: [0],
+        data: [0], // Single data point for the sphere
         mesh: new SphereGeometry({
           radius: EARTH_RADIUS_METERS,
           nlat: 18,
           nlong: 36,
         }),
         coordinateSystem: COORDINATE_SYSTEM.CARTESIAN,
-        getPosition: [0, 0, 0],
-        getColor: [255, 255, 255],
+        getPosition: () => [0, 0, 0], // Function that returns position
+        getColor: () => [255, 255, 255], // Function that returns color
       }),
       new GeoJsonLayer({
         id: 'earth-land',
