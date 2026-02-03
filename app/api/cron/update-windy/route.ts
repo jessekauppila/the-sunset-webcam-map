@@ -5,11 +5,10 @@ import { sql } from '@/app/lib/db';
 import { subsolarPoint } from '@/app/components/Map/lib/subsolarLocation';
 import { createTerminatorRing } from '@/app/components/Map/lib/terminatorRing';
 import type { Location, WindyWebcam } from '@/app/lib/types';
-
-// Configuration constants - single source of truth for terminator search parameters
-export const TERMINATOR_PRECISION_DEG = 4; // Terminator ring precision in degrees
-export const SEARCH_RADIUS_DEG = 5; // Search radius per API call in degrees
-export const CIRCLE_RENDERING_PRECISION_DEG = 2; // Precision for rendering search radius circles (degrees)
+import {
+  TERMINATOR_PRECISION_DEG,
+  SEARCH_RADIUS_DEG,
+} from '@/app/lib/terminatorConfig';
 
 /**
  * Analyzes coverage efficiency based on terminator precision and search radius
