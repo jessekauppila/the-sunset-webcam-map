@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import type { WindyWebcam, Location } from '../../lib/types';
+import { SEARCH_RADIUS_DEG } from '@/app/lib/terminatorConfig';
 
 interface WindyResponse {
   webcams: WindyWebcam[];
@@ -58,7 +59,7 @@ export function useWebcamFetchArray(locations: Location[]) {
           const loc = limitedLocations[i];
           try {
             const res = await fetch(
-              `/api/webcams?centerLat=${loc.lat}&centerLng=${loc.lng}&boxSize=5`
+              `/api/webcams?centerLat=${loc.lat}&centerLng=${loc.lng}&boxSize=${SEARCH_RADIUS_DEG}`
             );
             if (!res.ok) continue;
             const data: WindyResponse = await res.json();

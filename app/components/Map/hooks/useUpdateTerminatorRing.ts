@@ -1,3 +1,27 @@
+/**
+ * useUpdateTerminatorRing Hook
+ *
+ * This hook manages the visualization of the terminator line (day/night boundary) on a Mapbox map.
+ * It uses native Mapbox layers (not deck.gl) for better 3D tilt/pitch support.
+ *
+ * What it does:
+ * 1. Calculates the terminator line coordinates based on the current time
+ * 2. Creates GeoJSON data for the terminator line, search radius circles, and terminator points
+ * 3. Adds/updates native Mapbox sources and layers on the map
+ * 4. Handles cleanup when the map is unmounted or disabled
+ *
+ * Features:
+ * - Terminator line: Gray line showing the day/night boundary
+ * - Search radius circles: Blue circles showing the search area around each terminator point
+ * - Terminator points: Red dots marking the exact points used for API queries
+ *
+ * The visualization matches the precision and search radius used in the cron jobs
+ * (see app/lib/terminatorConfig.ts for configuration values).
+ *
+ * Note: This uses native Mapbox layers instead of deck.gl for better 3D support.
+ * The layers will properly transform with map tilt/pitch in 3D view.
+ */
+
 import { useEffect, useMemo, useRef } from 'react';
 import { subsolarPoint } from '../lib/subsolarLocation';
 import { createTerminatorRing } from '../lib/terminatorRing';
@@ -152,12 +176,15 @@ export function useUpdateTerminatorRing(
           type: 'line',
           source: terminatorSourceId,
           paint: {
-            'line-color': '#c8c8c8', // Light gray
+            'line-color': '#c8c8c8', // Light gray (RGB: 200, 200, 200)
             'line-width': 3,
-            'line-opacity': 0.8,
+            'line-opacity': 0.2, // 50/255 ≈ 0.2 opacity (matches terminatorRingLineLayer.ts)
           },
         });
         layersAddedRef.current.add(terminatorLayerId);
+      } else {
+        // Update existing layer opacity when data changes
+        map.setPaintProperty(terminatorLayerId, 'line-opacity', 0.2);
       }
 
       // Add search radius circles if enabled
@@ -181,27 +208,33 @@ export function useUpdateTerminatorRing(
             type: 'fill',
             source: circlesSourceId,
             paint: {
-              'fill-color': '#6496ff',
-              'fill-opacity': 0.3,
+              'fill-color': '#6496ff', // RGB: 100, 150, 255
+              'fill-opacity': 0.08, // 20/255 ≈ 0.08 opacity (matches terminatorRingLineLayer.ts)
             },
           });
           layersAddedRef.current.add(circlesLayerId);
+        } else {
+          // Update existing layer opacity
+          map.setPaintProperty(circlesLayerId, 'fill-opacity', 0.08);
+        }
 
-          // Add outline for circles
-          const circlesOutlineLayerId = 'search-radius-circles-outline-layer';
-          if (!map.getLayer(circlesOutlineLayerId)) {
-            map.addLayer({
-              id: circlesOutlineLayerId,
-              type: 'line',
-              source: circlesSourceId,
-              paint: {
-                'line-color': '#6496ff',
-                'line-width': 2,
-                'line-opacity': 1,
-              },
-            });
-            layersAddedRef.current.add(circlesOutlineLayerId);
-          }
+        // Add outline for circles
+        const circlesOutlineLayerId = 'search-radius-circles-outline-layer';
+        if (!map.getLayer(circlesOutlineLayerId)) {
+          map.addLayer({
+            id: circlesOutlineLayerId,
+            type: 'line',
+            source: circlesSourceId,
+            paint: {
+              'line-color': '#6496ff', // RGB: 100, 150, 255
+              'line-width': 2,
+              'line-opacity': 0.2, // 50/255 ≈ 0.2 opacity (matches terminatorRingLineLayer.ts)
+            },
+          });
+          layersAddedRef.current.add(circlesOutlineLayerId);
+        } else {
+          // Update existing layer opacity
+          map.setPaintProperty(circlesOutlineLayerId, 'line-opacity', 0.2);
         }
       }
 

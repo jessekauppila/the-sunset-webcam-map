@@ -11,6 +11,10 @@ import { sql } from '@/app/lib/db';
 import { subsolarPoint } from '@/app/components/Map/lib/subsolarLocation';
 import { createTerminatorRing } from '@/app/components/Map/lib/terminatorRing';
 import type { Location } from '@/app/lib/types';
+import {
+  TERMINATOR_PRECISION_DEG,
+  SEARCH_RADIUS_DEG,
+} from '@/app/lib/terminatorConfig';
 
 type YTItem = {
   id: { videoId: string };
@@ -25,7 +29,7 @@ type YTItem = {
 
 async function searchYouTubeLiveNear(
   loc: Location,
-  radiusKm = 400
+  radiusKm: number // Now required - passed from caller using SEARCH_RADIUS_DEG
 ): Promise<(YTItem & { searchLocation: Location })[]> {
   const key = process.env.YOUTUBE_API_KEY || '';
   if (!key) return [];
@@ -104,14 +108,12 @@ export async function GET(req: Request) {
   const now = new Date();
   const { raHours, gmstHours } = subsolarPoint(now);
   
-  // Use 4° precision instead of 2° + midpoints
-  // This gives us 90 points instead of 360, reducing API calls by 75%
-  const precisionDeg = 4;
+  // Use configured precision from terminatorConfig.ts
   const { sunriseCoords, sunsetCoords } = createTerminatorRing(
     now,
     raHours,
     gmstHours,
-    precisionDeg
+    TERMINATOR_PRECISION_DEG
   );
 
   // No midpoint sampling - precision is controlled directly via precisionDeg parameter
@@ -123,11 +125,13 @@ export async function GET(req: Request) {
   // Batch requests to respect quotas
   const batchSize = 5;
   const delayMs = 800; // between batches
+  // Convert SEARCH_RADIUS_DEG to km: 1° ≈ 111 km
+  const searchRadiusKm = SEARCH_RADIUS_DEG * 111;
   const ytItems: (YTItem & { searchLocation: Location })[] = [];
   for (let i = 0; i < allCoords.length; i += batchSize) {
     const batch = allCoords.slice(i, i + batchSize);
     const results = await Promise.all(
-      batch.map((c) => searchYouTubeLiveNear(c, 400))
+      batch.map((c) => searchYouTubeLiveNear(c, searchRadiusKm))
     );
     for (const arr of results) ytItems.push(...arr);
     if (i + batchSize < allCoords.length) {

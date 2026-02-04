@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
 import { useWebcamFetch } from './useWebCamFetch';
+import { SEARCH_RADIUS_DEG } from '@/app/lib/terminatorConfig';
 
 // Mock fetch globally
 global.fetch = vi.fn();
@@ -76,7 +77,7 @@ describe('useWebcamFetch Hook', () => {
     await waitFor(() => {
       expect(fetch).toHaveBeenCalledWith(
         expect.stringContaining(
-          'centerLat=51.5074&centerLng=-0.1278&boxSize=5'
+          `centerLat=51.5074&centerLng=-0.1278&boxSize=${SEARCH_RADIUS_DEG}`
         )
       );
     });

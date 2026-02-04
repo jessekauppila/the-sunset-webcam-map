@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import type { WindyWebcam } from '@/app/lib/types';
+import { SEARCH_RADIUS_DEG } from '@/app/lib/terminatorConfig';
 
 interface WindyResponse {
   webcams: WindyWebcam[];
@@ -21,7 +22,8 @@ export function useWebcamFetch(latitude: number, longitude: number) {
         // 🎯 Pass center coordinates and box size
         const centerLat = latitude; // NYC latitude
         const centerLng = longitude; // NYC longitude
-        const boxSize = 5; // degrees in each direction
+        // Keep client-side fetch radius consistent with terminator config
+        const boxSize = SEARCH_RADIUS_DEG; // degrees in each direction was 5
 
         // console.log(`Hook Latitude: ${centerLat}`);
         // console.log(`Hook Longitude: ${centerLng}`);

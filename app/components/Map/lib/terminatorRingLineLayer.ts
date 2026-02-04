@@ -1,3 +1,26 @@
+/**
+ * terminatorRingLineLayer - Deck.gl Layer Factory
+ *
+ * This module creates deck.gl GeoJsonLayer objects for visualizing the terminator line.
+ * It's primarily used for the GlobeMap component (3D globe view) which uses deck.gl.
+ *
+ * What it does:
+ * 1. Creates a GeoJsonLayer for the high-resolution terminator line
+ * 2. Optionally creates layers for search radius circles (blue polygons)
+ * 3. Optionally creates layers for terminator point markers (red dots)
+ *
+ * Note: This is NOT used for the SimpleMap component (Mapbox 2D/3D view).
+ * SimpleMap uses native Mapbox layers via useUpdateTerminatorRing hook instead.
+ *
+ * The layers created here are used in:
+ * - GlobeMap.tsx (deck.gl 3D globe visualization)
+ *
+ * Configuration:
+ * - Colors, line widths, and visibility can be customized via options
+ * - Search radius visualization can be enabled/disabled
+ * - Uses the same precision and search radius as the cron jobs
+ */
+
 import { GeoJsonLayer } from '@deck.gl/layers';
 import type { Location } from '../../../lib/types';
 import { createSearchRadiusCircles } from './searchRadiusCircles';
@@ -27,7 +50,7 @@ export function makeTerminatorLayers(opts: {
     entireHiResTerminatorRing,
     // sunriseColor = [120, 170, 255, 200], // blue-ish
     // sunsetColor = [255, 170, 120, 200], // orange-ish
-    terminatorColor = [200, 200, 200, 200], // light gray
+    terminatorColor = [200, 200, 200, 50], // light gray
     lineWidth = 3,
     showSearchRadius = false,
     searchRadiusDegrees, // Required when showSearchRadius is true - should match cron job SEARCH_RADIUS_DEG
@@ -98,8 +121,8 @@ export function makeTerminatorLayers(opts: {
         filled: true,
         lineWidthMinPixels: 1,
         lineWidthMaxPixels: 2,
-        getLineColor: [100, 150, 255, 255], // Fully opaque blue outline (was 150 - too transparent)
-        getFillColor: [100, 150, 255, 80], // More visible blue fill (was 30 - too transparent)
+        getLineColor: [100, 150, 255, 50], // Fully opaque blue outline (was 150 - too transparent)
+        getFillColor: [100, 150, 255, 20], // More visible blue fill (was 30 - too transparent)
         pickable: false,
         // Enable 3D rendering - circles will follow map tilt/pitch
         extruded: false, // Keep as 2D polygons on the globe surface
