@@ -5,6 +5,7 @@ import { sql } from '@/app/lib/db';
 import type { WindyWebcam } from '@/app/lib/types';
 
 export async function GET() {
+  // Use ring-based filtering via terminator_webcam_state.active
   const rows = (await sql`
     select s.webcam_id, s.phase, s.rank,
            w.id, w.source, w.external_id, w.title, w.status, w.view_count,
@@ -14,7 +15,7 @@ export async function GET() {
            w.rating, w.orientation
     from terminator_webcam_state s
     join webcams w on w.id = s.webcam_id
-    where s.active = true and w.status = 'active'
+    where s.active = true
     order by case s.phase when 'sunrise' then 0 else 1 end, s.rank
     limit 2000
   `) as Array<{
