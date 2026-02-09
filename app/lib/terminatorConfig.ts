@@ -13,14 +13,15 @@ export const TERMINATOR_PRECISION_DEG = 14; // Terminator ring precision in degr
 // 11 works
 // Base sun altitude used for the terminator ring radius: radius = 90 - sunAltitude
 // Keep default at 0 to match current terminator behavior (sun at horizon).
-export const TERMINATOR_SUN_ALTITUDE_DEG = 0;
+export const TERMINATOR_SUN_ALTITUDE_DEG = -10;
+//was 0 and one of the lines was on the exact terminator line
 export const SEARCH_RADIUS_DEG = 11; // Search radius per API call in degrees
 //12 doesn't work
 // 10 works
 // 6 works
 // West-only offset ring for parallel search/visualization, in degrees.
 // 0 = main ring, positive values shift the ring westward from the subsolar geometry.
-export const TERMINATOR_RING_OFFSETS_DEG = [0, 2 * SEARCH_RADIUS_DEG];
+export const TERMINATOR_RING_OFFSETS_DEG = [0, 1.75 * SEARCH_RADIUS_DEG];
 // Circle rendering precision: how smooth the circle polygon is (number of points)
 // Using SEARCH_RADIUS_DEG ensures the circle detail matches the search area size
 export const CIRCLE_RENDERING_PRECISION_DEG = SEARCH_RADIUS_DEG;
