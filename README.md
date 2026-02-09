@@ -47,6 +47,24 @@ app/
 - **WebcamConsole**: Displays webcam data in a console-like interface
 - **WebcamDisplay**: Canvas-based webcam image renderer
 
+## Terminator Ring Structure
+
+The terminator ring is used in two places:
+
+- **Query ring (cron)**: `app/api/cron/update-windy/route.ts` uses
+  `createTerminatorQueryRing` to generate coordinates for Windy API requests.
+- **Visualization ring (UI)**: `app/components/Map/hooks/useUpdateTerminatorRing.ts`
+  uses `createTerminatorVisualizationRing` to draw the ring, points, and search
+  circles.
+
+Shared configuration lives in `app/lib/terminatorConfig.ts`:
+
+- `TERMINATOR_PRECISION_DEG`: spacing between ring points (controls API call count)
+- `TERMINATOR_SUN_ALTITUDE_DEG`: base sun altitude used in radius = `90 - altitude`
+- `SEARCH_RADIUS_DEG`: Windy API bounding box radius (degrees)
+- `TERMINATOR_RING_OFFSETS_DEG`: offsets applied to the base ring
+  (currently `[0, 2 * SEARCH_RADIUS_DEG]` for main + west)
+
 ########################################
 
 ### Guide To Future Use

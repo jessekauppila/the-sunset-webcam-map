@@ -3,11 +3,13 @@
 import { NextResponse } from 'next/server';
 import { sql } from '@/app/lib/db';
 import { subsolarPoint } from '@/app/components/Map/lib/subsolarLocation';
-import { createTerminatorRing } from '@/app/components/Map/lib/terminatorRing';
+import { createTerminatorQueryRing } from '@/app/components/Map/lib/terminatorRing';
 import type { Location, WindyWebcam } from '@/app/lib/types';
 import {
+  TERMINATOR_RING_OFFSETS_DEG,
   TERMINATOR_PRECISION_DEG,
   SEARCH_RADIUS_DEG,
+  TERMINATOR_SUN_ALTITUDE_DEG,
 } from '@/app/lib/terminatorConfig';
 
 /**
@@ -16,29 +18,29 @@ import {
  * @param searchRadiusDeg - Search radius per API call in degrees
  * @returns Coverage analysis metrics
  */
-function analyzeCoverage(
-  precisionDeg: number,
-  searchRadiusDeg: number
-) {
-  const pointsAroundGlobe = 360 / precisionDeg;
-  const earthCircumferenceKm = 40075; // km at equator
-  const distanceBetweenPointsKm =
-    earthCircumferenceKm / pointsAroundGlobe;
-  const searchRadiusKm = searchRadiusDeg * 111; // 1° ≈ 111 km
+// function analyzeCoverage(
+//   precisionDeg: number,
+//   searchRadiusDeg: number
+// ) {
+//   const pointsAroundGlobe = 360 / precisionDeg;
+//   const earthCircumferenceKm = 40075; // km at equator
+//   const distanceBetweenPointsKm =
+//     earthCircumferenceKm / pointsAroundGlobe;
+//   const searchRadiusKm = searchRadiusDeg * 111; // 1° ≈ 111 km
 
-  const overlapKm = searchRadiusKm - distanceBetweenPointsKm;
-  const overlapPercent = (overlapKm / searchRadiusKm) * 100;
+//   const overlapKm = searchRadiusKm - distanceBetweenPointsKm;
+//   const overlapPercent = (overlapKm / searchRadiusKm) * 100;
 
-  return {
-    pointsAroundGlobe,
-    distanceBetweenPointsKm: Math.round(distanceBetweenPointsKm),
-    searchRadiusKm,
-    overlapKm: Math.round(overlapKm),
-    overlapPercent: Math.round(overlapPercent),
-    hasGoodCoverage: overlapPercent > 0 && overlapPercent < 300,
-    isOptimal: overlapPercent > 50 && overlapPercent < 200,
-  };
-}
+//   return {
+//     pointsAroundGlobe,
+//     distanceBetweenPointsKm: Math.round(distanceBetweenPointsKm),
+//     searchRadiusKm,
+//     overlapKm: Math.round(overlapKm),
+//     overlapPercent: Math.round(overlapPercent),
+//     hasGoodCoverage: overlapPercent > 0 && overlapPercent < 300,
+//     isOptimal: overlapPercent > 50 && overlapPercent < 200,
+//   };
+// }
 
 async function fetchWebcamsFor(loc: Location, delayMs = 0) {
   // Add delay to avoid rate limiting
@@ -81,6 +83,15 @@ async function fetchWebcamsFor(loc: Location, delayMs = 0) {
   return data ?? [];
 }
 
+const dedupeCoords = (coords: Location[]) => {
+  const byKey = new Map<string, Location>();
+  for (const coord of coords) {
+    const key = `${coord.lat.toFixed(6)},${coord.lng.toFixed(6)}`;
+    if (!byKey.has(key)) byKey.set(key, coord);
+  }
+  return [...byKey.values()];
+};
+
 export async function GET(req: Request) {
   // Check if this is a Vercel cron request
   const authHeader = req.headers.get('authorization');
@@ -110,37 +121,48 @@ export async function GET(req: Request) {
   const now = new Date();
   const { raHours, gmstHours } = subsolarPoint(now);
   
-  // Use configured precision - gives us 90 points instead of 360, reducing API calls by 75%
-  const { sunriseCoords, sunsetCoords } = createTerminatorRing(
-    now,
-    raHours,
-    gmstHours,
-    TERMINATOR_PRECISION_DEG
+  const ringResults = TERMINATOR_RING_OFFSETS_DEG.map((offsetDeg) =>
+    createTerminatorQueryRing(
+      now,
+      raHours,
+      gmstHours,
+      TERMINATOR_PRECISION_DEG,
+      TERMINATOR_SUN_ALTITUDE_DEG,
+      offsetDeg
+    )
+  );
+
+  const sunriseCoords = dedupeCoords(
+    ringResults.flatMap((r) => r.sunriseCoords)
+  );
+  const sunsetCoords = dedupeCoords(
+    ringResults.flatMap((r) => r.sunsetCoords)
   );
 
   // Analyze coverage efficiency
-  const coverage = analyzeCoverage(TERMINATOR_PRECISION_DEG, SEARCH_RADIUS_DEG);
-  console.log('📊 Coverage Analysis:', {
-    precision: `${TERMINATOR_PRECISION_DEG}°`,
-    terminatorPoints: coverage.pointsAroundGlobe,
-    distanceBetweenPoints: `${coverage.distanceBetweenPointsKm} km`,
-    searchRadius: `${coverage.searchRadiusKm} km`,
-    overlap: `${coverage.overlapKm} km (${coverage.overlapPercent}%)`,
-    status: coverage.isOptimal
-      ? '✅ Optimal'
-      : coverage.hasGoodCoverage
-      ? '✅ Good'
-      : '⚠️ Needs adjustment',
-  });
+  // const coverage = analyzeCoverage(TERMINATOR_PRECISION_DEG, SEARCH_RADIUS_DEG);
+  // console.log('📊 Coverage Analysis:', {
+  //   precision: `${TERMINATOR_PRECISION_DEG}°`,
+  //   terminatorPoints: coverage.pointsAroundGlobe,
+  //   distanceBetweenPoints: `${coverage.distanceBetweenPointsKm} km`,
+  //   searchRadius: `${coverage.searchRadiusKm} km`,
+  //   overlap: `${coverage.overlapKm} km (${coverage.overlapPercent}%)`,
+  //   status: coverage.isOptimal
+  //     ? '✅ Optimal'
+  //     : coverage.hasGoodCoverage
+  //     ? '✅ Good'
+  //     : '⚠️ Needs adjustment',
+  // });
 
   console.log('📍 Coords:', {
     sunrise: sunriseCoords.length,
     sunset: sunsetCoords.length,
+    offsets: TERMINATOR_RING_OFFSETS_DEG,
   });
 
   // Fetch webcams at coords; de-dup by provider id
   // No midpoint sampling - precision is controlled directly via precisionDeg parameter
-  const allCoords = [...sunriseCoords, ...sunsetCoords];
+  const allCoords = dedupeCoords([...sunriseCoords, ...sunsetCoords]);
   console.log(`🌐 Total terminator coordinates: ${allCoords.length}`);
 
   // Rate limit the requests to avoid API throttling

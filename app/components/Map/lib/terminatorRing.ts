@@ -2,6 +2,7 @@ import { geoCircle } from 'd3-geo';
 import { subsolarPoint } from './subsolarLocation';
 import type { Location } from '../../../lib/types';
 import type { Feature, LineString } from 'geojson';
+import { TERMINATOR_SUN_ALTITUDE_DEG } from '../../../lib/terminatorConfig';
 
 // ---------- tiny math helpers ----------
 const normHours = (h: number) => ((h % 24) + 24) % 24;
@@ -14,10 +15,11 @@ const normSignedHours = (h: number) => {
 export function terminatorPolygon(
   date = new Date(),
   precisionDeg = 2, // Optimal precision for complete coverage with minimal overlap
-  sunAltitudeDegrees = 0 // this is used to calculate the angle/altitude of the sun in the sky
+  sunAltitudeDegrees = TERMINATOR_SUN_ALTITUDE_DEG, // altitude of the sun in the sky
+  offsetDeg = 0 // optional ring offset (degrees) from the base terminator
 ) {
   const { lat, lng } = subsolarPoint(date);
-  const radius = 90 - sunAltitudeDegrees;
+  const radius = 90 - (sunAltitudeDegrees + offsetDeg);
 
   return (
     geoCircle()
@@ -39,7 +41,9 @@ export function createTerminatorRing(
   date: Date,
   RA: number,
   GMST: number,
-  precisionDeg: number = 2
+  precisionDeg: number = 2,
+  sunAltitudeDegrees: number = TERMINATOR_SUN_ALTITUDE_DEG,
+  offsetDeg: number = 0
 ): {
   sunriseCoords: Location[];
   sunsetCoords: Location[];
@@ -49,7 +53,12 @@ export function createTerminatorRing(
   entireTerminatorRing: Feature<LineString>;
 } {
   //const { raHours: RA, gmstHours: GMST } = subsolarPoint(date);
-  const ring = terminatorPolygon(date, precisionDeg).coordinates[0]; // [ [lon,lat], ... , first point repeats ]
+  const ring = terminatorPolygon(
+    date,
+    precisionDeg,
+    sunAltitudeDegrees,
+    offsetDeg
+  ).coordinates[0]; // [ [lon,lat], ... , first point repeats ]
 
   // We’ll traverse segments and allocate them into sunrise/sunset by HA sign.
   const sunriseCoords: Location[] = [];
@@ -147,3 +156,10 @@ export function createTerminatorRing(
     entireTerminatorRing,
   };
 }
+
+/**
+ * Naming aliases to clarify intent at call sites.
+ * Both return the same ring data; the name signals query vs visualization use.
+ */
+export const createTerminatorQueryRing = createTerminatorRing;
+export const createTerminatorVisualizationRing = createTerminatorRing;
