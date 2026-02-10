@@ -14,9 +14,10 @@ export const TERMINATOR_PRECISION_DEG = 12; // Terminator ring precision in degr
 // 11 works
 // Base sun altitude used for the terminator ring radius: radius = 90 - sunAltitude
 // Keep default at 0 to match current terminator behavior (sun at horizon).
-export const TERMINATOR_SUN_ALTITUDE_DEG = -8;
+export const TERMINATOR_SUN_ALTITUDE_DEG = -13;
 //was 0 and one of the lines was on the exact terminator line
 //-10 works when precision is 14 and radius is 11
+// -8 showed too much day time
 export const SEARCH_RADIUS_DEG = 9; // Search radius per API call in degrees
 //12 doesn't work
 //11 is the widest that works
@@ -29,5 +30,5 @@ export const TERMINATOR_RING_OFFSETS_DEG = [0, 1.75 * SEARCH_RADIUS_DEG];
 // Using SEARCH_RADIUS_DEG ensures the circle detail matches the search area size
 export const CIRCLE_RENDERING_PRECISION_DEG = SEARCH_RADIUS_DEG;
 
-//14, -10, 11 provides the widest coverage
+//14, -10, 11 provides the widest covera
 //12, -8, 9 provides less coverage
