@@ -40,7 +40,7 @@ id                  SERIAL PRIMARY KEY
 webcam_id           INTEGER (references webcams)
 phase               VARCHAR(10) -- 'sunrise' | 'sunset'
 rank                INTEGER
-initial_rating      INTEGER -- Original webcam rating (4 or 5)
+initial_rating      INTEGER NULL -- Manual rating at capture time (may be NULL for AI-first captures)
 calculated_rating   DECIMAL(3,2) -- Average of user ratings
 ai_rating           DECIMAL(3,2) -- Reserved for AI assessment
 firebase_url        TEXT -- Public URL
@@ -201,8 +201,8 @@ const sessionId = getUserSessionId(); // Auto-generates if needed
 
 1. **Initial Rating** (`initial_rating`)
 
-   - Original webcam rating when snapshot was captured (4 or 5)
-   - Immutable
+   - Original manual webcam rating when snapshot was captured
+   - May be NULL for AI-first captures without manual seed rating
 
 2. **Calculated Rating** (`calculated_rating`)
 

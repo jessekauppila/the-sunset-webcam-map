@@ -371,7 +371,7 @@ webcam_snapshots
 ├─ webcam_id (FK → webcams)
 ├─ phase ('sunrise' | 'sunset')
 ├─ rank
-├─ initial_rating (4 or 5)
+├─ initial_rating (manual seed rating; nullable for AI-first captures)
 ├─ calculated_rating (AVG of user ratings)
 ├─ firebase_url (image URL)
 ├─ firebase_path

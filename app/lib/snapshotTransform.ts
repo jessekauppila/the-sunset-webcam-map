@@ -6,7 +6,7 @@ export interface SnapshotRow {
   webcam_id: number;
   phase: 'sunrise' | 'sunset';
   rank: number | null;
-  initial_rating: number;
+  initial_rating: number | null;
   calculated_rating: number | null;
   ai_rating: number | null;
   firebase_url: string;

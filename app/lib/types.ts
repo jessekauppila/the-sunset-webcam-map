@@ -152,7 +152,7 @@ export interface SnapshotMetadata {
   webcamId: number;
   phase: 'sunrise' | 'sunset';
   rank: number | null;
-  initialRating: number; // Rating when captured
+  initialRating: number | null; // Manual rating at capture time (if available)
   calculatedRating: number | null; // Average of user ratings
   aiRating: number | null; // Future AI rating
   firebaseUrl: string;
