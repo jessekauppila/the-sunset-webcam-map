@@ -196,13 +196,14 @@ export async function updateWebcamAiFields(
  * Find a recent snapshot for deduplication to avoid over-capturing.
  */
 export async function findRecentSnapshot(
-  webcamId: number
+  webcamId: number,
+  windowMinutes: number
 ): Promise<SnapshotRecord | null> {
   const [row] = (await sql`
     select id
     from webcam_snapshots
     where webcam_id = ${webcamId}
-      and captured_at >= now() - interval '30 minutes'
+      and captured_at >= now() - make_interval(mins => ${windowMinutes})
     order by captured_at desc
     limit 1
   `) as SnapshotRecord[];

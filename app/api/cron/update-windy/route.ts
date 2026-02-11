@@ -17,6 +17,8 @@ import {
   TERMINATOR_RING_OFFSETS_DEG,
   TERMINATOR_PRECISION_DEG,
   TERMINATOR_SUN_ALTITUDE_DEG,
+  AI_SNAPSHOT_MIN_RATING_THRESHOLD,
+  AI_SNAPSHOT_RECENT_WINDOW_MINUTES,
 } from '@/app/lib/terminatorConfig';
 import { verifyCronAuth } from './lib/auth';
 import {
@@ -161,11 +163,14 @@ export async function GET(req: Request) {
         modelVersion: scored.modelVersion,
       });
 
-      if (scored.aiRating < 4.0) continue;
+      if (scored.aiRating < AI_SNAPSHOT_MIN_RATING_THRESHOLD) continue;
       aiStats.above_threshold += 1;
 
       let snapshotId: number;
-      const recent = await findRecentSnapshot(webcamId);
+      const recent = await findRecentSnapshot(
+        webcamId,
+        AI_SNAPSHOT_RECENT_WINDOW_MINUTES
+      );
       if (recent) {
         snapshotId = recent.id;
       } else {

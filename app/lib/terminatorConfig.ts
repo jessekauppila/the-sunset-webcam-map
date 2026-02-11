@@ -30,5 +30,9 @@ export const TERMINATOR_RING_OFFSETS_DEG = [0, 1.75 * SEARCH_RADIUS_DEG];
 // Using SEARCH_RADIUS_DEG ensures the circle detail matches the search area size
 export const CIRCLE_RENDERING_PRECISION_DEG = SEARCH_RADIUS_DEG;
 
+// AI snapshot capture settings (shared constants for cron behavior)
+export const AI_SNAPSHOT_MIN_RATING_THRESHOLD = 4.0;
+export const AI_SNAPSHOT_RECENT_WINDOW_MINUTES = 30;
+
 //14, -10, 11 provides the widest covera
 //12, -8, 9 provides less coverage
