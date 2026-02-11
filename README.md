@@ -420,3 +420,28 @@ POST /api/snapshots/[id]/rate
 DELETE /api/snapshots/[id]/rate
 ├─ Body: { userSessionId }
 └─ Removes rating, recalculates avg
+
+---
+
+## AI Rating V1 Data Ownership
+
+The rating system now separates human votes from model outputs:
+
+- `webcam_snapshot_ratings`: public/manual ratings only (one per user per snapshot)
+- `webcam_snapshots.calculated_rating`: aggregate human rating for fast reads
+- `snapshot_ai_inferences`: model output history (`raw_score`, normalized `ai_rating`, `model_version`, `scored_at`)
+- `webcams.ai_rating` + `webcams.ai_model_version`: latest webcam-level AI score used by map popup display
+
+This keeps user labels clean for future model training while preserving AI scoring history for inspection.
+
+## AI Rating V1 Verification
+
+- Cron summary logs in `/api/cron/update-windy` now include:
+  - `total_scored`
+  - `above_threshold`
+  - `snapshots_captured`
+  - `inference_rows_written`
+  - `failures`
+- Debug endpoint:
+  - `GET /api/debug/ai-ratings?limit=50&secret=<CRON_SECRET>`
+  - Returns latest webcam AI fields and recent snapshot inference rows

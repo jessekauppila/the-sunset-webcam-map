@@ -10,7 +10,7 @@ export async function GET() {
            w.lat, w.lng, w.city, w.region, w.country, w.continent,
            w.images, w.urls, w.player, w.categories,
            w.last_fetched_at, w.created_at, w.updated_at,
-           w.rating, w.orientation
+           w.rating, w.orientation, w.ai_rating, w.ai_model_version
     from webcams w
     order by w.updated_at desc
     limit 5000
@@ -65,6 +65,8 @@ export async function GET() {
     updated_at: string;
     rating: number | null;
     orientation: string | null;
+    ai_rating: number | null;
+    ai_model_version: string | null;
   }>;
 
   // Transform database rows to WindyWebcam format
@@ -93,6 +95,8 @@ export async function GET() {
     rating: row.rating ?? undefined,
     orientation:
       (row.orientation as WindyWebcam['orientation']) ?? undefined,
+    aiRating: row.ai_rating ?? undefined,
+    aiModelVersion: row.ai_model_version ?? undefined,
     // Note: No phase/rank since these aren't terminator-specific
   }));
 

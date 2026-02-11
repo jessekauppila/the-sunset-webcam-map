@@ -159,6 +159,22 @@ export function RatingCard({
           </p>
         ) : null}
 
+        {typeof webcam.aiRating === 'number' ? (
+          <div className="rounded border border-indigo-200 bg-indigo-50 px-2 py-1">
+            <p className="text-[11px] uppercase tracking-wide text-indigo-500">
+              AI rating
+            </p>
+            <p className="text-sm font-semibold text-indigo-700">
+              {webcam.aiRating.toFixed(2)} / 5
+            </p>
+            {webcam.aiModelVersion ? (
+              <p className="text-[11px] text-indigo-500">
+                Model: {webcam.aiModelVersion}
+              </p>
+            ) : null}
+          </div>
+        ) : null}
+
         <div className="flex flex-col items-start gap-1">
           <p className="text-xs text-gray-500 uppercase tracking-wide">
             {rateText}

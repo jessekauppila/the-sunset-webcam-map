@@ -35,6 +35,8 @@ export interface SnapshotRow {
   last_fetched_at: string;
   webcam_rating: number | null;
   orientation: string | null;
+  webcam_ai_rating: number | null;
+  webcam_ai_model_version: string | null;
 }
 
 /**
@@ -82,6 +84,8 @@ export function transformSnapshot(row: SnapshotRow): Snapshot {
     externalId: row.external_id,
     rating: row.webcam_rating ?? undefined,
     orientation: (row.orientation as Orientation) ?? undefined,
+    aiRating: row.webcam_ai_rating ?? undefined,
+    aiModelVersion: row.webcam_ai_model_version ?? undefined,
 
     // Snapshot metadata
     snapshot: {

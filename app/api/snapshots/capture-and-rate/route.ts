@@ -62,6 +62,9 @@ function mapDatabaseRowToWebcam(
     updatedAt: row.updated_at as string | undefined,
     rating: row.rating != null ? Number(row.rating) : undefined,
     orientation: row.orientation as never,
+    aiRating:
+      row.ai_rating != null ? Number(row.ai_rating) : undefined,
+    aiModelVersion: row.ai_model_version as string | undefined,
   };
 }
 

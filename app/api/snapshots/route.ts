@@ -121,7 +121,9 @@ export async function GET(request: Request) {
             w.categories,
             w.last_fetched_at,
             w.rating as webcam_rating,
-            w.orientation
+            w.orientation,
+            w.ai_rating as webcam_ai_rating,
+            w.ai_model_version as webcam_ai_model_version
           FROM webcam_snapshots s
           JOIN webcams w ON w.id = s.webcam_id
           LEFT JOIN webcam_snapshot_ratings r ON r.snapshot_id = s.id
@@ -169,7 +171,9 @@ export async function GET(request: Request) {
             w.categories,
             w.last_fetched_at,
             w.rating as webcam_rating,
-            w.orientation
+            w.orientation,
+            w.ai_rating as webcam_ai_rating,
+            w.ai_model_version as webcam_ai_model_version
           FROM webcam_snapshots s
           JOIN webcams w ON w.id = s.webcam_id
           LEFT JOIN webcam_snapshot_ratings r ON r.snapshot_id = s.id
@@ -215,7 +219,9 @@ export async function GET(request: Request) {
             w.categories,
             w.last_fetched_at,
             w.rating as webcam_rating,
-            w.orientation
+            w.orientation,
+            w.ai_rating as webcam_ai_rating,
+            w.ai_model_version as webcam_ai_model_version
           FROM webcam_snapshots s
           JOIN webcams w ON w.id = s.webcam_id
           LEFT JOIN webcam_snapshot_ratings r ON r.snapshot_id = s.id
@@ -302,7 +308,9 @@ export async function GET(request: Request) {
         w.categories,
         w.last_fetched_at,
         w.rating as webcam_rating,
-        w.orientation
+        w.orientation,
+        w.ai_rating as webcam_ai_rating,
+        w.ai_model_version as webcam_ai_model_version
       FROM webcam_snapshots s
       JOIN webcams w ON w.id = s.webcam_id
       LEFT JOIN webcam_snapshot_ratings r ON r.snapshot_id = s.id

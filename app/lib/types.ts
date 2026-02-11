@@ -71,6 +71,10 @@ export interface WindyWebcam {
   // User rating and orientation fields
   rating?: number; // 1-5 star rating
   orientation?: Orientation; // Direction the webcam is facing
+
+  // Latest AI scoring fields (updated by cron ingestion)
+  aiRating?: number; // 0-5 normalized score
+  aiModelVersion?: string; // Model version for aiRating
 }
 
 export function windyWebcamToLocation(

@@ -9,6 +9,16 @@
 import { sql } from '@/app/lib/db';
 import type { WindyWebcam } from '@/app/lib/types';
 
+type WebcamAiUpdate = {
+  webcamId: number;
+  aiRating: number;
+  modelVersion: string;
+};
+
+type SnapshotRecord = {
+  id: number;
+};
+
 /**
  * Convert WindyWebcam to database fields
  */
@@ -160,6 +170,114 @@ export async function deactivateMissingTerminatorState(
     where phase = ${phase}
       and active = true
       and webcam_id <> all(${activeWebcamIds})
+  `;
+}
+
+/**
+ * Update webcam-level AI fields used by map popups.
+ */
+export async function updateWebcamAiFields(
+  updates: WebcamAiUpdate[]
+): Promise<void> {
+  const tasks = updates.map((item) =>
+    sql`
+      update webcams
+      set ai_rating = ${item.aiRating},
+          ai_model_version = ${item.modelVersion},
+          updated_at = now()
+      where id = ${item.webcamId}
+    `
+  );
+
+  await Promise.all(tasks);
+}
+
+/**
+ * Find a recent snapshot for deduplication to avoid over-capturing.
+ */
+export async function findRecentSnapshot(
+  webcamId: number
+): Promise<SnapshotRecord | null> {
+  const [row] = (await sql`
+    select id
+    from webcam_snapshots
+    where webcam_id = ${webcamId}
+      and captured_at >= now() - interval '30 minutes'
+    order by captured_at desc
+    limit 1
+  `) as SnapshotRecord[];
+
+  return row ?? null;
+}
+
+/**
+ * Insert a newly captured snapshot row.
+ */
+export async function insertSnapshotRecord(
+  webcamId: number,
+  phase: 'sunrise' | 'sunset',
+  rank: number | null,
+  initialRating: number | null,
+  firebaseUrl: string,
+  firebasePath: string,
+  aiRating: number | null
+): Promise<number> {
+  const [row] = (await sql`
+    insert into webcam_snapshots (
+      webcam_id,
+      phase,
+      rank,
+      initial_rating,
+      firebase_url,
+      firebase_path,
+      ai_rating,
+      captured_at
+    )
+    values (
+      ${webcamId},
+      ${phase},
+      ${rank},
+      ${initialRating},
+      ${firebaseUrl},
+      ${firebasePath},
+      ${aiRating},
+      now()
+    )
+    returning id
+  `) as SnapshotRecord[];
+
+  return row.id;
+}
+
+/**
+ * Upsert model inference metadata for a snapshot.
+ */
+export async function upsertSnapshotAiInference(
+  snapshotId: number,
+  modelVersion: string,
+  rawScore: number,
+  aiRating: number
+): Promise<void> {
+  await sql`
+    insert into snapshot_ai_inferences (
+      snapshot_id,
+      model_version,
+      raw_score,
+      ai_rating,
+      scored_at
+    )
+    values (
+      ${snapshotId},
+      ${modelVersion},
+      ${rawScore},
+      ${aiRating},
+      now()
+    )
+    on conflict (snapshot_id, model_version)
+    do update set
+      raw_score = excluded.raw_score,
+      ai_rating = excluded.ai_rating,
+      scored_at = now()
   `;
 }
 

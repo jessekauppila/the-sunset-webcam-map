@@ -49,6 +49,18 @@ captured_at         TIMESTAMP
 created_at          TIMESTAMP
 ```
 
+### `snapshot_ai_inferences` Table
+
+```sql
+id                  BIGSERIAL PRIMARY KEY
+snapshot_id         INTEGER (references webcam_snapshots)
+model_version       TEXT
+raw_score           DOUBLE PRECISION
+ai_rating           DECIMAL(3,2) -- Normalized 0-5
+scored_at           TIMESTAMPTZ
+UNIQUE(snapshot_id, model_version)
+```
+
 ### `webcam_snapshot_ratings` Table
 
 ```sql
@@ -141,6 +153,17 @@ Response: {
 }
 ```
 
+### Inspect AI Rating Outputs
+
+```typescript
+GET /api/debug/ai-ratings?limit=50&secret=<CRON_SECRET>
+Response: {
+  limit: number,
+  webcams: Array<{ id, title, ai_rating, ai_model_version, updated_at }>,
+  snapshotAiInferences: Array<{ snapshot_id, model_version, raw_score, ai_rating, scored_at }>
+}
+```
+
 ## Configuration
 
 ### Environment Variables
@@ -188,8 +211,18 @@ const sessionId = getUserSessionId(); // Auto-generates if needed
    - Enables fast queries (no JOIN needed)
 
 3. **AI Rating** (`ai_rating`)
-   - Reserved for future AI-based image quality assessment
-   - Currently NULL
+   - Latest score attached to a snapshot row
+   - Used for quick filtering/read paths
+
+4. **AI Inference History** (`snapshot_ai_inferences`)
+   - Stores model outputs per snapshot and model version
+   - Includes `raw_score` for recalibration and `scored_at` for auditability
+
+### Webcam-level AI Display Fields
+
+- `webcams.ai_rating`: latest score for current webcam preview
+- `webcams.ai_model_version`: model version that generated latest score
+- These fields support map popup visibility and do not replace snapshot-level history
 
 ### Rating Calculation Logic
 

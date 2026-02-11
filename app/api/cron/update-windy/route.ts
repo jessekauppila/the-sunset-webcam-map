@@ -30,7 +30,13 @@ import {
   getWebcamIdMap,
   upsertTerminatorState,
   deactivateMissingTerminatorState,
+  updateWebcamAiFields,
+  findRecentSnapshot,
+  insertSnapshotRecord,
+  upsertSnapshotAiInference,
 } from './lib/dbOperations';
+import { scoreWebcamPreview } from './lib/aiScoring';
+import { captureWebcamSnapshot } from '@/app/lib/webcamSnapshot';
 
 export async function GET(req: Request) {
   // Verify authentication
@@ -99,6 +105,115 @@ export async function GET(req: Request) {
   const externalIds = windyAll.map((w) => String(w.webcamId));
   const idByExternal = await getWebcamIdMap(externalIds);
 
+  // Build phase/rank lookup for AI snapshot metadata.
+  const phaseByExternal = new Map<
+    string,
+    { phase: 'sunrise' | 'sunset'; rank: number | null }
+  >();
+  sunriseList.forEach((webcam, index) => {
+    phaseByExternal.set(String(webcam.webcamId), {
+      phase: 'sunrise',
+      rank: webcam.rank ?? index,
+    });
+  });
+  sunsetList.forEach((webcam, index) => {
+    phaseByExternal.set(String(webcam.webcamId), {
+      phase: 'sunset',
+      rank: webcam.rank ?? index,
+    });
+  });
+
+  // AI scoring + persistence counters (structured for observability).
+  const aiStats = {
+    total_scored: 0,
+    above_threshold: 0,
+    snapshots_captured: 0,
+    inference_rows_written: 0,
+    failures: 0,
+  };
+  const webcamAiUpdates: Array<{
+    webcamId: number;
+    aiRating: number;
+    modelVersion: string;
+  }> = [];
+
+  for (const webcam of windyAll) {
+    const externalId = String(webcam.webcamId);
+    const webcamId = idByExternal.get(externalId);
+    if (!webcamId) continue;
+
+    try {
+      const phaseMeta = phaseByExternal.get(externalId) ?? {
+        phase: 'sunset' as const,
+        rank: null,
+      };
+
+      const scored = scoreWebcamPreview({
+        ...webcam,
+        phase: phaseMeta.phase,
+        rank: phaseMeta.rank ?? undefined,
+      });
+      aiStats.total_scored += 1;
+
+      webcamAiUpdates.push({
+        webcamId,
+        aiRating: scored.aiRating,
+        modelVersion: scored.modelVersion,
+      });
+
+      if (scored.aiRating < 4.0) continue;
+      aiStats.above_threshold += 1;
+
+      let snapshotId: number;
+      const recent = await findRecentSnapshot(webcamId);
+      if (recent) {
+        snapshotId = recent.id;
+      } else {
+        const captured = await captureWebcamSnapshot({
+          ...webcam,
+          webcamId,
+          phase: phaseMeta.phase,
+          rank: phaseMeta.rank ?? undefined,
+        });
+
+        if (!captured) {
+          aiStats.failures += 1;
+          continue;
+        }
+
+        snapshotId = await insertSnapshotRecord(
+          webcamId,
+          phaseMeta.phase,
+          phaseMeta.rank,
+          webcam.rating ?? null,
+          captured.url,
+          captured.path,
+          scored.aiRating
+        );
+        aiStats.snapshots_captured += 1;
+      }
+
+      await upsertSnapshotAiInference(
+        snapshotId,
+        scored.modelVersion,
+        scored.rawScore,
+        scored.aiRating
+      );
+      aiStats.inference_rows_written += 1;
+    } catch (error) {
+      aiStats.failures += 1;
+      console.error(
+        `AI scoring failed for webcam ${webcam.webcamId}:`,
+        error
+      );
+    }
+  }
+
+  if (webcamAiUpdates.length > 0) {
+    await updateWebcamAiFields(webcamAiUpdates);
+  }
+  console.log('🤖 AI scoring summary:', aiStats);
+
   // Upsert terminator state for sunrise webcams
   await upsertTerminatorState(sunriseList, 'sunrise', idByExternal);
 
@@ -119,5 +234,6 @@ export async function GET(req: Request) {
     ok: true,
     sunrise: sunriseList.length,
     sunset: sunsetList.length,
+    ai: aiStats,
   });
 }
