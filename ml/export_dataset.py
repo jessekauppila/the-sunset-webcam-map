@@ -51,6 +51,14 @@ def fetch_rows(
     label_source: str,
     min_rating_count: int,
 ) -> list[dict[str, Any]]:
+    """
+    Query candidate labeled snapshots for export.
+
+    manual_only:
+      Uses all snapshots with calculated rating and minimum rating count.
+    public_aggregate:
+      Uses snapshots backed by public votes and stricter confidence gate.
+    """
     if label_source == "public_aggregate":
         query = """
         SELECT
@@ -101,6 +109,11 @@ def write_training_run_labels(
     rows: list[dict[str, Any]],
     label_source: str,
 ) -> None:
+    """
+    Persist exact sample membership for auditability/reproducibility.
+
+    This enables us to answer: "which snapshots trained model X?"
+    """
     with conn.cursor() as cur:
         cur.executemany(
             """
@@ -152,7 +165,9 @@ def main() -> None:
 
         manifest: list[dict[str, Any]] = []
         for row in rows:
+            # Deterministic webcam-group split (prevents leakage across splits).
             split = assign_split(int(row["webcam_id"]), split_cfg)
+            # Convert raw rating into task target (binary/regression).
             mapped_label = map_label(float(row["label_value"]), label_policy)
             manifest.append(
                 {
@@ -185,6 +200,7 @@ def main() -> None:
         )
 
         meta = {
+            # Keep run metadata near artifacts for reproducibility/debugging.
             "label_source": args.label_source,
             "target_type": args.target_type,
             "binary_threshold": args.binary_threshold,

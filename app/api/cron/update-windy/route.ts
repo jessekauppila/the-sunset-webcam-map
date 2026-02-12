@@ -19,7 +19,9 @@ import {
   TERMINATOR_SUN_ALTITUDE_DEG,
   AI_SNAPSHOT_MIN_RATING_THRESHOLD,
   AI_SNAPSHOT_RECENT_WINDOW_MINUTES,
-} from '@/app/lib/terminatorConfig';
+  WINDY_FETCH_BATCH_SIZE,
+  WINDY_FETCH_DELAY_BETWEEN_BATCHES_MS,
+} from '@/app/lib/masterConfig';
 import { verifyCronAuth } from './lib/auth';
 import {
   dedupeCoords,
@@ -82,7 +84,11 @@ export async function GET(req: Request) {
   console.log(`🌐 Total terminator coordinates: ${allCoords.length}`);
 
   // Fetch webcams in batches with rate limiting
-  const batches = await fetchWebcamsInBatches(allCoords, 5, 1000);
+  const batches = await fetchWebcamsInBatches(
+    allCoords,
+    WINDY_FETCH_BATCH_SIZE,
+    WINDY_FETCH_DELAY_BETWEEN_BATCHES_MS
+  );
   console.log('📦 All batches received:', batches.length);
 
   // Deduplicate webcams by webcamId

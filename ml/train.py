@@ -1,6 +1,16 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+"""
+Baseline PyTorch training script for sunset quality model.
+
+Flow:
+1) Load train/val manifests
+2) Build transfer-learning model
+3) Train epoch loop with validation
+4) Save best checkpoint + summary artifact
+"""
+
 import argparse
 import json
 from pathlib import Path
@@ -17,6 +27,8 @@ from torchvision import models, transforms
 
 
 class ManifestDataset(Dataset):
+    """Dataset wrapper around CSV manifest rows."""
+
     def __init__(self, csv_path: str, transform: Callable, target_type: str) -> None:
         self.df = pd.read_csv(csv_path)
         self.transform = transform
@@ -36,6 +48,7 @@ class ManifestDataset(Dataset):
 
 
 def build_model(model_name: str, target_type: str) -> nn.Module:
+    """Build pretrained backbone and replace final layer for target mode."""
     if model_name == "mobilenet_v3_small":
         model = models.mobilenet_v3_small(weights=models.MobileNet_V3_Small_Weights.DEFAULT)
         in_features = model.classifier[-1].in_features
@@ -69,6 +82,7 @@ def main() -> None:
 
     train_tf = transforms.Compose(
         [
+            # Light augmentation for robustness without distorting scene semantics.
             transforms.Resize((256, 256)),
             transforms.RandomResizedCrop((224, 224), scale=(0.8, 1.0)),
             transforms.RandomHorizontalFlip(),
@@ -99,6 +113,7 @@ def main() -> None:
     history: list[dict] = []
 
     for epoch in range(args.epochs):
+        # --- training phase ---
         model.train()
         train_loss = 0.0
         for x, y in train_loader:
@@ -135,12 +150,14 @@ def main() -> None:
                     all_y.extend(list(y))
 
         if args.target_type == "binary":
+            # For binary v1, use validation F1 as model-selection metric.
             val_metric = f1_score(all_y, all_pred, zero_division=0)
             is_better = val_metric > best_metric
             if is_better:
                 best_metric = val_metric
                 torch.save(model.state_dict(), best_path)
         else:
+            # For regression, lower validation loss is better.
             val_metric = val_loss / max(1, len(val_loader))
             is_better = val_metric < best_metric
             if is_better:

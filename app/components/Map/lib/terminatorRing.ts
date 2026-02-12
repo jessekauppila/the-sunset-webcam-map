@@ -2,7 +2,7 @@ import { geoCircle } from 'd3-geo';
 import { subsolarPoint } from './subsolarLocation';
 import type { Location } from '../../../lib/types';
 import type { Feature, LineString } from 'geojson';
-import { TERMINATOR_SUN_ALTITUDE_DEG } from '../../../lib/terminatorConfig';
+import { TERMINATOR_SUN_ALTITUDE_DEG } from '../../../lib/masterConfig';
 
 // ---------- tiny math helpers ----------
 const normHours = (h: number) => ((h % 24) + 24) % 24;

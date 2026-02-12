@@ -14,7 +14,9 @@ import type { Location } from '@/app/lib/types';
 import {
   TERMINATOR_PRECISION_DEG,
   SEARCH_RADIUS_DEG,
-} from '@/app/lib/terminatorConfig';
+  YOUTUBE_FETCH_BATCH_SIZE,
+  YOUTUBE_FETCH_DELAY_BETWEEN_BATCHES_MS,
+} from '@/app/lib/masterConfig';
 
 type YTItem = {
   id: { videoId: string };
@@ -108,7 +110,7 @@ export async function GET(req: Request) {
   const now = new Date();
   const { raHours, gmstHours } = subsolarPoint(now);
   
-  // Use configured precision from terminatorConfig.ts
+  // Use configured precision from masterConfig.ts
   const { sunriseCoords, sunsetCoords } = createTerminatorRing(
     now,
     raHours,
@@ -123,8 +125,8 @@ export async function GET(req: Request) {
   console.log(`🔍 First few coordinates:`, allCoords.slice(0, 3));
 
   // Batch requests to respect quotas
-  const batchSize = 5;
-  const delayMs = 800; // between batches
+  const batchSize = YOUTUBE_FETCH_BATCH_SIZE;
+  const delayMs = YOUTUBE_FETCH_DELAY_BETWEEN_BATCHES_MS; // between batches
   // Convert SEARCH_RADIUS_DEG to km: 1° ≈ 111 km
   const searchRadiusKm = SEARCH_RADIUS_DEG * 111;
   const ytItems: (YTItem & { searchLocation: Location })[] = [];

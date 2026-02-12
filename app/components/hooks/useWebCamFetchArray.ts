@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import type { WindyWebcam, Location } from '../../lib/types';
-import { SEARCH_RADIUS_DEG } from '@/app/lib/terminatorConfig';
+import { SEARCH_RADIUS_DEG } from '@/app/lib/masterConfig';
 
 interface WindyResponse {
   webcams: WindyWebcam[];

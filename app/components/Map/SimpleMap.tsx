@@ -19,7 +19,10 @@ const GlobeMap = dynamic(() => import('./GlobeMap'), {
 
 //import type { WindyWebcam } from '../../lib/types';
 import { useTerminatorStore } from '@/app/store/useTerminatorStore';
-import { TERMINATOR_PRECISION_DEG, SEARCH_RADIUS_DEG } from '@/app/lib/terminatorConfig';
+import {
+  TERMINATOR_PRECISION_DEG,
+  SEARCH_RADIUS_DEG,
+} from '@/app/lib/masterConfig';
 
 interface SimpleMapProps {
   userLocation: Location;

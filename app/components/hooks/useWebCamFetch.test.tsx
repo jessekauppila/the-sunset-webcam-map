@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
 import { useWebcamFetch } from './useWebCamFetch';
-import { SEARCH_RADIUS_DEG } from '@/app/lib/terminatorConfig';
+import { SEARCH_RADIUS_DEG } from '@/app/lib/masterConfig';
 
 // Mock fetch globally
 global.fetch = vi.fn();

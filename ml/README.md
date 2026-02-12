@@ -6,6 +6,17 @@ This directory contains the V2 model workflow:
 - export ONNX artifacts
 - generate disagreement reports
 
+## Code map
+
+- `ml/export_dataset.py`: build deterministic manifests from DB labels
+- `ml/train.py`: train transfer-learning baseline and save best checkpoint
+- `ml/evaluate.py`: evaluate checkpoint on frozen test split
+- `ml/export_onnx.py`: export checkpoint to ONNX + smoke test with onnxruntime
+- `ml/report_disagreements.py`: compare AI predictions vs human labels
+- `ml/common/splits.py`: deterministic webcam-group split logic
+- `ml/common/labels.py`: binary/regression label mapping rules
+- `ml/common/io.py`: shared artifact I/O helpers
+
 ## 1) Environment setup
 
 ```bash

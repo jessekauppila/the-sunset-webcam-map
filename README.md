@@ -57,7 +57,7 @@ The terminator ring is used in two places:
   uses `createTerminatorVisualizationRing` to draw the ring, points, and search
   circles.
 
-Shared configuration lives in `app/lib/terminatorConfig.ts`:
+Shared configuration lives in `app/lib/masterConfig.ts`:
 
 - `TERMINATOR_PRECISION_DEG`: spacing between ring points (controls API call count)
 - `TERMINATOR_SUN_ALTITUDE_DEG`: base sun altitude used in radius = `90 - altitude`
@@ -451,4 +451,4 @@ This keeps user labels clean for future model training while preserving AI scori
 - `AI_SCORING_MODE`: `baseline` (default) or `onnx`
 - `AI_MODEL_VERSION`: model version string stored with webcam/snapshot inference rows
 - `AI_ONNX_MODEL_PATH`: path to ONNX artifact (used when `AI_SCORING_MODE=onnx`)
-- Threshold and snapshot recency behavior are configured in `app/lib/terminatorConfig.ts`
+- Threshold and snapshot recency behavior are configured in `app/lib/masterConfig.ts`

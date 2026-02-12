@@ -4,7 +4,10 @@
  */
 
 import type { Location, WindyWebcam } from '@/app/lib/types';
-import { SEARCH_RADIUS_DEG } from '@/app/lib/terminatorConfig';
+import {
+  SEARCH_RADIUS_DEG,
+  WINDY_FETCH_STAGGER_WITHIN_BATCH_MS,
+} from '@/app/lib/masterConfig';
 
 /**
  * Fetch webcams from Windy API for a given location
@@ -84,7 +87,9 @@ export async function fetchWebcamsInBatches(
     );
 
     const batchResults = await Promise.all(
-      batch.map((coord, index) => fetchWebcamsFor(coord, index * 200)) // Stagger requests within batch
+      batch.map((coord, index) =>
+        fetchWebcamsFor(coord, index * WINDY_FETCH_STAGGER_WITHIN_BATCH_MS)
+      ) // Stagger requests within batch
     );
 
     batches.push(...batchResults);

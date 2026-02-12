@@ -9,6 +9,11 @@
 
 import type { WindyWebcam } from '@/app/lib/types';
 import path from 'node:path';
+import {
+  AI_MODEL_VERSION_DEFAULT,
+  AI_ONNX_MODEL_PATH_DEFAULT,
+  AI_SCORING_MODE_DEFAULT,
+} from '@/app/lib/masterConfig';
 
 export type WebcamAiScore = {
   rawScore: number;
@@ -16,9 +21,7 @@ export type WebcamAiScore = {
   modelVersion: string;
 };
 
-const DEFAULT_MODEL_VERSION = 'baseline-v1';
-const DEFAULT_ONNX_MODEL_PATH = 'ml/artifacts/models/model.onnx';
-const DEFAULT_SCORING_MODE = 'baseline';
+// Process-level caches avoid reloading the runtime/session for each webcam.
 let cachedOrt: unknown | null = null;
 let cachedSession: unknown | null = null;
 let cachedModelPath: string | null = null;
@@ -28,6 +31,8 @@ function clamp(value: number, min: number, max: number): number {
 }
 
 function buildFeatureVector(webcam: WindyWebcam): number[] {
+  // Current baseline relies on metadata-derived features.
+  // ONNX v2 can replace this with richer image-derived features.
   const normalizedViews = clamp(
     Math.log10((webcam.viewCount ?? 0) + 1) / 6,
     0,
@@ -61,6 +66,7 @@ function baselineScore(
 }
 
 async function getOnnxRuntime(): Promise<unknown> {
+  // Dynamic import keeps runtime optional in baseline mode.
   if (cachedOrt) return cachedOrt;
   const moduleName = 'onnxruntime-node';
   const runtime = await import(moduleName);
@@ -69,6 +75,7 @@ async function getOnnxRuntime(): Promise<unknown> {
 }
 
 async function getSession(modelPath: string): Promise<unknown> {
+  // Reuse session while model path is unchanged.
   if (cachedSession && cachedModelPath === modelPath) return cachedSession;
   const runtime = (await getOnnxRuntime()) as {
     InferenceSession: { create: (p: string) => Promise<unknown> };
@@ -86,7 +93,8 @@ async function scoreWithOnnx(
     Tensor: new (type: string, data: Float32Array, dims: number[]) => unknown;
   };
   const configuredPath =
-    process.env.AI_ONNX_MODEL_PATH?.trim() || DEFAULT_ONNX_MODEL_PATH;
+    process.env.AI_ONNX_MODEL_PATH?.trim() ||
+    AI_ONNX_MODEL_PATH_DEFAULT;
   const modelPath = path.isAbsolute(configuredPath)
     ? configuredPath
     : path.join(process.cwd(), configuredPath);
@@ -98,6 +106,9 @@ async function scoreWithOnnx(
   const inputName = session.inputNames[0];
   const outputName = session.outputNames[0];
 
+  // NOTE: This is a compatibility bridge.
+  // Today we feed a compact feature vector; v2 image model can change
+  // preprocessing while keeping the same return contract.
   const features = buildFeatureVector(webcam);
   const tensor = new runtime.Tensor(
     'float32',
@@ -127,16 +138,19 @@ export async function scoreWebcamPreview(
   webcam: WindyWebcam
 ): Promise<WebcamAiScore> {
   const modelVersion =
-    process.env.AI_MODEL_VERSION?.trim() || DEFAULT_MODEL_VERSION;
-  const mode = process.env.AI_SCORING_MODE?.trim() || DEFAULT_SCORING_MODE;
+    process.env.AI_MODEL_VERSION?.trim() || AI_MODEL_VERSION_DEFAULT;
+  const mode =
+    process.env.AI_SCORING_MODE?.trim() || AI_SCORING_MODE_DEFAULT;
 
   if (mode !== 'onnx') {
+    // Baseline mode is deterministic and dependency-light.
     return baselineScore(webcam, modelVersion);
   }
 
   try {
     return await scoreWithOnnx(webcam, modelVersion);
   } catch (error) {
+    // Never break cron ingestion if ONNX loading/inference fails.
     console.warn(
       'ONNX scorer unavailable, falling back to baseline:',
       error

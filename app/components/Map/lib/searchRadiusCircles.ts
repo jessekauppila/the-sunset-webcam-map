@@ -1,7 +1,7 @@
 import { geoCircle } from 'd3-geo';
 import type { Location } from '../../../lib/types';
 import type { Feature, Polygon } from 'geojson';
-import { CIRCLE_RENDERING_PRECISION_DEG } from '@/app/lib/terminatorConfig';
+import { CIRCLE_RENDERING_PRECISION_DEG } from '@/app/lib/masterConfig';
 
 /**
  * Creates circles (polygons) around terminator points to visualize search coverage

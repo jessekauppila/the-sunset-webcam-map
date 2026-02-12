@@ -16,7 +16,7 @@
  * - Terminator points: Red dots marking the exact points used for API queries
  *
  * The visualization matches the precision and search radius used in the cron jobs
- * (see app/lib/terminatorConfig.ts for configuration values).
+ * (see app/lib/masterConfig.ts for configuration values).
  *
  * Note: This uses native Mapbox layers instead of deck.gl for better 3D support.
  * The layers will properly transform with map tilt/pitch in 3D view.
@@ -30,7 +30,7 @@ import { createSearchRadiusCircles } from '../lib/searchRadiusCircles';
 import {
   TERMINATOR_RING_OFFSETS_DEG,
   TERMINATOR_SUN_ALTITUDE_DEG,
-} from '@/app/lib/terminatorConfig';
+} from '@/app/lib/masterConfig';
 import type { Location as TerminatorLocation } from '@/app/lib/types';
 
 export function useUpdateTerminatorRing(
