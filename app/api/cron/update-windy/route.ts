@@ -150,7 +150,7 @@ export async function GET(req: Request) {
         rank: null,
       };
 
-      const scored = scoreWebcamPreview({
+      const scored = await scoreWebcamPreview({
         ...webcam,
         phase: phaseMeta.phase,
         rank: phaseMeta.rank ?? undefined,

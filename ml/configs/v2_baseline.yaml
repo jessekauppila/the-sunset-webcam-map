@@ -1,0 +1,21 @@
+seed: 20260212
+target_type: binary
+binary_threshold: 4.0
+label_source: manual_only
+min_rating_count: 2
+
+splits:
+  train_pct: 70
+  val_pct: 15
+  test_pct: 15
+
+model:
+  name: resnet18
+  epochs: 10
+  batch_size: 32
+  learning_rate: 0.0001
+
+paths:
+  dataset_output_dir: ml/artifacts/datasets
+  model_output_dir: ml/artifacts/models
+  report_output_dir: ml/artifacts/reports

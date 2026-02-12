@@ -445,3 +445,10 @@ This keeps user labels clean for future model training while preserving AI scori
 - Debug endpoint:
   - `GET /api/debug/ai-ratings?limit=50&secret=<CRON_SECRET>`
   - Returns latest webcam AI fields and recent snapshot inference rows
+
+### Runtime AI Scoring Config
+
+- `AI_SCORING_MODE`: `baseline` (default) or `onnx`
+- `AI_MODEL_VERSION`: model version string stored with webcam/snapshot inference rows
+- `AI_ONNX_MODEL_PATH`: path to ONNX artifact (used when `AI_SCORING_MODE=onnx`)
+- Threshold and snapshot recency behavior are configured in `app/lib/terminatorConfig.ts`
