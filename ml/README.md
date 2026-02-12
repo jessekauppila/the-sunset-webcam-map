@@ -32,6 +32,10 @@ python -m pip install -r ml/requirements.txt
 
 `DATABASE_URL` must be available in your shell for export/report scripts.
 
+Torch stack note:
+- This repo currently pins `torch==2.2.2` and `torchvision==0.17.2`
+  in `ml/requirements.txt` for local compatibility.
+
 ## 2) Export dataset manifests (manual-only default)
 
 ```bash

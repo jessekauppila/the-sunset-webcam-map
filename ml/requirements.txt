@@ -5,7 +5,8 @@ psycopg2-binary>=2.9
 PyYAML>=6.0
 requests>=2.32
 scikit-learn>=1.5
-torch>=2.4
-torchvision>=0.19
+# Pinned for broader wheel availability in current local setup.
+torch==2.2.2
+torchvision==0.17.2
 onnx>=1.16
 onnxruntime>=1.18
