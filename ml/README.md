@@ -1,6 +1,7 @@
 # ML Runbook (Manual First, Public Ready)
 
 This directory contains the V2 model workflow:
+
 - export dataset manifests with deterministic splits
 - train/evaluate PyTorch models
 - export ONNX artifacts
@@ -23,6 +24,10 @@ This directory contains the V2 model workflow:
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r ml/requirements.txt
+or
+python -m pip install --upgrade pip
+python -m pip install -r ml/requirements.txt
+
 ```
 
 `DATABASE_URL` must be available in your shell for export/report scripts.
@@ -38,6 +43,7 @@ python ml/export_dataset.py \
 ```
 
 This writes:
+
 - `manifest_full.csv`
 - `manifest_train.csv`
 - `manifest_val.csv`
@@ -65,6 +71,7 @@ python ml/train.py \
 ```
 
 Outputs:
+
 - `ml/artifacts/models/best.pt`
 - `ml/artifacts/models/train_summary.json`
 
@@ -79,6 +86,7 @@ python ml/evaluate.py \
 ```
 
 Output:
+
 - `ml/artifacts/reports/eval_report.json`
 
 ## 5) Export ONNX and verify locally
@@ -92,17 +100,20 @@ python ml/export_onnx.py \
 ```
 
 Outputs:
+
 - `ml/artifacts/models/model.onnx`
 - `ml/artifacts/models/model.meta.json`
 
 ## 6) Runtime integration notes
 
 App scorer keeps stable output contract:
+
 - `rawScore`
 - `aiRating`
 - `modelVersion`
 
 Runtime env vars:
+
 - `AI_SCORING_MODE=baseline|onnx`
 - `AI_MODEL_VERSION=<version>`
 - `AI_ONNX_MODEL_PATH=<absolute-or-workspace-relative-path>`
@@ -118,4 +129,5 @@ python ml/report_disagreements.py \
 ```
 
 Output:
+
 - `ml/artifacts/reports/disagreement_report.json`
