@@ -117,6 +117,9 @@ export function RatingCard({
       : feedback?.tone === 'negative'
       ? 'bg-red-100 text-red-700 border-red-300'
       : 'bg-gray-300 text-gray-700 border-gray-400';
+  const hasBinary = typeof webcam.aiRatingBinary === 'number';
+  const hasRegression = typeof webcam.aiRatingRegression === 'number';
+  const hasLegacyAi = typeof webcam.aiRating === 'number';
 
   return (
     <div
@@ -159,17 +162,37 @@ export function RatingCard({
           </p>
         ) : null}
 
-        {typeof webcam.aiRating === 'number' ? (
+        {hasLegacyAi || hasBinary || hasRegression ? (
           <div className="rounded border border-indigo-200 bg-indigo-50 px-2 py-1">
             <p className="text-[11px] uppercase tracking-wide text-indigo-500">
-              AI rating
+              AI ratings
             </p>
-            <p className="text-sm font-semibold text-indigo-700">
-              {webcam.aiRating.toFixed(2)} / 5
-            </p>
-            {webcam.aiModelVersion ? (
+            {hasRegression ? (
+              <p className="text-sm font-semibold text-indigo-700">
+                Regression: {webcam.aiRatingRegression!.toFixed(2)} / 5
+              </p>
+            ) : hasLegacyAi ? (
+              <p className="text-sm font-semibold text-indigo-700">
+                Regression: {webcam.aiRating!.toFixed(2)} / 5
+              </p>
+            ) : null}
+            {hasBinary ? (
+              <p className="text-sm font-semibold text-indigo-700">
+                Binary: {webcam.aiRatingBinary!.toFixed(2)} / 5
+              </p>
+            ) : null}
+            {webcam.aiModelVersionRegression ? (
+              <p className="text-[11px] text-indigo-500">
+                Regression model: {webcam.aiModelVersionRegression}
+              </p>
+            ) : webcam.aiModelVersion ? (
               <p className="text-[11px] text-indigo-500">
                 Model: {webcam.aiModelVersion}
+              </p>
+            ) : null}
+            {webcam.aiModelVersionBinary ? (
+              <p className="text-[11px] text-indigo-500">
+                Binary model: {webcam.aiModelVersionBinary}
               </p>
             ) : null}
           </div>

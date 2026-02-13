@@ -430,7 +430,9 @@ The rating system now separates human votes from model outputs:
 - `webcam_snapshot_ratings`: public/manual ratings only (one per user per snapshot)
 - `webcam_snapshots.calculated_rating`: aggregate human rating for fast reads
 - `snapshot_ai_inferences`: model output history (`raw_score`, normalized `ai_rating`, `model_version`, `scored_at`)
-- `webcams.ai_rating` + `webcams.ai_model_version`: latest webcam-level AI score used by map popup display
+- `webcams.ai_rating` + `webcams.ai_model_version`: legacy latest webcam-level AI score (kept for compatibility)
+- `webcams.ai_rating_binary` + `webcams.ai_model_version_binary`: latest binary model score shown in map popup
+- `webcams.ai_rating_regression` + `webcams.ai_model_version_regression`: latest regression model score shown in map popup
 
 This keeps user labels clean for future model training while preserving AI scoring history for inspection.
 
@@ -449,6 +451,13 @@ This keeps user labels clean for future model training while preserving AI scori
 ### Runtime AI Scoring Config
 
 - `AI_SCORING_MODE`: `baseline` (default) or `onnx`
-- `AI_MODEL_VERSION`: model version string stored with webcam/snapshot inference rows
-- `AI_ONNX_MODEL_PATH`: path to ONNX artifact (used when `AI_SCORING_MODE=onnx`)
-- Threshold and snapshot recency behavior are configured in `app/lib/masterConfig.ts`
+- `AI_MODEL_VERSION`: legacy single-model version string (still accepted)
+- `AI_ONNX_MODEL_PATH`: legacy single-model ONNX path (still accepted)
+- `AI_BINARY_MODEL_VERSION`: binary model version string
+- `AI_REGRESSION_MODEL_VERSION`: regression model version string
+- `AI_ONNX_BINARY_MODEL_PATH`: binary ONNX path
+- `AI_ONNX_REGRESSION_MODEL_PATH`: regression ONNX path
+- Threshold and snapshot recency behavior are configured in `app/lib/masterConfig.ts`:
+  - `AI_BINARY_DECISION_THRESHOLD`: default positive/negative decision cutoff (`0.5`)
+  - `AI_SNAPSHOT_MIN_RAW_SCORE_THRESHOLD`: minimum raw score for snapshot capture (`0.8`)
+  - `AI_SNAPSHOT_MIN_RATING_THRESHOLD`: legacy 0-5 threshold kept for rating-scale logic (`4.0`)

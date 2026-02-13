@@ -12,7 +12,11 @@ import type { WindyWebcam } from '@/app/lib/types';
 type WebcamAiUpdate = {
   webcamId: number;
   aiRating: number;
-  modelVersion: string;
+  aiModelVersion: string;
+  aiRatingBinary: number;
+  aiModelVersionBinary: string;
+  aiRatingRegression: number;
+  aiModelVersionRegression: string;
 };
 
 type SnapshotRecord = {
@@ -183,7 +187,11 @@ export async function updateWebcamAiFields(
     sql`
       update webcams
       set ai_rating = ${item.aiRating},
-          ai_model_version = ${item.modelVersion},
+          ai_model_version = ${item.aiModelVersion},
+          ai_rating_binary = ${item.aiRatingBinary},
+          ai_model_version_binary = ${item.aiModelVersionBinary},
+          ai_rating_regression = ${item.aiRatingRegression},
+          ai_model_version_regression = ${item.aiModelVersionRegression},
           updated_at = now()
       where id = ${item.webcamId}
     `

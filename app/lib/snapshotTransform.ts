@@ -37,6 +37,10 @@ export interface SnapshotRow {
   orientation: string | null;
   webcam_ai_rating: number | null;
   webcam_ai_model_version: string | null;
+  webcam_ai_rating_binary: number | null;
+  webcam_ai_model_version_binary: string | null;
+  webcam_ai_rating_regression: number | null;
+  webcam_ai_model_version_regression: string | null;
 }
 
 /**
@@ -86,6 +90,12 @@ export function transformSnapshot(row: SnapshotRow): Snapshot {
     orientation: (row.orientation as Orientation) ?? undefined,
     aiRating: row.webcam_ai_rating ?? undefined,
     aiModelVersion: row.webcam_ai_model_version ?? undefined,
+    aiRatingBinary: row.webcam_ai_rating_binary ?? undefined,
+    aiModelVersionBinary:
+      row.webcam_ai_model_version_binary ?? undefined,
+    aiRatingRegression: row.webcam_ai_rating_regression ?? undefined,
+    aiModelVersionRegression:
+      row.webcam_ai_model_version_regression ?? undefined,
 
     // Snapshot metadata
     snapshot: {

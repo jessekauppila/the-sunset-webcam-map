@@ -20,6 +20,7 @@ from typing import Any
 
 import psycopg2
 import psycopg2.extras
+from tqdm.auto import tqdm
 
 from common.io import ensure_dir, env_required, utc_timestamp, write_csv, write_json
 from common.labels import LabelPolicy, map_label
@@ -43,6 +44,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--test-pct", type=int, default=15)
     parser.add_argument("--output-dir", default="ml/artifacts/datasets")
     parser.add_argument("--training-run-id", type=int)
+    parser.add_argument("--no-progress", action="store_true")
     return parser.parse_args()
 
 
@@ -164,7 +166,12 @@ def main() -> None:
         rows = fetch_rows(conn, args.label_source, args.min_rating_count)
 
         manifest: list[dict[str, Any]] = []
-        for row in rows:
+        for row in tqdm(
+            rows,
+            desc="Building manifest",
+            unit="row",
+            disable=args.no_progress,
+        ):
             # Deterministic webcam-group split (prevents leakage across splits).
             split = assign_split(int(row["webcam_id"]), split_cfg)
             # Convert raw rating into task target (binary/regression).

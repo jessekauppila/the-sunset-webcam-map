@@ -12,7 +12,9 @@ export async function GET() {
            w.lat, w.lng, w.city, w.region, w.country, w.continent,
            w.images, w.urls, w.player, w.categories,
            w.last_fetched_at, w.created_at, w.updated_at,
-           w.rating, w.orientation, w.ai_rating, w.ai_model_version
+           w.rating, w.orientation, w.ai_rating, w.ai_model_version,
+           w.ai_rating_binary, w.ai_model_version_binary,
+           w.ai_rating_regression, w.ai_model_version_regression
     from terminator_webcam_state s
     join webcams w on w.id = s.webcam_id
     where s.active = true
@@ -74,6 +76,10 @@ export async function GET() {
     orientation: string | null;
     ai_rating: number | null;
     ai_model_version: string | null;
+    ai_rating_binary: number | null;
+    ai_model_version_binary: string | null;
+    ai_rating_regression: number | null;
+    ai_model_version_regression: string | null;
   }>;
 
   // Transform database rows directly to WindyWebcam format
@@ -106,6 +112,11 @@ export async function GET() {
       (row.orientation as WindyWebcam['orientation']) ?? undefined,
     aiRating: row.ai_rating ?? undefined,
     aiModelVersion: row.ai_model_version ?? undefined,
+    aiRatingBinary: row.ai_rating_binary ?? undefined,
+    aiModelVersionBinary: row.ai_model_version_binary ?? undefined,
+    aiRatingRegression: row.ai_rating_regression ?? undefined,
+    aiModelVersionRegression:
+      row.ai_model_version_regression ?? undefined,
   }));
 
   return NextResponse.json(webcams);

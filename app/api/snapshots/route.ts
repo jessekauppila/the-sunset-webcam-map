@@ -123,7 +123,11 @@ export async function GET(request: Request) {
             w.rating as webcam_rating,
             w.orientation,
             w.ai_rating as webcam_ai_rating,
-            w.ai_model_version as webcam_ai_model_version
+            w.ai_model_version as webcam_ai_model_version,
+            w.ai_rating_binary as webcam_ai_rating_binary,
+            w.ai_model_version_binary as webcam_ai_model_version_binary,
+            w.ai_rating_regression as webcam_ai_rating_regression,
+            w.ai_model_version_regression as webcam_ai_model_version_regression
           FROM webcam_snapshots s
           JOIN webcams w ON w.id = s.webcam_id
           LEFT JOIN webcam_snapshot_ratings r ON r.snapshot_id = s.id
@@ -173,7 +177,11 @@ export async function GET(request: Request) {
             w.rating as webcam_rating,
             w.orientation,
             w.ai_rating as webcam_ai_rating,
-            w.ai_model_version as webcam_ai_model_version
+            w.ai_model_version as webcam_ai_model_version,
+            w.ai_rating_binary as webcam_ai_rating_binary,
+            w.ai_model_version_binary as webcam_ai_model_version_binary,
+            w.ai_rating_regression as webcam_ai_rating_regression,
+            w.ai_model_version_regression as webcam_ai_model_version_regression
           FROM webcam_snapshots s
           JOIN webcams w ON w.id = s.webcam_id
           LEFT JOIN webcam_snapshot_ratings r ON r.snapshot_id = s.id
@@ -221,7 +229,11 @@ export async function GET(request: Request) {
             w.rating as webcam_rating,
             w.orientation,
             w.ai_rating as webcam_ai_rating,
-            w.ai_model_version as webcam_ai_model_version
+            w.ai_model_version as webcam_ai_model_version,
+            w.ai_rating_binary as webcam_ai_rating_binary,
+            w.ai_model_version_binary as webcam_ai_model_version_binary,
+            w.ai_rating_regression as webcam_ai_rating_regression,
+            w.ai_model_version_regression as webcam_ai_model_version_regression
           FROM webcam_snapshots s
           JOIN webcams w ON w.id = s.webcam_id
           LEFT JOIN webcam_snapshot_ratings r ON r.snapshot_id = s.id
@@ -310,7 +322,11 @@ export async function GET(request: Request) {
         w.rating as webcam_rating,
         w.orientation,
         w.ai_rating as webcam_ai_rating,
-        w.ai_model_version as webcam_ai_model_version
+        w.ai_model_version as webcam_ai_model_version,
+        w.ai_rating_binary as webcam_ai_rating_binary,
+        w.ai_model_version_binary as webcam_ai_model_version_binary,
+        w.ai_rating_regression as webcam_ai_rating_regression,
+        w.ai_model_version_regression as webcam_ai_model_version_regression
       FROM webcam_snapshots s
       JOIN webcams w ON w.id = s.webcam_id
       LEFT JOIN webcam_snapshot_ratings r ON r.snapshot_id = s.id

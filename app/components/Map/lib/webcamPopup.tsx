@@ -43,6 +43,35 @@ export function createWebcamPopupContent(
     return 'Unknown';
   };
 
+  const aiRegression =
+    typeof webcam.aiRatingRegression === 'number'
+      ? webcam.aiRatingRegression
+      : typeof webcam.aiRating === 'number'
+      ? webcam.aiRating
+      : null;
+  const aiBinary =
+    typeof webcam.aiRatingBinary === 'number'
+      ? webcam.aiRatingBinary
+      : null;
+  const aiSection = (() => {
+    if (aiRegression === null && aiBinary === null) return '';
+    const regressionLine =
+      aiRegression !== null
+        ? `<p style="margin: 0 0 2px 0; font-size: 11px; color: #c7d2fe;line-height: 1;">Regression: ${aiRegression.toFixed(2)} / 5</p>`
+        : '';
+    const binaryLine =
+      aiBinary !== null
+        ? `<p style="margin: 0 0 2px 0; font-size: 11px; color: #c7d2fe;line-height: 1;">Binary: ${aiBinary.toFixed(2)} / 5</p>`
+        : '';
+    return `
+      <div style="margin: 8px 0 6px 0; padding: 6px 8px; border-radius: 4px; background: rgba(49, 46, 129, 0.35); border: 1px solid rgba(99, 102, 241, 0.35);">
+        <p style="margin: 0 0 4px 0; font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em; color: #a5b4fc;line-height: 1;">AI ratings</p>
+        ${regressionLine}
+        ${binaryLine}
+      </div>
+    `;
+  })();
+
   if (hasImage) {
     return `
     <div style="width: 200px; background: #374151; border-radius: 2px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.3);">
@@ -76,6 +105,7 @@ export function createWebcamPopupContent(
           <p style="margin: 0 0 4px 0; font-size: 10px; color: #9ca3af;line-height: 1;">
             Updated: ${formatLastUpdated()}
           </p>
+          ${aiSection}
           
           <!-- ID -->
           <p style="margin: 0; font-size: 10px; color: #9ca3af;line-height: 1;">
@@ -111,6 +141,7 @@ export function createWebcamPopupContent(
         <p style="margin: 0 0 4px 0; font-size: 10px; color: #9ca3af;line-height: 1;">
           Updated: ${formatLastUpdated()}
         </p>
+        ${aiSection}
         
         <!-- ID -->
         <p style="margin: 0; font-size: 10px; color: #9ca3af;line-height: 1;">

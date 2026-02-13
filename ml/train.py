@@ -12,17 +12,20 @@ Flow:
 """
 
 import argparse
+import io
 import json
 from pathlib import Path
 from typing import Callable
 
 import pandas as pd
+import requests
 import torch
 import torch.nn as nn
 import torch.optim as optim
 from PIL import Image
 from sklearn.metrics import f1_score
 from torch.utils.data import DataLoader, Dataset
+from tqdm.auto import tqdm
 from torchvision import models, transforms
 
 
@@ -37,9 +40,17 @@ class ManifestDataset(Dataset):
     def __len__(self) -> int:
         return len(self.df)
 
+    @staticmethod
+    def load_image(image_ref: str) -> Image.Image:
+        if image_ref.startswith("http://") or image_ref.startswith("https://"):
+            resp = requests.get(image_ref, timeout=20)
+            resp.raise_for_status()
+            return Image.open(io.BytesIO(resp.content)).convert("RGB")
+        return Image.open(image_ref).convert("RGB")
+
     def __getitem__(self, idx: int):
         row = self.df.iloc[idx]
-        image = Image.open(row["image_path_or_url"]).convert("RGB")
+        image = self.load_image(str(row["image_path_or_url"]))
         x = self.transform(image)
         y = float(row["target_label"])
         if self.target_type == "binary":
@@ -73,6 +84,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--batch-size", type=int, default=32)
     parser.add_argument("--learning-rate", type=float, default=1e-4)
     parser.add_argument("--output-dir", default="ml/artifacts/models")
+    parser.add_argument("--no-progress", action="store_true")
     return parser.parse_args()
 
 
@@ -112,16 +124,27 @@ def main() -> None:
     best_metric = -1.0 if args.target_type == "binary" else float("inf")
     history: list[dict] = []
 
-    for epoch in range(args.epochs):
+    for epoch in tqdm(
+        range(args.epochs),
+        desc="Epochs",
+        unit="epoch",
+        disable=args.no_progress,
+    ):
         # --- training phase ---
         model.train()
         train_loss = 0.0
-        for x, y in train_loader:
+        for x, y in tqdm(
+            train_loader,
+            desc=f"Train {epoch + 1}/{args.epochs}",
+            unit="batch",
+            leave=False,
+            disable=args.no_progress,
+        ):
             x = x.to(device)
             if args.target_type == "regression":
-                y_tensor = torch.tensor(y, dtype=torch.float32, device=device).unsqueeze(1)
+                y_tensor = y.to(device=device, dtype=torch.float32).unsqueeze(1)
             else:
-                y_tensor = torch.tensor(y, dtype=torch.long, device=device)
+                y_tensor = y.to(device=device, dtype=torch.long)
             optimizer.zero_grad()
             pred = model(x)
             loss = criterion(pred, y_tensor)
@@ -134,20 +157,26 @@ def main() -> None:
         all_y = []
         all_pred = []
         with torch.no_grad():
-            for x, y in val_loader:
+            for x, y in tqdm(
+                val_loader,
+                desc=f"Val {epoch + 1}/{args.epochs}",
+                unit="batch",
+                leave=False,
+                disable=args.no_progress,
+            ):
                 x = x.to(device)
                 if args.target_type == "regression":
-                    y_tensor = torch.tensor(y, dtype=torch.float32, device=device).unsqueeze(1)
+                    y_tensor = y.to(device=device, dtype=torch.float32).unsqueeze(1)
                     pred = model(x)
                     val_loss += criterion(pred, y_tensor).item()
                     all_pred.extend(pred.squeeze(1).cpu().tolist())
-                    all_y.extend(list(y))
+                    all_y.extend(y.cpu().tolist())
                 else:
-                    y_tensor = torch.tensor(y, dtype=torch.long, device=device)
+                    y_tensor = y.to(device=device, dtype=torch.long)
                     logits = model(x)
                     val_loss += criterion(logits, y_tensor).item()
                     all_pred.extend(torch.argmax(logits, dim=1).cpu().tolist())
-                    all_y.extend(list(y))
+                    all_y.extend(y.cpu().tolist())
 
         if args.target_type == "binary":
             # For binary v1, use validation F1 as model-selection metric.
@@ -171,6 +200,16 @@ def main() -> None:
                 "val_loss": val_loss / max(1, len(val_loader)),
                 "val_metric": val_metric,
             }
+        )
+        print(
+            json.dumps(
+                {
+                    "epoch": epoch + 1,
+                    "train_loss": history[-1]["train_loss"],
+                    "val_loss": history[-1]["val_loss"],
+                    "val_metric": val_metric,
+                }
+            )
         )
 
     summary = {

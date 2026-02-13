@@ -9,6 +9,7 @@ from pathlib import Path
 import numpy as np
 import onnxruntime as ort
 import torch
+from tqdm.auto import tqdm
 from torchvision import models
 
 
@@ -49,11 +50,13 @@ def main() -> None:
     args = parse_args()
     out = Path(args.output)
     out.parent.mkdir(parents=True, exist_ok=True)
+    progress = tqdm(total=4, desc="Export ONNX", unit="step")
 
     model = build_model(args.model_name, args.target_type)
     state = torch.load(args.checkpoint, map_location="cpu")
     model.load_state_dict(state)
     model.eval()
+    progress.update(1)
 
     dummy = torch.randn(1, 3, 224, 224)
     torch.onnx.export(
@@ -65,10 +68,12 @@ def main() -> None:
         dynamic_axes={"input": {0: "batch"}, "output": {0: "batch"}},
         opset_version=args.opset,
     )
+    progress.update(1)
 
     # Smoke test with onnxruntime
     sess = ort.InferenceSession(out.as_posix(), providers=["CPUExecutionProvider"])
     ort_out = sess.run(None, {"input": dummy.numpy().astype(np.float32)})
+    progress.update(1)
 
     metadata = {
         "checkpoint": args.checkpoint,
@@ -82,6 +87,8 @@ def main() -> None:
     }
     meta_path = out.with_suffix(".meta.json")
     meta_path.write_text(json.dumps(metadata, indent=2), encoding="utf-8")
+    progress.update(1)
+    progress.close()
     print(json.dumps({"ok": True, "metadata": metadata}, indent=2))
 
 

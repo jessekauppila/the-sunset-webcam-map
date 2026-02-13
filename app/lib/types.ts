@@ -75,6 +75,10 @@ export interface WindyWebcam {
   // Latest AI scoring fields (updated by cron ingestion)
   aiRating?: number; // 0-5 normalized score
   aiModelVersion?: string; // Model version for aiRating
+  aiRatingBinary?: number; // 0-5 normalized binary score
+  aiModelVersionBinary?: string; // Model version for binary score
+  aiRatingRegression?: number; // 0-5 normalized regression score
+  aiModelVersionRegression?: string; // Model version for regression score
 }
 
 export function windyWebcamToLocation(

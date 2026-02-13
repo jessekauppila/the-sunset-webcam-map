@@ -47,6 +47,16 @@ export const CIRCLE_RENDERING_PRECISION_DEG = SEARCH_RADIUS_DEG;
 // ---------------------------------------------------------------------------
 // AI scoring + snapshot capture behavior
 // ---------------------------------------------------------------------------
+// Binary classifier threshold used when mapping probability/raw score to
+// positive vs negative decisions.
+export const AI_BINARY_DECISION_THRESHOLD = 0.5;
+
+// Minimum raw score required to treat a webcam as "capture-worthy" for
+// snapshot persistence during cron runs.
+export const AI_SNAPSHOT_MIN_RAW_SCORE_THRESHOLD = 0.8;
+
+// Legacy rating-space threshold (0-5 scale). Keep this for places that still
+// reason in rating units while we transition to raw-score thresholds.
 export const AI_SNAPSHOT_MIN_RATING_THRESHOLD = 4.0;
 export const AI_SNAPSHOT_RECENT_WINDOW_MINUTES = 30;
 
@@ -57,6 +67,12 @@ export const AI_SCORING_MODE_DEFAULT = 'baseline';
 export const AI_MODEL_VERSION_DEFAULT = 'baseline-v1';
 export const AI_ONNX_MODEL_PATH_DEFAULT =
   'ml/artifacts/models/model.onnx';
+export const AI_BINARY_MODEL_VERSION_DEFAULT = 'binary-v1';
+export const AI_REGRESSION_MODEL_VERSION_DEFAULT = 'regression-v1';
+export const AI_ONNX_BINARY_MODEL_PATH_DEFAULT =
+  'ml/artifacts/models/binary_resnet18/model.onnx';
+export const AI_ONNX_REGRESSION_MODEL_PATH_DEFAULT =
+  'ml/artifacts/models/regression_resnet18/model.onnx';
 
 // ---------------------------------------------------------------------------
 // Windy API fetch behavior

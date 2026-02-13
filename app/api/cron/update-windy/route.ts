@@ -17,7 +17,7 @@ import {
   TERMINATOR_RING_OFFSETS_DEG,
   TERMINATOR_PRECISION_DEG,
   TERMINATOR_SUN_ALTITUDE_DEG,
-  AI_SNAPSHOT_MIN_RATING_THRESHOLD,
+  AI_SNAPSHOT_MIN_RAW_SCORE_THRESHOLD,
   AI_SNAPSHOT_RECENT_WINDOW_MINUTES,
   WINDY_FETCH_BATCH_SIZE,
   WINDY_FETCH_DELAY_BETWEEN_BATCHES_MS,
@@ -142,7 +142,11 @@ export async function GET(req: Request) {
   const webcamAiUpdates: Array<{
     webcamId: number;
     aiRating: number;
-    modelVersion: string;
+    aiModelVersion: string;
+    aiRatingBinary: number;
+    aiModelVersionBinary: string;
+    aiRatingRegression: number;
+    aiModelVersionRegression: string;
   }> = [];
 
   for (const webcam of windyAll) {
@@ -166,10 +170,14 @@ export async function GET(req: Request) {
       webcamAiUpdates.push({
         webcamId,
         aiRating: scored.aiRating,
-        modelVersion: scored.modelVersion,
+        aiModelVersion: scored.modelVersion,
+        aiRatingBinary: scored.binary.aiRating,
+        aiModelVersionBinary: scored.binary.modelVersion,
+        aiRatingRegression: scored.regression.aiRating,
+        aiModelVersionRegression: scored.regression.modelVersion,
       });
 
-      if (scored.aiRating < AI_SNAPSHOT_MIN_RATING_THRESHOLD) continue;
+      if (scored.rawScore < AI_SNAPSHOT_MIN_RAW_SCORE_THRESHOLD) continue;
       aiStats.above_threshold += 1;
 
       let snapshotId: number;
@@ -206,11 +214,17 @@ export async function GET(req: Request) {
 
       await upsertSnapshotAiInference(
         snapshotId,
-        scored.modelVersion,
-        scored.rawScore,
-        scored.aiRating
+        scored.binary.modelVersion,
+        scored.binary.rawScore,
+        scored.binary.aiRating
       );
-      aiStats.inference_rows_written += 1;
+      await upsertSnapshotAiInference(
+        snapshotId,
+        scored.regression.modelVersion,
+        scored.regression.rawScore,
+        scored.regression.aiRating
+      );
+      aiStats.inference_rows_written += 2;
     } catch (error) {
       aiStats.failures += 1;
       console.error(
