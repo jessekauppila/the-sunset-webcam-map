@@ -5,6 +5,12 @@ import { sql } from '@/app/lib/db';
 import type { WindyWebcam } from '@/app/lib/types';
 
 export async function GET() {
+  const toMaybeNumber = (value: number | string | null): number | undefined => {
+    if (value === null || value === undefined) return undefined;
+    const n = Number(value);
+    return Number.isFinite(n) ? n : undefined;
+  };
+
   // Use ring-based filtering via terminator_webcam_state.active
   const rows = (await sql`
     select s.webcam_id, s.phase, s.rank,
@@ -74,11 +80,11 @@ export async function GET() {
     updated_at: string;
     rating: number | null;
     orientation: string | null;
-    ai_rating: number | null;
+    ai_rating: number | string | null;
     ai_model_version: string | null;
-    ai_rating_binary: number | null;
+    ai_rating_binary: number | string | null;
     ai_model_version_binary: string | null;
-    ai_rating_regression: number | null;
+    ai_rating_regression: number | string | null;
     ai_model_version_regression: string | null;
   }>;
 
@@ -110,11 +116,11 @@ export async function GET() {
     rating: row.rating ?? undefined,
     orientation:
       (row.orientation as WindyWebcam['orientation']) ?? undefined,
-    aiRating: row.ai_rating ?? undefined,
+    aiRating: toMaybeNumber(row.ai_rating),
     aiModelVersion: row.ai_model_version ?? undefined,
-    aiRatingBinary: row.ai_rating_binary ?? undefined,
+    aiRatingBinary: toMaybeNumber(row.ai_rating_binary),
     aiModelVersionBinary: row.ai_model_version_binary ?? undefined,
-    aiRatingRegression: row.ai_rating_regression ?? undefined,
+    aiRatingRegression: toMaybeNumber(row.ai_rating_regression),
     aiModelVersionRegression:
       row.ai_model_version_regression ?? undefined,
   }));
