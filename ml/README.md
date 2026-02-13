@@ -33,6 +33,7 @@ python -m pip install -r ml/requirements.txt
 `DATABASE_URL` must be available in your shell for export/report scripts.
 
 Torch stack note:
+
 - This repo currently pins `torch==2.2.2` and `torchvision==0.17.2`
   in `ml/requirements.txt` for local compatibility.
 
@@ -135,3 +136,20 @@ python ml/report_disagreements.py \
 Output:
 
 - `ml/artifacts/reports/disagreement_report.json`
+
+Suggested next command sequence (to start using this)
+
+Create Python env + install:
+python3 -m venv .venv && source .venv/bin/activate && pip install -r ml/requirements.txt
+
+Export dataset (manual-first):
+python3 ml/export_dataset.py --label-source manual_only --target-type binary --seed 20260212 --min-rating-count 1
+
+Train:
+python ml/train.py --train-manifest <...>/manifest_train.csv --val-manifest <...>/manifest_val.csv --target-type binary --model-name resnet18
+
+Evaluate:
+python ml/evaluate.py --test-manifest <...>/manifest_test.csv --checkpoint ml/artifacts/models/best.pt --target-type binary --model-name resnet18
+
+Export ONNX:
+python ml/export_onnx.py --checkpoint ml/artifacts/models/best.pt --target-type binary --model-name resnet18 --output ml/artifacts/models/model.onnx
