@@ -41,6 +41,12 @@ export function SnapshotConsole({
   const curatedPageSize = useSnapshotStore((s) => s.curatedPageSize);
   const curatedTotal = useSnapshotStore((s) => s.curatedTotal);
   const unrated = useSnapshotStore((s) => s.unrated);
+  const unratedArchiveTotal = useSnapshotStore(
+    (s) => s.unratedArchiveTotal
+  );
+  const unratedRatedTotal = useSnapshotStore(
+    (s) => s.unratedRatedTotal
+  );
 
   // Get current mode's data
   const snapshots =
@@ -115,6 +121,10 @@ export function SnapshotConsole({
   const queueCurrent = snapshots[queueIndex];
   const queueNext = snapshots[queueIndex + 1];
   const queueRemainingCount = Math.max(snapshots.length - queueIndex, 0);
+  const queueProgressLabel =
+    unratedArchiveTotal > 0
+      ? `${title}: ${unratedRatedTotal} of ${unratedArchiveTotal} Snapshots Rated`
+      : title;
 
   const handleQueueRate = useCallback(
     async (rating: number) => {
@@ -244,7 +254,9 @@ export function SnapshotConsole({
     return (
       <div className="console-container">
         <div className="flex justify-between items-center mb-4">
-          <h3 className="text-lg font-bold text-gray-700">{title}</h3>
+          <h3 className="text-lg font-bold text-gray-700">
+            {queueProgressLabel}
+          </h3>
           <p className="text-sm text-gray-600">
             Loaded {snapshots.length}
           </p>
@@ -271,6 +283,8 @@ export function SnapshotConsole({
             disabled={isQueueSubmitting}
             ratedCount={queueRatedCount}
             remainingCount={queueRemainingCount}
+            archiveTotal={unratedArchiveTotal}
+            archiveRatedTotal={unratedRatedTotal}
           />
         )}
       </div>

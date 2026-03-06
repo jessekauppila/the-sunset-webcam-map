@@ -9,6 +9,10 @@ import {
 } from '@/app/lib/snapshotTransform';
 import { shuffleArray } from '@/app/lib/shuffle';
 import type { Snapshot } from '@/app/lib/types';
+import {
+  SNAPSHOT_QUEUE_PROGRESS_RATED_SCOPE,
+  SNAPSHOT_QUEUE_UNRATED_SCOPE,
+} from '@/app/lib/masterConfig';
 
 export const dynamic = 'force-dynamic';
 
@@ -360,17 +364,35 @@ export async function GET(request: Request) {
 
     const total = countResult[0]?.total || 0;
 
-    // Get unrated count if unratedOnly filter is active
+    // Get queue progress counts when unrated queue mode is active.
     let unrated = undefined;
-    if (unratedOnly && userSessionId) {
-      const unratedResult = await sql`
-        SELECT COUNT(*)::int as unrated_count
-        FROM webcam_snapshots s
-        LEFT JOIN webcam_snapshot_ratings ur ON ur.snapshot_id = s.id 
-          AND ur.user_session_id = ${userSessionId}
-        WHERE ur.rating IS NULL
+    let archiveTotal = undefined;
+    let rated = undefined;
+    if (unratedOnly) {
+      const archiveTotalResult = await sql`
+        SELECT COUNT(*)::int as archive_total
+        FROM webcam_snapshots
       `;
-      unrated = unratedResult[0]?.unrated_count || 0;
+      archiveTotal = archiveTotalResult[0]?.archive_total || 0;
+
+      // Global ranking coverage: any snapshot with >=1 rating row.
+      const ratedResult = await sql`
+        SELECT COUNT(DISTINCT snapshot_id)::int as rated_count
+        FROM webcam_snapshot_ratings
+      `;
+      rated = ratedResult[0]?.rated_count || 0;
+
+      // Keep session-specific unrated count for queue sizing/remaining context.
+      if (userSessionId) {
+        const unratedResult = await sql`
+          SELECT COUNT(*)::int as unrated_count
+          FROM webcam_snapshots s
+          LEFT JOIN webcam_snapshot_ratings ur ON ur.snapshot_id = s.id 
+            AND ur.user_session_id = ${userSessionId}
+          WHERE ur.rating IS NULL
+        `;
+        unrated = unratedResult[0]?.unrated_count || 0;
+      }
     }
 
     return NextResponse.json({
@@ -378,6 +400,10 @@ export async function GET(request: Request) {
       returnedIds,
       total,
       unrated,
+      archiveTotal,
+      rated,
+      queueRatedScope: SNAPSHOT_QUEUE_PROGRESS_RATED_SCOPE,
+      queueUnratedScope: SNAPSHOT_QUEUE_UNRATED_SCOPE,
       limit,
       offset,
     });

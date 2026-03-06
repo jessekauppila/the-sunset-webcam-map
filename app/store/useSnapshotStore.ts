@@ -27,6 +27,8 @@ type State = {
   unratedPageSize: number;
   unratedSeen: Set<number>;
   unratedTotal: number;
+  unratedArchiveTotal: number;
+  unratedRatedTotal: number;
 
   // Legacy support (deprecated - kept for backward compatibility)
   snapshots: Snapshot[];
@@ -158,6 +160,8 @@ export const useSnapshotStore = create<State>()((set, get) => ({
   unratedPageSize: 100,
   unratedSeen: loadUnratedSeen(),
   unratedTotal: 0,
+  unratedArchiveTotal: 0,
+  unratedRatedTotal: 0,
 
   // Legacy support
   snapshots: [],
@@ -247,6 +251,8 @@ export const useSnapshotStore = create<State>()((set, get) => ({
     set({
       unrated: [],
       unratedTotal: 0,
+      unratedArchiveTotal: 0,
+      unratedRatedTotal: 0,
       unratedSeen: new Set(),
     });
     saveUnratedSeen(new Set());
@@ -394,6 +400,15 @@ export const useSnapshotStore = create<State>()((set, get) => ({
           unrated: [...unrated, ...newSnapshots],
           unratedSeen: newSeen,
           unratedTotal: data.unrated ?? data.total ?? 0,
+          unratedArchiveTotal:
+            data.archiveTotal ?? data.total ?? 0,
+          unratedRatedTotal:
+            data.rated ??
+            Math.max(
+              0,
+              (data.archiveTotal ?? data.total ?? 0) -
+                (data.unrated ?? data.total ?? 0)
+            ),
           loading: false,
         });
         saveUnratedSeen(newSeen);

@@ -14,6 +14,8 @@ type SnapshotQueueCardProps = {
   ratedCount: number;
   remainingCount: number;
   nextSnapshot?: Snapshot | null;
+  archiveTotal?: number;
+  archiveRatedTotal?: number;
 };
 
 function formatLocation(snapshot: Snapshot): string {
@@ -35,7 +37,14 @@ export function SnapshotQueueCard({
   ratedCount,
   remainingCount,
   nextSnapshot,
+  archiveTotal = 0,
+  archiveRatedTotal = 0,
 }: SnapshotQueueCardProps) {
+  const progressText =
+    archiveTotal > 0
+      ? `Unrated Queue: ${archiveRatedTotal} of ${archiveTotal} Snapshots Rated (global)`
+      : `Rated ${ratedCount} · Remaining ${remainingCount}`;
+
   return (
     <div className="w-full flex justify-center">
       <div className="w-full max-w-md rounded-md bg-gray-200 text-gray-800 shadow-xl border border-gray-300 overflow-hidden">
@@ -59,7 +68,7 @@ export function SnapshotQueueCard({
               Unrated queue
             </p>
             <p className="text-xs text-gray-500">
-              Rated {ratedCount} · Remaining {remainingCount}
+              {progressText}
             </p>
           </div>
 

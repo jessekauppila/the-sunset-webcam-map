@@ -60,6 +60,19 @@ export const AI_SNAPSHOT_MIN_RAW_SCORE_THRESHOLD = 0.8;
 export const AI_SNAPSHOT_MIN_RATING_THRESHOLD = 4.0;
 export const AI_SNAPSHOT_RECENT_WINDOW_MINUTES = 30;
 
+// ---------------------------------------------------------------------------
+// Snapshot queue progress semantics
+// ---------------------------------------------------------------------------
+// "Rated" progress in the Unrated Queue uses a GLOBAL definition:
+// rated_count = COUNT(DISTINCT snapshot_id) in webcam_snapshot_ratings.
+// This is not session-specific and reflects archive-wide ranking coverage.
+export const SNAPSHOT_QUEUE_PROGRESS_RATED_SCOPE = 'global_distinct_snapshot';
+
+// "Unrated queue" membership remains SESSION-specific:
+// snapshots where the current user_session_id has no rating row.
+// This lets queue assignment stay personal while progress stays global.
+export const SNAPSHOT_QUEUE_UNRATED_SCOPE = 'session_specific';
+
 // Runtime mode selection:
 // - baseline: deterministic metadata-based score
 // - onnx: load ONNX artifact and score via onnxruntime
