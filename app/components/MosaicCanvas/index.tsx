@@ -20,6 +20,12 @@ import {
   calculateDynamicBaseHeight,
 } from './rowLayout';
 import { loadImage } from './utils';
+import {
+  MOSAIC_MAX_IMAGE_HEIGHT_PX,
+  MOSAIC_MIN_IMAGE_HEIGHT_PX,
+  MOSAIC_SIZE_SCALE_MODE,
+  MOSAIC_SIZE_SCALE_STRENGTH,
+} from '@/app/lib/masterConfig';
 
 export function MosaicCanvas({
   webcams,
@@ -34,6 +40,10 @@ export function MosaicCanvas({
   viewSizeEffect = 0.1,
   baseHeight,
   fillScreenHeight = true,
+  minImageHeight = MOSAIC_MIN_IMAGE_HEIGHT_PX,
+  maxImageHeight = MOSAIC_MAX_IMAGE_HEIGHT_PX,
+  sizeScaleStrength = MOSAIC_SIZE_SCALE_STRENGTH,
+  sizeScaleMode = MOSAIC_SIZE_SCALE_MODE,
 }: CanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
@@ -211,7 +221,11 @@ export function MosaicCanvas({
               maxViews,
               ratingSizeEffect,
               viewSizeEffect,
-              width * 0.8 // Max 80% of canvas width per image
+              width * 0.8, // Max 80% of canvas width per image
+              minImageHeight,
+              maxImageHeight,
+              sizeScaleStrength,
+              sizeScaleMode
             );
 
           imageData.push({
@@ -281,8 +295,16 @@ export function MosaicCanvas({
                 ratingSizeEffect,
                 viewSizeEffect
               );
-              const failedWidth = dynamicBaseHeight * webcamScale;
-              const failedHeight = dynamicBaseHeight * webcamScale;
+              const boundedHeight = Math.max(
+                minImageHeight,
+                Math.min(
+                  maxImageHeight,
+                  minImageHeight +
+                    (maxImageHeight - minImageHeight) * webcamScale
+                )
+              );
+              const failedWidth = boundedHeight;
+              const failedHeight = boundedHeight;
 
               ctx.fillStyle = '#000000';
               ctx.fillRect(
@@ -328,6 +350,10 @@ export function MosaicCanvas({
     maxViews,
     ratingSizeEffect,
     viewSizeEffect,
+    minImageHeight,
+    maxImageHeight,
+    sizeScaleStrength,
+    sizeScaleMode,
   ]);
 
   // Click handler effect

@@ -125,8 +125,9 @@ export default function Home() {
             >
               <Tab label="Current Sunrises/Sunsets" />
               <Tab label="Snapshot Archive" />
-              <Tab label="Curated" /> 
-               <Tab label="All Webcams" /> 
+              <Tab label="Curated" />
+              <Tab label="Unrated Queue" />
+              <Tab label="All Webcams" />
             </Tabs>
 
             {/* Tab Content */}
@@ -162,7 +163,7 @@ export default function Home() {
                 </Box>
               )}
 
-               {tabValue === 2 && (
+              {tabValue === 2 && (
                 // Curated Tab
                 <Box>
                   <SnapshotConsole
@@ -170,9 +171,20 @@ export default function Home() {
                     title={'Curated Snapshots'}
                   />
                 </Box>
-              )} 
+              )}
 
               {tabValue === 3 && (
+                // Unrated Queue Tab
+                <Box>
+                  <SnapshotConsole
+                    mode="unrated"
+                    title={'Unrated Queue'}
+                    hotkeysEnabled={drawerOpen}
+                  />
+                </Box>
+              )}
+
+              {tabValue === 4 && (
                 // All Webcams Tab
                 <Box>
                   <WebcamConsole
@@ -180,7 +192,7 @@ export default function Home() {
                     title={'All Webcams'}
                   />
                 </Box>
-              )} 
+              )}
             </Box>
           </Box>
         </Drawer>

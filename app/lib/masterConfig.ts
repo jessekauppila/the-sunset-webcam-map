@@ -82,6 +82,19 @@ export const WINDY_FETCH_DELAY_BETWEEN_BATCHES_MS = 1000;
 export const WINDY_FETCH_STAGGER_WITHIN_BATCH_MS = 200;
 
 // ---------------------------------------------------------------------------
+// Mosaic sizing behavior
+// ---------------------------------------------------------------------------
+// Largest image height in mosaic. Set to popup image height parity.
+export const MOSAIC_MAX_IMAGE_HEIGHT_PX = 128;
+// Smallest image height in mosaic.
+export const MOSAIC_MIN_IMAGE_HEIGHT_PX = 26;
+// Global scaling strength (1 = baseline behavior).
+export const MOSAIC_SIZE_SCALE_STRENGTH = 1;
+// Scaling mode for converting score -> size.
+// Current supported: 'linear'
+export const MOSAIC_SIZE_SCALE_MODE = 'linear';
+
+// ---------------------------------------------------------------------------
 // YouTube cron fetch behavior
 // ---------------------------------------------------------------------------
 export const YOUTUBE_FETCH_BATCH_SIZE = 5;

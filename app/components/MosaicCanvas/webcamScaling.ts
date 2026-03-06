@@ -18,10 +18,14 @@ export function getWebcamScale(
   // Start with maximum size (1.0) and scale DOWN based on lower ratings/views
   const maxSize = 1.0;
 
+  // Prefer AI regression rating first, then legacy AI rating, then manual rating.
+  const sourceRating =
+    webcam.aiRatingRegression ?? webcam.aiRating ?? webcam.rating;
+
   // Calculate rating penalty (0-1 scale, where 0 = worst rating, 1 = best rating)
   let ratingPenalty = 0;
-  if (webcam.rating !== undefined && webcam.rating !== null) {
-    const clampedRating = Math.max(0, Math.min(5, webcam.rating));
+  if (sourceRating !== undefined && sourceRating !== null) {
+    const clampedRating = Math.max(0, Math.min(5, sourceRating));
     ratingPenalty = 1 - clampedRating / 5; // Invert: 0 = best rating, 1 = worst rating
   }
 
@@ -49,6 +53,20 @@ export function getWebcamScale(
   return Math.max(0.2, finalScale); // Minimum 20% of max size
 }
 
+function applyScaleMode(
+  normalizedScale: number,
+  scaleMode: 'linear',
+  scaleStrength: number
+): number {
+  if (scaleMode === 'linear') {
+    // Strength=1 keeps baseline linear mapping.
+    // >1 increases spread, <1 compresses spread.
+    const centered = (normalizedScale - 0.5) * scaleStrength + 0.5;
+    return Math.max(0, Math.min(1, centered));
+  }
+  return normalizedScale;
+}
+
 /**
  * Calculate maximum view count from a list of webcams
  */
@@ -67,7 +85,11 @@ export function calculateWebcamDimensions(
   maxViews: number,
   ratingSizeEffect: number,
   viewSizeEffect: number,
-  maxWidth: number
+  maxWidth: number,
+  minImageHeight: number,
+  maxImageHeight: number,
+  sizeScaleStrength: number,
+  sizeScaleMode: 'linear'
 ): { width: number; height: number } {
   // Get combined rating and view-based scale factor
   const webcamScale = getWebcamScale(
@@ -77,14 +99,20 @@ export function calculateWebcamDimensions(
     viewSizeEffect
   );
 
-  // Calculate base dimensions using configurable base height
-  const imgAR = img.naturalWidth / img.naturalHeight;
-  let imgWidth = baseHeight * imgAR;
-  let imgHeight = baseHeight;
+  // Map normalized score into configured min/max height bounds.
+  const boundedScale = applyScaleMode(
+    webcamScale,
+    sizeScaleMode,
+    sizeScaleStrength
+  );
+  const targetHeight =
+    minImageHeight + (maxImageHeight - minImageHeight) * boundedScale;
 
-  // Apply combined rating and view-based scaling
-  imgWidth *= webcamScale;
-  imgHeight *= webcamScale;
+  // Calculate base dimensions preserving source aspect ratio.
+  const imgAR = img.naturalWidth / img.naturalHeight;
+  let imgHeight = Math.min(baseHeight, targetHeight);
+  imgHeight = Math.max(minImageHeight, Math.min(maxImageHeight, imgHeight));
+  let imgWidth = imgHeight * imgAR;
 
   // If image is too wide, scale down to fit (but maintain rating scale proportion)
   if (imgWidth > maxWidth) {

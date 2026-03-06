@@ -34,6 +34,10 @@ export type CanvasProps = {
   viewSizeEffect?: number;
   baseHeight?: number;
   fillScreenHeight?: boolean;
+  minImageHeight?: number;
+  maxImageHeight?: number;
+  sizeScaleStrength?: number;
+  sizeScaleMode?: 'linear';
 };
 
 export type ScreenSize = 'mobile' | 'tablet' | 'desktop' | 'large';

@@ -1,18 +1,28 @@
 'use client';
 
 import Image from 'next/image';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useSnapshotStore } from '@/app/store/useSnapshotStore';
 import StarRating from './console/StarRating';
+import { SnapshotQueueCard } from './SnapshotQueueCard';
+import { getUserSessionId } from '@/app/lib/userSession';
 
 export function SnapshotConsole({
   mode,
   title,
+  hotkeysEnabled = true,
 }: {
-  mode: 'archive' | 'curated';
+  mode: 'archive' | 'curated' | 'unrated';
   title: string;
+  hotkeysEnabled?: boolean;
 }) {
   const setRating = useSnapshotStore((s) => s.setRating);
+  const removeUnratedSnapshot = useSnapshotStore(
+    (s) => s.removeUnratedSnapshot
+  );
+  const insertUnratedSnapshot = useSnapshotStore(
+    (s) => s.insertUnratedSnapshot
+  );
   const setPageSize = useSnapshotStore((s) => s.setPageSize);
   const goToPage = useSnapshotStore((s) => s.goToPage);
   const nextPage = useSnapshotStore((s) => s.nextPage);
@@ -30,9 +40,15 @@ export function SnapshotConsole({
   const curatedPage = useSnapshotStore((s) => s.curatedPage);
   const curatedPageSize = useSnapshotStore((s) => s.curatedPageSize);
   const curatedTotal = useSnapshotStore((s) => s.curatedTotal);
+  const unrated = useSnapshotStore((s) => s.unrated);
 
   // Get current mode's data
-  const snapshots = mode === 'archive' ? archive : curated;
+  const snapshots =
+    mode === 'archive'
+      ? archive
+      : mode === 'curated'
+      ? curated
+      : unrated;
   const currentPage = mode === 'archive' ? archivePage : curatedPage;
   const pageSize =
     mode === 'archive' ? archivePageSize : curatedPageSize;
@@ -46,6 +62,13 @@ export function SnapshotConsole({
   const [updatingSnapshots, setUpdatingSnapshots] = useState<
     Set<number>
   >(new Set());
+  const [queueIndex, setQueueIndex] = useState(0);
+  const [isQueueSubmitting, setIsQueueSubmitting] = useState(false);
+  const [queueRatedCount, setQueueRatedCount] = useState(0);
+  const [queueHistory, setQueueHistory] = useState<
+    Array<{ snapshot: (typeof unrated)[number]; index: number }>
+  >([]);
+  const isQueueMode = mode === 'unrated';
 
   // Initial fetch on mount
   useEffect(() => {
@@ -53,6 +76,23 @@ export function SnapshotConsole({
       fetchMore(mode);
     }
   }, [mode, snapshots.length, fetchMore]);
+
+  // Preload more for queue mode when buffer gets low
+  useEffect(() => {
+    if (!isQueueMode || !hotkeysEnabled) return;
+    const remainingInBuffer = snapshots.length - queueIndex;
+    if (remainingInBuffer <= 10 && !loading) {
+      fetchMore('unrated');
+    }
+  }, [isQueueMode, snapshots.length, queueIndex, loading, fetchMore]);
+
+  // Keep queue index valid after removals/refills
+  useEffect(() => {
+    if (!isQueueMode) return;
+    if (queueIndex >= snapshots.length && snapshots.length > 0) {
+      setQueueIndex(snapshots.length - 1);
+    }
+  }, [isQueueMode, queueIndex, snapshots.length]);
 
   const handleRatingChange = async (
     snapshotId: number,
@@ -72,7 +112,170 @@ export function SnapshotConsole({
     }
   };
 
+  const queueCurrent = snapshots[queueIndex];
+  const queueNext = snapshots[queueIndex + 1];
+  const queueRemainingCount = Math.max(snapshots.length - queueIndex, 0);
+
+  const handleQueueRate = useCallback(
+    async (rating: number) => {
+      if (!queueCurrent || isQueueSubmitting) return;
+
+      const snapshotId = queueCurrent.snapshot.id;
+      setIsQueueSubmitting(true);
+      setUpdatingSnapshots((prev) => new Set(prev).add(snapshotId));
+
+      try {
+        await setRating(snapshotId, rating);
+        setQueueHistory((prev) => [
+          ...prev,
+          { snapshot: queueCurrent, index: queueIndex },
+        ]);
+        removeUnratedSnapshot(snapshotId);
+        setQueueRatedCount((prev) => prev + 1);
+      } catch (error) {
+        console.error('Failed to update rating:', error);
+      } finally {
+        setUpdatingSnapshots((prev) => {
+          const next = new Set(prev);
+          next.delete(snapshotId);
+          return next;
+        });
+        setIsQueueSubmitting(false);
+      }
+    },
+    [
+      queueCurrent,
+      queueIndex,
+      isQueueSubmitting,
+      setRating,
+      removeUnratedSnapshot,
+    ]
+  );
+
+  const handleQueueSkip = useCallback(() => {
+    if (isQueueSubmitting) return;
+    setQueueIndex((prev) =>
+      Math.min(prev + 1, Math.max(snapshots.length - 1, 0))
+    );
+  }, [isQueueSubmitting, snapshots.length]);
+
+  const handleQueueUndo = useCallback(async () => {
+    if (isQueueSubmitting) return;
+    const last = queueHistory[queueHistory.length - 1];
+    if (!last) return;
+
+    setIsQueueSubmitting(true);
+    try {
+      const userSessionId = getUserSessionId();
+      const response = await fetch(
+        `/api/snapshots/${last.snapshot.snapshot.id}/rate`,
+        {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userSessionId }),
+        }
+      );
+      if (!response.ok) {
+        throw new Error('Failed to undo rating');
+      }
+
+      insertUnratedSnapshot(last.snapshot, last.index);
+      setQueueHistory((prev) => prev.slice(0, -1));
+      setQueueRatedCount((prev) => Math.max(0, prev - 1));
+      setQueueIndex(last.index);
+    } catch (error) {
+      console.error('Failed to undo queue rating:', error);
+    } finally {
+      setIsQueueSubmitting(false);
+    }
+  }, [isQueueSubmitting, queueHistory, insertUnratedSnapshot]);
+
+  // Scoped keyboard shortcuts for queue mode
+  useEffect(() => {
+    if (!isQueueMode || !hotkeysEnabled) return;
+
+    const isTypingTarget = (target: EventTarget | null) => {
+      if (!(target instanceof HTMLElement)) return false;
+      const tag = target.tagName.toLowerCase();
+      return (
+        tag === 'input' ||
+        tag === 'textarea' ||
+        tag === 'select' ||
+        target.isContentEditable
+      );
+    };
+
+    const handler = (event: KeyboardEvent) => {
+      if (event.repeat || isTypingTarget(event.target)) return;
+      if (isQueueSubmitting) return;
+
+      if (/^[1-5]$/.test(event.key)) {
+        event.preventDefault();
+        void handleQueueRate(Number(event.key));
+        return;
+      }
+
+      if (event.key === ' ' || event.key === 'Spacebar') {
+        event.preventDefault();
+        handleQueueSkip();
+        return;
+      }
+
+      if (event.key === 'z' || event.key === 'Z') {
+        event.preventDefault();
+        void handleQueueUndo();
+      }
+    };
+
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [
+    isQueueMode,
+    hotkeysEnabled,
+    isQueueSubmitting,
+    handleQueueRate,
+    handleQueueSkip,
+    handleQueueUndo,
+  ]);
+
   const totalPages = Math.ceil(total / pageSize);
+
+  if (isQueueMode) {
+    return (
+      <div className="console-container">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-lg font-bold text-gray-700">{title}</h3>
+          <p className="text-sm text-gray-600">
+            Loaded {snapshots.length}
+          </p>
+        </div>
+
+        {error && (
+          <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
+            Error: {error}
+          </div>
+        )}
+
+        {loading && snapshots.length === 0 ? (
+          <p className="text-green-700">Loading snapshots...</p>
+        ) : !queueCurrent ? (
+          <p className="text-green-700">No unrated snapshots found.</p>
+        ) : (
+          <SnapshotQueueCard
+            snapshot={queueCurrent}
+            nextSnapshot={queueNext || null}
+            onRate={handleQueueRate}
+            onSkip={handleQueueSkip}
+            onUndo={handleQueueUndo}
+            canUndo={queueHistory.length > 0}
+            disabled={isQueueSubmitting}
+            ratedCount={queueRatedCount}
+            remainingCount={queueRemainingCount}
+          />
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="console-container">

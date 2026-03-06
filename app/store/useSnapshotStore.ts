@@ -22,6 +22,12 @@ type State = {
   curatedSeen: Set<number>;
   curatedTotal: number;
 
+  // Unrated queue state (exclusion-based refill for rapid labeling)
+  unrated: Snapshot[];
+  unratedPageSize: number;
+  unratedSeen: Set<number>;
+  unratedTotal: number;
+
   // Legacy support (deprecated - kept for backward compatibility)
   snapshots: Snapshot[];
   setSnapshots: (snapshots: Snapshot[]) => void;
@@ -32,17 +38,30 @@ type State = {
   setError: (e?: string) => void;
 
   // Page management
-  setPageSize: (mode: 'archive' | 'curated', size: number) => void;
-  goToPage: (mode: 'archive' | 'curated', page: number) => void;
-  nextPage: (mode: 'archive' | 'curated') => void;
-  prevPage: (mode: 'archive' | 'curated') => void;
+  setPageSize: (
+    mode: 'archive' | 'curated' | 'unrated',
+    size: number
+  ) => void;
+  goToPage: (
+    mode: 'archive' | 'curated' | 'unrated',
+    page: number
+  ) => void;
+  nextPage: (mode: 'archive' | 'curated' | 'unrated') => void;
+  prevPage: (mode: 'archive' | 'curated' | 'unrated') => void;
 
   // Fetch operations
-  fetchMore: (mode: 'archive' | 'curated') => Promise<void>;
+  fetchMore: (
+    mode: 'archive' | 'curated' | 'unrated'
+  ) => Promise<void>;
 
   // Reset operations
   resetArchive: () => void;
   resetCurated: () => void;
+  resetUnrated: () => void;
+
+  // Unrated queue operations
+  removeUnratedSnapshot: (snapshotId: number) => void;
+  insertUnratedSnapshot: (snapshot: Snapshot, index?: number) => void;
 
   // Rate a snapshot
   setRating: (snapshotId: number, rating: number) => Promise<void>;
@@ -82,6 +101,40 @@ const saveCuratedSeen = (seen: Set<number>) => {
   }
 };
 
+const UNRATED_SEEN_STORAGE_KEY = 'snapshot_unrated_seen';
+
+const loadUnratedSeen = (): Set<number> => {
+  if (typeof window === 'undefined') return new Set();
+  try {
+    const stored = sessionStorage.getItem(UNRATED_SEEN_STORAGE_KEY);
+    if (stored) {
+      const ids = JSON.parse(stored) as number[];
+      return new Set(ids);
+    }
+  } catch (error) {
+    console.error(
+      'Error loading unrated seen from sessionStorage:',
+      error
+    );
+  }
+  return new Set();
+};
+
+const saveUnratedSeen = (seen: Set<number>) => {
+  if (typeof window === 'undefined') return;
+  try {
+    sessionStorage.setItem(
+      UNRATED_SEEN_STORAGE_KEY,
+      JSON.stringify([...seen])
+    );
+  } catch (error) {
+    console.error(
+      'Error saving unrated seen to sessionStorage:',
+      error
+    );
+  }
+};
+
 export const useSnapshotStore = create<State>()((set, get) => ({
   // Shared state
   loading: false,
@@ -100,6 +153,12 @@ export const useSnapshotStore = create<State>()((set, get) => ({
   curatedSeen: loadCuratedSeen(),
   curatedTotal: 0,
 
+  // Unrated queue state
+  unrated: [],
+  unratedPageSize: 100,
+  unratedSeen: loadUnratedSeen(),
+  unratedTotal: 0,
+
   // Legacy support
   snapshots: [],
   setSnapshots: (snapshots) => set({ snapshots }),
@@ -113,8 +172,10 @@ export const useSnapshotStore = create<State>()((set, get) => ({
   setPageSize: (mode, size) => {
     if (mode === 'archive') {
       set({ archivePageSize: size });
-    } else {
+    } else if (mode === 'curated') {
       set({ curatedPageSize: size });
+    } else {
+      set({ unratedPageSize: size });
     }
   },
 
@@ -132,7 +193,7 @@ export const useSnapshotStore = create<State>()((set, get) => ({
       if (targetPage > bufferEndPage) {
         get().fetchMore('archive');
       }
-    } else {
+    } else if (mode === 'curated') {
       set({ curatedPage: page });
 
       // Check if we need to fetch more for curated view
@@ -143,6 +204,10 @@ export const useSnapshotStore = create<State>()((set, get) => ({
       if (page > bufferEndPage) {
         get().fetchMore('curated');
       }
+    } else {
+      // Unrated queue uses queue semantics, not page navigation.
+      // Keep this a no-op for API parity with shared controls.
+      return;
     }
   },
 
@@ -178,6 +243,46 @@ export const useSnapshotStore = create<State>()((set, get) => ({
     saveCuratedSeen(new Set());
   },
 
+  resetUnrated: () => {
+    set({
+      unrated: [],
+      unratedTotal: 0,
+      unratedSeen: new Set(),
+    });
+    saveUnratedSeen(new Set());
+  },
+
+  removeUnratedSnapshot: (snapshotId) => {
+    set((state) => ({
+      unrated: state.unrated.filter(
+        (entry) => entry?.snapshot?.id !== snapshotId
+      ),
+      unratedTotal: Math.max(0, state.unratedTotal - 1),
+    }));
+  },
+
+  insertUnratedSnapshot: (snapshot, index) => {
+    set((state) => {
+      const existingIndex = state.unrated.findIndex(
+        (entry) => entry?.snapshot?.id === snapshot.snapshot.id
+      );
+      if (existingIndex !== -1) {
+        return state;
+      }
+
+      const targetIndex =
+        typeof index === 'number'
+          ? Math.max(0, Math.min(index, state.unrated.length))
+          : 0;
+      const next = [...state.unrated];
+      next.splice(targetIndex, 0, snapshot);
+      return {
+        unrated: next,
+        unratedTotal: state.unratedTotal + 1,
+      };
+    });
+  },
+
   // Fetch operations
   fetchMore: async (mode) => {
     const state = get();
@@ -191,12 +296,20 @@ export const useSnapshotStore = create<State>()((set, get) => ({
         const { archivePage, archivePageSize } = state;
         const offset = (archivePage - 1) * archivePageSize;
         url = `/api/snapshots?mode=archive&limit=${archivePageSize}&offset=${offset}&user_session_id=${userSessionId}`;
-      } else {
+      } else if (mode === 'curated') {
         const { curatedSeen } = state;
         const seenIdsArray = [...curatedSeen];
         const excludeIds =
           seenIdsArray.length > 0 ? seenIdsArray.join(',') : '';
         url = `/api/snapshots?mode=curated&limit=100&user_session_id=${userSessionId}${
+          excludeIds ? `&exclude_ids=${excludeIds}` : ''
+        }`;
+      } else {
+        const { unratedSeen, unratedPageSize } = state;
+        const seenIdsArray = [...unratedSeen];
+        const excludeIds =
+          seenIdsArray.length > 0 ? seenIdsArray.join(',') : '';
+        url = `/api/snapshots?mode=archive&unrated_only=true&limit=${unratedPageSize}&user_session_id=${userSessionId}${
           excludeIds ? `&exclude_ids=${excludeIds}` : ''
         }`;
       }
@@ -233,7 +346,7 @@ export const useSnapshotStore = create<State>()((set, get) => ({
           archiveTotal: data.total,
           loading: false,
         });
-      } else {
+      } else if (mode === 'curated') {
         // Curated mode: append to buffer and update seen set
         const { curated, curatedSeen } = get();
         const newSeen = new Set(curatedSeen);
@@ -259,6 +372,31 @@ export const useSnapshotStore = create<State>()((set, get) => ({
           loading: false,
         });
         saveCuratedSeen(newSeen);
+      } else {
+        // Unrated mode: append queue and update seen set
+        const { unrated, unratedSeen } = get();
+        const newSeen = new Set(unratedSeen);
+        (data.returnedIds as number[]).forEach((id) =>
+          newSeen.add(id)
+        );
+
+        const existingIds = new Set(
+          unrated
+            .map((s) => s?.snapshot?.id)
+            .filter((id): id is number => id !== undefined)
+        );
+        const newSnapshots = (data.snapshots as Snapshot[]).filter(
+          (snapshot: Snapshot) =>
+            !existingIds.has(snapshot.snapshot.id)
+        );
+
+        set({
+          unrated: [...unrated, ...newSnapshots],
+          unratedSeen: newSeen,
+          unratedTotal: data.unrated ?? data.total ?? 0,
+          loading: false,
+        });
+        saveUnratedSeen(newSeen);
       }
     } catch (error) {
       console.error('Error fetching snapshots:', error);
@@ -283,7 +421,8 @@ export const useSnapshotStore = create<State>()((set, get) => ({
     const originalSnapshot =
       findSnapshotById(state.snapshots) ||
       findSnapshotById(state.archive) ||
-      findSnapshotById(state.curated);
+      findSnapshotById(state.curated) ||
+      findSnapshotById(state.unrated);
 
     const originalUserRating = originalSnapshot?.snapshot.userRating;
     const originalCalculatedRating =
@@ -312,6 +451,7 @@ export const useSnapshotStore = create<State>()((set, get) => ({
       snapshots: updateSnapshotInList(state.snapshots),
       archive: updateSnapshotInList(state.archive),
       curated: updateSnapshotInList(state.curated),
+      unrated: updateSnapshotInList(state.unrated),
     }));
 
     // API call to persist to database
@@ -359,6 +499,7 @@ export const useSnapshotStore = create<State>()((set, get) => ({
         snapshots: updateSnapshotWithServerResult(state.snapshots),
         archive: updateSnapshotWithServerResult(state.archive),
         curated: updateSnapshotWithServerResult(state.curated),
+        unrated: updateSnapshotWithServerResult(state.unrated),
       }));
     } catch (error) {
       // Rollback on failure - restore original ratings
@@ -383,6 +524,7 @@ export const useSnapshotStore = create<State>()((set, get) => ({
         snapshots: rollbackSnapshot(state.snapshots),
         archive: rollbackSnapshot(state.archive),
         curated: rollbackSnapshot(state.curated),
+        unrated: rollbackSnapshot(state.unrated),
       }));
       console.error('Failed to update snapshot rating:', error);
       throw error; // Re-throw so components can handle the error
