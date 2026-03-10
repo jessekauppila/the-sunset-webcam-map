@@ -15,6 +15,7 @@ import {
 } from '@/app/lib/masterConfig';
 
 export const dynamic = 'force-dynamic';
+const MAX_EXCLUDE_IDS = 1000;
 
 export async function GET(request: Request) {
   try {
@@ -37,6 +38,7 @@ export async function GET(request: Request) {
           .split(',')
           .map((s) => parseInt(s.trim(), 10))
           .filter((n) => Number.isFinite(n) && n > 0)
+          .slice(-MAX_EXCLUDE_IDS)
       : [];
 
     // Build WHERE clause fragments for use with sql.unsafe()

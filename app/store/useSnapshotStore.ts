@@ -76,7 +76,7 @@ const loadCuratedSeen = (): Set<number> => {
     const stored = sessionStorage.getItem('snapshot_curated_seen');
     if (stored) {
       const ids = JSON.parse(stored) as number[];
-      return new Set(ids);
+      return trimSeenSet(new Set(ids), MAX_SEEN_IDS_STORED);
     }
   } catch (error) {
     console.error(
@@ -104,6 +104,14 @@ const saveCuratedSeen = (seen: Set<number>) => {
 };
 
 const UNRATED_SEEN_STORAGE_KEY = 'snapshot_unrated_seen';
+const MAX_EXCLUDE_IDS_PER_REQUEST = 500;
+const MAX_SEEN_IDS_STORED = 5000;
+
+const trimSeenSet = (seen: Set<number>, maxSize: number): Set<number> => {
+  if (seen.size <= maxSize) return seen;
+  const values = [...seen];
+  return new Set(values.slice(values.length - maxSize));
+};
 
 const loadUnratedSeen = (): Set<number> => {
   if (typeof window === 'undefined') return new Set();
@@ -111,7 +119,7 @@ const loadUnratedSeen = (): Set<number> => {
     const stored = sessionStorage.getItem(UNRATED_SEEN_STORAGE_KEY);
     if (stored) {
       const ids = JSON.parse(stored) as number[];
-      return new Set(ids);
+      return trimSeenSet(new Set(ids), MAX_SEEN_IDS_STORED);
     }
   } catch (error) {
     console.error(
@@ -306,7 +314,11 @@ export const useSnapshotStore = create<State>()((set, get) => ({
         const { curatedSeen } = state;
         const seenIdsArray = [...curatedSeen];
         const excludeIds =
-          seenIdsArray.length > 0 ? seenIdsArray.join(',') : '';
+          seenIdsArray.length > 0
+            ? seenIdsArray
+                .slice(-MAX_EXCLUDE_IDS_PER_REQUEST)
+                .join(',')
+            : '';
         url = `/api/snapshots?mode=curated&limit=100&user_session_id=${userSessionId}${
           excludeIds ? `&exclude_ids=${excludeIds}` : ''
         }`;
@@ -314,7 +326,11 @@ export const useSnapshotStore = create<State>()((set, get) => ({
         const { unratedSeen, unratedPageSize } = state;
         const seenIdsArray = [...unratedSeen];
         const excludeIds =
-          seenIdsArray.length > 0 ? seenIdsArray.join(',') : '';
+          seenIdsArray.length > 0
+            ? seenIdsArray
+                .slice(-MAX_EXCLUDE_IDS_PER_REQUEST)
+                .join(',')
+            : '';
         url = `/api/snapshots?mode=archive&unrated_only=true&limit=${unratedPageSize}&user_session_id=${userSessionId}${
           excludeIds ? `&exclude_ids=${excludeIds}` : ''
         }`;
@@ -359,6 +375,10 @@ export const useSnapshotStore = create<State>()((set, get) => ({
         (data.returnedIds as number[]).forEach((id) =>
           newSeen.add(id)
         );
+        const trimmedSeen = trimSeenSet(
+          newSeen,
+          MAX_SEEN_IDS_STORED
+        );
 
         // Deduplicate: filter out snapshots that already exist in curated array
         const existingIds = new Set(
@@ -373,17 +393,21 @@ export const useSnapshotStore = create<State>()((set, get) => ({
 
         set({
           curated: [...curated, ...newSnapshots],
-          curatedSeen: newSeen,
+          curatedSeen: trimmedSeen,
           curatedTotal: data.total,
           loading: false,
         });
-        saveCuratedSeen(newSeen);
+        saveCuratedSeen(trimmedSeen);
       } else {
         // Unrated mode: append queue and update seen set
         const { unrated, unratedSeen } = get();
         const newSeen = new Set(unratedSeen);
         (data.returnedIds as number[]).forEach((id) =>
           newSeen.add(id)
+        );
+        const trimmedSeen = trimSeenSet(
+          newSeen,
+          MAX_SEEN_IDS_STORED
         );
 
         const existingIds = new Set(
@@ -398,7 +422,7 @@ export const useSnapshotStore = create<State>()((set, get) => ({
 
         set({
           unrated: [...unrated, ...newSnapshots],
-          unratedSeen: newSeen,
+          unratedSeen: trimmedSeen,
           unratedTotal: data.unrated ?? data.total ?? 0,
           unratedArchiveTotal:
             data.archiveTotal ?? data.total ?? 0,
@@ -411,7 +435,7 @@ export const useSnapshotStore = create<State>()((set, get) => ({
             ),
           loading: false,
         });
-        saveUnratedSeen(newSeen);
+        saveUnratedSeen(trimmedSeen);
       }
     } catch (error) {
       console.error('Error fetching snapshots:', error);
