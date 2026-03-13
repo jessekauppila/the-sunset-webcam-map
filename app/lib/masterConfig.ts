@@ -53,7 +53,7 @@ export const AI_BINARY_DECISION_THRESHOLD = 0.5;
 
 // Minimum raw score required to treat a webcam as "capture-worthy" for
 // snapshot persistence during cron runs.
-export const AI_SNAPSHOT_MIN_RAW_SCORE_THRESHOLD = 0.8;
+export const AI_SNAPSHOT_MIN_RAW_SCORE_THRESHOLD = 0.2;
 
 // Legacy rating-space threshold (0-5 scale). Keep this for places that still
 // reason in rating units while we transition to raw-score thresholds.
@@ -66,7 +66,8 @@ export const AI_SNAPSHOT_RECENT_WINDOW_MINUTES = 30;
 // "Rated" progress in the Unrated Queue uses a GLOBAL definition:
 // rated_count = COUNT(DISTINCT snapshot_id) in webcam_snapshot_ratings.
 // This is not session-specific and reflects archive-wide ranking coverage.
-export const SNAPSHOT_QUEUE_PROGRESS_RATED_SCOPE = 'global_distinct_snapshot';
+export const SNAPSHOT_QUEUE_PROGRESS_RATED_SCOPE =
+  'global_distinct_snapshot';
 
 // "Unrated queue" membership remains SESSION-specific:
 // snapshots where the current user_session_id has no rating row.
