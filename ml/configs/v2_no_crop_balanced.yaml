@@ -1,14 +1,14 @@
 run:
-  name: v2_baseline
+  name: v2_no_crop_balanced
   seed: 20260212
-  notes: Baseline binary run with light augmentation and random resized crop.
-  tags: [baseline, binary]
+  notes: No-crop control with automatic balanced class weighting.
+  tags: [v2, no_crop, balanced_weighting, binary]
 
 data:
   label_source: manual_only
   target_type: binary
   binary_threshold: 4.0
-  min_rating_count: 2
+  min_rating_count: 1
   splits:
     seed: 20260212
     train_pct: 70
@@ -22,7 +22,7 @@ model:
   learning_rate: 0.0001
 
 imbalance:
-  class_weighting: none
+  class_weighting: balanced
   sampler: none
   manual_weights: {}
 
@@ -30,8 +30,8 @@ augmentation:
   profile: light
 
 cropping:
-  strategy: random_resized
-  scale_min: 0.8
+  strategy: resize_only
+  scale_min: 1.0
   scale_max: 1.0
 
 performance:
@@ -51,7 +51,7 @@ image_cache:
 
 metrics:
   decision_threshold: 0.5
-  threshold_sweep: false
+  threshold_sweep: true
   threshold_sweep_start: 0.1
   threshold_sweep_end: 0.9
   threshold_sweep_step: 0.1

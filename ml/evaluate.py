@@ -12,6 +12,8 @@ import requests
 import torch
 from PIL import Image
 from sklearn.metrics import (
+    balanced_accuracy_score,
+    confusion_matrix,
     f1_score,
     mean_absolute_error,
     mean_squared_error,
@@ -75,11 +77,28 @@ def parse_args() -> argparse.Namespace:
         default=0.5,
         help="Binary positive-class threshold in [0, 1] for converting probabilities to labels.",
     )
+    parser.add_argument(
+        "--threshold-sweep",
+        action="store_true",
+        help="Evaluate multiple thresholds and report best threshold by F1.",
+    )
+    parser.add_argument("--threshold-sweep-start", type=float, default=0.1)
+    parser.add_argument("--threshold-sweep-end", type=float, default=0.9)
+    parser.add_argument("--threshold-sweep-step", type=float, default=0.1)
     parser.add_argument("--output", default="ml/artifacts/reports/eval_report.json")
     parser.add_argument("--no-progress", action="store_true")
     args = parser.parse_args()
     if args.target_type == "binary" and not (0.0 <= args.decision_threshold <= 1.0):
         parser.error("--decision-threshold must be between 0 and 1 for binary targets.")
+    if args.target_type == "binary" and args.threshold_sweep:
+        if args.threshold_sweep_step <= 0:
+            parser.error("--threshold-sweep-step must be > 0.")
+        if not (
+            0.0 <= args.threshold_sweep_start <= 1.0
+            and 0.0 <= args.threshold_sweep_end <= 1.0
+            and args.threshold_sweep_start <= args.threshold_sweep_end
+        ):
+            parser.error("threshold sweep range must be within [0,1] and start <= end.")
     return args
 
 
@@ -123,7 +142,43 @@ def main() -> None:
         report["precision"] = precision_score(y_true, y_pred, zero_division=0)
         report["recall"] = recall_score(y_true, y_pred, zero_division=0)
         report["f1"] = f1_score(y_true, y_pred, zero_division=0)
+        report["balanced_accuracy"] = balanced_accuracy_score(y_true, y_pred) if len(set(y_true)) > 1 else None
         report["auc"] = roc_auc_score(y_true, y_scores) if len(set(y_true)) > 1 else None
+        tn, fp, fn, tp = confusion_matrix(y_true, y_pred, labels=[0, 1]).ravel()
+        report["confusion"] = {"tn": int(tn), "fp": int(fp), "fn": int(fn), "tp": int(tp)}
+        report["predicted_positive_rate"] = float(np.mean(np.array(y_pred)))
+        report["actual_positive_rate"] = float(np.mean(np.array(y_true)))
+        if args.threshold_sweep:
+            thresholds: list[float] = []
+            current = args.threshold_sweep_start
+            while current <= args.threshold_sweep_end + 1e-12:
+                thresholds.append(round(current, 6))
+                current += args.threshold_sweep_step
+
+            sweep = []
+            for thr in thresholds:
+                preds = (np.array(y_scores) >= thr).astype(int)
+                tn_s, fp_s, fn_s, tp_s = confusion_matrix(y_true, preds, labels=[0, 1]).ravel()
+                sweep.append(
+                    {
+                        "threshold": thr,
+                        "precision": precision_score(y_true, preds, zero_division=0),
+                        "recall": recall_score(y_true, preds, zero_division=0),
+                        "f1": f1_score(y_true, preds, zero_division=0),
+                        "balanced_accuracy": balanced_accuracy_score(y_true, preds)
+                        if len(set(y_true)) > 1
+                        else None,
+                        "confusion": {
+                            "tn": int(tn_s),
+                            "fp": int(fp_s),
+                            "fn": int(fn_s),
+                            "tp": int(tp_s),
+                        },
+                    }
+                )
+            report["threshold_sweep"] = sweep
+            if sweep:
+                report["best_threshold_by_f1"] = max(sweep, key=lambda x: x["f1"])
     else:
         report["mae"] = mean_absolute_error(y_true, y_pred)
         report["rmse"] = float(np.sqrt(mean_squared_error(y_true, y_pred)))

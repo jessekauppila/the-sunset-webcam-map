@@ -27,6 +27,29 @@ from common.labels import LabelPolicy, map_label
 from common.splits import SplitConfig, assign_split
 
 
+def summarize_targets(rows: list[dict[str, Any]], target_type: str) -> dict[str, Any]:
+    if not rows:
+        return {"count": 0}
+    values = [r["target_label"] for r in rows]
+    if target_type == "binary":
+        negatives = sum(1 for v in values if int(v) == 0)
+        positives = sum(1 for v in values if int(v) == 1)
+        total = negatives + positives
+        return {
+            "count": total,
+            "negative": negatives,
+            "positive": positives,
+            "positive_rate": (positives / total) if total else None,
+        }
+    numeric = [float(v) for v in values]
+    return {
+        "count": len(numeric),
+        "min": min(numeric),
+        "max": max(numeric),
+        "mean": sum(numeric) / len(numeric),
+    }
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Export training manifests")
     parser.add_argument("--database-url", default=os.getenv("DATABASE_URL"))
@@ -206,6 +229,10 @@ def main() -> None:
             [r for r in manifest if r["split"] == "test"],
         )
 
+        train_rows = [r for r in manifest if r["split"] == "train"]
+        val_rows = [r for r in manifest if r["split"] == "val"]
+        test_rows = [r for r in manifest if r["split"] == "test"]
+
         meta = {
             # Keep run metadata near artifacts for reproducibility/debugging.
             "label_source": args.label_source,
@@ -215,9 +242,15 @@ def main() -> None:
             "split_config": asdict(split_cfg),
             "counts": {
                 "total": len(manifest),
-                "train": sum(1 for r in manifest if r["split"] == "train"),
-                "val": sum(1 for r in manifest if r["split"] == "val"),
-                "test": sum(1 for r in manifest if r["split"] == "test"),
+                "train": len(train_rows),
+                "val": len(val_rows),
+                "test": len(test_rows),
+            },
+            "target_distribution": {
+                "full": summarize_targets(manifest, args.target_type),
+                "train": summarize_targets(train_rows, args.target_type),
+                "val": summarize_targets(val_rows, args.target_type),
+                "test": summarize_targets(test_rows, args.target_type),
             },
         }
         write_json(out_root / "export_meta.json", meta)

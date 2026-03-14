@@ -1,8 +1,8 @@
 run:
-  name: v2_baseline
+  name: v2_no_crop_b
   seed: 20260212
-  notes: Baseline binary run with light augmentation and random resized crop.
-  tags: [baseline, binary]
+  notes: 'A/B test B variant: no cropping, resize only.'
+  tags: [ab_test, no_crop, binary]
 
 data:
   label_source: manual_only
@@ -30,8 +30,8 @@ augmentation:
   profile: light
 
 cropping:
-  strategy: random_resized
-  scale_min: 0.8
+  strategy: resize_only
+  scale_min: 1.0
   scale_max: 1.0
 
 performance:
@@ -51,7 +51,7 @@ image_cache:
 
 metrics:
   decision_threshold: 0.5
-  threshold_sweep: false
+  threshold_sweep: true
   threshold_sweep_start: 0.1
   threshold_sweep_end: 0.9
   threshold_sweep_step: 0.1

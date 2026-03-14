@@ -1,14 +1,14 @@
 run:
-  name: v2_baseline
+  name: v2_mild_crop_balanced_pilot
   seed: 20260212
-  notes: Baseline binary run with light augmentation and random resized crop.
-  tags: [baseline, binary]
+  notes: Pilot run for mild crop + balanced weighting.
+  tags: [v2, pilot, mild_crop, balanced_weighting, binary]
 
 data:
   label_source: manual_only
   target_type: binary
   binary_threshold: 4.0
-  min_rating_count: 2
+  min_rating_count: 1
   splits:
     seed: 20260212
     train_pct: 70
@@ -17,12 +17,12 @@ data:
 
 model:
   name: resnet18
-  epochs: 10
+  epochs: 3
   batch_size: 32
   learning_rate: 0.0001
 
 imbalance:
-  class_weighting: none
+  class_weighting: balanced
   sampler: none
   manual_weights: {}
 
@@ -31,7 +31,7 @@ augmentation:
 
 cropping:
   strategy: random_resized
-  scale_min: 0.8
+  scale_min: 0.95
   scale_max: 1.0
 
 performance:
@@ -51,7 +51,7 @@ image_cache:
 
 metrics:
   decision_threshold: 0.5
-  threshold_sweep: false
+  threshold_sweep: true
   threshold_sweep_start: 0.1
   threshold_sweep_end: 0.9
   threshold_sweep_step: 0.1
