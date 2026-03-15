@@ -396,6 +396,29 @@ Output:
 
 ## 5) Export ONNX and verify locally
 
+If you trained via `run_training.py`/`run_experiment.py`, export from the
+experiment checkpoint path:
+
+```bash
+python ml/export_onnx.py \
+  --checkpoint ml/artifacts/experiments/<run_dir>/train/best.pt \
+  --target-type binary \
+  --model-name resnet18 \
+  --output ml/artifacts/models/binary_resnet18/model.onnx
+```
+
+For regression, use a regression run checkpoint:
+
+```bash
+python ml/export_onnx.py \
+  --checkpoint ml/artifacts/experiments/<regression_run_dir>/train/best.pt \
+  --target-type regression \
+  --model-name resnet18 \
+  --output ml/artifacts/models/regression_resnet18/model.onnx
+```
+
+Note: binary and regression require separate trained checkpoints.
+
 ```bash
 python ml/export_onnx.py \
   --checkpoint ml/artifacts/models/best.pt \
@@ -420,6 +443,22 @@ python ml/export_onnx.py \
 
 python ml/export_onnx.py \
   --checkpoint ml/artifacts/models/regression_resnet18/best.pt \
+  --target-type regression \
+  --model-name resnet18 \
+  --output ml/artifacts/models/regression_resnet18/model.onnx
+```
+
+Recommended dual export flow after experiment runs:
+
+```bash
+python ml/export_onnx.py \
+  --checkpoint ml/artifacts/experiments/<binary_run_dir>/train/best.pt \
+  --target-type binary \
+  --model-name resnet18 \
+  --output ml/artifacts/models/binary_resnet18/model.onnx
+
+python ml/export_onnx.py \
+  --checkpoint ml/artifacts/experiments/<regression_run_dir>/train/best.pt \
   --target-type regression \
   --model-name resnet18 \
   --output ml/artifacts/models/regression_resnet18/model.onnx

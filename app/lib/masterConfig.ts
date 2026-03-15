@@ -53,7 +53,7 @@ export const AI_BINARY_DECISION_THRESHOLD = 0.5;
 
 // Minimum raw score required to treat a webcam as "capture-worthy" for
 // snapshot persistence during cron runs.
-export const AI_SNAPSHOT_MIN_RAW_SCORE_THRESHOLD = 0.2;
+export const AI_SNAPSHOT_MIN_RAW_SCORE_THRESHOLD = 0.8;
 
 // Legacy rating-space threshold (0-5 scale). Keep this for places that still
 // reason in rating units while we transition to raw-score thresholds.
@@ -77,6 +77,7 @@ export const SNAPSHOT_QUEUE_UNRATED_SCOPE = 'session_specific';
 // Runtime mode selection:
 // - baseline: deterministic metadata-based score
 // - onnx: load ONNX artifact and score via onnxruntime
+// ONNX creation/export workflow lives in `ml/README.md` ("Export ONNX and verify locally").
 export const AI_SCORING_MODE_DEFAULT = 'baseline';
 export const AI_MODEL_VERSION_DEFAULT = 'baseline-v1';
 export const AI_ONNX_MODEL_PATH_DEFAULT =
