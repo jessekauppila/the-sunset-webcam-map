@@ -13,6 +13,7 @@ This directory contains the V2 model workflow:
 - `ml/train.py`: train transfer-learning baseline and save best checkpoint
 - `ml/evaluate.py`: evaluate checkpoint on frozen test split
 - `ml/export_onnx.py`: export checkpoint to ONNX + smoke test with onnxruntime
+- `ml/export_onnx_versioned.py`: export ONNX into versioned artifact folders from run directories
 - `ml/report_disagreements.py`: compare AI predictions vs human labels
 - `ml/run_experiment.py`: single-entrypoint config-driven export/train/eval runner
 - `ml/run_training.py`: convenience launcher that resolves `DATABASE_URL` and runs experiments
@@ -396,6 +397,39 @@ Output:
 
 ## 5) Export ONNX and verify locally
 
+Recommended: use versioned ONNX paths (do not overwrite `model.onnx` every run).
+
+### Versioned export from experiment runs (recommended)
+
+Binary:
+
+```bash
+python ml/export_onnx_versioned.py \
+  --run-dir ml/artifacts/experiments/<binary_run_dir> \
+  --target-type binary \
+  --model-name resnet18
+```
+
+Regression:
+
+```bash
+python ml/export_onnx_versioned.py \
+  --run-dir ml/artifacts/experiments/<regression_run_dir> \
+  --target-type regression \
+  --model-name resnet18
+```
+
+This writes artifacts under:
+
+- `ml/artifacts/models/binary_resnet18/<version_tag>/model.onnx`
+- `ml/artifacts/models/regression_resnet18/<version_tag>/model.onnx`
+
+By default, `<version_tag>` is the run folder name (timestamp + run name), which
+keeps naming consistent with experiment artifacts and supports easy rollback.
+
+After each command, the script prints `env_hint` values for `AI_ONNX_*_MODEL_PATH`
+and `AI_*_MODEL_VERSION`.
+
 If you trained via `run_training.py`/`run_experiment.py`, export from the
 experiment checkpoint path:
 
@@ -464,6 +498,20 @@ python ml/export_onnx.py \
   --output ml/artifacts/models/regression_resnet18/model.onnx
 ```
 
+Versioned dual export (preferred):
+
+```bash
+python ml/export_onnx_versioned.py \
+  --run-dir ml/artifacts/experiments/<binary_run_dir> \
+  --target-type binary \
+  --model-name resnet18
+
+python ml/export_onnx_versioned.py \
+  --run-dir ml/artifacts/experiments/<regression_run_dir> \
+  --target-type regression \
+  --model-name resnet18
+```
+
 ## 6) Runtime integration notes
 
 App scorer keeps stable output contract:
@@ -492,10 +540,10 @@ Example dual-model env setup:
 
 ```bash
 AI_SCORING_MODE=onnx
-AI_ONNX_BINARY_MODEL_PATH=ml/artifacts/models/binary_resnet18/model.onnx
-AI_ONNX_REGRESSION_MODEL_PATH=ml/artifacts/models/regression_resnet18/model.onnx
-AI_BINARY_MODEL_VERSION=binary-v1
-AI_REGRESSION_MODEL_VERSION=regression-v1
+AI_ONNX_BINARY_MODEL_PATH=ml/artifacts/models/binary_resnet18/<version_tag>/model.onnx
+AI_ONNX_REGRESSION_MODEL_PATH=ml/artifacts/models/regression_resnet18/<version_tag>/model.onnx
+AI_BINARY_MODEL_VERSION=<version_tag>
+AI_REGRESSION_MODEL_VERSION=<version_tag>
 ```
 
 If ONNX cannot load, scorer falls back to baseline mode.

@@ -78,6 +78,8 @@ export const SNAPSHOT_QUEUE_UNRATED_SCOPE = 'session_specific';
 // - baseline: deterministic metadata-based score
 // - onnx: load ONNX artifact and score via onnxruntime
 // ONNX creation/export workflow lives in `ml/README.md` ("Export ONNX and verify locally").
+// Defaults here are compatibility fallbacks; production/experiment usage should
+// set AI_ONNX_*_MODEL_PATH + AI_*_MODEL_VERSION env vars to versioned artifacts.
 export const AI_SCORING_MODE_DEFAULT = 'baseline';
 export const AI_MODEL_VERSION_DEFAULT = 'baseline-v1';
 export const AI_ONNX_MODEL_PATH_DEFAULT =
