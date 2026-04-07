@@ -19,6 +19,7 @@ import {
   TERMINATOR_SUN_ALTITUDE_DEG,
   AI_SNAPSHOT_MIN_RAW_SCORE_THRESHOLD,
   AI_SNAPSHOT_RECENT_WINDOW_MINUTES,
+  SNAPSHOTS_ENABLED,
   WINDY_FETCH_BATCH_SIZE,
   WINDY_FETCH_DELAY_BETWEEN_BATCHES_MS,
 } from '@/app/lib/masterConfig';
@@ -179,6 +180,8 @@ export async function GET(req: Request) {
 
       if (scored.rawScore < AI_SNAPSHOT_MIN_RAW_SCORE_THRESHOLD) continue;
       aiStats.above_threshold += 1;
+
+      if (!SNAPSHOTS_ENABLED) continue;
 
       let snapshotId: number;
       const recent = await findRecentSnapshot(

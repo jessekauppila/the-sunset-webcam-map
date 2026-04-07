@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { sql } from '@/app/lib/db';
 import { captureWebcamSnapshot } from '@/app/lib/webcamSnapshot';
+import { SNAPSHOTS_ENABLED } from '@/app/lib/masterConfig';
 import type { WindyWebcam } from '@/app/lib/types';
 
 export const dynamic = 'force-dynamic';
@@ -27,6 +28,14 @@ async function captureSnapshots(request: Request) {
         { error: 'Unauthorized' },
         { status: 401 }
       );
+    }
+
+    if (!SNAPSHOTS_ENABLED) {
+      return NextResponse.json({
+        success: true,
+        message: 'Snapshot capture is disabled (SNAPSHOTS_ENABLED = false)',
+        captured: 0,
+      });
     }
 
     console.log('Starting scheduled snapshot capture...');

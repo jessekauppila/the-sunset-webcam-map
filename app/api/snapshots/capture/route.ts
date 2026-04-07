@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { sql } from '@/app/lib/db';
 import { captureWebcamSnapshot } from '@/app/lib/webcamSnapshot';
+import { SNAPSHOTS_ENABLED } from '@/app/lib/masterConfig';
 import type { WindyWebcam } from '@/app/lib/types';
 
 export const dynamic = 'force-dynamic';
@@ -28,6 +29,13 @@ export async function POST(request: Request) {
   try {
     const body = (await request.json()) as CaptureRequest;
     const { webcams } = body;
+
+    if (!SNAPSHOTS_ENABLED) {
+      return NextResponse.json(
+        { error: 'Snapshot capture is disabled (SNAPSHOTS_ENABLED = false)' },
+        { status: 503 }
+      );
+    }
 
     if (!webcams || !Array.isArray(webcams) || webcams.length === 0) {
       return NextResponse.json(

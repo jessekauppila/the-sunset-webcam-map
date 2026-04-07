@@ -47,6 +47,11 @@ export const CIRCLE_RENDERING_PRECISION_DEG = SEARCH_RADIUS_DEG;
 // ---------------------------------------------------------------------------
 // AI scoring + snapshot capture behavior
 // ---------------------------------------------------------------------------
+// Master kill-switch for snapshot capture. Set to false to stop saving images
+// to Firebase entirely (saves storage costs). AI scoring still runs; only the
+// image-download + Firebase-upload step is skipped.
+export const SNAPSHOTS_ENABLED = false;
+
 // Binary classifier threshold used when mapping probability/raw score to
 // positive vs negative decisions.
 export const AI_BINARY_DECISION_THRESHOLD = 0.5;
