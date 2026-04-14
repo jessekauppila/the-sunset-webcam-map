@@ -117,6 +117,16 @@ export const MOSAIC_SIZE_SCALE_STRENGTH = 1;
 export const MOSAIC_SIZE_SCALE_MODE = 'linear';
 
 // ---------------------------------------------------------------------------
+// Kiosk display settings (portrait 1080×1920, gallery installation)
+// ---------------------------------------------------------------------------
+// Tile heights are larger than the default mosaic to fill the taller display.
+// Tune these visually using Chrome DevTools at 1080×1920.
+export const KIOSK_MOSAIC_MAX_IMAGE_HEIGHT_PX = 180;
+export const KIOSK_MOSAIC_MIN_IMAGE_HEIGHT_PX = 32;
+// More images than default (90) to fill the extra vertical height.
+export const KIOSK_CANVAS_MAX_IMAGES = 120;
+
+// ---------------------------------------------------------------------------
 // YouTube cron fetch behavior
 // ---------------------------------------------------------------------------
 export const YOUTUBE_FETCH_BATCH_SIZE = 5;
