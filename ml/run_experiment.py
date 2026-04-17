@@ -203,6 +203,14 @@ def main() -> None:
         eval_cmd.append("--no-progress")
     run_cmd(eval_cmd)
 
+    plot_cmd = [
+        sys.executable,
+        "ml/plot_diagnostics.py",
+        "--run-dir",
+        str(run_dir),
+    ]
+    run_cmd(plot_cmd)
+
     resolved = {
         "run": {"name": run_name, "seed": run_seed},
         "data": data_cfg,
