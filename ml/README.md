@@ -18,6 +18,7 @@ This directory contains the V2 model workflow:
 - `ml/run_experiment.py`: single-entrypoint config-driven export/train/eval runner
 - `ml/run_training.py`: convenience launcher that resolves `DATABASE_URL` and runs experiments
 - `ml/compare_experiments.py`: aggregate multiple experiment runs into comparison reports
+- `ml/flickr_scraper.py`: scrape sunset images from Flickr API into external_images table
 - `ml/common/splits.py`: deterministic webcam-group split logic
 - `ml/common/labels.py`: binary/regression label mapping rules
 - `ml/common/io.py`: shared artifact I/O helpers
@@ -220,6 +221,24 @@ The data filters are controlled by config under `data`:
 
 If you added ~4000 more labeled snapshots, rerun experiments with updated `min_rating_count` if needed.
 Example defaults for broader inclusion use `min_rating_count: 1`.
+
+### External data (Flickr scraper)
+
+To supplement webcam data with curated sunset images from Flickr, see
+[EXTERNAL_DATA_SCRAPER.md](EXTERNAL_DATA_SCRAPER.md) for full setup and usage.
+
+Quick start:
+
+```bash
+# Run the migration
+psql $DATABASE_URL -f database/migrations/20260417_external_images.sql
+
+# Scrape sunset images (requires FLICKR_API_KEY)
+python3 ml/flickr_scraper.py --query sunset sunrise --max-images 2000
+
+# Include external images in training manifests
+python3 ml/export_dataset.py --label-source manual_only --include-external
+```
 
 ## How to use weighting when you do not know class counts
 

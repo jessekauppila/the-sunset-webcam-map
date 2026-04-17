@@ -423,6 +423,25 @@ DELETE /api/snapshots/[id]/rate
 
 ---
 
+## External Training Data (Flickr Scraper)
+
+To address class imbalance in the ML training dataset (only 646 positive
+examples out of 3,284 total), an external data pipeline scrapes
+Creative-Commons-licensed sunset images from Flickr and stores them in
+Firebase Storage alongside webcam snapshots.
+
+- **Scraper:** `ml/flickr_scraper.py`
+- **Database:** `external_images` table (separate from `webcam_snapshots`)
+- **Storage:** `external_images/flickr/{id}.jpg` in Firebase Storage
+- **Integration:** `export_dataset.py --include-external` merges external
+  images into unified training manifests with a `source` column
+- **Full docs:** [ml/EXTERNAL_DATA_SCRAPER.md](ml/EXTERNAL_DATA_SCRAPER.md)
+
+See also: [ml/LLM_TEACHER_AND_EXTERNAL_DATA_PLAN.md](ml/LLM_TEACHER_AND_EXTERNAL_DATA_PLAN.md)
+for the broader strategy including LLM-based rating.
+
+---
+
 ## AI Rating V1 Data Ownership
 
 The rating system now separates human votes from model outputs:

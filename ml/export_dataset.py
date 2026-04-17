@@ -67,6 +67,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--test-pct", type=int, default=15)
     parser.add_argument("--output-dir", default="ml/artifacts/datasets")
     parser.add_argument("--training-run-id", type=int)
+    parser.add_argument("--include-external", action="store_true",
+                        help="Include LLM-rated external images (from external_images table)")
+    parser.add_argument("--external-categories", nargs="+", default=["sunset", "negative"],
+                        help="Which external_images categories to include")
     parser.add_argument("--no-progress", action="store_true")
     return parser.parse_args()
 
@@ -125,6 +129,35 @@ def fetch_rows(
 
     with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
         cur.execute(query, {"min_rating_count": min_rating_count})
+        return [dict(row) for row in cur.fetchall()]
+
+
+def fetch_external_rows(
+    conn: psycopg2.extensions.connection,
+    categories: list[str],
+) -> list[dict[str, Any]]:
+    """
+    Fetch LLM-rated external images for inclusion in training manifests.
+
+    Only images that have been rated by the LLM (llm_quality IS NOT NULL)
+    are included — unrated images are skipped.
+    """
+    query = """
+    SELECT
+      id AS snapshot_id,
+      source AS webcam_id,
+      image_url AS image_path_or_url,
+      CASE WHEN category = 'sunset' THEN 'sunset' ELSE 'other' END AS phase,
+      scraped_at AS captured_at,
+      llm_quality AS label_value,
+      0 AS rating_count,
+      source AS data_source
+    FROM external_images
+    WHERE llm_quality IS NOT NULL
+      AND category = ANY(%(categories)s)
+    """
+    with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+        cur.execute(query, {"categories": categories})
         return [dict(row) for row in cur.fetchall()]
 
 
@@ -191,13 +224,11 @@ def main() -> None:
         manifest: list[dict[str, Any]] = []
         for row in tqdm(
             rows,
-            desc="Building manifest",
+            desc="Building webcam manifest",
             unit="row",
             disable=args.no_progress,
         ):
-            # Deterministic webcam-group split (prevents leakage across splits).
             split = assign_split(int(row["webcam_id"]), split_cfg)
-            # Convert raw rating into task target (binary/regression).
             mapped_label = map_label(float(row["label_value"]), label_policy)
             manifest.append(
                 {
@@ -211,8 +242,41 @@ def main() -> None:
                     "phase": row["phase"],
                     "captured_at": row["captured_at"],
                     "rating_count": row["rating_count"],
+                    "source": "webcam",
                 }
             )
+
+        if args.include_external:
+            ext_rows = fetch_external_rows(conn, args.external_categories)
+            print(f"  External images found: {len(ext_rows)}")
+            for row in tqdm(
+                ext_rows,
+                desc="Building external manifest",
+                unit="row",
+                disable=args.no_progress,
+            ):
+                # External images use their source name as the split group key
+                # so they don't leak into webcam-based splits.
+                split = assign_split(
+                    hash(f"ext_{row['snapshot_id']}") % 10_000_000,
+                    split_cfg,
+                )
+                mapped_label = map_label(float(row["label_value"]), label_policy)
+                manifest.append(
+                    {
+                        "snapshot_id": row["snapshot_id"],
+                        "webcam_id": row["webcam_id"],
+                        "label_source": "llm",
+                        "label_value": row["label_value"],
+                        "target_label": mapped_label,
+                        "split": split,
+                        "image_path_or_url": row["image_path_or_url"],
+                        "phase": row["phase"],
+                        "captured_at": row["captured_at"],
+                        "rating_count": row["rating_count"],
+                        "source": row["data_source"],
+                    }
+                )
 
         out_root = ensure_dir(Path(args.output_dir) / utc_timestamp())
         write_csv(out_root / "manifest_full.csv", manifest)
@@ -233,18 +297,23 @@ def main() -> None:
         val_rows = [r for r in manifest if r["split"] == "val"]
         test_rows = [r for r in manifest if r["split"] == "test"]
 
+        webcam_rows = [r for r in manifest if r.get("source") == "webcam"]
+        external_rows = [r for r in manifest if r.get("source") not in ("webcam", None)]
+
         meta = {
-            # Keep run metadata near artifacts for reproducibility/debugging.
             "label_source": args.label_source,
             "target_type": args.target_type,
             "binary_threshold": args.binary_threshold,
             "min_rating_count": args.min_rating_count,
+            "include_external": args.include_external,
             "split_config": asdict(split_cfg),
             "counts": {
                 "total": len(manifest),
                 "train": len(train_rows),
                 "val": len(val_rows),
                 "test": len(test_rows),
+                "webcam": len(webcam_rows),
+                "external": len(external_rows),
             },
             "target_distribution": {
                 "full": summarize_targets(manifest, args.target_type),
