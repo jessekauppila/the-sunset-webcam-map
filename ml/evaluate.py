@@ -11,6 +11,7 @@ import pandas as pd
 import requests
 import torch
 from PIL import Image
+from scipy.stats import pearsonr, spearmanr
 from sklearn.metrics import (
     balanced_accuracy_score,
     confusion_matrix,
@@ -182,6 +183,45 @@ def main() -> None:
     else:
         report["mae"] = mean_absolute_error(y_true, y_pred)
         report["rmse"] = float(np.sqrt(mean_squared_error(y_true, y_pred)))
+
+        if len(y_true) >= 3:
+            r_pearson, p_pearson = pearsonr(y_true, y_pred)
+            r_spearman, p_spearman = spearmanr(y_true, y_pred)
+            ss_res = sum((t - p) ** 2 for t, p in zip(y_true, y_pred))
+            ss_tot = sum((t - float(np.mean(y_true))) ** 2 for t in y_true)
+            r_squared = 1.0 - ss_res / ss_tot if ss_tot > 0 else 0.0
+            report["pearson_r"] = float(r_pearson)
+            report["pearson_p"] = float(p_pearson)
+            report["spearman_r"] = float(r_spearman)
+            report["spearman_p"] = float(p_spearman)
+            report["r_squared"] = float(r_squared)
+
+        # Derived binary metrics: evaluate how well regression output
+        # separates "great sunsets" at various thresholds.
+        if args.threshold_sweep and len(y_true) >= 2:
+            thresholds: list[float] = []
+            current = args.threshold_sweep_start
+            while current <= args.threshold_sweep_end + 1e-12:
+                thresholds.append(round(current, 6))
+                current += args.threshold_sweep_step
+
+            y_true_arr = np.array(y_true)
+            y_pred_arr = np.array(y_pred)
+            sweep = []
+            for thr in thresholds:
+                true_bin = (y_true_arr >= thr).astype(int)
+                pred_bin = (y_pred_arr >= thr).astype(int)
+                if len(set(true_bin)) < 2:
+                    continue
+                sweep.append({
+                    "threshold": thr,
+                    "precision": precision_score(true_bin, pred_bin, zero_division=0),
+                    "recall": recall_score(true_bin, pred_bin, zero_division=0),
+                    "f1": f1_score(true_bin, pred_bin, zero_division=0),
+                })
+            report["derived_binary_sweep"] = sweep
+            if sweep:
+                report["best_derived_threshold_by_f1"] = max(sweep, key=lambda x: x["f1"])
 
     out = Path(args.output)
     out.parent.mkdir(parents=True, exist_ok=True)

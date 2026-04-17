@@ -97,6 +97,24 @@ def main() -> None:
         "--output-dir",
         str(dataset_dir),
     ]
+    if bool(cfg_get(data_cfg, "include_external", False)):
+        export_cmd.append("--include-external")
+        ext_cats = cfg_get(data_cfg, "external_categories", [])
+        if ext_cats:
+            export_cmd.extend(["--external-categories"] + [str(c) for c in ext_cats])
+
+    llm_csv = str(cfg_get(data_cfg, "llm_ratings_csv", ""))
+    if llm_csv:
+        export_cmd.extend(["--llm-ratings-csv", llm_csv])
+
+    merge_strategy = str(cfg_get(data_cfg, "label_merge_strategy", ""))
+    if merge_strategy:
+        export_cmd.extend(["--label-merge-strategy", merge_strategy])
+
+    llm_weight = cfg_get(data_cfg, "llm_weight", None)
+    if llm_weight is not None:
+        export_cmd.extend(["--llm-weight", str(llm_weight)])
+
     if args.no_progress:
         export_cmd.append("--no-progress")
     run_cmd(export_cmd)
@@ -174,6 +192,17 @@ def main() -> None:
             )
         train_cmd.extend(["--manual-class-weight-neg", str(neg)])
         train_cmd.extend(["--manual-class-weight-pos", str(pos)])
+    lr_schedule = str(cfg_get(model_cfg, "lr_schedule", "none"))
+    train_cmd.extend(["--lr-schedule", lr_schedule])
+
+    esp = int(cfg_get(model_cfg, "early_stopping_patience", 0))
+    if esp > 0:
+        train_cmd.extend(["--early-stopping-patience", str(esp)])
+
+    head_dropout = float(cfg_get(model_cfg, "head_dropout", 0.0))
+    if head_dropout > 0:
+        train_cmd.extend(["--head-dropout", str(head_dropout)])
+
     if args.no_progress:
         train_cmd.append("--no-progress")
     run_cmd(train_cmd)

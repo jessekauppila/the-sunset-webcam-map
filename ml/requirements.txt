@@ -7,6 +7,9 @@ PyYAML>=6.0
 requests>=2.32
 firebase-admin>=6.5
 scikit-learn>=1.5
+scipy>=1.13
+google-generativeai>=0.8
+openai>=1.40
 tqdm>=4.66
 # Pinned for broader wheel availability in current local setup.
 torch==2.2.2

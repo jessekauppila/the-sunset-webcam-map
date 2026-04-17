@@ -1,0 +1,67 @@
+run:
+  name: v3_regression_llm_with_external
+  seed: 20260212
+  notes: >
+    Regression with LLM labels + Flickr external images included.
+    Run this AFTER v3_regression_llm_labels to compare the effect
+    of external data on webcam-only test performance.
+  tags: [v3, regression, llm_labels, external_data, early_stopping]
+
+data:
+  label_source: manual_only
+  llm_ratings_csv: ml/artifacts/llm_ratings/initial_ratings.csv
+  label_merge_strategy: llm_only
+  target_type: regression
+  binary_threshold: 4.0
+  min_rating_count: 1
+  include_external: true
+  external_categories: [sunset, negative]
+  splits:
+    seed: 20260212
+    train_pct: 70
+    val_pct: 15
+    test_pct: 15
+
+model:
+  name: resnet18
+  epochs: 30
+  batch_size: 32
+  learning_rate: 0.0001
+  lr_schedule: cosine
+  early_stopping_patience: 5
+  head_dropout: 0.3
+
+imbalance:
+  class_weighting: none
+  sampler: none
+  manual_weights: {}
+
+augmentation:
+  profile: light
+
+cropping:
+  strategy: random_resized
+  scale_min: 0.95
+  scale_max: 1.0
+
+performance:
+  num_workers: 0
+  pin_memory: false
+  prefetch_factor: 2
+  persistent_workers: false
+
+subset:
+  max_train_samples: 0
+  max_val_samples: 0
+
+image_cache:
+  enabled: true
+  cache_dir: ml/artifacts/image_cache
+  precache: true
+
+metrics:
+  decision_threshold: 0.7
+  threshold_sweep: true
+  threshold_sweep_start: 0.3
+  threshold_sweep_end: 0.9
+  threshold_sweep_step: 0.05

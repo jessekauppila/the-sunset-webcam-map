@@ -22,9 +22,48 @@ import psycopg2
 import psycopg2.extras
 from tqdm.auto import tqdm
 
+import pandas as pd
+
 from common.io import ensure_dir, env_required, utc_timestamp, write_csv, write_json
 from common.labels import LabelPolicy, map_label
 from common.splits import SplitConfig, assign_split
+
+
+def load_llm_overrides(csv_path: str) -> dict[int, float]:
+    """Load LLM ratings CSV and return {record_id: llm_quality} mapping."""
+    df = pd.read_csv(csv_path)
+    overrides: dict[int, float] = {}
+    for _, row in df.iterrows():
+        if row.get("source_table") == "webcam" and pd.notna(row.get("llm_quality")):
+            overrides[int(row["record_id"])] = float(row["llm_quality"])
+    return overrides
+
+
+def merge_label(
+    snapshot_id: int,
+    human_value: float | None,
+    llm_overrides: dict[int, float],
+    strategy: str,
+    llm_weight: float,
+) -> float | None:
+    """Compute final label value using the chosen merge strategy."""
+    llm_value = llm_overrides.get(snapshot_id)
+
+    if strategy == "llm_only":
+        return llm_value if llm_value is not None else human_value
+    if strategy == "human_override":
+        return human_value if human_value is not None else llm_value
+    if strategy == "weighted_average":
+        if llm_value is not None and human_value is not None:
+            human_norm = human_value / 5.0
+            return llm_weight * llm_value + (1 - llm_weight) * human_norm
+        if llm_value is not None:
+            return llm_value
+        if human_value is not None:
+            return human_value / 5.0
+        return None
+    # human_only (default)
+    return human_value
 
 
 def summarize_targets(rows: list[dict[str, Any]], target_type: str) -> dict[str, Any]:
@@ -71,8 +110,29 @@ def parse_args() -> argparse.Namespace:
                         help="Include LLM-rated external images (from external_images table)")
     parser.add_argument("--external-categories", nargs="+", default=["sunset", "negative"],
                         help="Which external_images categories to include")
+    parser.add_argument(
+        "--llm-ratings-csv", default="",
+        help="Path to LLM ratings CSV. When set, overrides label_value with llm_quality "
+             "for matching snapshot_ids (webcam source only).",
+    )
+    parser.add_argument(
+        "--label-merge-strategy",
+        choices=["human_only", "llm_only", "human_override", "weighted_average"],
+        default="human_only",
+        help="How to merge human and LLM labels when --llm-ratings-csv is set",
+    )
+    parser.add_argument(
+        "--llm-weight", type=float, default=0.7,
+        help="LLM weight in weighted_average strategy (human gets 1 - this)",
+    )
     parser.add_argument("--no-progress", action="store_true")
-    return parser.parse_args()
+
+    args = parser.parse_args()
+
+    if args.llm_ratings_csv and args.label_merge_strategy == "human_only":
+        args.label_merge_strategy = "llm_only"
+
+    return parser.parse_args() if False else args
 
 
 def fetch_rows(
@@ -218,6 +278,13 @@ def main() -> None:
         binary_threshold=args.binary_threshold,
     )
 
+    llm_overrides: dict[int, float] = {}
+    if args.llm_ratings_csv:
+        llm_overrides = load_llm_overrides(args.llm_ratings_csv)
+        print(f"  Loaded {len(llm_overrides)} LLM ratings from {args.llm_ratings_csv}")
+
+    use_llm_labels = bool(llm_overrides) and args.label_merge_strategy != "human_only"
+
     with psycopg2.connect(database_url) as conn:
         rows = fetch_rows(conn, args.label_source, args.min_rating_count)
 
@@ -228,14 +295,30 @@ def main() -> None:
             unit="row",
             disable=args.no_progress,
         ):
+            human_value = float(row["label_value"]) if row["label_value"] is not None else None
+
+            if use_llm_labels:
+                final_value = merge_label(
+                    row["snapshot_id"], human_value, llm_overrides,
+                    args.label_merge_strategy, args.llm_weight,
+                )
+                if final_value is None:
+                    continue
+                effective_label_source = args.label_merge_strategy
+            else:
+                final_value = human_value
+                if final_value is None:
+                    continue
+                effective_label_source = args.label_source
+
             split = assign_split(int(row["webcam_id"]), split_cfg)
-            mapped_label = map_label(float(row["label_value"]), label_policy)
+            mapped_label = map_label(float(final_value), label_policy)
             manifest.append(
                 {
                     "snapshot_id": row["snapshot_id"],
                     "webcam_id": row["webcam_id"],
-                    "label_source": args.label_source,
-                    "label_value": row["label_value"],
+                    "label_source": effective_label_source,
+                    "label_value": final_value,
                     "target_label": mapped_label,
                     "split": split,
                     "image_path_or_url": row["image_path_or_url"],
@@ -302,6 +385,9 @@ def main() -> None:
 
         meta = {
             "label_source": args.label_source,
+            "label_merge_strategy": args.label_merge_strategy,
+            "llm_ratings_csv": args.llm_ratings_csv or None,
+            "llm_overrides_count": len(llm_overrides),
             "target_type": args.target_type,
             "binary_threshold": args.binary_threshold,
             "min_rating_count": args.min_rating_count,

@@ -152,19 +152,25 @@ class ManifestDataset(Dataset):
         return x, y
 
 
-def build_model(model_name: str, target_type: str) -> nn.Module:
+def _make_head(in_features: int, out_features: int, dropout: float) -> nn.Module:
+    if dropout > 0:
+        return nn.Sequential(nn.Dropout(p=dropout), nn.Linear(in_features, out_features))
+    return nn.Linear(in_features, out_features)
+
+
+def build_model(model_name: str, target_type: str, head_dropout: float = 0.0) -> nn.Module:
     """Build pretrained backbone and replace final layer for target mode."""
+    out_features = 1 if target_type == "regression" else 2
+
     if model_name == "mobilenet_v3_small":
         model = models.mobilenet_v3_small(weights=models.MobileNet_V3_Small_Weights.DEFAULT)
         in_features = model.classifier[-1].in_features
-        out_features = 1 if target_type == "regression" else 2
-        model.classifier[-1] = nn.Linear(in_features, out_features)
+        model.classifier[-1] = _make_head(in_features, out_features, head_dropout)
         return model
 
     model = models.resnet18(weights=models.ResNet18_Weights.DEFAULT)
     in_features = model.fc.in_features
-    out_features = 1 if target_type == "regression" else 2
-    model.fc = nn.Linear(in_features, out_features)
+    model.fc = _make_head(in_features, out_features, head_dropout)
     return model
 
 
@@ -195,6 +201,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--cache-urls", action="store_true")
     parser.add_argument("--cache-dir", default="")
     parser.add_argument("--precache-urls", action="store_true")
+    parser.add_argument("--lr-schedule", choices=["none", "cosine"], default="none")
+    parser.add_argument("--early-stopping-patience", type=int, default=0,
+                        help="Stop if val loss does not improve for N epochs (0 = disabled)")
+    parser.add_argument("--head-dropout", type=float, default=0.0,
+                        help="Dropout probability on classifier head (0.0 = disabled)")
     parser.add_argument("--output-dir", default="ml/artifacts/models")
     parser.add_argument("--no-progress", action="store_true")
     args = parser.parse_args()
@@ -379,7 +390,7 @@ def main() -> None:
         args=args,
     )
 
-    model = build_model(args.model_name, args.target_type).to(device)
+    model = build_model(args.model_name, args.target_type, head_dropout=args.head_dropout).to(device)
     class_counts = binary_class_counts(train_ds.df) if args.target_type == "binary" else {}
     class_weights = loss_class_weights(args, class_counts) if args.target_type == "binary" else None
     if args.target_type == "binary":
@@ -391,12 +402,18 @@ def main() -> None:
         criterion = nn.MSELoss()
     optimizer = optim.Adam(model.parameters(), lr=args.learning_rate)
 
+    scheduler = None
+    if args.lr_schedule == "cosine":
+        scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.epochs)
+
     out_dir = Path(args.output_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     best_path = out_dir / "best.pt"
 
     best_metric = -1.0 if args.target_type == "binary" else float("inf")
     history: list[dict] = []
+    patience_counter = 0
+    early_stopped_epoch: int | None = None
 
     epoch_times_sec: list[float] = []
     for epoch in tqdm(
@@ -469,12 +486,14 @@ def main() -> None:
                 best_metric = val_metric
                 torch.save(model.state_dict(), best_path)
 
+        current_lr = optimizer.param_groups[0]["lr"]
         history.append(
             {
                 "epoch": epoch + 1,
                 "train_loss": train_loss / max(1, len(train_loader)),
                 "val_loss": val_loss / max(1, len(val_loader)),
                 "val_metric": val_metric,
+                "lr": current_lr,
             }
         )
         print(
@@ -484,10 +503,26 @@ def main() -> None:
                     "train_loss": history[-1]["train_loss"],
                     "val_loss": history[-1]["val_loss"],
                     "val_metric": val_metric,
+                    "lr": current_lr,
                 }
             )
         )
         epoch_times_sec.append(time.perf_counter() - epoch_start)
+
+        if scheduler is not None:
+            scheduler.step()
+
+        # Early stopping: break if val loss has not improved for N epochs.
+        if args.early_stopping_patience > 0:
+            if is_better:
+                patience_counter = 0
+            else:
+                patience_counter += 1
+            if patience_counter >= args.early_stopping_patience:
+                early_stopped_epoch = epoch + 1
+                print(json.dumps({"early_stop": True, "epoch": early_stopped_epoch,
+                                   "patience": args.early_stopping_patience}))
+                break
 
     total_runtime_sec = time.perf_counter() - run_start
 
@@ -495,6 +530,11 @@ def main() -> None:
         "target_type": args.target_type,
         "model_name": args.model_name,
         "epochs": args.epochs,
+        "epochs_completed": len(history),
+        "early_stopped_epoch": early_stopped_epoch,
+        "early_stopping_patience": args.early_stopping_patience,
+        "lr_schedule": args.lr_schedule,
+        "head_dropout": args.head_dropout,
         "batch_size": args.batch_size,
         "learning_rate": args.learning_rate,
         "seed": args.seed,

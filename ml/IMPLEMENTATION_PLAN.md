@@ -485,3 +485,110 @@ Give the agent these three files in order:
 
 Tell the agent: "Start with Phase 1, Step 1.1. Build `ml/llm_rater.py`
 following the spec in IMPLEMENTATION_PLAN.md."
+
+---
+
+## Build log — April 17, 2026
+
+### What was built (Phases 1-3 code, Phase 4 not yet)
+
+All changes are backwards-compatible. Existing binary training configs
+and the Flickr scraper pipeline work exactly as before — every new
+feature is opt-in via new CLI flags or config fields that default to
+the old behavior.
+
+#### New files created
+
+| File | Purpose |
+|------|---------|
+| `ml/llm_rater.py` | Vision LLM rating script. Supports both Gemini and OpenAI providers. Rates webcam snapshots and/or external (Flickr) images. Writes CSV + optional DB writeback. Resume support via `--skip-rated`. |
+| `ml/validate_llm_ratings.py` | Validates LLM ratings against human consensus. Computes Pearson/Spearman correlation, MAE, binary agreement. Generates scatter plot. Pass/fail gate at Pearson > 0.80. |
+| `ml/configs/v3_regression_llm_labels.yaml` | Experiment config: regression on LLM labels, cosine LR, early stopping (patience=5), dropout (0.3). |
+| `ml/configs/v3_regression_llm_with_external.yaml` | Same as above but includes Flickr external images via `--include-external`. |
+| `database/migrations/20260417_add_llm_quality_to_snapshots.sql` | Adds `llm_quality`, `llm_model`, `llm_rated_at` columns to `webcam_snapshots`. |
+
+#### Files modified
+
+| File | What changed |
+|------|-------------|
+| `ml/requirements.txt` | Added `scipy>=1.13`, `google-generativeai>=0.8`, `openai>=1.40`. |
+| `ml/train.py` | Added `--early-stopping-patience` (int, default 0), `--lr-schedule` (none/cosine), `--head-dropout` (float, default 0.0). All default to previous behavior. Epoch history now includes `lr` field. Summary includes `epochs_completed`, `early_stopped_epoch`, `lr_schedule`, `head_dropout`. |
+| `ml/export_dataset.py` | Added `--llm-ratings-csv`, `--label-merge-strategy` (human_only/llm_only/human_override/weighted_average), `--llm-weight`. When LLM CSV is provided, overrides label_value for matching webcam snapshots. Export metadata now tracks merge strategy and LLM override count. |
+| `ml/run_experiment.py` | Wires `lr_schedule`, `early_stopping_patience`, `head_dropout`, `llm_ratings_csv`, `label_merge_strategy`, `llm_weight`, `include_external`, `external_categories` from YAML config to CLI args. |
+| `ml/evaluate.py` | Regression mode now reports Pearson r, Spearman r, R², and derived binary threshold sweep (precision/recall/F1 at each threshold). |
+
+#### Compatibility with existing Flickr scraper
+
+The Flickr scraper (`ml/flickr_scraper.py`) and its database table
+(`external_images`) are unchanged. The LLM rater is designed to work
+alongside it:
+
+- `llm_rater.py --source external` rates images in the `external_images`
+  table, writing to the `llm_quality` column that already exists in
+  that table's schema.
+- `llm_rater.py --source webcam` rates images in `webcam_snapshots`,
+  using the new `llm_quality` column from the migration.
+- `llm_rater.py --source all` rates both in one run.
+- `export_dataset.py --include-external` merges external images into
+  training manifests exactly as before — LLM ratings are picked up
+  automatically from the `llm_quality` column.
+
+#### Nothing broken
+
+- All new CLI args default to previous behavior (dropout=0, patience=0,
+  schedule=none, merge=human_only).
+- Existing experiment configs (`v2_*`) run identically — no fields were
+  removed or renamed.
+- The Flickr scraper, export pipeline, training, evaluation, and ONNX
+  export paths are all untouched unless the new flags are explicitly used.
+
+### What remains (not built yet)
+
+| Item | Phase | Status |
+|------|-------|--------|
+| Run `llm_rater.py` on existing archive | 1 | Ready to run |
+| Run `validate_llm_ratings.py` and check correlation | 1 | Ready to run |
+| Run `v3_regression_llm_labels` experiment | 2 | Ready to run |
+| `report_llm_disagreements.py` (exists but needs LLM column support) | 3 | Needs update |
+| Disagreement queue in swipe UI (`mode=disagreements`) | 3 | Not started |
+| Real image inference in `aiScoring.ts` | 4 | Not started |
+| LLM oracle fallback in `aiScoring.ts` | 4 | Not started |
+
+### How to run the pipeline
+
+```bash
+# 0. Install new deps
+pip install -r ml/requirements.txt
+
+# 1. Run the migration (adds llm_quality to webcam_snapshots)
+psql $DATABASE_URL -f database/migrations/20260417_add_llm_quality_to_snapshots.sql
+
+# 2. Dry-run the LLM rater to test (5 images)
+python3 ml/llm_rater.py --provider gemini --source webcam --dry-run
+
+# 3. Rate the full webcam archive
+python3 ml/llm_rater.py \
+  --provider gemini \
+  --source webcam \
+  --output-csv ml/artifacts/llm_ratings/initial_ratings.csv \
+  --write-to-db
+
+# 4. Rate Flickr external images (if you've run the scraper)
+python3 ml/llm_rater.py \
+  --provider gemini \
+  --source external \
+  --output-csv ml/artifacts/llm_ratings/external_ratings.csv \
+  --write-to-db
+
+# 5. Validate LLM ratings against human labels
+python3 ml/validate_llm_ratings.py \
+  --ratings-csv ml/artifacts/llm_ratings/initial_ratings.csv
+
+# 6. If validation passes (Pearson > 0.80), run the v3 experiment
+python3 ml/run_experiment.py \
+  --config ml/configs/v3_regression_llm_labels.yaml
+
+# 7. Optionally, run with external Flickr data included
+python3 ml/run_experiment.py \
+  --config ml/configs/v3_regression_llm_with_external.yaml
+```
