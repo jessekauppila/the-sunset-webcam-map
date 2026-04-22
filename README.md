@@ -423,22 +423,25 @@ DELETE /api/snapshots/[id]/rate
 
 ---
 
-## External Training Data (Flickr Scraper)
+## ML Pipeline (Sunset Quality Scoring)
 
-To address class imbalance in the ML training dataset (only 646 positive
-examples out of 3,284 total), an external data pipeline scrapes
-Creative-Commons-licensed sunset images from Flickr and stores them in
-Firebase Storage alongside webcam snapshots.
+The ML pipeline trains an image classifier that scores webcam snapshots on
+a continuous 0.0-1.0 sunset quality scale. Scores drive snapshot archiving,
+gallery ranking, and display. The pipeline uses LLM-generated labels
+(Gemini Flash) instead of noisy human ratings, and can supplement webcam
+data with Creative-Commons-licensed images scraped from Flickr.
 
-- **Scraper:** `ml/flickr_scraper.py`
-- **Database:** `external_images` table (separate from `webcam_snapshots`)
-- **Storage:** `external_images/flickr/{id}.jpg` in Firebase Storage
-- **Integration:** `export_dataset.py --include-external` merges external
-  images into unified training manifests with a `source` column
-- **Full docs:** [ml/EXTERNAL_DATA_SCRAPER.md](ml/EXTERNAL_DATA_SCRAPER.md)
+**Key scripts:**
 
-See also: [ml/LLM_TEACHER_AND_EXTERNAL_DATA_PLAN.md](ml/LLM_TEACHER_AND_EXTERNAL_DATA_PLAN.md)
-for the broader strategy including LLM-based rating.
+- `ml/run_experiment.py` -- single-entrypoint experiment runner (config YAML -> export -> train -> evaluate -> plot)
+- `ml/llm_rater.py` -- rates images via vision LLM for continuous 0.0-1.0 quality labels
+- `ml/flickr_scraper.py` -- scrapes external sunset images from Flickr to address class imbalance
+- `ml/export_onnx_versioned.py` -- exports trained models to ONNX for production deployment
+
+**Full operating guide:** [ml/OPERATING_GUIDE.md](ml/OPERATING_GUIDE.md) --
+covers environment setup, experiment workflow, diagnostic interpretation,
+LLM rating pipeline, Flickr scraper, ONNX deployment, and historical
+findings.
 
 ---
 

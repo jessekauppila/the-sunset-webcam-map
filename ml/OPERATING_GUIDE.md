@@ -4,13 +4,8 @@ Last updated: April 2026
 
 This is the single reference for operating the sunset webcam ML pipeline.
 It covers everything from environment setup through production deployment,
-including the LLM labeling system, Flickr scraper, and experiment workflow.
-
-For background on *why* the pipeline works this way, see:
-
-- `DIAGNOSTICS_FINDINGS.md` -- what the professor consultation revealed
-- `LLM_TEACHER_AND_EXTERNAL_DATA_PLAN.md` -- strategy and rationale
-- `IMPLEMENTATION_PLAN.md` -- step-by-step build log
+including the LLM labeling system, Flickr scraper, experiment workflow,
+diagnostic interpretation, and historical findings.
 
 ---
 
@@ -60,6 +55,16 @@ score used for archiving, gallery ranking, and display.
                       │  (production)   │
                       └─────────────────┘
 ```
+
+### Why continuous 0.0-1.0 instead of binary or integer 1-5
+
+| Scale | Problem |
+|-------|---------|
+| Binary (0/1) | Images near the threshold get randomly assigned. This is the label noise the diagnostics identified. |
+| Integer 1-5 | Human raters cluster at 2-4. Very few 1s and 5s. Effective scale is really 2-4 with sparse extremes. |
+| Continuous 0.0-1.0 | LLMs provide fine-grained scores (0.72 vs 0.78). No threshold noise. Regression loss works naturally. Binary decisions are derived post-hoc by picking a threshold on the output. |
+
+You can always go from continuous to binary, but not the other way around.
 
 ---
 
@@ -123,6 +128,12 @@ pip install -r ml/requirements.txt
 Store credentials in `.env.local` (gitignored). The `run_training.py`
 launcher reads `DATABASE_URL` from there automatically.
 
+`run_training.py` resolves `DATABASE_URL` in this order:
+
+1. `--database-url` argument (if provided)
+2. Existing `DATABASE_URL` in shell
+3. `DATABASE_URL` entry in `.env.local` (or `--env-file`)
+
 ### Database migrations
 
 Run these once before first use:
@@ -135,12 +146,24 @@ psql $DATABASE_URL -f database/migrations/20260417_external_images.sql
 psql $DATABASE_URL -f database/migrations/20260417_add_llm_quality_to_snapshots.sql
 ```
 
+### Torch stack note
+
+This repo currently pins `torch==2.2.2` and `torchvision==0.17.2` in
+`ml/requirements.txt` for local compatibility.
+
 ---
 
 ## 2. Running an experiment (the standard workflow)
 
 Every experiment is driven by a single YAML config file. This is the
 recommended workflow for all model training.
+
+### Why this is the preferred workflow
+
+- One source of truth for data/model/metrics/transforms
+- Fair A/B comparisons (only one changed variable at a time)
+- Complete artifact logging for reporting and reproducibility
+- Easier iteration on professor-style suggestions
 
 ### Pick or create a config
 
@@ -224,6 +247,9 @@ python ml/plot_diagnostics.py \
   --run-dir ml/artifacts/experiments/<run_b>
 ```
 
+`run_experiment.py` runs `plot_diagnostics.py` automatically after eval,
+so you do not need to run it manually for new experiments.
+
 ---
 
 ## 3. Understanding the diagnostic plots
@@ -231,24 +257,32 @@ python ml/plot_diagnostics.py \
 ### label_distribution.png
 
 **Left panel -- raw rating histogram:** shows where human ratings (1-5)
-fall across splits.
+fall across train/val/test splits.
 
-| What you see | What it means |
-|-------------|---------------|
-| Clustering around 2.5-3.5 | Most images rated "average." Model will struggle with extremes. |
-| Thin bars at 1, 4.5, 5 | Few definitive examples. Model cannot learn clear boundaries. |
-| Different shapes across splits | Split is not representative. Check split logic. |
+What to look for:
+
+- Clustering around 2.5-3.5 means most images were rated "average." The
+  model will tend to predict average and struggle with extremes.
+- Thin bars at 1, 4.5, 5 means you have few "definitive" examples. The
+  model cannot learn clear boundaries between great and mediocre.
+- Splits should look similar in shape (same distribution train vs val vs
+  test), otherwise your split was not representative.
 
 **Right panel -- target label distribution (binary runs):** class 0 vs
 class 1 counts per split.
 
-| What you see | What it means |
-|-------------|---------------|
-| 4:1+ negative-to-positive ratio | Significant imbalance. Use `class_weighting: balanced`. |
-| Annotation shows effective weights | Confirms whether balancing is active. |
+What to look for:
 
-For the "archive great sunsets" use case, **recall on positives** is the
-key metric. Missing a great sunset is worse than capturing a mediocre one.
+- A 4:1 or greater ratio between negative and positive means significant
+  imbalance. Without weighting, the model can achieve ~80% accuracy by
+  always predicting negative.
+- The x-axis annotation shows the effective class weights used. If
+  `class_weighting: balanced`, the positive class is upweighted
+  proportionally. If `class_weighting: none`, the model sees raw
+  imbalance.
+- For "archive great sunsets," recall on class 1 (positives) is the key
+  metric. If you miss a great sunset, it is gone. A false alarm
+  (capturing a mediocre one) is less costly.
 
 ### loss_curves.png
 
@@ -261,14 +295,43 @@ key metric. Missing a great sunset is worse than capturing a mediocre one.
 | Both flat/high from epoch 1 | Underfitting | Higher LR, larger model, check data |
 | Val loss bouncy, train smooth | Val set too small or noisy labels | Larger val set, better labels |
 
-**Bottom panel -- validation metric:** F1 for binary (higher = better),
-MSE for regression (lower = better). Dashed line marks the best checkpoint
-epoch. An automatic diagnosis annotation appears at the bottom.
+**Bottom panel -- validation metric:**
+
+- Binary: val F1 (higher = better; 1.0 is perfect, 0.0 is random)
+- Regression: val MSE (lower = better)
+
+The dashed vertical line marks the epoch where the best checkpoint was
+saved. If the best checkpoint is at a very early epoch (e.g. 3 of 10),
+you may be wasting training time -- the model peaked early. If it is at
+the final epoch, more epochs might still help.
+
+The small annotation at the bottom of the figure gives an automatic
+diagnosis (overfitting warning, healthy, or modest gap).
 
 ### comparison plot (multi-run)
 
-Overlaid val metric curves from multiple runs. The stdout table shows: run
-name, best epoch, best metric, class counts, and imbalance ratio.
+Overlaid val metric curves from multiple runs. Use this to compare:
+
+- Crop strategies (random_resized vs center vs resize_only)
+- Class weighting (none vs balanced)
+- Augmentation profiles (off vs light vs medium)
+- Number of epochs
+
+A stdout table is also printed with: run name, best epoch, best metric,
+class counts, and imbalance ratio.
+
+### What to do after looking at the plots
+
+1. If label distribution shows clustering at 2.5-3.5: consider LLM labels
+   (continuous 0.0-1.0 scale) or labeling more definitive examples (1s
+   and 5s).
+
+2. If loss curves show overfitting: try fewer epochs, add dropout
+   (`head_dropout: 0.3`), enable early stopping
+   (`early_stopping_patience: 5`), or get more training images.
+
+3. If class imbalance is very high (>5:1): try `imbalance.sampler: weighted`
+   in addition to `class_weighting: balanced` and compare val recall.
 
 ---
 
@@ -276,7 +339,47 @@ name, best epoch, best metric, class counts, and imbalance ratio.
 
 The LLM rater replaces noisy human integer ratings with consistent
 continuous 0.0-1.0 quality scores. This fixes the label noise problem
-identified in DIAGNOSTICS_FINDINGS.md.
+identified in the baseline diagnostics (see Appendix A).
+
+### Which LLM model to use
+
+| Model | Cost per image | Quality | Recommendation |
+|-------|---------------|---------|----------------|
+| Gemini 2.0 Flash | ~$0.0001 (free tier available) | Good | **Use this.** Cheapest, structured output, free tier covers initial runs. |
+| GPT-4o-mini | ~$0.0003 | Good | Solid alternative if Gemini is unavailable. |
+| GPT-4o | ~$0.003 | Slightly better | 10x the cost. Not worth it for this task. |
+
+A single cheap call returns both the binary question ("is there a
+sunset?") and the quality score. Consistency matters more than precision,
+and a single model is inherently consistent with itself.
+
+### LLM rating prompt
+
+The rater sends each image with this structured prompt:
+
+```
+Analyze this webcam image and return a JSON object:
+
+{
+  "is_sunset": <boolean - is a sunset or sunrise visible?>,
+  "quality": <float 0.0-1.0 - sunset quality rating>,
+  "confidence": <float 0.0-1.0 - your confidence in this rating>,
+  "has_clouds": <boolean - are dramatic clouds present?>,
+  "color_palette": <string - brief description of dominant sky colors>,
+  "obstruction": <string|null - "rain on lens", "fog", "building", or null>
+}
+
+Quality scale:
+  0.00 = no sunset/sunrise visible at all
+  0.10 = barely any color, mostly gray or dark
+  0.30 = weak sunset, minimal color
+  0.50 = decent sunset, some color in the sky
+  0.70 = good sunset, vivid colors
+  0.85 = great sunset, dramatic sky with rich colors
+  0.95 = spectacular, once-in-a-lifetime sunset
+
+Return ONLY the JSON object.
+```
 
 ### Step 1: Dry-run to test
 
@@ -324,6 +427,9 @@ python3 ml/validate_llm_ratings.py \
 **Pass/fail gate:** Pearson correlation > 0.80 means proceed. Below that,
 refine the LLM prompt before trusting the labels for training.
 
+Validation uses ONLY webcam snapshots (which have both LLM and human
+ratings). Flickr images have no human ground truth to validate against.
+
 Outputs:
 
 - Pearson r, Spearman r, MAE, binary agreement rate
@@ -364,19 +470,27 @@ python ml/run_experiment.py --config ml/configs/v3_regression_llm_with_external.
 Supplements webcam data with curated sunset images from Flickr. Addresses
 the class imbalance problem (only 646 positive examples out of 3,284).
 
+External images are stored in a separate Postgres table (`external_images`)
+but use the same Firebase Storage bucket under a different path prefix
+(`external_images/flickr/{id}.jpg`). The export pipeline merges them via
+`--include-external` into a single manifest that `train.py` reads without
+any changes.
+
 ### Scrape sunset images
 
 ```bash
 python3 ml/flickr_scraper.py \
-  --query sunset sunrise "golden hour" \
+  --query sunset sunrise "golden hour" "sky colors" \
   --max-images 2000
 ```
 
 ### Scrape negative examples
 
+For balanced training, also scrape non-sunset sky images:
+
 ```bash
 python3 ml/flickr_scraper.py \
-  --query "cloudy sky" overcast "night sky" \
+  --query "cloudy sky" overcast "night sky" "blue sky" \
   --max-images 500 \
   --category negative
 ```
@@ -402,7 +516,101 @@ command.
 Scraped images are **not usable for training until LLM-rated.** Run the
 LLM rater with `--source external` after scraping.
 
-Full scraper documentation: `ml/EXTERNAL_DATA_SCRAPER.md`
+### Flickr scraper CLI reference
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--query` | (required) | One or more search terms |
+| `--max-images` | 500 | Maximum total images to download |
+| `--category` | `sunset` | Category label: `sunset` or `negative` |
+| `--license-ids` | `4,5,9,10` | Flickr license IDs (CC-BY, CC-BY-SA, CC0, Public Domain) |
+| `--sort` | `interestingness-desc` | Sort order for results |
+| `--per-page` | 100 | Results per API page |
+| `--dry-run` | false | Preview without downloading |
+| `--local-only` | false | Save locally instead of Firebase |
+| `--database-url` | `$DATABASE_URL` | Postgres connection string |
+| `--firebase-bucket` | `$FIREBASE_STORAGE_BUCKET` | Firebase Storage bucket |
+| `--flickr-api-key` | `$FLICKR_API_KEY` | Flickr API key |
+| `--no-progress` | false | Suppress progress bars |
+
+### Flickr license IDs
+
+| ID | License | Included by default? |
+|----|---------|---------------------|
+| 4 | CC-BY 2.0 | Yes |
+| 5 | CC-BY-SA 2.0 | Yes |
+| 9 | CC0 1.0 (Public Domain Dedication) | Yes |
+| 10 | Public Domain Mark | Yes |
+| 1 | CC-BY-NC-SA 2.0 | No (non-commercial restriction) |
+| 2 | CC-BY-NC 2.0 | No |
+| 3 | CC-BY-NC-ND 2.0 | No |
+| 6 | CC-BY-ND 2.0 | No (no-derivatives restriction) |
+
+To include non-commercial licenses: `--license-ids 1,2,3,4,5,6,9,10`
+
+### External images database schema
+
+The `external_images` table (see
+`database/migrations/20260417_external_images.sql`):
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | bigserial | Primary key |
+| `source` | text | `flickr`, `unsplash`, `pexels` |
+| `source_id` | text | Original ID from source platform |
+| `image_url` | text | Firebase Storage URL (or local path) |
+| `firebase_path` | text | Storage path for cleanup |
+| `original_url` | text | Where the image was downloaded from |
+| `license` | text | License string (e.g. `cc-by-2.0`) |
+| `title` | text | Image title |
+| `description` | text | Image description |
+| `tags` | text[] | Tags from source platform |
+| `owner` | text | Photographer username |
+| `width`, `height` | int | Image dimensions |
+| `category` | text | `sunset` or `negative` |
+| `llm_quality` | decimal | 0.000-1.000, filled by `llm_rater.py` |
+| `llm_confidence` | decimal | 0.000-1.000 |
+| `llm_model` | text | Which LLM rated this image |
+| `llm_rated_at` | timestamptz | When the LLM rated this image |
+| `scraped_at` | timestamptz | When this image was scraped |
+
+Unique constraint on `(source, source_id)` prevents duplicate downloads.
+
+### Including external data in training
+
+After scraping and LLM-rating, include external images in manifests:
+
+```bash
+python3 ml/export_dataset.py \
+  --label-source manual_only \
+  --target-type regression \
+  --include-external
+```
+
+The manifest CSV includes a `source` column (`webcam`, `flickr`, etc.)
+so you can evaluate metrics separately per source:
+
+```python
+import pandas as pd
+df = pd.read_csv("manifest_test.csv")
+webcam_only = df[df["source"] == "webcam"]
+external_only = df[df["source"] != "webcam"]
+```
+
+### Adding other sources
+
+The database table and export pipeline support multiple sources. To add
+Unsplash or Pexels scraping in the future:
+
+1. Create a new scraper script (e.g. `ml/unsplash_scraper.py`)
+2. Insert rows with `source = 'unsplash'` or `source = 'pexels'`
+3. `export_dataset.py --include-external` will automatically pick them up
+
+### Scraper run summaries
+
+Each scrape run writes a JSON summary to
+`ml/artifacts/scraper_runs/flickr_<timestamp>.json` with download counts,
+skip counts, and error counts.
 
 ---
 
@@ -682,7 +890,42 @@ python3 ml/export_onnx_versioned.py \
 
 ---
 
-## 12. Known issues and constraints
+## 12. Domain shift: Flickr vs webcam
+
+This is the biggest risk when mixing data sources.
+
+**Flickr sunset photos** are taken with DSLRs/phones by skilled
+photographers, composed intentionally, often post-processed (saturation
+boost, HDR).
+
+**Webcam snapshots** are low-resolution fixed-position cameras,
+uncomposed, no post-processing, often with compression artifacts.
+
+### Mitigation strategies
+
+1. **Train on both, but track source.** Include a `source` column in the
+   manifest. Evaluate metrics separately on webcam-only vs external-only
+   test sets. If the model scores well on Flickr but poorly on webcams,
+   the domain gap is real.
+
+2. **Augment external images to look more like webcams.** Apply transforms
+   that simulate webcam quality: JPEG compression artifacts (quality
+   30-60), resolution downscale, slight color desaturation, random crop
+   to simulate fixed camera framing.
+
+3. **Weight webcam examples higher in loss.** Since production inference
+   runs on webcam images, webcam training examples should matter more. A
+   2:1 or 3:1 webcam-to-external weight ratio prevents the model from
+   overfitting to Flickr aesthetics.
+
+4. **Use external data primarily for the "what makes a great sunset"
+   signal.** The model needs to learn two things: (a) what sunset colors
+   and cloud patterns look great, and (b) what webcam images look like.
+   External data teaches (a). Webcam data teaches (b). Both are needed.
+
+---
+
+## 13. Known issues and constraints
 
 ### Production scoring mismatch
 
@@ -690,17 +933,6 @@ The deployed ONNX model in `aiScoring.ts` currently feeds a metadata
 feature vector, not a 224x224 image tensor. Models trained on images will
 not produce correct scores in production until that runtime path is
 updated (Phase 4 of the LLM Teacher plan).
-
-### Domain shift (Flickr vs webcam)
-
-Flickr photos are high-resolution, intentionally composed, often
-post-processed. Webcam snapshots are low-res, fixed-angle, auto-exposure.
-Mitigations:
-
-- Track `source` column in manifests. Evaluate metrics per source.
-- Consider augmenting Flickr images to simulate webcam quality.
-- Weight webcam examples higher in loss if Flickr-trained model
-  underperforms on webcam test data.
 
 ### Class imbalance
 
@@ -716,7 +948,7 @@ smooths this out.
 
 ---
 
-## 13. Artifact locations
+## 14. Artifact locations
 
 | What | Where |
 |------|-------|
@@ -733,7 +965,24 @@ smooths this out.
 
 ---
 
-## 14. Glossary
+## 15. Cost estimates
+
+| Item | Count | Unit cost | Total |
+|------|-------|-----------|-------|
+| Flickr API calls (search + info) | ~5,000 | Free | $0 |
+| Image downloads (Flickr) | ~5,000 | Free | $0 |
+| Firebase Storage | ~5 GB | Free tier covers this | $0 |
+| LLM rating -- external images | 5,000 | $0.0001 (Gemini Flash) | $0.50 |
+| LLM rating -- existing webcam archive | ~4,000 | $0.0001 | $0.40 |
+| GPU training time (local) | 1-2 hours | Free | $0 |
+| **Total** | | | **< $1** |
+
+If using GPT-4o-mini instead of Gemini Flash, multiply LLM costs by ~3x.
+Still under $3 total.
+
+---
+
+## 16. Glossary
 
 | Term | Meaning |
 |------|---------|
@@ -750,3 +999,147 @@ smooths this out.
 | **ONNX** | Open format for deploying ML models. Used in production (`aiScoring.ts`). |
 | **LLM rater** | Vision LLM that assigns continuous 0.0-1.0 quality scores to sunset images. Replaces noisy human labels. |
 | **domain shift** | Difference between Flickr photos (high quality, composed) and webcam stills (low quality, fixed angle). |
+| **model card** | Auto-generated markdown report per experiment run with metrics, diagnosis, and interpretation. |
+
+---
+
+## Appendix A: Baseline diagnostic findings (April 2026)
+
+Context: First diagnostic pass after professor consultation. 7 completed
+experiment runs were analyzed (2 early baseline runs with ~22 samples
+should be ignored, 4 full binary classification runs with 3,284 train
+samples each, and 1 regression run).
+
+The professor's three diagnostic questions:
+1. How are labels distributed? (Is data clustered in the middle?)
+2. What do the loss curves look like? (Are we overfitting?)
+3. What is the class balance? (Are great sunsets underrepresented?)
+
+### Finding 1: Significant class imbalance
+
+| Class | Count | Share |
+|-------|-------|-------|
+| Negative (not a great sunset) | 2,638 | 80% |
+| Positive (great sunset) | 646 | 20% |
+| Ratio | 4.1:1 | |
+
+Without correcting for imbalance, a model that always predicts "not
+great" would be right 80% of the time. `class_weighting: balanced` was
+used, which upweights positives ~4x in the loss (effective weights:
+[0.62, 2.54]).
+
+### Finding 2: Both best runs overfit -- more epochs will not help
+
+**`v2_mild_crop_balanced`** (random resized crop, 10 epochs):
+
+| Epoch | Train loss | Val loss | Val F1 |
+|-------|-----------|----------|--------|
+| 1 | 0.381 | 0.418 | 0.725 |
+| 4 | 0.163 | 0.287 (val loss minimum) | 0.800 |
+| 8 | 0.091 | 0.316 | 0.802 |
+| 10 | 0.075 | 0.459 | 0.832 (best F1) |
+
+Val loss hit its best at epoch 4 (0.287) then drifted up to 0.459 by
+epoch 10 -- 60% worse. F1 still improved because the classification
+threshold still works, but the model's probability estimates are
+degrading.
+
+**`v2_no_crop_balanced`** (no crop, 10 epochs):
+
+| Epoch | Train loss | Val loss | Val F1 |
+|-------|-----------|----------|--------|
+| 1 | 0.387 | 0.339 | 0.782 |
+| 2 | 0.235 | 0.315 | 0.834 (peaked here) |
+| 3 | 0.178 | 0.526 | 0.748 |
+| 10 | 0.069 | 0.514 | 0.743 |
+
+Peaked at epoch 2. By epoch 10, F1 dropped back to 0.743 -- worse than
+where it started. Running more epochs actively made the model worse.
+
+### Finding 3: What 0.83 F1 actually means
+
+F1 of 0.83 is decent for a first-pass model. Typical well-tuned image
+classifiers on this kind of task reach 0.88-0.92 with better data and
+regularization. For the "archive great sunsets" use case, recall is
+the more important metric -- missing a great sunset is worse than
+occasionally capturing a mediocre one.
+
+### Root causes of overfitting (priority order)
+
+1. **Val set is small (723 images).** A few hard images can swing the
+   loss significantly, making it hard to know when the model has
+   truly peaked.
+
+2. **Label noise.** Ratings cluster around 2.5-3.5. Images near the
+   binary threshold get conflicting labels. The model sees visually
+   similar images with opposite labels.
+
+3. **No learning rate decay.** A fixed LR the whole time means the
+   optimizer keeps taking big steps even when it should be settling.
+
+4. **No dropout or regularization.** The ResNet18 head has no dropout.
+   The model can freely memorize training images.
+
+### What would actually move the number
+
+| Action | Expected impact | Difficulty |
+|--------|----------------|------------|
+| More labeled great sunsets (target: 1200+ positives) | High | Medium |
+| Early stopping (patience 3-5 epochs) | Medium | Easy |
+| Learning rate decay (cosine or step) | Medium | Easy |
+| Dropout on the classifier head | Medium | Easy |
+| Better binary threshold / LLM labels | High | Medium |
+| Weighted random sampler + class weighting | Low-medium | Easy |
+
+---
+
+## Appendix B: Build log (April 17, 2026)
+
+All changes are backwards-compatible. Existing binary training configs
+and the Flickr scraper pipeline work exactly as before -- every new
+feature is opt-in via new CLI flags or config fields that default to
+the old behavior.
+
+### New files created
+
+| File | Purpose |
+|------|---------|
+| `ml/llm_rater.py` | Vision LLM rating script. Supports Gemini and OpenAI providers. Rates webcam and/or external images. CSV output + optional DB writeback. Resume via `--skip-rated`. |
+| `ml/validate_llm_ratings.py` | Validates LLM ratings against human consensus. Pearson/Spearman correlation, MAE, binary agreement. Scatter plot. Pass/fail gate at Pearson > 0.80. |
+| `ml/configs/v3_regression_llm_labels.yaml` | Experiment config: regression on LLM labels, cosine LR, early stopping (patience=5), dropout (0.3). |
+| `ml/configs/v3_regression_llm_with_external.yaml` | Same as above + Flickr external images via `--include-external`. |
+| `database/migrations/20260417_add_llm_quality_to_snapshots.sql` | Adds `llm_quality`, `llm_model`, `llm_rated_at` columns to `webcam_snapshots`. |
+
+### Files modified
+
+| File | What changed |
+|------|-------------|
+| `ml/requirements.txt` | Added `scipy>=1.13`, `google-generativeai>=0.8`, `openai>=1.40`. |
+| `ml/train.py` | Added `--early-stopping-patience` (default 0), `--lr-schedule` (none/cosine), `--head-dropout` (default 0.0). Epoch history now includes `lr` field. Summary includes `epochs_completed`, `early_stopped_epoch`. |
+| `ml/export_dataset.py` | Added `--llm-ratings-csv`, `--label-merge-strategy` (human_only/llm_only/human_override/weighted_average), `--llm-weight`. Export metadata tracks merge strategy and LLM override count. |
+| `ml/run_experiment.py` | Wires `lr_schedule`, `early_stopping_patience`, `head_dropout`, `llm_ratings_csv`, `label_merge_strategy`, `llm_weight`, `include_external`, `external_categories` from YAML config to CLI args. |
+| `ml/evaluate.py` | Regression mode now reports Pearson r, Spearman r, R², and derived binary threshold sweep. |
+
+### Flickr scraper compatibility
+
+The LLM rater works alongside the existing Flickr scraper:
+
+- `llm_rater.py --source external` rates images in `external_images`,
+  writing to the `llm_quality` column already in that table's schema.
+- `llm_rater.py --source webcam` rates images in `webcam_snapshots`,
+  using the new `llm_quality` column from the migration.
+- `llm_rater.py --source all` rates both in one run.
+- `export_dataset.py --include-external` merges external images into
+  training manifests -- LLM ratings are picked up automatically.
+
+### What remains (not yet built)
+
+| Item | Status |
+|------|--------|
+| Run `llm_rater.py` on existing archive | Ready to run |
+| Run `validate_llm_ratings.py` and check correlation | Ready to run |
+| Run `v3_regression_llm_labels` experiment | Ready to run |
+| Automated model card reports (`--report` flag) | Not started |
+| Disagreement queue in swipe UI (`mode=disagreements`) | Not started |
+| Real image inference in `aiScoring.ts` | Not started |
+| LLM oracle fallback in `aiScoring.ts` | Not started |
