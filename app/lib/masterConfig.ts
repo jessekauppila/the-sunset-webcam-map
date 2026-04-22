@@ -32,10 +32,7 @@ export const SEARCH_RADIUS_DEG = 9; // Search radius per API call in degrees
 
 // West-only offset ring for parallel search/visualization, in degrees.
 // 0 = main ring, positive values shift the ring westward from the subsolar geometry.
-export const TERMINATOR_RING_OFFSETS_DEG = [
-  0,
-  1.75 * SEARCH_RADIUS_DEG,
-];
+export const TERMINATOR_RING_OFFSETS_DEG = [0]; //was   0,1.75 * SEARCH_RADIUS_DEG,//was 1,.75
 
 // Circle rendering precision: how smooth the circle polygon is (number of points)
 // Using SEARCH_RADIUS_DEG ensures the circle detail matches the search area size

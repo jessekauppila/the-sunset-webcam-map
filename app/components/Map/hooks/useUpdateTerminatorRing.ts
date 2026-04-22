@@ -42,7 +42,7 @@ export function useUpdateTerminatorRing(
     showSearchRadius?: boolean;
     precisionDeg?: number; // Use same precision as cron job (default: 4°)
     searchRadiusDegrees?: number; // Search radius used in API calls (default: 5°)
-  }
+  },
 ) {
   const sourcesAddedRef = useRef<Set<string>>(new Set());
   const layersAddedRef = useRef<Set<string>>(new Set());
@@ -70,8 +70,8 @@ export function useUpdateTerminatorRing(
         gmstHours,
         precisionDeg,
         TERMINATOR_SUN_ALTITUDE_DEG,
-        offsetDeg
-      )
+        offsetDeg,
+      ),
     );
   }, [currentTime, raHours, gmstHours, precisionDeg]);
 
@@ -91,11 +91,11 @@ export function useUpdateTerminatorRing(
 
   const memoizedSunriseCoords = useMemo(
     () => sunriseCoords,
-    [sunriseCoords]
+    [sunriseCoords],
   );
   const memoizedSunsetCoords = useMemo(
     () => sunsetCoords,
-    [sunsetCoords]
+    [sunsetCoords],
   );
 
   // Combine sunrise and sunset coords to get all terminator points used for API queries
@@ -133,10 +133,17 @@ export function useUpdateTerminatorRing(
 
   // Create search radius circles GeoJSON if enabled
   const searchRadiusGeoJSON = useMemo(() => {
-    if (!showSearchRadius || allTerminatorPoints.length === 0 || !searchRadiusDegrees) {
+    if (
+      !showSearchRadius ||
+      allTerminatorPoints.length === 0 ||
+      !searchRadiusDegrees
+    ) {
       return null;
     }
-    const circles = createSearchRadiusCircles(allTerminatorPoints, searchRadiusDegrees);
+    const circles = createSearchRadiusCircles(
+      allTerminatorPoints,
+      searchRadiusDegrees,
+    );
     return {
       type: 'FeatureCollection' as const,
       features: circles,
@@ -203,7 +210,9 @@ export function useUpdateTerminatorRing(
         });
         sourcesAddedRef.current.add(terminatorSourceId);
       } else {
-        (map.getSource(terminatorSourceId) as mapboxgl.GeoJSONSource).setData(terminatorGeoJSON);
+        (
+          map.getSource(terminatorSourceId) as mapboxgl.GeoJSONSource
+        ).setData(terminatorGeoJSON);
       }
 
       if (!map.getLayer(terminatorLayerId)) {
@@ -214,13 +223,13 @@ export function useUpdateTerminatorRing(
           paint: {
             'line-color': '#c8c8c8', // Light gray (RGB: 200, 200, 200)
             'line-width': 3,
-            'line-opacity': 0.2, // 50/255 ≈ 0.2 opacity (matches terminatorRingLineLayer.ts)
+            'line-opacity': 0, // 50/255 ≈ 0.2 opacity (matches terminatorRingLineLayer.ts)
           },
         });
         layersAddedRef.current.add(terminatorLayerId);
       } else {
         // Update existing layer opacity when data changes
-        map.setPaintProperty(terminatorLayerId, 'line-opacity', 0.2);
+        map.setPaintProperty(terminatorLayerId, 'line-opacity', 0);
       }
 
       // Add offset terminator line if configured
@@ -235,9 +244,9 @@ export function useUpdateTerminatorRing(
           });
           sourcesAddedRef.current.add(offsetSourceId);
         } else {
-          (map.getSource(offsetSourceId) as mapboxgl.GeoJSONSource).setData(
-            offsetTerminatorGeoJSON
-          );
+          (
+            map.getSource(offsetSourceId) as mapboxgl.GeoJSONSource
+          ).setData(offsetTerminatorGeoJSON);
         }
 
         if (!map.getLayer(offsetLayerId)) {
@@ -269,7 +278,9 @@ export function useUpdateTerminatorRing(
           });
           sourcesAddedRef.current.add(circlesSourceId);
         } else {
-          (map.getSource(circlesSourceId) as mapboxgl.GeoJSONSource).setData(searchRadiusGeoJSON);
+          (
+            map.getSource(circlesSourceId) as mapboxgl.GeoJSONSource
+          ).setData(searchRadiusGeoJSON);
         }
 
         if (!map.getLayer(circlesLayerId)) {
@@ -289,7 +300,8 @@ export function useUpdateTerminatorRing(
         }
 
         // Add outline for circles
-        const circlesOutlineLayerId = 'search-radius-circles-outline-layer';
+        const circlesOutlineLayerId =
+          'search-radius-circles-outline-layer';
         if (!map.getLayer(circlesOutlineLayerId)) {
           map.addLayer({
             id: circlesOutlineLayerId,
@@ -304,7 +316,11 @@ export function useUpdateTerminatorRing(
           layersAddedRef.current.add(circlesOutlineLayerId);
         } else {
           // Update existing layer opacity
-          map.setPaintProperty(circlesOutlineLayerId, 'line-opacity', 0.2);
+          map.setPaintProperty(
+            circlesOutlineLayerId,
+            'line-opacity',
+            0.2,
+          );
         }
       }
 
@@ -320,7 +336,9 @@ export function useUpdateTerminatorRing(
           });
           sourcesAddedRef.current.add(pointsSourceId);
         } else {
-          (map.getSource(pointsSourceId) as mapboxgl.GeoJSONSource).setData(pointsGeoJSON);
+          (
+            map.getSource(pointsSourceId) as mapboxgl.GeoJSONSource
+          ).setData(pointsGeoJSON);
         }
 
         if (!map.getLayer(pointsLayerId)) {

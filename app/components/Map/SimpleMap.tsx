@@ -37,7 +37,7 @@ export default function SimpleMap({
 
   const { mapContainer, map, mapLoaded, mapReady } = useMap(
     userLocation,
-    mode === 'map'
+    mode === 'map',
   );
 
   // Create a shared container ref for interaction detection
@@ -58,10 +58,10 @@ export default function SimpleMap({
     currentTime,
     {
       attachToMap: mode === 'map',
-      showSearchRadius: true, // Enable search radius visualization
+      showSearchRadius: false, // Enable search radius visualization
       precisionDeg: TERMINATOR_PRECISION_DEG, // Match cron job precision
       searchRadiusDegrees: SEARCH_RADIUS_DEG, // Match cron job search radius
-    }
+    },
   );
 
   const {
@@ -86,18 +86,18 @@ export default function SimpleMap({
   console.log(
     `🎮 Auto-fly ${
       isPaused ? 'paused' : 'running'
-    } due to user interaction`
+    } due to user interaction`,
   );
 
   console.log(
     `🎮 Cycling webcams ${
       isPaused ? 'paused' : 'running'
-    } due to map interaction`
+    } due to map interaction`,
   );
 
   console.log(
     '📹 Next Latitude webcam: ',
-    nextLatitudeNorthSunsetWebCam
+    nextLatitudeNorthSunsetWebCam,
   );
 
   useSetMarker(map, mapReady, mode === 'map' ? userLocation : null);
@@ -123,15 +123,15 @@ export default function SimpleMap({
             }
           },
         }
-      : undefined
+      : undefined,
   );
 
   useFlyTo(
     map,
     mapLoaded,
-    mode === 'map' ? nextLatitudeNorthSunsetLocation ?? null : null,
+    mode === 'map' ? (nextLatitudeNorthSunsetLocation ?? null) : null,
     isPaused,
-    mode // Pass mode so it can detect mode changes
+    mode, // Pass mode so it can detect mode changes
   );
 
   return (
