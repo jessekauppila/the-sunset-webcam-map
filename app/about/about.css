@@ -1,0 +1,464 @@
+/* About overlay — editorial surface layered over the live tool.
+   Typography uses Geist Sans + Geist Mono to stay cohesive with
+   the rest of the app. */
+
+.about-root {
+  --paper: #f7f1e6;
+  --ink: #1a1610;
+  --ink-deep: #0b0805;
+  --ember: #c2551c;
+  --smoke: #7a7265;
+  --rule: rgba(26, 22, 16, 0.14);
+  --scrim: rgba(247, 241, 230, 0.62);
+
+  color: var(--ink);
+  font-family: var(--font-geist-sans), system-ui, -apple-system,
+    sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  .about-root {
+    --paper: #15110a;
+    --ink: #eee5d2;
+    --ink-deep: #fbf4e3;
+    --ember: #eb8441;
+    --smoke: #9a9181;
+    --rule: rgba(238, 229, 210, 0.16);
+    --scrim: rgba(21, 17, 10, 0.70);
+  }
+}
+
+/* ---------- Live app background layer ---------- */
+
+.about-bg {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  transform: scale(1.03);
+  transform-origin: center;
+}
+
+.about-bg > * {
+  width: 100%;
+  height: 100%;
+}
+
+/* ---------- Overlay surface ---------- */
+
+.about-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+
+  background: var(--scrim);
+  backdrop-filter: blur(34px) saturate(1.2);
+  -webkit-backdrop-filter: blur(34px) saturate(1.2);
+
+  animation: about-overlay-in 700ms cubic-bezier(0.2, 0.7, 0.2, 1)
+    both;
+}
+
+@keyframes about-overlay-in {
+  from {
+    opacity: 0;
+    backdrop-filter: blur(0px) saturate(1);
+    -webkit-backdrop-filter: blur(0px) saturate(1);
+  }
+  to {
+    opacity: 1;
+    backdrop-filter: blur(28px) saturate(1.2);
+    -webkit-backdrop-filter: blur(28px) saturate(1.2);
+  }
+}
+
+.about-overlay::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.045;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+.about-overlay > * {
+  position: relative;
+  z-index: 1;
+}
+
+.about-overlay > header,
+.about-overlay > nav {
+  flex-shrink: 0;
+}
+
+.about-overlay > section {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* ---------- Typography ---------- */
+
+.about-title {
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+  font-weight: 600;
+  letter-spacing: -0.038em;
+  line-height: 0.92;
+  color: var(--ink-deep);
+}
+
+.about-title .slash {
+  color: var(--ember);
+  font-weight: 300;
+  letter-spacing: 0;
+  margin: 0 0.03em;
+  display: inline-block;
+  /* A hair of oblique gives the slash a touch of character
+     without pulling in a second font. */
+  transform: translateY(-0.015em) skewX(-6deg);
+}
+
+.about-body {
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+  font-weight: 400;
+  line-height: 1.55;
+  letter-spacing: -0.003em;
+}
+
+/* First paragraph of each slide gets a lede treatment */
+.about-body > p:first-child {
+  color: var(--ink-deep);
+  font-size: 1.35em;
+  font-weight: 450;
+  letter-spacing: -0.012em;
+  line-height: 1.38;
+}
+
+.about-body em,
+.about-body i {
+  font-style: italic;
+  color: var(--smoke);
+}
+
+.about-body ol {
+  list-style: none;
+  counter-reset: about-list;
+  padding: 0;
+  margin: 0;
+}
+
+.about-body ol li {
+  counter-increment: about-list;
+  position: relative;
+  padding-left: 2.4rem;
+  padding-block: 0.55rem;
+  border-top: 1px solid var(--rule);
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+  font-size: 0.95rem;
+  line-height: 1.4;
+  letter-spacing: -0.003em;
+  color: var(--ink);
+}
+
+.about-body ol li:last-child {
+  border-bottom: 1px solid var(--rule);
+}
+
+.about-body ol li::before {
+  content: counter(about-list, decimal-leading-zero);
+  position: absolute;
+  left: 0;
+  top: 0.72rem;
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 0.65rem;
+  letter-spacing: 0.18em;
+  color: var(--ember);
+}
+
+.about-body ol li strong {
+  font-weight: 500;
+  color: var(--ink-deep);
+}
+
+.about-mono {
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 0.68rem;
+  letter-spacing: 0.22em;
+  text-transform: lowercase;
+  color: var(--smoke);
+  font-weight: 400;
+}
+
+.about-mono.accent {
+  color: var(--ember);
+}
+
+.about-wordmark {
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 0.72rem;
+  letter-spacing: 0.24em;
+  text-transform: lowercase;
+  color: var(--ink);
+  font-weight: 400;
+}
+
+.about-wordmark .slash {
+  color: var(--ember);
+  margin: 0 0.25em;
+}
+
+/* ---------- Rules ---------- */
+
+.about-rule {
+  height: 1px;
+  background: var(--rule);
+  transform-origin: left;
+  animation: about-rule-draw 900ms cubic-bezier(0.2, 0.7, 0.2, 1) 120ms
+    both;
+}
+
+@keyframes about-rule-draw {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+/* ---------- CTA / link ---------- */
+
+.about-cta {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.55em;
+  padding-bottom: 0.4em;
+  color: var(--ink-deep);
+  border-bottom: 1px solid var(--ember);
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  transition: gap 280ms cubic-bezier(0.2, 0.7, 0.2, 1),
+    color 280ms ease;
+}
+
+.about-cta:hover {
+  gap: 1em;
+  color: var(--ember);
+}
+
+.about-cta .arrow {
+  color: var(--ember);
+  display: inline-block;
+  transition: transform 280ms cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+.about-cta:hover .arrow {
+  transform: translateX(4px);
+}
+
+/* ---------- Close button ---------- */
+
+.about-close {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.7em;
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 0.68rem;
+  letter-spacing: 0.22em;
+  text-transform: lowercase;
+  color: var(--smoke);
+  cursor: pointer;
+  transition: color 200ms ease, letter-spacing 200ms ease;
+  padding: 0.5em 0;
+}
+
+.about-close:hover {
+  color: var(--ember);
+  letter-spacing: 0.26em;
+}
+
+.about-close .esc {
+  display: inline-block;
+  padding: 0.2em 0.5em;
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  font-size: 0.6rem;
+  letter-spacing: 0.14em;
+  color: var(--smoke);
+  line-height: 1;
+  transition: border-color 200ms ease, color 200ms ease;
+}
+
+.about-close:hover .esc {
+  border-color: var(--ember);
+  color: var(--ember);
+}
+
+.about-close .x {
+  font-size: 1.05rem;
+  line-height: 1;
+  transform: translateY(-1px);
+}
+
+/* ---------- Image frame ---------- */
+
+.about-image-frame {
+  position: relative;
+  background: var(--paper);
+  box-shadow:
+    0 0 0 1px var(--rule),
+    0 40px 80px -40px rgba(26, 22, 16, 0.32),
+    0 1px 2px rgba(26, 22, 16, 0.05);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+@media (prefers-color-scheme: dark) {
+  .about-image-frame {
+    box-shadow:
+      0 0 0 1px var(--rule),
+      0 40px 80px -40px rgba(0, 0, 0, 0.7),
+      0 1px 2px rgba(0, 0, 0, 0.35);
+  }
+}
+
+/* Empty state — no image yet. The frame is fully invisible, so
+   the composition reads as intentional whitespace rather than a
+   missing asset. Drop in an image later and the full frame
+   styling comes back automatically. */
+.about-image-frame.is-empty {
+  background: transparent;
+  box-shadow: none;
+}
+
+.about-image-frame.is-empty .about-placeholder {
+  display: none;
+}
+
+.about-placeholder {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.8rem;
+  background-image: linear-gradient(
+    135deg,
+    transparent 49.5%,
+    var(--rule) 49.5%,
+    var(--rule) 50.5%,
+    transparent 50.5%
+  );
+}
+
+.about-placeholder .label {
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 0.65rem;
+  letter-spacing: 0.22em;
+  color: var(--smoke);
+  text-transform: lowercase;
+}
+
+.about-placeholder .filename {
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 0.6rem;
+  letter-spacing: 0.1em;
+  color: var(--smoke);
+  opacity: 0.6;
+}
+
+/* ---------- Slide reveal animation ---------- */
+
+.about-text-col > * {
+  animation: about-fade-in 700ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+.about-text-col > *:nth-child(1) {
+  animation-delay: 40ms;
+}
+.about-text-col > *:nth-child(2) {
+  animation-delay: 160ms;
+}
+.about-text-col > *:nth-child(3) {
+  animation-delay: 280ms;
+}
+.about-text-col > *:nth-child(4) {
+  animation-delay: 400ms;
+}
+
+.about-image-col {
+  animation: about-fade-in 700ms cubic-bezier(0.2, 0.7, 0.2, 1) 200ms
+    both;
+}
+
+@keyframes about-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ---------- Nav ---------- */
+
+.about-nav-btn {
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 0.68rem;
+  letter-spacing: 0.22em;
+  color: var(--smoke);
+  text-transform: lowercase;
+  transition: color 200ms ease, letter-spacing 200ms ease;
+}
+
+.about-nav-btn:hover:not(:disabled) {
+  color: var(--ink-deep);
+  letter-spacing: 0.26em;
+}
+
+.about-nav-btn:disabled {
+  opacity: 0.25;
+  cursor: default;
+}
+
+.about-dot {
+  height: 2px;
+  transition: width 280ms cubic-bezier(0.2, 0.7, 0.2, 1),
+    background 200ms ease, opacity 200ms ease;
+  background: var(--ink);
+  opacity: 0.3;
+}
+
+.about-dot:hover {
+  opacity: 0.6;
+}
+
+.about-dot.active {
+  background: var(--ember);
+  opacity: 1;
+}
+
+/* ---------- Reduce motion ---------- */
+
+@media (prefers-reduced-motion: reduce) {
+  .about-overlay,
+  .about-rule,
+  .about-text-col > *,
+  .about-image-col {
+    animation: none !important;
+    transform: none !important;
+    opacity: 1 !important;
+  }
+  .about-cta,
+  .about-cta .arrow,
+  .about-dot,
+  .about-nav-btn,
+  .about-close {
+    transition: none !important;
+  }
+}

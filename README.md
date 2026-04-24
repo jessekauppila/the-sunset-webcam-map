@@ -1,6 +1,17 @@
-# The Sunset Webcam Map
+# Sunrise / Sunset
 
-A real-time webcam mapping application that shows live webcam feeds from locations experiencing sunset around the world.
+A project that streams live sunrises and sunsets from around the world, as they happen.
+
+## About the project
+
+The project has four parts:
+
+1. **A webcam network** — custom Raspberry Pi cameras and public webcam APIs, positioned where day meets night on earth.
+2. **An archive** of captured sunrises and sunsets.
+3. **A machine-learning model** that scores them — trained to find real sunsets, not generate them.
+4. **A physical installation** — currently a two-screen diptych, being developed into a ring of monitors at viewer-scale.
+
+This repository is the working tool used to develop the project. For a short visual guide, visit `/about` on the live site.
 
 ## Features
 
