@@ -37,7 +37,8 @@ export default function SimpleMap({
 
   const { mapContainer, map, mapLoaded, mapReady } = useMap(
     userLocation,
-    mode === 'map',
+    true,
+    { projection: mode === 'globe' ? 'globe' : 'mercator' },
   );
 
   // Create a shared container ref for interaction detection
@@ -52,17 +53,12 @@ export default function SimpleMap({
   //this brings in the Zustand "state" store
   const allTerminatorWebcams = useTerminatorStore((t) => t.combined);
 
-  const { sunrise, sunset } = useUpdateTerminatorRing(
-    map,
-    mapLoaded,
-    currentTime,
-    {
-      attachToMap: mode === 'map',
-      showSearchRadius: false, // Enable search radius visualization
-      precisionDeg: TERMINATOR_PRECISION_DEG, // Match cron job precision
-      searchRadiusDegrees: SEARCH_RADIUS_DEG, // Match cron job search radius
-    },
-  );
+  useUpdateTerminatorRing(map, mapLoaded, currentTime, {
+    attachToMap: true,
+    showSearchRadius: false, // Enable search radius visualization
+    precisionDeg: TERMINATOR_PRECISION_DEG, // Match cron job precision
+    searchRadiusDegrees: SEARCH_RADIUS_DEG, // Match cron job search radius
+  });
 
   const {
     currentWebcam: nextLatitudeNorthSunsetWebCam,
@@ -139,51 +135,30 @@ export default function SimpleMap({
       {/* First Section - Full Screen Map */}
       <section className="map-container w-full h-screen">
         <div ref={interactionContainerRef} className="w-full h-full">
-          {' '}
-          {/* Add ref here */}
-          {mode === 'map' ? (
-            <div
-              ref={mapContainer}
-              className="w-full h-full"
-              style={{
-                position: 'relative',
-                zIndex: 1,
-                // Make map semi-transparent to see terminator visualization better
-                // Remove this style to restore full opacity
-                opacity: 1, // 30% opacity - adjust as needed (0.0 = invisible, 1.0 = fully opaque)
-              }}
+          <div
+            ref={mapContainer}
+            className="w-full h-full"
+            style={{ position: 'relative', zIndex: 1 }}
+          />
+          {mode === 'globe' && (
+            <GlobeMap
+              map={map}
+              mapLoaded={mapLoaded}
+              webcams={allTerminatorWebcams || []}
+              currentTime={currentTime}
+              targetLocation={
+                nextLatitudeNorthSunsetLocation
+                  ? {
+                      longitude: nextLatitudeNorthSunsetLocation.lng,
+                      latitude: nextLatitudeNorthSunsetLocation.lat,
+                    }
+                  : null
+              }
+              isPaused={isPaused}
             />
-          ) : (
-            <div
-              className="w-full h-full"
-              style={{ position: 'relative', zIndex: 1 }}
-            >
-              <GlobeMap
-                webcams={allTerminatorWebcams || []}
-                sunrise={sunrise}
-                sunset={sunset}
-                currentTime={currentTime}
-                initialViewState={{
-                  longitude: userLocation.lng,
-                  latitude: userLocation.lat,
-                  zoom: 0,
-                }}
-                targetLocation={
-                  nextLatitudeNorthSunsetLocation
-                    ? {
-                        longitude:
-                          nextLatitudeNorthSunsetLocation.lng,
-                        latitude: nextLatitudeNorthSunsetLocation.lat,
-                      }
-                    : null
-                }
-                isPaused={isPaused}
-                mode={mode}
-              />
-            </div>
           )}
           {/* Loading Overlay */}
-          {mode === 'map' && !mapLoaded && (
+          {!mapLoaded && (
             <div
               className="absolute inset-0 bg-gray-500 flex items-center justify-center"
               style={{ zIndex: 2 }}
