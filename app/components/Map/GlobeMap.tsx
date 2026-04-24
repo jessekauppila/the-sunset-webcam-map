@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Map as MapboxMap } from 'mapbox-gl';
 import { MapboxOverlay } from '@deck.gl/mapbox';
 import { IconLayer } from '@deck.gl/layers';
+import type { PickingInfo } from '@deck.gl/core';
 import { subsolarPoint } from './lib/subsolarLocation';
 import { latLngToUnitVector } from './lib/latLngToUnitVector';
 import { SunShadowLayer } from './layers/SunShadowLayer';
@@ -63,15 +64,33 @@ export default function GlobeMap({
     shadowLayerRef.current.setSunDirection(latLngToUnitVector(lat, lng));
   }, [currentTime, mapLoaded]);
 
+  // Track map center so webcam culling re-runs when the user pans.
+  // Using moveend (not move) keeps React from re-rendering every animation frame.
+  const [mapCenter, setMapCenter] = useState<{
+    lat: number;
+    lng: number;
+  } | null>(null);
+  useEffect(() => {
+    if (!map || !mapLoaded) return;
+    const update = () => {
+      const c = map.getCenter();
+      setMapCenter({ lat: c.lat, lng: c.lng });
+    };
+    update();
+    map.on('moveend', update);
+    return () => {
+      map.off('moveend', update);
+    };
+  }, [map, mapLoaded]);
+
   // Filter webcams using spherical distance from the map center (3D culling).
   const filteredWebcams = useMemo(
     () =>
       (webcams || []).filter((webcam) => {
         if (!webcam || !webcam.location || !webcam.webcamId) return false;
-        if (!map) return true;
-        const cam = map.getCenter();
-        const lat1 = (cam.lat * Math.PI) / 180;
-        const lng1 = (cam.lng * Math.PI) / 180;
+        if (!mapCenter) return true;
+        const lat1 = (mapCenter.lat * Math.PI) / 180;
+        const lng1 = (mapCenter.lng * Math.PI) / 180;
         const lat2 = (webcam.location.latitude * Math.PI) / 180;
         const lng2 = (webcam.location.longitude * Math.PI) / 180;
         const dLat = lat2 - lat1;
@@ -83,16 +102,25 @@ export default function GlobeMap({
           2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)) * (180 / Math.PI);
         return angularDistance < 100;
       }),
-    [webcams, map],
+    [webcams, mapCenter],
   );
 
   // Install the MapboxOverlay as a control (hosts the IconLayer for webcams).
+  // getTooltip renders deck.gl's HTML tooltip — the same pattern the old
+  // <DeckGL> component used before the refactor.
   useEffect(() => {
     if (!map || !mapLoaded) return;
 
     const overlay = new MapboxOverlay({
       interleaved: true,
       layers: [],
+      getTooltip: ({ object }: PickingInfo) =>
+        object
+          ? {
+              html: createWebcamPopupContent(object as WindyWebcam),
+              style: { maxWidth: '280px' },
+            }
+          : null,
     });
     map.addControl(overlay);
     overlayRef.current = overlay;
@@ -139,19 +167,10 @@ export default function GlobeMap({
       pickable: true,
       billboard: true,
       parameters: { depthTest: false } as Record<string, unknown>,
-      onHover: ({ object }) => {
-        if (!map) return;
-        const canvas = map.getCanvasContainer();
-        if (!object) {
-          canvas.title = '';
-          return;
-        }
-        canvas.title = createWebcamPopupContent(object as WindyWebcam);
-      },
     });
 
     overlayRef.current.setProps({ layers: [iconLayer] });
-  }, [filteredWebcams, map]);
+  }, [filteredWebcams]);
 
   // Fly to targetLocation when it changes (and not paused).
   const previousLocationRef = useRef<{
