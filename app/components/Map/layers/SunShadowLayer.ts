@@ -11,24 +11,54 @@ export interface SunShadowLayerOptions {
   latSubdivisions?: number;
 }
 
+// Mapbox internal constant: GLOBE_RADIUS = EXTENT / (2π) where EXTENT = 8192.
+// The ECEF axis convention below (x: through 90°E, -y: through north pole,
+// z: through prime meridian) MUST match what Mapbox's globeMatrix expects;
+// any other choice produces a geometrically valid but incorrectly-oriented
+// sphere that won't line up with the basemap tiles.
+const GLOBE_RADIUS = 8192 / (2 * Math.PI);
+
 const VERTEX_SHADER = `#version 300 es
 in vec2 a_lngLat;
 uniform mat4 u_matrix;
+uniform mat4 u_globeToMercator;
+uniform float u_transition;
 out vec3 v_unitNormal;
+
+const float GLOBE_RADIUS = ${GLOBE_RADIUS.toFixed(10)};
+const float PI = 3.14159265358979323846;
 
 void main() {
   float lng = radians(a_lngLat.x);
   float lat = radians(a_lngLat.y);
+  float cosLat = cos(lat);
+  float sinLat = sin(lat);
 
-  // MercatorCoordinate world-space for (lng, lat), altitude 0.
-  // Mapbox's matrix transforms this directly to clip space (and applies
-  // the globe projection when the map is in globe mode).
-  float x = (a_lngLat.x + 180.0) / 360.0;
-  float yMerc = 0.5 - log(tan(0.25 * 3.14159265 + 0.5 * lat)) / (2.0 * 3.14159265);
-  vec4 worldPos = vec4(x, yMerc, 0.0, 1.0);
-  gl_Position = u_matrix * worldPos;
+  // ECEF position in Mapbox's globe convention.
+  vec3 ecef = vec3(
+    cosLat * sin(lng) * GLOBE_RADIUS,
+    -sinLat * GLOBE_RADIUS,
+    cosLat * cos(lng) * GLOBE_RADIUS
+  );
 
-  v_unitNormal = vec3(cos(lat) * cos(lng), sin(lat), cos(lat) * sin(lng));
+  // Mercator-space position for the same lng/lat (used when transition > 0,
+  // i.e. when Mapbox is interpolating toward the flat mercator projection).
+  float merc_x = (a_lngLat.x + 180.0) / 360.0;
+  float merc_y = 0.5 - log(tan(0.25 * PI + 0.5 * lat)) / (2.0 * PI);
+
+  vec4 globe_in_merc = u_globeToMercator * vec4(ecef, 1.0);
+  vec4 merc_pos = vec4(merc_x, merc_y, 0.0, 1.0);
+
+  vec4 blended = vec4(
+    mix(globe_in_merc.xyz, merc_pos.xyz, u_transition),
+    1.0
+  );
+
+  gl_Position = u_matrix * blended;
+
+  // Surface normal in latLngToUnitVector convention so dot(v_unitNormal, u_sunDir)
+  // matches the CPU-side sun vector that GlobeMap pushes via setSunDirection.
+  v_unitNormal = vec3(cosLat * cos(lng), sinLat, cosLat * sin(lng));
 }
 `;
 
@@ -65,16 +95,15 @@ function compile(
   return shader;
 }
 
-// Latitude is clamped to ±MAX_LAT_DEG to avoid the log(tan(...)) singularity
-// at the poles in the mercator Y calculation. Polar caps (last ~5°) will not
-// be shaded — acceptable trade-off given labels in that region are also sparse.
+// Mesh latitude is clamped to ±MAX_LAT_DEG to avoid the log(tan(...))
+// singularity in the mercator-Y branch of the vertex shader. Polar caps
+// (last ~5°) won't be shaded — acceptable since labels there are sparse.
 const MAX_LAT_DEG = 85;
 
 function buildSphereMesh(
   lonSubs: number,
   latSubs: number,
 ): Float32Array {
-  // Vertex format: vec2(lng, lat). Two triangles per quad.
   const verts: number[] = [];
   const latSpan = 2 * MAX_LAT_DEG;
   for (let j = 0; j < latSubs; j++) {
@@ -89,6 +118,10 @@ function buildSphereMesh(
   }
   return new Float32Array(verts);
 }
+
+const IDENTITY_MATRIX = new Float32Array([
+  1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1,
+]);
 
 export class SunShadowLayer implements CustomLayerInterface {
   public readonly id: string;
@@ -108,6 +141,8 @@ export class SunShadowLayer implements CustomLayerInterface {
   private vbo: WebGLBuffer | null = null;
   private vertexCount = 0;
   private uMatrixLoc: WebGLUniformLocation | null = null;
+  private uGlobeToMercatorLoc: WebGLUniformLocation | null = null;
+  private uTransitionLoc: WebGLUniformLocation | null = null;
   private uSunDirLoc: WebGLUniformLocation | null = null;
   private uSoftnessLoc: WebGLUniformLocation | null = null;
   private uMaxDarknessLoc: WebGLUniformLocation | null = null;
@@ -146,6 +181,11 @@ export class SunShadowLayer implements CustomLayerInterface {
 
     this.program = program;
     this.uMatrixLoc = gl.getUniformLocation(program, 'u_matrix');
+    this.uGlobeToMercatorLoc = gl.getUniformLocation(
+      program,
+      'u_globeToMercator',
+    );
+    this.uTransitionLoc = gl.getUniformLocation(program, 'u_transition');
     this.uSunDirLoc = gl.getUniformLocation(program, 'u_sunDir');
     this.uSoftnessLoc = gl.getUniformLocation(program, 'u_softness');
     this.uMaxDarknessLoc = gl.getUniformLocation(program, 'u_maxDarkness');
@@ -175,11 +215,31 @@ export class SunShadowLayer implements CustomLayerInterface {
     this.map = null;
   }
 
-  render(gl: WebGL2RenderingContext, matrix: number[]): void {
+  render(
+    gl: WebGL2RenderingContext,
+    matrix: number[],
+    _projection?: unknown,
+    projectionToMercatorMatrix?: number[],
+    projectionToMercatorTransition?: number,
+  ): void {
     if (!this.program || !this.vao) return;
+
+    // In mercator mode, projectionToMercatorMatrix is undefined and the layer
+    // shouldn't be visible (GlobeMap only installs us in globe mode). If we
+    // ever do get called in mercator, fall back to identity + transition=1
+    // so the shader takes the pure-mercator branch and renders correctly.
+    const globeToMerc = projectionToMercatorMatrix ?? IDENTITY_MATRIX;
+    const transition = projectionToMercatorTransition ?? 1.0;
+
     gl.useProgram(this.program);
     gl.bindVertexArray(this.vao);
     gl.uniformMatrix4fv(this.uMatrixLoc, false, matrix);
+    gl.uniformMatrix4fv(
+      this.uGlobeToMercatorLoc,
+      false,
+      globeToMerc as Float32Array | number[],
+    );
+    gl.uniform1f(this.uTransitionLoc, transition);
     gl.uniform3fv(this.uSunDirLoc, this.sunDir);
     gl.uniform1f(this.uSoftnessLoc, this.softness);
     gl.uniform1f(this.uMaxDarknessLoc, this.maxDarkness);
