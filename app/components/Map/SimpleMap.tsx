@@ -38,7 +38,7 @@ export default function SimpleMap({
   const { mapContainer, map, mapLoaded, mapReady } = useMap(
     userLocation,
     true,
-    { projection: mode === 'globe' ? 'globe' : 'mercator' },
+    { projection: 'globe' },
   );
 
   // Create a shared container ref for interaction detection
@@ -98,29 +98,21 @@ export default function SimpleMap({
 
   useSetMarker(map, mapReady, mode === 'map' ? userLocation : null);
 
-  useSetWebcamMarkers(
-    map,
-    mapLoaded,
-    mode === 'map' ? allTerminatorWebcams : [],
-    mode === 'map'
-      ? {
-          activeWebcamId:
-            nextLatitudeNorthSunsetWebCam?.webcamId ?? null,
-          onAdvance: () => {
-            resetInteractionPause();
-            resumeWebcamCycling();
-            goToNextWebcam();
-          },
-          onPopupStateChange: (isOpen: boolean) => {
-            if (isOpen) {
-              pauseWebcamCycling();
-            } else {
-              resumeWebcamCycling();
-            }
-          },
-        }
-      : undefined,
-  );
+  useSetWebcamMarkers(map, mapLoaded, allTerminatorWebcams, {
+    activeWebcamId: nextLatitudeNorthSunsetWebCam?.webcamId ?? null,
+    onAdvance: () => {
+      resetInteractionPause();
+      resumeWebcamCycling();
+      goToNextWebcam();
+    },
+    onPopupStateChange: (isOpen: boolean) => {
+      if (isOpen) {
+        pauseWebcamCycling();
+      } else {
+        resumeWebcamCycling();
+      }
+    },
+  });
 
   useFlyTo(
     map,
@@ -144,7 +136,6 @@ export default function SimpleMap({
             <GlobeMap
               map={map}
               mapLoaded={mapLoaded}
-              webcams={allTerminatorWebcams || []}
               currentTime={currentTime}
               targetLocation={
                 nextLatitudeNorthSunsetLocation
