@@ -152,7 +152,11 @@ export class SunShadowLayer implements CustomLayerInterface {
     this.id = options.id ?? 'sun-shadow';
     this.softness = options.softness ?? 0.15;
     this.maxDarkness = options.maxDarkness ?? 0.65;
-    this.tint = options.tint ?? [0.05, 0.08, 0.18];
+    // Near-black with a barely-perceptible blue hint. The previous default
+    // ([0.05, 0.08, 0.18]) read as "blue overlay" rather than "shadow of the
+    // Earth". Lower these RGB values toward 0 for pure black, or pass a
+    // `tint` option from GlobeMap to override.
+    this.tint = options.tint ?? [0.0, 0.0, 0.02];
     this.lonSubs = options.lonSubdivisions ?? 72;
     this.latSubs = options.latSubdivisions ?? 36;
   }
