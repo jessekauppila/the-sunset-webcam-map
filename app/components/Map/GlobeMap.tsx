@@ -54,8 +54,16 @@ export default function GlobeMap({
     }
 
     return () => {
-      if (shadowLayerRef.current && map.getLayer(shadowLayerRef.current.id)) {
-        map.removeLayer(shadowLayerRef.current.id);
+      // The map's style may already be torn down by the time cleanup runs
+      // (e.g. when switching to a mosaic mode unmounts SimpleMap). getLayer
+      // throws against an undefined style; same guard pattern as
+      // useUpdateTerminatorRing.
+      try {
+        if (shadowLayerRef.current && map.getLayer(shadowLayerRef.current.id)) {
+          map.removeLayer(shadowLayerRef.current.id);
+        }
+      } catch {
+        // ignore — the map is being disposed
       }
       shadowLayerRef.current = null;
       setLayerInstalled(false);
