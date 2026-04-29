@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { Map as MapboxMap } from 'mapbox-gl';
 import { subsolarPoint } from './lib/subsolarLocation';
 import { latLngToUnitVector } from './lib/latLngToUnitVector';
@@ -27,6 +27,10 @@ export default function GlobeMap({
   isPaused = false,
 }: GlobeMapProps) {
   const shadowLayerRef = useRef<SunShadowLayer | null>(null);
+  // Flips to true once SunShadowLayer is actually attached. The push-sun-direction
+  // effect depends on this so it re-fires after the layer becomes available
+  // (the layer install is async — it waits for Mapbox's style.load).
+  const [layerInstalled, setLayerInstalled] = useState(false);
 
   // Install SunShadowLayer below the first Mapbox symbol layer.
   useEffect(() => {
@@ -40,6 +44,7 @@ export default function GlobeMap({
         ?.layers?.find((l) => l.type === 'symbol')?.id;
       map.addLayer(layer, firstSymbolId);
       shadowLayerRef.current = layer;
+      setLayerInstalled(true);
     };
 
     if (map.isStyleLoaded()) {
@@ -53,15 +58,19 @@ export default function GlobeMap({
         map.removeLayer(shadowLayerRef.current.id);
       }
       shadowLayerRef.current = null;
+      setLayerInstalled(false);
     };
   }, [map, mapLoaded]);
 
-  // Push sun direction into the shadow layer whenever currentTime changes.
+  // Push sun direction into the shadow layer whenever currentTime changes
+  // OR the layer becomes available (without this dep, on first load the layer
+  // installs after this effect runs and the shader stays at the default
+  // [1, 0, 0] sun direction — terminator near Null Island, not the real sun).
   useEffect(() => {
-    if (!shadowLayerRef.current) return;
+    if (!shadowLayerRef.current || !layerInstalled) return;
     const { lat, lng } = subsolarPoint(currentTime);
     shadowLayerRef.current.setSunDirection(latLngToUnitVector(lat, lng));
-  }, [currentTime]);
+  }, [currentTime, layerInstalled]);
 
   // Fly to targetLocation when it changes (and not paused).
   const previousLocationRef = useRef<{

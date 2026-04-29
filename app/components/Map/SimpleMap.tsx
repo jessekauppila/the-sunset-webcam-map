@@ -3,8 +3,6 @@
 import { useState, useEffect, useRef } from 'react';
 import {} from '@mui/icons-material';
 import { useMap } from './hooks/useMap';
-import { useFlyTo } from './hooks/useFlyTo';
-import { useSetMarker } from './hooks/useSetMarker';
 import { useSetWebcamMarkers } from './hooks/useSetWebcamMarkers';
 import { useUpdateTerminatorRing } from './hooks/useUpdateTerminatorRing';
 import { useMapInteractionPause } from './hooks/useMapInteractionPause';
@@ -35,11 +33,9 @@ export default function SimpleMap({
 }: SimpleMapProps) {
   const [currentTime, setCurrentTime] = useState(new Date());
 
-  const { mapContainer, map, mapLoaded, mapReady } = useMap(
-    userLocation,
-    true,
-    { projection: 'globe' },
-  );
+  const { mapContainer, map, mapLoaded } = useMap(userLocation, true, {
+    projection: 'globe',
+  });
 
   // Create a shared container ref for interaction detection
   const interactionContainerRef = useRef<HTMLDivElement>(null);
@@ -96,8 +92,6 @@ export default function SimpleMap({
     nextLatitudeNorthSunsetWebCam,
   );
 
-  useSetMarker(map, mapReady, mode === 'map' ? userLocation : null);
-
   useSetWebcamMarkers(map, mapLoaded, allTerminatorWebcams, {
     activeWebcamId: nextLatitudeNorthSunsetWebCam?.webcamId ?? null,
     onAdvance: () => {
@@ -113,14 +107,6 @@ export default function SimpleMap({
       }
     },
   });
-
-  useFlyTo(
-    map,
-    mapLoaded,
-    mode === 'map' ? (nextLatitudeNorthSunsetLocation ?? null) : null,
-    isPaused,
-    mode, // Pass mode so it can detect mode changes
-  );
 
   return (
     <div>
