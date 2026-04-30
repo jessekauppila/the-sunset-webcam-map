@@ -1,4 +1,7 @@
-import type { CustomLayerInterface, Map as MapboxMap } from 'mapbox-gl';
+import type {
+  CustomLayerInterface,
+  Map as MapboxMap,
+} from 'mapbox-gl';
 
 export interface SunShadowLayerOptions {
   id?: string;
@@ -156,6 +159,11 @@ export class SunShadowLayer implements CustomLayerInterface {
     // ([0.05, 0.08, 0.18]) read as "blue overlay" rather than "shadow of the
     // Earth". Lower these RGB values toward 0 for pure black, or pass a
     // `tint` option from GlobeMap to override.
+
+    // - Pure black: [0.0, 0.0, 0.0]
+    // - Near-black with subtle blue (current): [0.0, 0.0, 0.02]
+    // - Slightly bluer dark: [0.0, 0.01, 0.05]
+    // - Darker, more dramatic — also bump maxDarkness (line above): try 0.85 or 0.95 instead of 0.65 to make the night side more opaque.
     this.tint = options.tint ?? [0.0, 0.0, 0.02];
     this.lonSubs = options.lonSubdivisions ?? 72;
     this.latSubs = options.latSubdivisions ?? 36;
@@ -189,10 +197,16 @@ export class SunShadowLayer implements CustomLayerInterface {
       program,
       'u_globeToMercator',
     );
-    this.uTransitionLoc = gl.getUniformLocation(program, 'u_transition');
+    this.uTransitionLoc = gl.getUniformLocation(
+      program,
+      'u_transition',
+    );
     this.uSunDirLoc = gl.getUniformLocation(program, 'u_sunDir');
     this.uSoftnessLoc = gl.getUniformLocation(program, 'u_softness');
-    this.uMaxDarknessLoc = gl.getUniformLocation(program, 'u_maxDarkness');
+    this.uMaxDarknessLoc = gl.getUniformLocation(
+      program,
+      'u_maxDarkness',
+    );
     this.uTintLoc = gl.getUniformLocation(program, 'u_tint');
 
     const mesh = buildSphereMesh(this.lonSubs, this.latSubs);

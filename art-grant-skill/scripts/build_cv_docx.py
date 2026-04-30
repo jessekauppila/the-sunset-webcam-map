@@ -172,7 +172,7 @@ def add_plain_entry(doc: Document, lines: list[str]) -> None:
 
 
 EDUCATION: list[tuple[str, list[str]]] = [
-    ("Carnegie Mellon University (MFA, expected 2016)", ["Pittsburgh, PA"]),
+    ("Carnegie Mellon University (MFA, 2016)", ["Pittsburgh, PA"]),
     ("Reed College (BA)", ["Portland, OR"]),
     ("Hampshire College", ["Amherst, MA"]),
     ("Il Bisonte: Foundation for the Study of Printmaking",
@@ -206,10 +206,6 @@ AWARDS: list[tuple[str, str, list[str]]] = [
     ("", "Graduate Student Travel Grant (2013)",
      ["Carnegie Mellon Graduate Student Assembly"]),
     ("", "Artist in Residence (2013)", ["Rayko Photo Center"]),
-    # Source lists this Frank-Ratchye microgrant twice (rows 023 and
-    # 029). User asked us not to edit content, so it stays duplicated.
-    ("", "Frank-Ratchye Fund for Art @ the Frontier Microgrant (2013)",
-     ["Carnegie Mellon University"]),
     ("2012", "Artist in Residence (2009–2012)", ["Kala Art Institute"]),
     ("", "Alternative Exposure Grant for “Art for a Democratic "
      "Society” (2012)",

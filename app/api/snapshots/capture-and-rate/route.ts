@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { sql } from '@/app/lib/db';
 import { captureWebcamSnapshot } from '@/app/lib/webcamSnapshot';
-import { SNAPSHOTS_ENABLED } from '@/app/lib/masterConfig';
+import { SNAPSHOTS_ENABLED_ON_RATING } from '@/app/lib/masterConfig';
 import type { WindyWebcam } from '@/app/lib/types';
 
 export const dynamic = 'force-dynamic';
@@ -86,8 +86,10 @@ async function findOrCreateSnapshot(
     return { snapshot: existing, alreadyExisted: true };
   }
 
-  if (!SNAPSHOTS_ENABLED) {
-    throw new Error('Snapshot capture is disabled (SNAPSHOTS_ENABLED = false)');
+  if (!SNAPSHOTS_ENABLED_ON_RATING) {
+    throw new Error(
+      'Rating-triggered snapshot capture is disabled (SNAPSHOTS_ENABLED_ON_RATING = false)',
+    );
   }
 
   const captured = await captureWebcamSnapshot(webcam);

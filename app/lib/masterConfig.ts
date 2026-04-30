@@ -44,10 +44,18 @@ export const CIRCLE_RENDERING_PRECISION_DEG = SEARCH_RADIUS_DEG;
 // ---------------------------------------------------------------------------
 // AI scoring + snapshot capture behavior
 // ---------------------------------------------------------------------------
-// Master kill-switch for snapshot capture. Set to false to stop saving images
-// to Firebase entirely (saves storage costs). AI scoring still runs; only the
-// image-download + Firebase-upload step is skipped.
+// Kill-switch for AUTOMATIC snapshot capture (cron jobs, manual capture
+// endpoint). Set to false to stop bulk saving images to Firebase (saves
+// storage costs). AI scoring still runs; only the image-download +
+// Firebase-upload step is skipped.
 export const SNAPSHOTS_ENABLED = false;
+
+// Kill-switch for USER-TRIGGERED snapshot capture (the rating flow at
+// /api/snapshots/capture-and-rate). When true, clicking a rating star
+// captures the current webcam image to Firebase alongside the rating —
+// the rating action makes the image valuable enough to keep regardless
+// of the bulk-capture flag above.
+export const SNAPSHOTS_ENABLED_ON_RATING = true;
 
 // Binary classifier threshold used when mapping probability/raw score to
 // positive vs negative decisions.
