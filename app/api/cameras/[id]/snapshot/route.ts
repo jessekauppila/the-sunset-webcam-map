@@ -31,7 +31,11 @@ export async function POST(request: Request, context: RouteContext) {
   let form: FormData;
   try {
     form = await request.formData();
-  } catch {
+  } catch (error) {
+    console.warn(
+      `[cameras/snapshot] formData parse failed for cameraId=${cameraId}:`,
+      error
+    );
     return NextResponse.json(
       { error: 'expected multipart/form-data' },
       { status: 400 }
@@ -89,43 +93,66 @@ export async function POST(request: Request, context: RouteContext) {
       ? null
       : String(edgeModelVersionRaw);
 
-  const rows = (await sql`
-    SELECT webcam_id FROM cameras WHERE id = ${cameraId} LIMIT 1
-  `) as { webcam_id: number | null }[];
-  const webcamId = rows[0]?.webcam_id ?? null;
-  if (!webcamId) {
+  try {
+    const rows = (await sql`
+      SELECT webcam_id FROM cameras WHERE id = ${cameraId} LIMIT 1
+    `) as { webcam_id: number | null }[];
+    const webcamId = rows[0]?.webcam_id ?? null;
+    if (!webcamId) {
+      return NextResponse.json(
+        { error: 'camera has no paired webcam row' },
+        { status: 404 }
+      );
+    }
+
+    const arrayBuffer = await imageEntry.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+
+    const uploaded = await uploadCameraSnapshot(cameraId, buffer, capturedAt);
+    const snapshotId = await insertCameraSnapshotRow({
+      webcamId,
+      phase,
+      capturedAt,
+      firebaseUrl: uploaded.url,
+      firebasePath: uploaded.path,
+      windowId,
+      edgeScore: Number.isFinite(edgeScore as number) ? (edgeScore as number) : null,
+      edgeModelVersion,
+    });
+
+    // Fire-and-forget: a failed last_seen_at must NOT poison an otherwise
+    // successful ingest. The firmware would retry on 500 and we'd duplicate
+    // the snapshot row.
+    sql`
+      UPDATE cameras
+      SET last_seen_at = NOW()
+      WHERE id = ${cameraId}
+    `.catch((err) => {
+      console.warn(
+        `[cameras/snapshot] last_seen_at update failed for cameraId=${cameraId}:`,
+        err
+      );
+    });
+
+    console.info(
+      `[cameras/snapshot] cameraId=${cameraId} snapshotId=${snapshotId} windowId=${windowId} bytes=${buffer.length}`
+    );
+
     return NextResponse.json(
-      { error: 'camera has no paired webcam row' },
-      { status: 404 }
+      {
+        snapshot_id: snapshotId,
+        accepted_at: new Date().toISOString(),
+      },
+      { status: 202 }
+    );
+  } catch (error) {
+    console.error('[cameras/snapshot] failed:', error);
+    return NextResponse.json(
+      {
+        error: 'internal server error',
+        details: error instanceof Error ? error.message : 'unknown',
+      },
+      { status: 500 }
     );
   }
-
-  const arrayBuffer = await imageEntry.arrayBuffer();
-  const buffer = Buffer.from(arrayBuffer);
-
-  const uploaded = await uploadCameraSnapshot(cameraId, buffer, capturedAt);
-  const snapshotId = await insertCameraSnapshotRow({
-    webcamId,
-    phase,
-    capturedAt,
-    firebaseUrl: uploaded.url,
-    firebasePath: uploaded.path,
-    windowId,
-    edgeScore: Number.isFinite(edgeScore as number) ? (edgeScore as number) : null,
-    edgeModelVersion,
-  });
-
-  await sql`
-    UPDATE cameras
-    SET last_seen_at = NOW()
-    WHERE id = ${cameraId}
-  `;
-
-  return NextResponse.json(
-    {
-      snapshot_id: snapshotId,
-      accepted_at: new Date().toISOString(),
-    },
-    { status: 202 }
-  );
 }
