@@ -43,6 +43,9 @@ next-env.d.ts
 # superpowers brainstorm sessions
 .superpowers/
 
+# superpowers worktrees
+.worktrees/
+
 # ML artifacts
 ml/artifacts/
 ml/.venv/
