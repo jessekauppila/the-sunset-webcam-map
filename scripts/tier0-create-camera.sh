@@ -50,12 +50,12 @@ TOKEN="$(openssl rand -hex 32)"
 TOKEN_HASH="$(printf '%s' "$TOKEN" | openssl dgst -sha256 -hex \
   | awk '{print $NF}')"
 
-CAMERA_ID="$(psql "$DATABASE_URL" -At \
-  -v hardware_id="'$HARDWARE_ID'" \
-  -v device_token_hash="'$TOKEN_HASH'" \
+CAMERA_ID="$(psql "$DATABASE_URL" -At -v ON_ERROR_STOP=1 \
+  -v hardware_id="$HARDWARE_ID" \
+  -v device_token_hash="$TOKEN_HASH" \
   -v lat="$LAT" -v lng="$LNG" \
-  -v timezone="'$TIMEZONE'" \
-  -v title="'$TITLE'" -v phase="'$PHASE'" \
+  -v timezone="$TIMEZONE" \
+  -v title="$TITLE" -v phase="$PHASE" \
   -f database/seeds/tier0-test-camera.sql \
   | tail -n 1)"
 
