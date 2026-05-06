@@ -343,15 +343,25 @@ identified in the baseline diagnostics (see Appendix A).
 
 ### Which LLM model to use
 
-| Model | Cost per image | Quality | Recommendation |
-|-------|---------------|---------|----------------|
-| Gemini 2.0 Flash | ~$0.0001 (free tier available) | Good | **Use this.** Cheapest, structured output, free tier covers initial runs. |
-| GPT-4o-mini | ~$0.0003 | Good | Solid alternative if Gemini is unavailable. |
-| GPT-4o | ~$0.003 | Slightly better | 10x the cost. Not worth it for this task. |
+The rater supports three providers: Anthropic Claude, Google Gemini,
+and OpenAI. **Important: Claude.ai Pro and ChatGPT Plus are chat-app
+subscriptions, not API access.** You need an API key from each
+provider's developer console (separate billing).
 
-A single cheap call returns both the binary question ("is there a
-sunset?") and the quality score. Consistency matters more than precision,
-and a single model is inherently consistent with itself.
+| Model | Cost per image | Quality on aesthetics | Recommendation |
+|-------|---------------|----------------------|----------------|
+| Claude 3.5 Sonnet | ~$0.005 | Best at nuanced aesthetic judgment | Pick this if you have Anthropic credits and want the most "tasteful" ratings. |
+| Claude 3.5 Haiku | ~$0.001 | Very good, faster | **Default for `--provider anthropic`.** Best balance of quality and cost. |
+| GPT-4o | ~$0.003 | Excellent | Solid alternative. |
+| GPT-4o-mini | ~$0.0003 | Good | **Default for `--provider openai`.** Cheap and capable. |
+| Gemini 2.0 Flash | ~$0.0001 (free tier available) | Good | **Default for `--provider gemini`.** Free tier covers ~1,500 images/day. |
+
+For ~4,000 webcam images: Sonnet $20, Haiku $4, GPT-4o-mini $1, Gemini
+free tier $0.
+
+A single call returns both the binary question ("is there a sunset?")
+and the quality score. Consistency matters more than precision, and a
+single model is inherently consistent with itself.
 
 ### LLM rating prompt
 
@@ -381,19 +391,56 @@ Quality scale:
 Return ONLY the JSON object.
 ```
 
-### Step 1: Dry-run to test
+### Step 1: Dry-run with HTML report (visual sanity-check)
 
 ```bash
-python3 ml/llm_rater.py --provider gemini --source webcam --dry-run
+python3 ml/llm_rater.py --provider anthropic --source webcam --dry-run
 ```
 
-Processes 5 images and prints results without writing anything.
+Defaults to **20 images, evenly spread across your dataset** (so you
+see variety, not just the first 20 chronologically). Generates a
+self-contained HTML report with thumbnails, ratings, and human-vs-LLM
+agreement indicators.
+
+The report opens in your browser — that's how you actually see whether
+the LLM is making sensible aesthetic judgments before spending money on
+the full archive.
+
+**Larger sample for thorough review:**
+
+```bash
+python3 ml/llm_rater.py \
+  --provider anthropic \
+  --source webcam \
+  --dry-run \
+  --dry-run-count 100
+```
+
+**Sampling modes:**
+
+- `--dry-run-sample-mode spread` (default) — evenly spaced indices, best for variety
+- `--dry-run-sample-mode random` — uniform random sample
+- `--dry-run-sample-mode sequential` — first N rows (fastest, biased)
+
+The HTML report shows for each image:
+
+- Thumbnail (loaded from Firebase URL)
+- LLM quality score with a colored bar (red < 0.3, orange < 0.6, green ≥ 0.6)
+- Sunset/clouds/confidence badges
+- LLM's color description and any obstruction notes
+- Human rating (if available) and agreement indicator:
+  - GOOD (green) — within 0.15 of human
+  - OK (orange) — within 0.30 of human
+  - DISAGREE (red) — differs by more than 0.30
+
+Cards are sorted by quality (high to low) so you can scan from the LLM's
+"best sunsets" down to "no sunset visible" and gut-check the order.
 
 ### Step 2: Rate the webcam archive
 
 ```bash
 python3 ml/llm_rater.py \
-  --provider gemini \
+  --provider anthropic \
   --source webcam \
   --output-csv ml/artifacts/llm_ratings/initial_ratings.csv \
   --write-to-db
@@ -404,11 +451,14 @@ is available for the disagreement UI and future exports.
 
 `--skip-rated` resumes from where you left off if interrupted.
 
+For Anthropic API tier 1, you can safely set `--rpm 50`. For Gemini
+free tier, leave the default `--rpm 14`.
+
 ### Step 3: Rate external (Flickr) images
 
 ```bash
 python3 ml/llm_rater.py \
-  --provider gemini \
+  --provider anthropic \
   --source external \
   --output-csv ml/artifacts/llm_ratings/external_ratings.csv \
   --write-to-db
@@ -451,17 +501,48 @@ python ml/run_experiment.py --config ml/configs/v3_regression_llm_with_external.
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `--provider` | `gemini` | LLM provider: `gemini` or `openai` |
-| `--model` | per-provider default | Model name (e.g. `gemini-2.0-flash`, `gpt-4o-mini`) |
+| `--provider` | `gemini` | LLM provider: `anthropic`, `gemini`, or `openai` |
+| `--model` | per-provider default | Model name (e.g. `claude-haiku-4-5`, `gemini-2.0-flash`, `gpt-4o-mini`) |
 | `--source` | `webcam` | Image source: `webcam`, `external`, or `all` |
 | `--output-csv` | timestamped path | Where to write ratings CSV |
 | `--write-to-db` | false | Also persist ratings to Postgres |
 | `--skip-rated` | false | Skip images already in the output CSV (resume) |
-| `--dry-run` | false | Process 5 images, print results, do not write |
-| `--rpm` | 15 | Rate limit (requests per minute) |
+| `--dry-run` | false | Sample N images and generate an HTML report; do not write to DB |
+| `--dry-run-count` | 20 | How many images to sample in dry-run mode |
+| `--dry-run-sample-mode` | `spread` | `spread` (evenly spaced), `random`, or `sequential` |
+| `--dry-run-html` | auto path | Override the HTML report output path |
+| `--rpm` | 14 | Rate limit (requests per minute) |
 | `--limit` | all | Max images to process |
-| `--database-url` | `$DATABASE_URL` | Postgres connection string |
-| `--api-key` | `$GEMINI_API_KEY` / `$OPENAI_API_KEY` | LLM API key |
+| `--download-timeout` | 30s | Per-image HTTP download timeout |
+| `--api-timeout` | 60s | Per-image LLM API call timeout |
+| `--verbose` | false | Print per-step progress and timing for each image |
+| `--database-url` | `$DATABASE_URL` or `.env.local` | Postgres connection string |
+| `--api-key` | per-provider env var or `.env.local` | `$ANTHROPIC_API_KEY`, `$GEMINI_API_KEY`, or `$OPENAI_API_KEY` |
+| `--env-file` | `.env.local` | Dotenv file to read API keys + `DATABASE_URL` from when not in shell env |
+
+### Provider-specific notes
+
+**Anthropic Claude:**
+- Set `ANTHROPIC_API_KEY` in your shell or in `.env.local` at the
+  project root — `llm_rater.py` will auto-load it. (Get one at
+  console.anthropic.com.)
+- Default model: `claude-haiku-4-5` (vision-capable, ~$1 / MTok input,
+  ~$5 / MTok output as of 2026). The earlier `claude-3-5-haiku-latest`
+  alias was retired; use `claude-haiku-4-5` going forward.
+- Use `--model claude-sonnet-4-5` for the highest-quality (but pricier)
+  ratings.
+- Claude does not have a native JSON response mode; the rater strips
+  any markdown fences from the response before parsing.
+
+**Gemini:**
+- Set `GEMINI_API_KEY` (get one at aistudio.google.com)
+- Free tier: 15 RPM, 1,500 requests/day
+- Default model: `gemini-2.0-flash`
+
+**OpenAI:**
+- Set `OPENAI_API_KEY` (get one at platform.openai.com)
+- Default model: `gpt-4o-mini`
+- Uses native JSON response mode, lowest detail image setting (cheap)
 
 ---
 
@@ -1143,3 +1224,62 @@ The LLM rater works alongside the existing Flickr scraper:
 | Disagreement queue in swipe UI (`mode=disagreements`) | Not started |
 | Real image inference in `aiScoring.ts` | Not started |
 | LLM oracle fallback in `aiScoring.ts` | Not started |
+
+---
+
+## Appendix C: Build log (May 2, 2026) — Anthropic + dry-run HTML
+
+Two enhancements to `llm_rater.py` to support a wider provider mix and
+provide visual sanity-checking before spending money on a full archive
+rating run.
+
+### What changed
+
+**Anthropic Claude support added.** `llm_rater.py` now supports three
+providers: `anthropic`, `gemini`, `openai`. Default Anthropic model is
+`claude-haiku-4-5` (vision-capable Haiku 4.5, replaces the deprecated
+`claude-3-5-haiku-latest`). New env var: `ANTHROPIC_API_KEY`. Claude
+does not have a native JSON response mode, so the rater strips
+markdown code fences from the response before parsing.
+
+**`.env.local` auto-loading.** `llm_rater.py` (and `run_training.py`)
+now read `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `OPENAI_API_KEY`, and
+`DATABASE_URL` from `.env.local` automatically when they are not set
+in the shell. This matches how Next.js loads secrets, so the same
+file works for both runtimes. Override with `--env-file <path>` or
+explicit CLI flags. Implementation lives in
+`ml/common/io.py::get_env_or_file`.
+
+**Dry-run mode now generates an HTML report.** Previously `--dry-run`
+processed 5 images and printed JSON; now it processes a configurable
+sample (default 20) and writes a self-contained HTML file with image
+thumbnails, ratings, and human-vs-LLM agreement indicators. Cards are
+sorted by quality (high to low) so you can scan the model's "best
+sunsets" down to "no sunset" and verify the order makes visual sense.
+
+New CLI flags:
+
+- `--dry-run-count` (default 20) — sample size
+- `--dry-run-sample-mode` (default `spread`) — `spread`, `random`, or `sequential`
+- `--dry-run-html` — override output path
+
+The HTML report uses public Firebase URLs directly (no base64) so the
+file stays small. Open it with `open <path>` after the dry-run
+completes.
+
+### Files modified
+
+| File | What changed |
+|------|-------------|
+| `ml/llm_rater.py` | Added `rate_with_anthropic()`. Refactored provider dispatch into a `PROVIDER_RATE_FNS` map. Added `DEFAULT_MODELS` and `API_KEY_ENV` lookup tables. New `sample_rows()` helper for dry-run sample selection. New `render_dry_run_html()` generates the visual report. CLI replaced 5-image fixed dry-run with configurable sample size + HTML output. |
+| `ml/requirements.txt` | Added `anthropic>=0.40`. |
+| `ml/OPERATING_GUIDE.md` | Updated provider table to include Claude. Replaced the Step 1 dry-run section with HTML-report-first workflow. Added provider-specific notes section explaining API keys and model defaults. |
+
+### Backwards compatibility
+
+- All existing flags work identically. `--provider gemini` and
+  `--provider openai` paths are unchanged.
+- The default sample count is now 20 instead of 5, but you can set
+  `--dry-run-count 5` to match old behavior.
+- The HTML report is generated automatically during dry-runs; no flag
+  is required to opt in. Stdout summary still prints.

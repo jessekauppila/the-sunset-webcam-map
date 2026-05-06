@@ -59,3 +59,51 @@ def env_required(name: str) -> str:
     if not value:
         raise RuntimeError(f"Missing required environment variable: {name}")
     return value
+
+
+def _strip_quotes(value: str) -> str:
+    value = value.strip()
+    if len(value) >= 2 and value[0] == value[-1] and value[0] in {"'", '"'}:
+        return value[1:-1]
+    return value
+
+
+def read_env_file(path: str | Path = ".env.local") -> dict[str, str]:
+    """Parse a dotenv-style file into a dict, ignoring comments/blank lines.
+
+    Used to share secrets between Next.js dev server and Python scripts.
+    Does NOT mutate os.environ on its own; callers decide what to do with
+    the returned mapping. Lines without `=` are skipped silently.
+    """
+    p = Path(path)
+    if not p.exists():
+        return {}
+
+    result: dict[str, str] = {}
+    for raw_line in p.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+        if "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        key = key.strip()
+        if not key:
+            continue
+        result[key] = _strip_quotes(value)
+    return result
+
+
+def get_env_or_file(
+    name: str,
+    env_file: str | Path = ".env.local",
+) -> str:
+    """Read a variable from os.environ first, falling back to .env.local.
+
+    Returns "" if not found in either place. Caller decides whether
+    that is fatal.
+    """
+    value = os.getenv(name, "")
+    if value:
+        return value
+    return read_env_file(env_file).get(name, "")
