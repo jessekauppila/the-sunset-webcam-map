@@ -161,19 +161,26 @@ export async function deactivateMissingTerminatorState(
 ): Promise<void> {
   if (activeWebcamIds.length === 0) {
     await sql`
-      update terminator_webcam_state
+      update terminator_webcam_state s
       set active = false, updated_at = now()
-      where phase = ${phase} and active = true
+      from webcams w
+      where s.webcam_id = w.id
+        and w.source = 'windy'
+        and s.phase = ${phase}
+        and s.active = true
     `;
     return;
   }
 
   await sql`
-    update terminator_webcam_state
+    update terminator_webcam_state s
     set active = false, updated_at = now()
-    where phase = ${phase}
-      and active = true
-      and webcam_id <> all(${activeWebcamIds})
+    from webcams w
+    where s.webcam_id = w.id
+      and w.source = 'windy'
+      and s.phase = ${phase}
+      and s.active = true
+      and s.webcam_id <> all(${activeWebcamIds})
   `;
 }
 
