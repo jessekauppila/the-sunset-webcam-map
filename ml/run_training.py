@@ -5,7 +5,8 @@ import argparse
 import os
 import subprocess
 import sys
-from pathlib import Path
+
+from common.io import get_env_or_file
 
 
 def parse_args() -> argparse.Namespace:
@@ -27,39 +28,14 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def strip_quotes(value: str) -> str:
-    value = value.strip()
-    if len(value) >= 2 and value[0] == value[-1] and value[0] in {"'", '"'}:
-        return value[1:-1]
-    return value
-
-
-def read_database_url_from_env_file(path: Path) -> str | None:
-    if not path.exists():
-        return None
-
-    for raw_line in path.read_text(encoding="utf-8").splitlines():
-        line = raw_line.strip()
-        if not line or line.startswith("#"):
-            continue
-        if "=" not in line:
-            continue
-        key, value = line.split("=", 1)
-        if key.strip() == "DATABASE_URL":
-            return strip_quotes(value)
-    return None
-
-
 def main() -> None:
     args = parse_args()
-    db_url = args.database_url or os.getenv("DATABASE_URL")
-    if not db_url:
-        db_url = read_database_url_from_env_file(Path(args.env_file))
+    db_url = args.database_url or get_env_or_file("DATABASE_URL", args.env_file)
 
     if not db_url:
         raise RuntimeError(
             "DATABASE_URL not found. Set --database-url, export DATABASE_URL, "
-            "or place DATABASE_URL=... in the env file."
+            f"or place DATABASE_URL=... in {args.env_file}."
         )
 
     env = os.environ.copy()
