@@ -2,16 +2,56 @@
 
 import { NextResponse } from 'next/server';
 import { sql } from '@/app/lib/db';
+import {
+  getCachedTerminatorPayload,
+  setCachedTerminatorPayload,
+} from '@/app/lib/cache';
 import type { WindyWebcam } from '@/app/lib/types';
 
-export async function GET() {
-  const toMaybeNumber = (value: number | string | null): number | undefined => {
-    if (value === null || value === undefined) return undefined;
-    const n = Number(value);
-    return Number.isFinite(n) ? n : undefined;
-  };
+type TerminatorRow = {
+  webcam_id: number;
+  phase: 'sunrise' | 'sunset';
+  rank: number;
+  id: number;
+  source: string;
+  external_id: string;
+  title: string | null;
+  status: string | null;
+  view_count: number | null;
+  lat: number;
+  lng: number;
+  city: string | null;
+  region: string | null;
+  country: string | null;
+  continent: string | null;
+  images: WindyWebcam['images'] | null;
+  urls: WindyWebcam['urls'] | null;
+  player: WindyWebcam['player'] | null;
+  categories: Array<{ id: string; name: string }> | null;
+  last_fetched_at: string;
+  created_at: string;
+  updated_at: string;
+  rating: number | null;
+  orientation: string | null;
+  ai_rating: number | string | null;
+  ai_model_version: string | null;
+  ai_rating_binary: number | string | null;
+  ai_model_version_binary: string | null;
+  ai_rating_regression: number | string | null;
+  ai_model_version_regression: string | null;
+};
 
-  // Use ring-based filtering via terminator_webcam_state.active
+const toMaybeNumber = (
+  value: number | string | null,
+): number | undefined => {
+  if (value === null || value === undefined) return undefined;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : undefined;
+};
+
+export async function fetchTerminatorWebcams(): Promise<
+  WindyWebcam[]
+> {
   const rows = (await sql`
     select s.webcam_id, s.phase, s.rank,
            w.id, w.source, w.external_id, w.title, w.status, w.view_count,
@@ -26,70 +66,9 @@ export async function GET() {
     where s.active = true
     order by case s.phase when 'sunrise' then 0 else 1 end, s.rank
     limit 2000
-  `) as Array<{
-    webcam_id: number;
-    phase: 'sunrise' | 'sunset';
-    rank: number;
-    id: number;
-    source: string;
-    external_id: string;
-    title: string | null;
-    status: string | null;
-    view_count: number | null;
-    lat: number;
-    lng: number;
-    city: string | null;
-    region: string | null;
-    country: string | null;
-    continent: string | null;
-    images: {
-      sizes: {
-        icon: { width: number; height: number };
-        preview: { width: number; height: number };
-        thumbnail: { width: number; height: number };
-      };
-      current: {
-        icon: string;
-        preview: string;
-        thumbnail: string;
-      };
-      daylight: {
-        icon: string;
-        preview: string;
-        thumbnail: string;
-      };
-    } | null;
-    urls: {
-      detail?: string;
-      edit?: string;
-      provider?: string;
-    } | null;
-    player: {
-      live?: string;
-      day?: string;
-      month?: string;
-      year?: string;
-      lifetime?: string;
-    } | null;
-    categories: Array<{
-      id: string;
-      name: string;
-    }> | null;
-    last_fetched_at: string;
-    created_at: string;
-    updated_at: string;
-    rating: number | null;
-    orientation: string | null;
-    ai_rating: number | string | null;
-    ai_model_version: string | null;
-    ai_rating_binary: number | string | null;
-    ai_model_version_binary: string | null;
-    ai_rating_regression: number | string | null;
-    ai_model_version_regression: string | null;
-  }>;
+  `) as TerminatorRow[];
 
-  // Transform database rows directly to WindyWebcam format
-  const webcams: WindyWebcam[] = rows.map((row) => ({
+  return rows.map((row) => ({
     webcamId: row.webcam_id,
     title: row.title ?? '',
     viewCount: row.view_count ?? 0,
@@ -124,6 +103,19 @@ export async function GET() {
     aiModelVersionRegression:
       row.ai_model_version_regression ?? undefined,
   }));
+}
+
+export async function GET() {
+  const cached = await getCachedTerminatorPayload<WindyWebcam[]>();
+  if (cached) {
+    return NextResponse.json(cached);
+  }
+
+  const webcams = await fetchTerminatorWebcams();
+
+  setCachedTerminatorPayload(webcams).catch((error) => {
+    console.error('Failed to populate terminator cache:', error);
+  });
 
   return NextResponse.json(webcams);
 }

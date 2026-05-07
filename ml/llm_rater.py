@@ -60,12 +60,16 @@ from common.io import ensure_dir, get_env_or_file, utc_timestamp
 RATING_PROMPT = """Analyze this webcam image and return a JSON object with these fields:
 
 {
-  "is_sunset": <boolean — is a sunset or sunrise visible in this image?>,
+  "is_sunset": <boolean — is a sunset OR sunrise visible in this image?>,
+  "is_sunrise": <boolean — true ONLY if this is specifically a sunrise (sun rising in the east, morning), false for evening sunsets or unclear>,
   "quality": <float 0.0-1.0 — sunset/sunrise quality rating>,
   "confidence": <float 0.0-1.0 — your confidence in this rating>,
   "has_clouds": <boolean — are dramatic clouds adding to the scene?>,
   "color_palette": <string — brief description of dominant sky colors>,
-  "obstruction": <string or null — "rain on lens", "fog", "building", or null if clear view>
+  "obstruction": <string or null — "rain on lens", "fog", "building", or null if clear view>,
+  "time_of_day": <one of "golden_hour" | "blue_hour" | "twilight" | "day" | "night" | "unclear">,
+  "sky_coverage": <one of "none" | "partial" | "mostly" | "full" — how much of the frame is sky vs blocked by terrain/buildings/trees>,
+  "rating_explanation": <string, ONE sentence — why this quality score, e.g. "Vibrant orange and pink clouds across the entire sky.">
 }
 
 Quality scale:
@@ -214,12 +218,13 @@ MODEL_PRICING_USD_PER_MTOK: dict[str, dict[str, float]] = {
 
 # Rough per-image token estimates. Webcam JPEGs are anywhere from
 # ~320×240 thumbnails (Windy webcam API) to full ~1024×768 frames, and
-# our rating prompt is ~250 tokens. The structured JSON response is
-# ~200 output tokens. These constants give a worst-case ballpark; pass
-# `--sample-tokens N` to measure real dimensions instead.
-TOKENS_PER_IMAGE_INPUT_DEFAULT  = 1500   # 1085 image + ~250 prompt + slack
-TOKENS_PER_IMAGE_OUTPUT_DEFAULT = 200
-TOKENS_PROMPT_OVERHEAD          = 250    # the RATING_PROMPT, roughly
+# our rating prompt is ~350 tokens (with the extended fields). The
+# structured JSON response is ~300 output tokens including the
+# rating_explanation sentence. These constants give a worst-case
+# ballpark; pass `--sample-tokens N` to measure real image dimensions.
+TOKENS_PER_IMAGE_INPUT_DEFAULT  = 1600   # 1085 image + ~350 prompt + slack
+TOKENS_PER_IMAGE_OUTPUT_DEFAULT = 300    # JSON response w/ explanation
+TOKENS_PROMPT_OVERHEAD          = 350    # the RATING_PROMPT, roughly
 ANTHROPIC_TOKENS_PER_PIXEL      = 1 / 750.0  # published heuristic
 
 
@@ -280,15 +285,49 @@ def resolve_database_url(cli_value: str, env_file: str) -> str:
     return get_env_or_file("DATABASE_URL", env_file)
 
 
-def download_image_bytes(url: str, timeout: float = 30.0) -> bytes:
+def detect_image_media_type(image_bytes: bytes, http_content_type: str = "") -> str:
+    """Return one of image/jpeg, image/png, image/gif, image/webp.
+
+    Anthropic rejects requests where the declared media_type doesn't match
+    the actual image bytes (e.g. sending a PNG as image/jpeg returns 400).
+    We prefer magic-byte detection because Firebase serves some images with
+    a generic Content-Type header and the bytes are the source of truth.
+    """
+    if image_bytes.startswith(b"\xff\xd8\xff"):
+        return "image/jpeg"
+    if image_bytes.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "image/png"
+    if image_bytes[:6] in (b"GIF87a", b"GIF89a"):
+        return "image/gif"
+    if image_bytes[:4] == b"RIFF" and image_bytes[8:12] == b"WEBP":
+        return "image/webp"
+
+    # Fall back to the HTTP header if the magic bytes were inconclusive.
+    ct = (http_content_type or "").split(";")[0].strip().lower()
+    if ct in {"image/jpeg", "image/png", "image/gif", "image/webp"}:
+        return ct
+    if ct in {"image/jpg", "image/pjpeg"}:
+        return "image/jpeg"
+
+    # Default to JPEG; the API will return a clean 400 if it's actually wrong.
+    return "image/jpeg"
+
+
+def download_image_bytes(url: str, timeout: float = 30.0) -> tuple[bytes, str]:
+    """Return (image_bytes, media_type). Media type is detected from bytes."""
     resp = requests.get(url, timeout=timeout)
     resp.raise_for_status()
-    return resp.content
+    media_type = detect_image_media_type(
+        resp.content, resp.headers.get("content-type", ""),
+    )
+    return resp.content, media_type
 
 
 def rate_with_gemini(
-    image_bytes: bytes, model: str, api_key: str, timeout: float = 60.0,
+    image_bytes: bytes, model: str, api_key: str,
+    timeout: float = 60.0, media_type: str = "image/jpeg",
 ) -> dict:
+    # Gemini decodes via PIL, so media_type is informational only.
     import google.generativeai as genai
 
     genai.configure(api_key=api_key)
@@ -309,7 +348,8 @@ def rate_with_gemini(
 
 
 def rate_with_openai(
-    image_bytes: bytes, model: str, api_key: str, timeout: float = 60.0,
+    image_bytes: bytes, model: str, api_key: str,
+    timeout: float = 60.0, media_type: str = "image/jpeg",
 ) -> dict:
     from openai import OpenAI
 
@@ -327,7 +367,7 @@ def rate_with_openai(
                     {
                         "type": "image_url",
                         "image_url": {
-                            "url": f"data:image/jpeg;base64,{b64}",
+                            "url": f"data:{media_type};base64,{b64}",
                             "detail": "low",
                         },
                     },
@@ -335,13 +375,14 @@ def rate_with_openai(
             }
         ],
         temperature=0.1,
-        max_tokens=300,
+        max_tokens=500,
     )
     return json.loads(response.choices[0].message.content)
 
 
 def rate_with_anthropic(
-    image_bytes: bytes, model: str, api_key: str, timeout: float = 60.0,
+    image_bytes: bytes, model: str, api_key: str,
+    timeout: float = 60.0, media_type: str = "image/jpeg",
 ) -> dict:
     """Rate via Anthropic Claude API.
 
@@ -355,7 +396,7 @@ def rate_with_anthropic(
 
     response = client.messages.create(
         model=model,
-        max_tokens=400,
+        max_tokens=600,
         temperature=0.1,
         messages=[
             {
@@ -365,7 +406,7 @@ def rate_with_anthropic(
                         "type": "image",
                         "source": {
                             "type": "base64",
-                            "media_type": "image/jpeg",
+                            "media_type": media_type,
                             "data": b64,
                         },
                     },
@@ -400,22 +441,35 @@ def rate_image(
     model: str,
     api_key: str,
     timeout: float = 60.0,
+    media_type: str = "image/jpeg",
 ) -> dict:
     """Send image to LLM and return parsed rating dict. Retries on failure."""
     rate_fn = PROVIDER_RATE_FNS[provider]
 
     for attempt in range(MAX_RETRIES):
         try:
-            result = rate_fn(image_bytes, model, api_key, timeout)
-            # Validate required fields
+            result = rate_fn(image_bytes, model, api_key, timeout, media_type)
             result.setdefault("is_sunset", False)
+            result.setdefault("is_sunrise", False)
             result.setdefault("quality", 0.0)
             result.setdefault("confidence", 0.5)
             result.setdefault("has_clouds", False)
             result.setdefault("color_palette", "")
             result.setdefault("obstruction", None)
+            result.setdefault("time_of_day", "unclear")
+            result.setdefault("sky_coverage", "partial")
+            result.setdefault("rating_explanation", "")
             result["quality"] = max(0.0, min(1.0, float(result["quality"])))
             result["confidence"] = max(0.0, min(1.0, float(result["confidence"])))
+            time_of_day = str(result["time_of_day"]).strip().lower()
+            if time_of_day not in {"golden_hour", "blue_hour", "twilight",
+                                   "day", "night", "unclear"}:
+                time_of_day = "unclear"
+            result["time_of_day"] = time_of_day
+            sky_coverage = str(result["sky_coverage"]).strip().lower()
+            if sky_coverage not in {"none", "partial", "mostly", "full"}:
+                sky_coverage = "partial"
+            result["sky_coverage"] = sky_coverage
             return result
         except Exception as exc:
             if attempt == MAX_RETRIES - 1:
@@ -899,14 +953,24 @@ def render_dry_run_html(
 DB_UPDATE_COLUMNS = (
     "llm_quality",
     "llm_is_sunset",
+    "llm_is_sunrise",
     "llm_confidence",
     "llm_has_clouds",
     "llm_color_palette",
     "llm_obstruction",
+    "llm_time_of_day",
+    "llm_sky_coverage",
+    "llm_rating_explanation",
+    "llm_metadata",
     "llm_model",
     "llm_provider",
     "llm_rated_at",
 )
+
+# Columns that need to be written as JSON, not as a Python dict. psycopg2
+# can adapt dicts to JSONB via psycopg2.extras.Json, but we wrap explicitly
+# below so the column list above stays declarative and easy to scan.
+_DB_JSON_COLUMNS = frozenset({"llm_metadata"})
 
 
 def _build_db_update_query(table: str) -> str:
@@ -921,40 +985,125 @@ def _build_db_update_query(table: str) -> str:
     """
 
 
-def write_rating_to_db(
-    conn: psycopg2.extensions.connection,
-    source_table: str,
-    record_id: int,
-    rating: dict,
-    model: str,
-    provider: str,
-) -> None:
-    """Persist the full LLM rating payload back to the source table.
+# Connection errors that mean "the socket is gone, must reconnect". Anything
+# else (e.g. an actual SQL error) propagates as-is so we don't silently mask
+# real bugs.
+_DB_RECONNECT_ERRORS: tuple = (
+    psycopg2.OperationalError,
+    psycopg2.InterfaceError,
+)
 
-    Requires the schema additions in
-    `database/migrations/20260504_add_llm_metadata_columns.sql`. All
-    fields are written every time so a re-rate cleanly overwrites the
-    prior model's metadata.
+
+def open_db_connection(database_url: str) -> psycopg2.extensions.connection:
+    """Open a Postgres connection with TCP keepalives enabled.
+
+    Neon's serverless Postgres aggressively closes idle connections, and
+    long-running rater sessions otherwise wake up to a dead socket. The
+    keepalives let the kernel detect a half-open connection within ~60s
+    so reconnection logic can kick in instead of hanging forever.
     """
-    table = "webcam_snapshots" if source_table == "webcam" else "external_images"
-    query = _build_db_update_query(table)
+    return psycopg2.connect(
+        database_url,
+        keepalives=1,
+        keepalives_idle=30,
+        keepalives_interval=10,
+        keepalives_count=3,
+        connect_timeout=15,
+    )
 
-    params = {
-        "id": record_id,
-        "llm_quality": rating["quality"],
-        "llm_is_sunset": bool(rating.get("is_sunset", False)),
-        "llm_confidence": rating["confidence"],
-        "llm_has_clouds": bool(rating.get("has_clouds", False)),
-        "llm_color_palette": rating.get("color_palette") or None,
-        "llm_obstruction": rating.get("obstruction") or None,
-        "llm_model": model,
-        "llm_provider": provider,
-        "llm_rated_at": datetime.now(timezone.utc),
-    }
 
-    with conn.cursor() as cur:
-        cur.execute(query, params)
-    conn.commit()
+class DbWriter:
+    """Wraps a Postgres connection with auto-reconnect on dead sockets.
+
+    Earlier versions of this script lost ~50 LLM ratings to "connection
+    already closed" errors during a 100-image dry run: the API call
+    succeeded (and was billed) but the DB write failed and the script
+    didn't notice the connection was dead, so every subsequent write also
+    failed. This helper detects connection-level errors, transparently
+    reconnects, and retries the write once before giving up.
+    """
+
+    def __init__(self, database_url: str):
+        self.database_url = database_url
+        self.conn = open_db_connection(database_url)
+        self.reconnect_count = 0
+
+    def write_rating(
+        self,
+        source_table: str,
+        record_id: int,
+        rating: dict,
+        model: str,
+        provider: str,
+        prompt_version: str = "v2_extended",
+    ) -> None:
+        table = (
+            "webcam_snapshots" if source_table == "webcam"
+            else "external_images"
+        )
+        query = _build_db_update_query(table)
+        # Anything not promoted to a top-level column lands in the JSONB
+        # `llm_metadata` bucket so we never need another schema migration
+        # to capture future fields. Keep this small: index-worthy fields
+        # belong as real columns.
+        metadata = {
+            "prompt_version": prompt_version,
+            # Stash a copy of the raw model fields so we have an audit trail
+            # if we ever change the prompt or want to re-derive a column.
+            "raw": {
+                k: v for k, v in rating.items()
+                if k not in {
+                    "quality", "is_sunset", "is_sunrise", "confidence",
+                    "has_clouds", "color_palette", "obstruction",
+                    "time_of_day", "sky_coverage", "rating_explanation",
+                }
+            },
+        }
+        params = {
+            "id": record_id,
+            "llm_quality": rating["quality"],
+            "llm_is_sunset": bool(rating.get("is_sunset", False)),
+            "llm_is_sunrise": bool(rating.get("is_sunrise", False)),
+            "llm_confidence": rating["confidence"],
+            "llm_has_clouds": bool(rating.get("has_clouds", False)),
+            "llm_color_palette": rating.get("color_palette") or None,
+            "llm_obstruction": rating.get("obstruction") or None,
+            "llm_time_of_day": rating.get("time_of_day") or None,
+            "llm_sky_coverage": rating.get("sky_coverage") or None,
+            "llm_rating_explanation": rating.get("rating_explanation") or None,
+            "llm_metadata": psycopg2.extras.Json(metadata),
+            "llm_model": model,
+            "llm_provider": provider,
+            "llm_rated_at": datetime.now(timezone.utc),
+        }
+
+        for attempt in range(2):
+            try:
+                with self.conn.cursor() as cur:
+                    cur.execute(query, params)
+                self.conn.commit()
+                return
+            except _DB_RECONNECT_ERRORS as exc:
+                # Socket is dead. Force-close, reopen, retry once.
+                try:
+                    self.conn.close()
+                except Exception:
+                    pass
+                if attempt >= 1:
+                    raise
+                self.reconnect_count += 1
+                tqdm.write(
+                    f"  DB connection died ({type(exc).__name__}: "
+                    f"{str(exc).splitlines()[0]}). Reconnecting "
+                    f"(reconnect #{self.reconnect_count})…"
+                )
+                self.conn = open_db_connection(self.database_url)
+
+    def close(self) -> None:
+        try:
+            self.conn.close()
+        except Exception:
+            pass
 
 
 def main() -> None:
@@ -992,7 +1141,7 @@ def main() -> None:
     print(f"  Output: {output_csv}", flush=True)
 
     print("Connecting to Postgres…", flush=True)
-    conn = psycopg2.connect(database_url)
+    conn = open_db_connection(database_url)
     print("  connected.", flush=True)
 
     rows: list[dict[str, Any]] = []
@@ -1025,7 +1174,7 @@ def main() -> None:
             img_tokens_list: list[int] = []
             for s_idx, srow in enumerate(sample, start=1):
                 try:
-                    img_bytes = download_image_bytes(
+                    img_bytes, _ = download_image_bytes(
                         srow["image_url"], timeout=args.download_timeout,
                     )
                     w, h, img_tokens = measure_image_tokens(img_bytes)
@@ -1117,6 +1266,10 @@ def main() -> None:
     delay = 60.0 / args.rpm if args.rpm > 0 else 0
     results: list[dict] = []
     failures: list[dict] = []
+    db_writer: DbWriter | None = None
+    if not args.dry_run and args.write_to_db:
+        db_writer = DbWriter(database_url)
+    db_failures = 0
 
     progress = tqdm(
         rows, desc="Rating", unit="img", disable=args.no_progress,
@@ -1131,76 +1284,123 @@ def main() -> None:
                 f"[{idx}/{len(rows)}] record {record_id} downloading {image_url[:80]}…"
             )
 
+        # ---- Step 1: download image (no API spend yet) ----
         try:
             t0 = time.monotonic()
-            image_bytes = download_image_bytes(
+            image_bytes, media_type = download_image_bytes(
                 image_url, timeout=args.download_timeout,
             )
             t_download = time.monotonic() - t0
-
-            if args.verbose:
-                tqdm.write(
-                    f"[{idx}/{len(rows)}] record {record_id} downloaded "
-                    f"{len(image_bytes) / 1024:.0f} KB in {t_download:.1f}s, "
-                    f"calling {args.provider}…"
-                )
-
-            t1 = time.monotonic()
-            rating = rate_image(
-                image_bytes, args.provider, model, api_key,
-                timeout=args.api_timeout,
-            )
-            t_api = time.monotonic() - t1
-            t_total = time.monotonic() - t_start
-
-            tqdm.write(
-                f"[{idx}/{len(rows)}] record {record_id}: "
-                f"q={rating['quality']:.2f} sunset={rating['is_sunset']} "
-                f"conf={rating['confidence']:.2f}  "
-                f"(dl {t_download:.1f}s, api {t_api:.1f}s, total {t_total:.1f}s)"
-            )
-
-            result = {
-                "record_id": record_id,
-                "source_table": row["source_table"],
-                "webcam_id": row.get("webcam_id"),
-                "image_url": image_url,
-                "llm_quality": rating["quality"],
-                "llm_is_sunset": rating["is_sunset"],
-                "llm_confidence": rating["confidence"],
-                "llm_has_clouds": rating["has_clouds"],
-                "llm_color_palette": rating.get("color_palette", ""),
-                "llm_obstruction": rating.get("obstruction"),
-                "llm_model": model,
-                "llm_provider": args.provider,
-                "rated_at": datetime.now(timezone.utc).isoformat(),
-                "human_calculated_rating": row.get("human_calculated_rating"),
-                "human_rating_count": row.get("human_rating_count", 0),
-            }
-            results.append(result)
-
-            if not args.dry_run and args.write_to_db:
-                write_rating_to_db(
-                    conn, row["source_table"], record_id,
-                    rating, model, args.provider,
-                )
-
         except Exception as exc:
             failures.append({
                 "record_id": record_id,
                 "source_table": row["source_table"],
                 "image_url": image_url,
+                "stage": "download",
                 "error": str(exc),
             })
             tqdm.write(
-                f"[{idx}/{len(rows)}] FAILED record {record_id} "
+                f"[{idx}/{len(rows)}] DOWNLOAD FAILED record {record_id} "
                 f"after {time.monotonic() - t_start:.1f}s: {exc}"
             )
+            if delay > 0:
+                time.sleep(delay)
+            continue
+
+        if args.verbose:
+            tqdm.write(
+                f"[{idx}/{len(rows)}] record {record_id} downloaded "
+                f"{len(image_bytes) / 1024:.0f} KB ({media_type}) in "
+                f"{t_download:.1f}s, calling {args.provider}…"
+            )
+
+        # ---- Step 2: LLM API call (this is where money is spent) ----
+        try:
+            t1 = time.monotonic()
+            rating = rate_image(
+                image_bytes, args.provider, model, api_key,
+                timeout=args.api_timeout, media_type=media_type,
+            )
+            t_api = time.monotonic() - t1
+        except Exception as exc:
+            failures.append({
+                "record_id": record_id,
+                "source_table": row["source_table"],
+                "image_url": image_url,
+                "stage": "llm_api",
+                "error": str(exc),
+            })
+            tqdm.write(
+                f"[{idx}/{len(rows)}] LLM API FAILED record {record_id} "
+                f"after {time.monotonic() - t_start:.1f}s: {exc}"
+            )
+            if delay > 0:
+                time.sleep(delay)
+            continue
+
+        t_total = time.monotonic() - t_start
+        tqdm.write(
+            f"[{idx}/{len(rows)}] record {record_id}: "
+            f"q={rating['quality']:.2f} sunset={rating['is_sunset']} "
+            f"conf={rating['confidence']:.2f}  "
+            f"(dl {t_download:.1f}s, api {t_api:.1f}s, total {t_total:.1f}s)"
+        )
+
+        # ---- Step 3: persist locally (CSV) immediately ----
+        # The rating is now expensive sunk cost. Always keep it in `results`
+        # regardless of what happens with the DB write below, so the CSV
+        # always reflects every successful API call.
+        result = {
+            "record_id": record_id,
+            "source_table": row["source_table"],
+            "webcam_id": row.get("webcam_id"),
+            "image_url": image_url,
+            "llm_quality": rating["quality"],
+            "llm_is_sunset": rating["is_sunset"],
+            "llm_is_sunrise": rating.get("is_sunrise", False),
+            "llm_confidence": rating["confidence"],
+            "llm_has_clouds": rating["has_clouds"],
+            "llm_color_palette": rating.get("color_palette", ""),
+            "llm_obstruction": rating.get("obstruction"),
+            "llm_time_of_day": rating.get("time_of_day"),
+            "llm_sky_coverage": rating.get("sky_coverage"),
+            "llm_rating_explanation": rating.get("rating_explanation", ""),
+            "llm_model": model,
+            "llm_provider": args.provider,
+            "rated_at": datetime.now(timezone.utc).isoformat(),
+            "human_calculated_rating": row.get("human_calculated_rating"),
+            "human_rating_count": row.get("human_rating_count", 0),
+        }
+        results.append(result)
+
+        # ---- Step 4: optional DB write (auto-reconnects on dead socket) ----
+        if db_writer is not None:
+            try:
+                db_writer.write_rating(
+                    row["source_table"], record_id,
+                    rating, model, args.provider,
+                )
+            except Exception as exc:
+                db_failures += 1
+                failures.append({
+                    "record_id": record_id,
+                    "source_table": row["source_table"],
+                    "image_url": image_url,
+                    "stage": "db_write",
+                    "error": str(exc),
+                })
+                tqdm.write(
+                    f"[{idx}/{len(rows)}] DB WRITE FAILED record {record_id}: "
+                    f"{exc} (rating preserved in CSV; DB failures so far: "
+                    f"{db_failures})"
+                )
 
         if delay > 0:
             time.sleep(delay)
 
     conn.close()
+    if db_writer is not None:
+        db_writer.close()
 
     html_path: str | None = None
     if args.dry_run and results:
@@ -1226,12 +1426,21 @@ def main() -> None:
             df_fail.to_csv(failures_csv, index=False)
             print(f"Failures written to {failures_csv}")
 
+    failures_by_stage: dict[str, int] = {}
+    for f in failures:
+        failures_by_stage[f.get("stage", "unknown")] = (
+            failures_by_stage.get(f.get("stage", "unknown"), 0) + 1
+        )
+
     summary = {
         "provider": args.provider,
         "model": model,
         "source": args.source,
-        "total_processed": len(results),
+        "total_rated": len(results),
         "total_failures": len(failures),
+        "failures_by_stage": failures_by_stage,
+        "db_reconnects": db_writer.reconnect_count if db_writer else 0,
+        "db_write_failures": db_failures if db_writer else 0,
         "output_csv": output_csv if not args.dry_run else "(dry run)",
         "dry_run_html": html_path,
     }

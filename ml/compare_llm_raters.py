@@ -120,11 +120,15 @@ def rate_one(
     model: str,
     api_key: str,
     timeout: float,
+    media_type: str = "image/jpeg",
 ) -> tuple[dict | None, str | None, float]:
     """Wrapper around rate_image that returns (rating, error, elapsed_seconds)."""
     t0 = time.monotonic()
     try:
-        rating = rate_image(image_bytes, provider, model, api_key, timeout)
+        rating = rate_image(
+            image_bytes, provider, model, api_key, timeout,
+            media_type=media_type,
+        )
         return rating, None, time.monotonic() - t0
     except Exception as exc:
         return None, str(exc), time.monotonic() - t0
@@ -592,7 +596,7 @@ def main() -> None:
         image_url = row["image_url"]
 
         try:
-            image_bytes = download_image_bytes(
+            image_bytes, media_type = download_image_bytes(
                 image_url, timeout=args.download_timeout,
             )
         except Exception as exc:
@@ -607,12 +611,14 @@ def main() -> None:
             continue
 
         rating_a, error_a, t_a = rate_one(
-            image_bytes, args.provider_a, args.model_a, api_key_a, args.api_timeout,
+            image_bytes, args.provider_a, args.model_a, api_key_a,
+            args.api_timeout, media_type,
         )
         if delay > 0:
             time.sleep(delay)
         rating_b, error_b, t_b = rate_one(
-            image_bytes, args.provider_b, args.model_b, api_key_b, args.api_timeout,
+            image_bytes, args.provider_b, args.model_b, api_key_b,
+            args.api_timeout, media_type,
         )
         if delay > 0:
             time.sleep(delay)

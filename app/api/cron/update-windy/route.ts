@@ -1,15 +1,17 @@
 /**
  * Windy webcam update cron job
- * 
+ *
  * Orchestrates the terminator ring generation, Windy API fetching,
  * webcam classification, and database updates.
- * 
+ *
  * Cost optimizations:
  * - No bulk table updates (uses last_fetched_at for query-time filtering)
  * - Upsert-only for terminator state (no delete-all)
  * - Only updates webcam rows when fields actually change
  */
 
+import { fetchTerminatorWebcams } from '@/app/api/db-terminator-webcams/route';
+import { setCachedTerminatorPayload } from '@/app/lib/cache';
 import { NextResponse } from 'next/server';
 import { subsolarPoint } from '@/app/components/Map/lib/subsolarLocation';
 import { createTerminatorQueryRing } from '@/app/components/Map/lib/terminatorRing';
@@ -62,16 +64,16 @@ export async function GET(req: Request) {
       gmstHours,
       TERMINATOR_PRECISION_DEG,
       TERMINATOR_SUN_ALTITUDE_DEG,
-      offsetDeg
-    )
+      offsetDeg,
+    ),
   );
 
   // Deduplicate coordinates across all rings
   const sunriseCoords = dedupeCoords(
-    ringResults.flatMap((r) => r.sunriseCoords)
+    ringResults.flatMap((r) => r.sunriseCoords),
   );
   const sunsetCoords = dedupeCoords(
-    ringResults.flatMap((r) => r.sunsetCoords)
+    ringResults.flatMap((r) => r.sunsetCoords),
   );
 
   console.log('📍 Coords:', {
@@ -88,7 +90,7 @@ export async function GET(req: Request) {
   const batches = await fetchWebcamsInBatches(
     allCoords,
     WINDY_FETCH_BATCH_SIZE,
-    WINDY_FETCH_DELAY_BETWEEN_BATCHES_MS
+    WINDY_FETCH_DELAY_BETWEEN_BATCHES_MS,
   );
   console.log('📦 All batches received:', batches.length);
 
@@ -178,7 +180,8 @@ export async function GET(req: Request) {
         aiModelVersionRegression: scored.regression.modelVersion,
       });
 
-      if (scored.rawScore < AI_SNAPSHOT_MIN_RAW_SCORE_THRESHOLD) continue;
+      if (scored.rawScore < AI_SNAPSHOT_MIN_RAW_SCORE_THRESHOLD)
+        continue;
       aiStats.above_threshold += 1;
 
       if (!SNAPSHOTS_ENABLED) continue;
@@ -186,7 +189,7 @@ export async function GET(req: Request) {
       let snapshotId: number;
       const recent = await findRecentSnapshot(
         webcamId,
-        AI_SNAPSHOT_RECENT_WINDOW_MINUTES
+        AI_SNAPSHOT_RECENT_WINDOW_MINUTES,
       );
       if (recent) {
         snapshotId = recent.id;
@@ -210,7 +213,7 @@ export async function GET(req: Request) {
           webcam.rating ?? null,
           captured.url,
           captured.path,
-          scored.aiRating
+          scored.aiRating,
         );
         aiStats.snapshots_captured += 1;
       }
@@ -219,20 +222,20 @@ export async function GET(req: Request) {
         snapshotId,
         scored.binary.modelVersion,
         scored.binary.rawScore,
-        scored.binary.aiRating
+        scored.binary.aiRating,
       );
       await upsertSnapshotAiInference(
         snapshotId,
         scored.regression.modelVersion,
         scored.regression.rawScore,
-        scored.regression.aiRating
+        scored.regression.aiRating,
       );
       aiStats.inference_rows_written += 2;
     } catch (error) {
       aiStats.failures += 1;
       console.error(
         `AI scoring failed for webcam ${webcam.webcamId}:`,
-        error
+        error,
       );
     }
   }
@@ -257,6 +260,16 @@ export async function GET(req: Request) {
     .filter((id): id is number => id !== undefined);
   await deactivateMissingTerminatorState('sunrise', sunriseIds);
   await deactivateMissingTerminatorState('sunset', sunsetIds);
+
+  try {
+    const cachedPayload = await fetchTerminatorWebcams();
+    await setCachedTerminatorPayload(cachedPayload);
+    console.log(
+      `💾 Cached ${cachedPayload.length} terminator webcams to KV`,
+    );
+  } catch (error) {
+    console.error('Failed to update terminator cache:', error);
+  }
 
   return NextResponse.json({
     ok: true,

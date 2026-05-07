@@ -1,6 +1,6 @@
 # ML Pipeline Operating Guide
 
-Last updated: April 2026
+Last updated: May 2026
 
 This is the single reference for operating the sunset webcam ML pipeline.
 It covers everything from environment setup through production deployment,
@@ -85,8 +85,10 @@ You can always go from continuous to binary, but not the other way around.
 | Script | What it does |
 |--------|-------------|
 | `flickr_scraper.py` | Searches Flickr API by tags, downloads CC-licensed images, uploads to Firebase Storage, inserts metadata into Postgres `external_images` table. |
-| `llm_rater.py` | Sends images to Gemini Flash or GPT-4o-mini for structured quality ratings (0.0-1.0). Rates webcam snapshots and/or external images. Writes CSV + optional DB writeback. |
+| `llm_rater.py` | Sends images to a vision LLM (Anthropic, Gemini, or OpenAI) for structured quality ratings (0.0-1.0) plus extended metadata (is_sunrise, time_of_day, sky_coverage, rating_explanation, JSONB bucket). Rates webcam snapshots and/or external images. CSV + optional DB writeback with auto-reconnecting connection. Includes `--estimate-only` cost preflight. |
+| `compare_llm_raters.py` | Rates the same N images with two provider/model combos side-by-side and renders an HTML report with sortable disagreement deltas. Use this to decide whether the more expensive model is worth it. |
 | `validate_llm_ratings.py` | Computes Pearson/Spearman correlation between LLM and human ratings. Pass/fail gate at Pearson > 0.80. |
+| `apply_migration.py` | Safely applies one or more SQL migration files to Postgres, reading `DATABASE_URL` from `.env.local`. `--dry-run` prints the SQL without executing. |
 
 ### Experiment management
 
@@ -136,15 +138,38 @@ launcher reads `DATABASE_URL` from there automatically.
 
 ### Database migrations
 
-Run these once before first use:
+Run these once before first use, in order. You can use either `psql`
+directly or the bundled `ml/apply_migration.py` helper, which reads
+`DATABASE_URL` from `.env.local` automatically.
 
 ```bash
-# External images table (for Flickr scraper)
-psql $DATABASE_URL -f database/migrations/20260417_external_images.sql
+# 1. External images table (only needed if you plan to scrape Flickr;
+#    safely skipped by later migrations if absent).
+python3 ml/apply_migration.py database/migrations/20260417_external_images.sql
 
-# LLM quality column on webcam snapshots (for LLM rater --write-to-db)
-psql $DATABASE_URL -f database/migrations/20260417_add_llm_quality_to_snapshots.sql
+# 2. Initial llm_quality / llm_model / llm_rated_at columns on snapshots.
+python3 ml/apply_migration.py database/migrations/20260417_add_llm_quality_to_snapshots.sql
+
+# 3. Round out the LLM metadata columns: is_sunset, confidence,
+#    has_clouds, color_palette, obstruction, provider.
+python3 ml/apply_migration.py database/migrations/20260504_add_llm_metadata_columns.sql
+
+# 4. Extended LLM fields + JSONB metadata bucket + composite indexes
+#    for the gallery and per-webcam queries.
+python3 ml/apply_migration.py database/migrations/20260507_add_extended_llm_fields.sql
 ```
+
+Or with `psql` directly:
+
+```bash
+psql $DATABASE_URL -f database/migrations/20260417_external_images.sql
+psql $DATABASE_URL -f database/migrations/20260417_add_llm_quality_to_snapshots.sql
+psql $DATABASE_URL -f database/migrations/20260504_add_llm_metadata_columns.sql
+psql $DATABASE_URL -f database/migrations/20260507_add_extended_llm_fields.sql
+```
+
+All four migrations are idempotent (safe to re-run) and tolerant of
+missing optional tables.
 
 ### Torch stack note
 
@@ -365,18 +390,23 @@ single model is inherently consistent with itself.
 
 ### LLM rating prompt
 
-The rater sends each image with this structured prompt:
+The rater sends each image with this structured prompt (prompt version
+`v2_extended`, in effect since the May 2026 schema update):
 
 ```
 Analyze this webcam image and return a JSON object:
 
 {
-  "is_sunset": <boolean - is a sunset or sunrise visible?>,
-  "quality": <float 0.0-1.0 - sunset quality rating>,
-  "confidence": <float 0.0-1.0 - your confidence in this rating>,
-  "has_clouds": <boolean - are dramatic clouds present?>,
-  "color_palette": <string - brief description of dominant sky colors>,
-  "obstruction": <string|null - "rain on lens", "fog", "building", or null>
+  "is_sunset": <boolean — sunset OR sunrise visible?>,
+  "is_sunrise": <boolean — true ONLY if specifically a sunrise (morning)>,
+  "quality": <float 0.0-1.0 — sunset/sunrise quality>,
+  "confidence": <float 0.0-1.0 — confidence in this rating>,
+  "has_clouds": <boolean — dramatic clouds adding to the scene?>,
+  "color_palette": <string — dominant sky colors>,
+  "obstruction": <string|null — "rain on lens", "fog", "building", or null>,
+  "time_of_day": "golden_hour" | "blue_hour" | "twilight" | "day" | "night" | "unclear",
+  "sky_coverage": "none" | "partial" | "mostly" | "full",
+  "rating_explanation": <one sentence explaining the score>
 }
 
 Quality scale:
@@ -390,6 +420,65 @@ Quality scale:
 
 Return ONLY the JSON object.
 ```
+
+### What gets persisted to the database
+
+When `--write-to-db` is set, every rated row updates these columns on
+`webcam_snapshots` (and the parallel set on `external_images`):
+
+| Column | Type | Source field | Why it's a real column |
+|--------|------|-------------|------------------------|
+| `llm_quality` | REAL | `quality` | Primary regression target. Indexed. |
+| `llm_is_sunset` | BOOLEAN | `is_sunset` | Binary filter. Indexed. |
+| `llm_is_sunrise` | BOOLEAN | `is_sunrise` | Disambiguates morning vs. evening. |
+| `llm_confidence` | REAL | `confidence` | Drives the human-in-the-loop review queue. |
+| `llm_has_clouds` | BOOLEAN | `has_clouds` | Filter for "dramatic" gallery. |
+| `llm_color_palette` | TEXT | `color_palette` | Free-text description. |
+| `llm_obstruction` | TEXT | `obstruction` | Indexed; lets us exclude obstructed frames. |
+| `llm_time_of_day` | TEXT | `time_of_day` | Indexed; sanity check vs. timestamp. |
+| `llm_sky_coverage` | TEXT | `sky_coverage` | Indexed; filters out cameras pointed at trees. |
+| `llm_rating_explanation` | TEXT | `rating_explanation` | One-sentence reason for debugging + UI tooltips. |
+| `llm_metadata` | JSONB | catch-all | Prompt version + any future fields the model returns. GIN-indexed. |
+| `llm_model` / `llm_provider` / `llm_rated_at` | TEXT / TEXT / TIMESTAMPTZ | run metadata | Audit trail for retraining. |
+
+The `llm_metadata` JSONB bucket is the future-proofing hatch: anything
+the model returns that doesn't have a dedicated column lands here, so
+prompt evolution doesn't require new schema migrations. Promote a
+JSONB key to a real column only when you start filtering on it
+frequently.
+
+### Indexes for the LLM columns
+
+The migrations create these indexes (see
+`database/migrations/20260507_add_extended_llm_fields.sql` for the
+full list):
+
+| Index | Used by |
+|-------|---------|
+| `webcam_snapshots_llm_quality_idx` | Histogram, sorting by quality. |
+| `webcam_snapshots_llm_is_sunset_idx` | "Show only sunsets" filter. |
+| `webcam_snapshots_llm_obstruction_idx` | Excluding obstructed frames. |
+| `webcam_snapshots_llm_time_of_day_idx` | Time-of-day filter. |
+| `webcam_snapshots_llm_sky_coverage_idx` | Sky-coverage filter. |
+| **`webcam_snapshots_great_sunsets_idx`** | Gallery query: `WHERE llm_is_sunset = true ORDER BY llm_quality DESC LIMIT N`. Partial + DESC, served as an index scan. |
+| **`webcam_snapshots_webcam_quality_idx`** | Per-webcam timeline: "this camera's best frames". |
+| `webcam_snapshots_llm_metadata_gin` | Ad-hoc lookups against `llm_metadata->>'something'`. |
+
+### SQL playbook
+
+A set of pre-canned exploration queries lives at
+`database/queries/llm_ratings_explore.sql`. Useful blocks:
+
+- `1.` high-level counts (total, rated, sunsets, sunrises, obstructed)
+- `2.` quality histogram (10 buckets, with text bars)
+- `3.` top 20 best-rated sunsets (gallery query)
+- `5.` human↔LLM disagreement queue (review candidates)
+- `6.` **live progress** during a rater run (refresh every 30s)
+- `8.` time-of-day vs avg quality (sanity check)
+- `11.` spot-check a single record by id
+
+Each block is self-contained — copy/paste into psql or the Neon SQL
+console.
 
 ### Step 1: Dry-run with HTML report (visual sanity-check)
 
@@ -435,6 +524,65 @@ The HTML report shows for each image:
 
 Cards are sorted by quality (high to low) so you can scan from the LLM's
 "best sunsets" down to "no sunset visible" and gut-check the order.
+
+### Step 1.5: Compare two providers/models side-by-side
+
+Before committing to an expensive model for the full archive, run the
+same N images through two configurations and compare deltas:
+
+```bash
+python3 ml/compare_llm_raters.py \
+  --provider-a anthropic --model-a claude-haiku-4-5 \
+  --provider-b anthropic --model-b claude-sonnet-4-5 \
+  --count 50 \
+  --sample-mode spread \
+  --output ml/artifacts/llm_ratings/compare_haiku_vs_sonnet.html
+```
+
+The HTML report shows each image with both models' ratings side-by-side
+and a delta column. The toolbar lets you sort by:
+
+- Largest quality disagreement (where the models really diverge)
+- Largest confidence delta
+- Sunset/no-sunset disagreement
+
+Use this to decide whether the more expensive model is worth its premium
+on **your** specific images. Edge cases tend to dominate disagreements
+— often a small minority of images justifies the premium for the whole
+run.
+
+### Step 1.75: Estimate cost before the real run
+
+The rater has a `--estimate-only` preflight that counts rows and prints
+projected cost + wall-clock time *without making any LLM API calls*:
+
+```bash
+python3 ml/llm_rater.py \
+  --provider anthropic --model claude-sonnet-4-5 \
+  --source webcam --skip-rated \
+  --estimate-only --sample-tokens 10
+```
+
+`--sample-tokens 10` downloads 10 sample images to measure their actual
+dimensions, then computes input tokens from the published heuristic
+(1 token per ~750 image pixels for Anthropic). Without this flag the
+estimator falls back to conservative defaults that over-count for the
+small Windy webcam thumbnails.
+
+Output looks like:
+
+```
+--- Cost estimate (no LLM API calls made) ---
+  Model: claude-sonnet-4-5
+  Pricing: $3.00 / MTok input, $15.00 / MTok output
+  Measured avg dimensions: 980x650px → ~849 image + 350 prompt = 1199 input tokens/image
+  Rows that would be rated: 29,150
+  Per-image: ~$0.0053
+  TOTAL:     ~$153.62
+  Wall-clock estimate at 14 rpm: ~34.7h (2,082 min)
+```
+
+**Actually start the rater run** when the projection looks acceptable.
 
 ### Step 2: Rate the webcam archive
 
@@ -516,6 +664,8 @@ python ml/run_experiment.py --config ml/configs/v3_regression_llm_with_external.
 | `--download-timeout` | 30s | Per-image HTTP download timeout |
 | `--api-timeout` | 60s | Per-image LLM API call timeout |
 | `--verbose` | false | Print per-step progress and timing for each image |
+| `--estimate-only` | false | Count rows, print projected $ cost and wall-clock time, then exit. No API calls made. |
+| `--sample-tokens` | 0 | With `--estimate-only`, download N sample images (spread mode) and measure real dimensions for an accurate cost estimate. Recommended: `10`. |
 | `--database-url` | `$DATABASE_URL` or `.env.local` | Postgres connection string |
 | `--api-key` | per-provider env var or `.env.local` | `$ANTHROPIC_API_KEY`, `$GEMINI_API_KEY`, or `$OPENAI_API_KEY` |
 | `--env-file` | `.env.local` | Dotenv file to read API keys + `DATABASE_URL` from when not in shell env |
@@ -543,6 +693,34 @@ python ml/run_experiment.py --config ml/configs/v3_regression_llm_with_external.
 - Set `OPENAI_API_KEY` (get one at platform.openai.com)
 - Default model: `gpt-4o-mini`
 - Uses native JSON response mode, lowest detail image setting (cheap)
+
+### Long-run robustness notes
+
+A few hard-won details that matter for overnight runs against tens of
+thousands of images:
+
+- **Image media-type auto-detection.** Some Firebase URLs serve PNG or
+  WebP bytes with a generic `Content-Type`. Anthropic's API rejects a
+  request when the declared `media_type` doesn't match the actual bytes
+  (HTTP 400). The rater inspects magic bytes first and only falls back
+  to the HTTP header — so a "JPEG-looking" URL that's actually PNG is
+  routed correctly.
+- **Postgres connection keepalives.** Neon serverless aggressively
+  closes idle connections. The rater opens its connection with TCP
+  keepalives (idle 30s, interval 10s, count 3) so a half-open socket is
+  detected within ~60s instead of hanging indefinitely.
+- **Auto-reconnecting DB writer.** If a write hits a `connection
+  already closed` or operational error, `DbWriter` transparently
+  reopens the connection and retries the same write once. Successful
+  LLM ratings always land in the local CSV regardless of DB write
+  status, so an API call is never lost to a transient socket death.
+- **Failure log.** When any failures happen, a `<output>_failures.csv`
+  is written next to the ratings CSV with a `stage` column
+  (`download` / `llm_api` / `db_write`) so you can triage what
+  actually went wrong.
+- **Resume.** Pass `--skip-rated` to skip rows that already have
+  `llm_quality IS NOT NULL`. Combined with the failures CSV you can
+  cherry-pick a re-run for just the failures.
 
 ---
 
@@ -926,15 +1104,30 @@ python3 -m venv .venv && source .venv/bin/activate
 pip install -r ml/requirements.txt
 
 # 1. Run database migrations (once)
-psql $DATABASE_URL -f database/migrations/20260417_external_images.sql
-psql $DATABASE_URL -f database/migrations/20260417_add_llm_quality_to_snapshots.sql
+python3 ml/apply_migration.py database/migrations/20260417_external_images.sql
+python3 ml/apply_migration.py database/migrations/20260417_add_llm_quality_to_snapshots.sql
+python3 ml/apply_migration.py database/migrations/20260504_add_llm_metadata_columns.sql
+python3 ml/apply_migration.py database/migrations/20260507_add_extended_llm_fields.sql
 
-# 2. Dry-run the LLM rater
-python3 ml/llm_rater.py --provider gemini --source webcam --dry-run
+# 2. Dry-run the LLM rater (HTML report)
+python3 ml/llm_rater.py --provider anthropic --source webcam --dry-run
+
+# 2b. (Optional) Compare two models on the same images
+python3 ml/compare_llm_raters.py \
+  --provider-a anthropic --model-a claude-haiku-4-5 \
+  --provider-b anthropic --model-b claude-sonnet-4-5 \
+  --count 50
+
+# 2c. Estimate the full-archive cost before committing
+python3 ml/llm_rater.py \
+  --provider anthropic --model claude-sonnet-4-5 \
+  --source webcam --skip-rated \
+  --estimate-only --sample-tokens 10
 
 # 3. Rate the full webcam archive
 python3 ml/llm_rater.py \
-  --provider gemini --source webcam \
+  --provider anthropic --model claude-sonnet-4-5 \
+  --source webcam --skip-rated \
   --output-csv ml/artifacts/llm_ratings/initial_ratings.csv \
   --write-to-db
 
@@ -1039,27 +1232,50 @@ smooths this out.
 | ONNX models | `ml/artifacts/models/<type>_<arch>/<version>/model.onnx` |
 | Comparison reports | `ml/artifacts/reports/` |
 | Diagnostic plots | `<run_dir>/plots/` |
-| LLM ratings | `ml/artifacts/llm_ratings/` |
+| LLM ratings (CSV + dry-run HTML + comparison HTML) | `ml/artifacts/llm_ratings/` |
+| LLM rater failure logs | `ml/artifacts/llm_ratings/<run>_failures.csv` |
 | Scraper run logs | `ml/artifacts/scraper_runs/` |
 | Image cache | `ml/artifacts/image_cache/` |
 | Experiment configs | `ml/configs/` |
+| Database migrations | `database/migrations/` |
+| SQL exploration queries | `database/queries/llm_ratings_explore.sql` |
 
 ---
 
 ## 15. Cost estimates
 
+The numbers below assume the **extended** prompt (`v2_extended`) which
+asks for ~10 fields including a one-sentence explanation. Output token
+overhead is a touch higher than the original 6-field prompt; budget
+accordingly.
+
+### Cheap end (Gemini Flash, sanity rating)
+
 | Item | Count | Unit cost | Total |
 |------|-------|-----------|-------|
-| Flickr API calls (search + info) | ~5,000 | Free | $0 |
-| Image downloads (Flickr) | ~5,000 | Free | $0 |
+| Flickr API calls + image downloads | ~5,000 | Free | $0 |
 | Firebase Storage | ~5 GB | Free tier covers this | $0 |
-| LLM rating -- external images | 5,000 | $0.0001 (Gemini Flash) | $0.50 |
-| LLM rating -- existing webcam archive | ~4,000 | $0.0001 | $0.40 |
+| LLM rating — external images | 5,000 | ~$0.0002 (Gemini 2.0 Flash) | $1 |
+| LLM rating — webcam archive | ~4,000 | ~$0.0002 | $0.80 |
 | GPU training time (local) | 1-2 hours | Free | $0 |
-| **Total** | | | **< $1** |
+| **Total** | | | **< $2** |
 
-If using GPT-4o-mini instead of Gemini Flash, multiply LLM costs by ~3x.
-Still under $3 total.
+### Premium end (Claude Sonnet 4.5, full archive, extended prompt)
+
+For the recommended Phase-1 pass over the entire webcam archive at
+production quality:
+
+| Item | Count | Unit cost | Total |
+|------|-------|-----------|-------|
+| LLM rating — webcam archive (Sonnet 4.5) | ~29,000 | ~$0.0053 | **~$153** |
+| Neon Postgres updates (29K UPDATEs over ~13h) | — | within free tier compute & storage | $0 |
+| Firebase egress (29K image fetches) | ~3-5 GB | within free tier | $0 |
+| **Total** | | | **~$153** |
+
+Use `python3 ml/llm_rater.py … --estimate-only --sample-tokens 10` for
+an exact, image-dimension-aware projection before you commit. Mixing
+providers (e.g. cheap model for clearly-not-sunsets, premium for edge
+cases) can drop the total ~50% — see Step 1.5 above.
 
 ---
 
@@ -1283,3 +1499,98 @@ completes.
   `--dry-run-count 5` to match old behavior.
 - The HTML report is generated automatically during dry-runs; no flag
   is required to opt in. Stdout summary still prints.
+
+---
+
+## Appendix D: Build log (May 2026) — Extended schema, robust DB writes, cost preflight
+
+This round of changes was driven by a 100-image sanity test against
+Anthropic Claude Sonnet 4.5 that exposed two latent bugs and one
+opportunity to capture more value per LLM call. With the full ~$150
+overnight archive run looming, all three were addressed before
+committing.
+
+### What changed
+
+**Extended prompt fields.** The rater now asks the LLM for
+`is_sunrise` (vs. is_sunset), `time_of_day`, `sky_coverage`, and a
+one-sentence `rating_explanation`. These fields would be expensive
+($120+) to backfill later because they require re-rating every image,
+so they're worth capturing on the first pass. Output-token overhead is
+~50% higher than the 6-field prompt — budget ~$30 more on the full
+archive run, total ~$150 instead of ~$120.
+
+**JSONB metadata bucket.** New `llm_metadata` column captures the
+prompt version plus any model fields that don't have a dedicated
+column. Future fields land here without a schema migration. GIN-indexed
+so ad-hoc `llm_metadata->>'something'` queries stay fast as the bucket
+fills out.
+
+**Composite indexes for app queries.**
+`webcam_snapshots_great_sunsets_idx` powers the gallery query
+(`WHERE llm_is_sunset = true ORDER BY llm_quality DESC LIMIT N`) as a
+partial DESC index — should be served as a pure index scan.
+`webcam_snapshots_webcam_quality_idx` powers per-webcam timelines.
+
+**Image media-type auto-detection.** Sanity test failed at image #21
+with an Anthropic 400 error: a Firebase URL served PNG bytes but the
+rater hardcoded `image/jpeg`. The rater now sniffs magic bytes
+(JPEG/PNG/GIF/WebP) and falls back to the HTTP header only if needed.
+
+**Auto-reconnecting DB writer.** Sanity test images #42-100 had
+successful API calls (already billed) but failed DB writes — Neon
+serverless was killing the idle connection and the script hadn't
+noticed. New `DbWriter` class wraps the connection with TCP keepalives
+and transparently reconnects + retries on `OperationalError` /
+`InterfaceError`. Successful API ratings always land in the local CSV
+regardless of DB write status; failures are logged to a separate CSV
+with a `stage` column so triage is easy.
+
+**Cost estimator preflight.** `--estimate-only` counts the rows that
+would be rated and prints projected $ + wall-clock time without
+making any API calls. Pair with `--sample-tokens 10` to download a
+spread sample and measure real image dimensions for an accurate
+estimate (matters a lot for tiny Windy webcam thumbnails — default
+constants over-count).
+
+**Side-by-side model comparison.** New `ml/compare_llm_raters.py`
+rates the same N images with two provider/model combos and renders
+an HTML report with a delta toolbar (sort by largest disagreement,
+filter by sunset disagreement, etc.). Used to confirm Claude Sonnet
+4.5 was worth the premium over Haiku 4.5 on edge cases.
+
+**SQL playbook.** `database/queries/llm_ratings_explore.sql` collects
+12 named queries: high-level counts, quality histogram, top/bottom 20,
+human↔LLM disagreement queue, live progress, per-webcam summary,
+time-of-day vs quality, sky-coverage distribution, obstruction
+breakdown, single-record spot-check, cost telemetry stub.
+
+### Files created
+
+| File | Purpose |
+|------|---------|
+| `database/migrations/20260504_add_llm_metadata_columns.sql` | Adds is_sunset, confidence, has_clouds, color_palette, obstruction, provider columns + indexes. Tolerant of missing optional tables. |
+| `database/migrations/20260507_add_extended_llm_fields.sql` | Adds is_sunrise, time_of_day, sky_coverage, rating_explanation, llm_metadata (JSONB), composite gallery + per-webcam indexes, GIN index on JSONB. |
+| `database/queries/llm_ratings_explore.sql` | 12-query playbook for exploring rated data. |
+| `ml/apply_migration.py` | Safe SQL migration applier with `--dry-run`, reads `DATABASE_URL` from `.env.local`. |
+| `ml/compare_llm_raters.py` | Side-by-side two-model HTML comparison. |
+
+### Files modified
+
+| File | What changed |
+|------|-------------|
+| `ml/llm_rater.py` | Extended `RATING_PROMPT` with 4 new fields. New `detect_image_media_type` (magic bytes). `download_image_bytes` now returns `(bytes, media_type)`. New `open_db_connection` (TCP keepalives) and `DbWriter` class (auto-reconnect + retry). New `--estimate-only`, `--sample-tokens`, `--download-timeout`, `--api-timeout`, `--verbose` flags. New `MODEL_PRICING_USD_PER_MTOK`, `measure_image_tokens`, `estimate_cost_usd`. `DB_UPDATE_COLUMNS` extended; CSV row builder mirrors all new fields; `llm_metadata` written via `psycopg2.extras.Json`. |
+| `ml/requirements.txt` | Added `anthropic>=0.40`. |
+| `ml/OPERATING_GUIDE.md` | This appendix; updated migrations, prompt, schema, indexes, SQL playbook references, CLI table, cost section, recommended sequence, and artifact locations. |
+
+### Backwards compatibility
+
+- All four migrations are idempotent (`ADD COLUMN IF NOT EXISTS`,
+  `CREATE INDEX IF NOT EXISTS`) and tolerant of missing tables.
+- The new prompt fields have defaults in `rate_image()`, so a model
+  that omits them won't crash the rater.
+- Old CSV files (without the new columns) are still readable by
+  `validate_llm_ratings.py`.
+- `--write-to-db` behavior on the v1 schema (without
+  `llm_metadata`) will fail loudly; apply migration 20260507 before
+  enabling DB writes. Use `apply_migration.py` to do this safely.
