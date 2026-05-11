@@ -75,7 +75,7 @@ def _class_balance(eval_report: dict[str, Any]) -> dict[str, Any]:
     cb = eval_report.get("data", {}).get("class_balance", {})
     neg = cb.get("negative")
     pos = cb.get("positive")
-    if neg and pos:
+    if neg is not None and pos:
         return {"negative": neg, "positive": pos, "ratio": round(neg / pos, 2)}
     return {"negative": neg, "positive": pos, "ratio": None}
 
