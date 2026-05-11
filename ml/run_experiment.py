@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -20,6 +21,18 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--config", required=True, help="Path to experiment YAML config.")
     parser.add_argument("--output-root", default="ml/artifacts/experiments")
     parser.add_argument("--no-progress", action="store_true")
+    parser.add_argument(
+        "--publish",
+        action="store_true",
+        help="After eval, generate failure_gallery.json and copy artifacts "
+             "to public/ml-runs/<slug>/. Default off.",
+    )
+    parser.add_argument(
+        "--failure-gallery-n",
+        type=int,
+        default=20,
+        help="Top-N worst predictions to include in failure_gallery.json.",
+    )
     return parser.parse_args()
 
 
@@ -239,6 +252,28 @@ def main() -> None:
         str(run_dir),
     ]
     run_cmd(plot_cmd)
+
+    # Failure gallery (runs whenever --publish is set OR when DATABASE_URL is
+    # available — the gallery is cheap and useful for the local dashboard too).
+    if args.publish or os.environ.get("DATABASE_URL"):
+        from ml.generate_failure_gallery import generate_from_run
+        db_url = os.environ.get("DATABASE_URL")
+        if db_url:
+            try:
+                generate_from_run(
+                    run_dir=run_dir,
+                    db_url=db_url,
+                    n=args.failure_gallery_n,
+                )
+                print(f"[failure-gallery] wrote {run_dir / 'failure_gallery.json'}")
+            except Exception as exc:
+                print(f"[failure-gallery] skipped: {exc}")
+
+    if args.publish:
+        from ml.publish_run import publish
+        out = publish(run_dir=run_dir, config_path=Path(args.config))
+        print(f"[publish] {out}")
+        print(f"[publish] Commit + push to make this run live on the site.")
 
     resolved = {
         "run": {"name": run_name, "seed": run_seed},
