@@ -62,7 +62,7 @@ export function FailureGallery({ gallery }: Props) {
             <Box sx={{ color: '#cbd5e1' }}>off by {item.absolute_error.toFixed(2)}</Box>
             {item.llm_explanation && (
               <Box sx={{ color: '#64748b', mt: 0.5, fontStyle: 'italic' }}>
-                "{item.llm_explanation}"
+                &ldquo;{item.llm_explanation}&rdquo;
               </Box>
             )}
           </Box>
