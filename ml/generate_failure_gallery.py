@@ -109,13 +109,17 @@ def generate_from_run(
     run_dir: Path,
     db_url: str,
     n: int = 20,
+    split: str = "val",
 ) -> Path:
     """End-to-end: read run_dir's eval outputs, write failure_gallery.json."""
     predictions_csv = run_dir / "eval" / "predictions.csv"
     if not predictions_csv.exists():
         raise FileNotFoundError(f"missing predictions CSV: {predictions_csv}")
 
-    eval_report = json.loads((run_dir / "eval" / "eval_report.json").read_text())
+    eval_report_path = run_dir / "eval" / "eval_report.json"
+    if not eval_report_path.exists():
+        raise FileNotFoundError(f"missing eval report: {eval_report_path}")
+    eval_report = json.loads(eval_report_path.read_text())
     target_type = eval_report.get("target_type", "regression")
 
     df = pd.read_csv(predictions_csv)
@@ -148,7 +152,7 @@ def generate_from_run(
     out_path = run_dir / "failure_gallery.json"
     write_failure_gallery(
         out_path=out_path,
-        split="val",
+        split=split,
         target_type=target_type,
         items=items,
     )
