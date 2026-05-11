@@ -50,6 +50,7 @@ next-env.d.ts
 ml/artifacts/
 ml/.venv/
 /.venv/
+/.venv*/
 
 # Python bytecode caches
 ml/**/__pycache__/
