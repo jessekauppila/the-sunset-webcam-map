@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import Home from '../page';
+import { HomeClient } from '../HomeClient';
 
 type Slide = {
   eyebrow?: string;
@@ -137,7 +137,7 @@ export default function AboutPage() {
           goes to the overlay; once closed, this goes away along
           with the /about route. */}
       <div className="about-bg" aria-hidden="true">
-        <Home />
+        <HomeClient manifestRuns={[]} />
       </div>
 
       <section
