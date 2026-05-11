@@ -268,6 +268,11 @@ def main() -> None:
                 print(f"[failure-gallery] wrote {run_dir / 'failure_gallery.json'}")
             except Exception as exc:
                 print(f"[failure-gallery] skipped: {exc}")
+        elif args.publish:
+            print(
+                "[failure-gallery] skipped: DATABASE_URL not set; "
+                "publish will proceed without failure_gallery.json"
+            )
 
     if args.publish:
         from ml.publish_run import publish
