@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "slug": "v2_mild_crop_balanced_pilot",
+  "display_name": "v2_mild_crop_balanced_pilot",
+  "published_at": "2026-05-12T05:32:13+00:00",
+  "config_summary": {
+    "model": {
+      "name": "resnet18",
+      "epochs": 3,
+      "batch_size": 32,
+      "learning_rate": 0.0001
+    },
+    "target_type": "binary",
+    "epochs_configured": 3,
+    "lr_schedule": null,
+    "early_stopping_patience": null,
+    "head_dropout": null,
+    "class_weighting": "balanced",
+    "label_source": null
+  },
+  "metrics": {
+    "best_f1": 0.7008547008547008,
+    "val_precision": 0.7735849056603774,
+    "val_recall": 0.640625,
+    "val_accuracy": 0.8992805755395683,
+    "best_epoch": 2,
+    "epochs_completed": 3,
+    "early_stopped_epoch": null
+  },
+  "diagnosis": {
+    "status": "healthy",
+    "note": "Train/val loss tracked together; no overfit signal."
+  },
+  "data": {
+    "train_samples": null,
+    "val_samples": 695,
+    "test_samples": null,
+    "class_balance": {
+      "negative": 2638,
+      "positive": 646,
+      "ratio": 4.08
+    }
+  },
+  "assets": {
+    "loss_curves_png": "plots/loss_curves.png",
+    "label_distribution_png": "plots/label_distribution.png",
+    "config_yaml": "config.yaml",
+    "failure_gallery_json": "failure_gallery.json"
+  }
+}

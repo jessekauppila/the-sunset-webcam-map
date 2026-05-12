@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "slug": "v3_regression_llm_labels",
+  "display_name": "v3_regression_llm_labels",
+  "published_at": "2026-05-12T05:32:13+00:00",
+  "config_summary": {
+    "model": {
+      "name": "resnet18",
+      "epochs": 30,
+      "batch_size": 32,
+      "learning_rate": 0.0001,
+      "lr_schedule": "cosine",
+      "early_stopping_patience": 5,
+      "head_dropout": 0.3
+    },
+    "target_type": "regression",
+    "epochs_configured": 30,
+    "lr_schedule": "cosine",
+    "early_stopping_patience": 5,
+    "head_dropout": 0.3,
+    "class_weighting": "none",
+    "label_source": null
+  },
+  "metrics": {
+    "pearson_r": 0.5105889957401696,
+    "spearman_r": 0.6425261964329976,
+    "r_squared": 0.2103303853335502,
+    "val_mse": 0.1343818565008777,
+    "best_f1": 0.7455621301775148,
+    "val_precision": 0.7078651685393258,
+    "val_recall": 0.7875,
+    "val_accuracy": null,
+    "best_epoch": 11,
+    "epochs_completed": 16,
+    "early_stopped_epoch": 16
+  },
+  "diagnosis": {
+    "status": "healthy",
+    "note": "Train/val loss tracked together; no overfit signal."
+  },
+  "data": {
+    "train_samples": null,
+    "val_samples": 702,
+    "test_samples": null,
+    "class_balance": {
+      "negative": null,
+      "positive": null,
+      "ratio": null
+    }
+  },
+  "assets": {
+    "loss_curves_png": "plots/loss_curves.png",
+    "label_distribution_png": "plots/label_distribution.png",
+    "config_yaml": "config.yaml",
+    "failure_gallery_json": "failure_gallery.json"
+  }
+}

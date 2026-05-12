@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "slug": "v2_full_crop_balanced",
+  "display_name": "v2_full_crop_balanced",
+  "published_at": "2026-05-12T05:32:13+00:00",
+  "config_summary": {
+    "model": {
+      "name": "resnet18",
+      "epochs": 10,
+      "batch_size": 32,
+      "learning_rate": 0.0001
+    },
+    "target_type": "binary",
+    "epochs_configured": 10,
+    "lr_schedule": null,
+    "early_stopping_patience": null,
+    "head_dropout": null,
+    "class_weighting": "balanced",
+    "label_source": null
+  },
+  "metrics": {
+    "best_f1": 0.7397260273972602,
+    "val_precision": 0.6585365853658537,
+    "val_recall": 0.84375,
+    "val_accuracy": 0.8906474820143885,
+    "best_epoch": 2,
+    "epochs_completed": 10,
+    "early_stopped_epoch": null
+  },
+  "diagnosis": {
+    "status": "overfit",
+    "note": "Val loss drifted up 32% after the best epoch (2)."
+  },
+  "data": {
+    "train_samples": null,
+    "val_samples": 695,
+    "test_samples": null,
+    "class_balance": {
+      "negative": 2638,
+      "positive": 646,
+      "ratio": 4.08
+    }
+  },
+  "assets": {
+    "loss_curves_png": "plots/loss_curves.png",
+    "label_distribution_png": "plots/label_distribution.png",
+    "config_yaml": "config.yaml",
+    "failure_gallery_json": "failure_gallery.json"
+  }
+}
