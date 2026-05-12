@@ -253,10 +253,18 @@ def main() -> None:
     ]
     run_cmd(plot_cmd)
 
+    # Make sibling modules importable when this script is run as a file
+    # (`python ml/run_experiment.py`) rather than as a package
+    # (`python -m ml.run_experiment`).
+    import sys
+    _ml_dir = Path(__file__).resolve().parent
+    if str(_ml_dir) not in sys.path:
+        sys.path.insert(0, str(_ml_dir))
+
     # Failure gallery (runs whenever --publish is set OR when DATABASE_URL is
     # available — the gallery is cheap and useful for the local dashboard too).
     if args.publish or os.environ.get("DATABASE_URL"):
-        from ml.generate_failure_gallery import generate_from_run
+        from generate_failure_gallery import generate_from_run
         db_url = os.environ.get("DATABASE_URL")
         if db_url:
             try:
@@ -275,7 +283,7 @@ def main() -> None:
             )
 
     if args.publish:
-        from ml.publish_run import publish
+        from publish_run import publish
         out = publish(run_dir=run_dir, config_path=Path(args.config))
         print(f"[publish] {out}")
         print(f"[publish] Commit + push to make this run live on the site.")
