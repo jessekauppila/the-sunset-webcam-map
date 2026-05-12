@@ -54,15 +54,25 @@ class EvalDataset(Dataset):
         return x, y
 
 
-def build_model(model_name: str, target_type: str):
+def _make_head(in_features: int, out_features: int, with_dropout: bool) -> torch.nn.Module:
+    if with_dropout:
+        return torch.nn.Sequential(torch.nn.Dropout(p=0.0), torch.nn.Linear(in_features, out_features))
+    return torch.nn.Linear(in_features, out_features)
+
+
+def build_model(model_name: str, target_type: str, state_dict: dict | None = None):
+    out_features = 1 if target_type == "regression" else 2
     if model_name == "mobilenet_v3_small":
         model = models.mobilenet_v3_small(weights=None)
         in_features = model.classifier[-1].in_features
-        model.classifier[-1] = torch.nn.Linear(in_features, 1 if target_type == "regression" else 2)
+        last_idx = len(model.classifier) - 1
+        with_dropout = state_dict is not None and f"classifier.{last_idx}.1.weight" in state_dict
+        model.classifier[-1] = _make_head(in_features, out_features, with_dropout)
         return model
     model = models.resnet18(weights=None)
     in_features = model.fc.in_features
-    model.fc = torch.nn.Linear(in_features, 1 if target_type == "regression" else 2)
+    with_dropout = state_dict is not None and "fc.1.weight" in state_dict
+    model.fc = _make_head(in_features, out_features, with_dropout)
     return model
 
 
@@ -109,8 +119,8 @@ def main() -> None:
     ds = EvalDataset(args.test_manifest, args.target_type)
     loader = DataLoader(ds, batch_size=32, shuffle=False)
 
-    model = build_model(args.model_name, args.target_type).to(device)
     state = torch.load(args.checkpoint, map_location=device)
+    model = build_model(args.model_name, args.target_type, state_dict=state).to(device)
     model.load_state_dict(state)
     model.eval()
 
