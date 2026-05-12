@@ -92,6 +92,19 @@ export interface RunIndex {
     config_yaml: string;
     failure_gallery_json: string;
   };
+  threshold_sweep?: Array<{
+    threshold: number;
+    precision: number;
+    recall: number;
+    f1: number;
+  }>;
+  best_threshold?: {
+    threshold: number;
+    precision: number;
+    recall: number;
+    f1: number;
+  } | null;
+  decision_threshold?: number | null;
 }
 
 export interface FailureGalleryItem {

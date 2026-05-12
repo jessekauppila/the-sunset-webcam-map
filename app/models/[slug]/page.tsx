@@ -11,6 +11,7 @@ import { FailureGallery } from '@/app/components/ModelAnalysis/FailureGallery';
 import { GraphCaption } from '@/app/components/ModelAnalysis/GraphCaption';
 import { CollapsibleSection } from '@/app/components/ModelAnalysis/CollapsibleSection';
 import { LabelDistributionTable } from '@/app/components/ModelAnalysis/LabelDistributionTable';
+import { ThresholdSweepTable } from '@/app/components/ModelAnalysis/ThresholdSweepTable';
 import { ShareButton } from '@/app/components/ModelAnalysis/ShareButton';
 
 export function generateStaticParams() {
@@ -94,6 +95,11 @@ export default async function ModelPage({ params }: PageProps) {
       <section style={{ marginTop: 32 }}>
         <h2 style={{ margin: '0 0 8px' }}>Rating distribution</h2>
         <LabelDistributionTable data={index.data} />
+      </section>
+
+      <section style={{ marginTop: 32 }}>
+        <h2 style={{ margin: '0 0 8px' }}>Threshold sweep</h2>
+        <ThresholdSweepTable index={index} />
       </section>
 
       <CollapsibleSection title="Run config">

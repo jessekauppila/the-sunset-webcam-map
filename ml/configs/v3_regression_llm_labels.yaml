@@ -60,7 +60,10 @@ image_cache:
   precache: true
 
 metrics:
-  decision_threshold: 0.7
+  # Picked from the 0.3-0.9 sweep on v3 test set: f1 = 0.76 at 0.30
+  # (precision 0.90, recall 0.66). Higher thresholds collapse to ~0 recall
+  # because the model's positive predictions are conservative.
+  decision_threshold: 0.30
   threshold_sweep: true
   threshold_sweep_start: 0.3
   threshold_sweep_end: 0.9

@@ -251,6 +251,19 @@ def build_index_json(
         epochs_completed = history[-1].get("epoch")
 
     sample_counts = sample_counts or {}
+
+    # Forward the threshold sweep verbatim — small enough that we don't
+    # need to denormalise it, and the UI can render a tradeoff table.
+    threshold_sweep = (
+        eval_report.get("derived_binary_sweep")
+        or eval_report.get("threshold_sweep")
+        or []
+    )
+    best_threshold = (
+        eval_report.get("best_derived_threshold_by_f1")
+        or eval_report.get("best_threshold_by_f1")
+    )
+
     return {
         "schema_version": 1,
         "slug": slug,
@@ -310,6 +323,10 @@ def build_index_json(
             "config_yaml": "config.yaml",
             "failure_gallery_json": "failure_gallery.json",
         },
+        "threshold_sweep": threshold_sweep,
+        "best_threshold": best_threshold,
+        "decision_threshold": config.get("metrics", {}).get("decision_threshold")
+            or config.get("decision_threshold"),
     }
 
 
