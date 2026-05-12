@@ -10,6 +10,7 @@ import { MetricTiles } from '@/app/components/ModelAnalysis/MetricTiles';
 import { FailureGallery } from '@/app/components/ModelAnalysis/FailureGallery';
 import { GraphCaption } from '@/app/components/ModelAnalysis/GraphCaption';
 import { CollapsibleSection } from '@/app/components/ModelAnalysis/CollapsibleSection';
+import { ShareButton } from '@/app/components/ModelAnalysis/ShareButton';
 
 export function generateStaticParams() {
   return listRunSlugs().map((slug) => ({ slug }));
@@ -42,7 +43,10 @@ export default async function ModelPage({ params }: PageProps) {
         <Link href="/" style={{ color: '#60a5fa' }}>← back to map</Link>
       </div>
 
-      <h1 style={{ margin: 0 }}>{index.display_name}</h1>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+        <h1 style={{ margin: 0 }}>{index.display_name}</h1>
+        <ShareButton />
+      </div>
       <div style={{ color: '#94a3b8', fontSize: 13, marginTop: 4 }}>
         Published {publishedDate} · {index.config_summary.target_type} ·{' '}
         {index.metrics.epochs_completed ?? '?'} epochs
