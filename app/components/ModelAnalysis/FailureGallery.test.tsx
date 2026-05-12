@@ -1,6 +1,6 @@
 // app/components/ModelAnalysis/FailureGallery.test.tsx
 import { describe, it, expect } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { FailureGallery } from './FailureGallery';
 import type { FailureGallery as FailureGalleryType } from '@/app/lib/modelRuns.types';
 
@@ -17,7 +17,7 @@ const gallery: FailureGalleryType = {
       true_label: 0.85,
       predicted_score: 0.21,
       absolute_error: 0.64,
-      captured_at: null,
+      captured_at: '2026-04-22T19:47:00Z',
       llm_explanation: 'Vivid orange',
     },
   ],
@@ -36,10 +36,14 @@ describe('FailureGallery', () => {
     expect(screen.getByText(/no failures to show/i)).toBeInTheDocument();
   });
 
-  it('image is wrapped in a link that opens in a new tab', () => {
+  it('opens a lightbox dialog when a card is clicked', () => {
     render(<FailureGallery gallery={gallery} />);
-    const link = screen.getByRole('link', { name: /open snapshot s1/i });
-    expect(link.getAttribute('target')).toBe('_blank');
-    expect(link.getAttribute('href')).toBe('https://example.com/s1.jpg');
+    const card = screen.getByRole('button', { name: /open snapshot s1/i });
+    fireEvent.click(card);
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    // lightbox shows the snapshot id and a captured-at timestamp
+    expect(screen.getByText(/snapshot s1/i)).toBeInTheDocument();
+    expect(screen.getByText(/^captured/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/vivid orange/i).length).toBeGreaterThan(0);
   });
 });
