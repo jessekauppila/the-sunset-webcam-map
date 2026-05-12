@@ -1,113 +1,12 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-05-12T05:32:13+00:00",
+  "generated_at": "2026-05-12T05:57:57+00:00",
   "runs": [
-    {
-      "slug": "v2_mild_crop_balanced_pilot",
-      "display_name": "v2_mild_crop_balanced_pilot",
-      "published_at": "2026-05-12T05:32:13+00:00",
-      "target_type": "binary",
-      "binary_metrics": {
-        "val_f1": 0.7008547008547008,
-        "val_precision": 0.7735849056603774,
-        "val_recall": 0.640625,
-        "val_accuracy": 0.8992805755395683
-      },
-      "regression_metrics": {},
-      "best_metric_name": "val_f1",
-      "best_metric_value": 0.7008547008547008,
-      "best_epoch": 2,
-      "epochs_total": 3,
-      "early_stopped": false,
-      "status": "healthy",
-      "status_note": "Train/val loss tracked together; no overfit signal."
-    },
-    {
-      "slug": "v2_mild_crop_balanced",
-      "display_name": "v2_mild_crop_balanced",
-      "published_at": "2026-05-12T05:32:13+00:00",
-      "target_type": "binary",
-      "binary_metrics": {
-        "val_f1": 0.7567567567567568,
-        "val_precision": 0.6666666666666666,
-        "val_recall": 0.875,
-        "val_accuracy": 0.8964028776978418
-      },
-      "regression_metrics": {},
-      "best_metric_name": "val_f1",
-      "best_metric_value": 0.7567567567567568,
-      "best_epoch": 10,
-      "epochs_total": 10,
-      "early_stopped": false,
-      "status": "healthy",
-      "status_note": "Train/val loss tracked together; no overfit signal."
-    },
-    {
-      "slug": "v2_no_crop_balanced",
-      "display_name": "v2_no_crop_balanced",
-      "published_at": "2026-05-12T05:32:13+00:00",
-      "target_type": "binary",
-      "binary_metrics": {
-        "val_f1": 0.7163120567375887,
-        "val_precision": 0.6558441558441559,
-        "val_recall": 0.7890625,
-        "val_accuracy": 0.8848920863309353
-      },
-      "regression_metrics": {},
-      "best_metric_name": "val_f1",
-      "best_metric_value": 0.7163120567375887,
-      "best_epoch": 2,
-      "epochs_total": 10,
-      "early_stopped": false,
-      "status": "severe_overfit",
-      "status_note": "Val loss grew 63% from epoch 2 to epoch 10."
-    },
-    {
-      "slug": "v2_full_crop_balanced",
-      "display_name": "v2_full_crop_balanced",
-      "published_at": "2026-05-12T05:32:13+00:00",
-      "target_type": "binary",
-      "binary_metrics": {
-        "val_f1": 0.7397260273972602,
-        "val_precision": 0.6585365853658537,
-        "val_recall": 0.84375,
-        "val_accuracy": 0.8906474820143885
-      },
-      "regression_metrics": {},
-      "best_metric_name": "val_f1",
-      "best_metric_value": 0.7397260273972602,
-      "best_epoch": 2,
-      "epochs_total": 10,
-      "early_stopped": false,
-      "status": "overfit",
-      "status_note": "Val loss drifted up 32% after the best epoch (2)."
-    },
-    {
-      "slug": "v2_regression_mild_crop",
-      "display_name": "v2_regression_mild_crop",
-      "published_at": "2026-05-12T05:32:13+00:00",
-      "target_type": "regression",
-      "binary_metrics": {
-        "val_f1": null,
-        "val_precision": null,
-        "val_recall": null,
-        "val_accuracy": null
-      },
-      "regression_metrics": {
-        "val_mse": 0.6090537880493783
-      },
-      "best_metric_name": "n_a",
-      "best_metric_value": 0.0,
-      "best_epoch": 7,
-      "epochs_total": 10,
-      "early_stopped": false,
-      "status": "healthy",
-      "status_note": "Train/val loss tracked together; no overfit signal."
-    },
     {
       "slug": "v3_regression_llm_labels",
       "display_name": "v3_regression_llm_labels",
-      "published_at": "2026-05-12T05:32:13+00:00",
+      "published_at": "2026-05-12T05:57:57+00:00",
+      "started_at": "2026-05-11T05:48:02+00:00",
       "target_type": "regression",
       "binary_metrics": {
         "val_f1": 0.7455621301775148,
@@ -126,33 +25,139 @@
       "best_epoch": 11,
       "epochs_total": 16,
       "early_stopped": true,
+      "train_samples": 3314,
+      "val_samples": 732,
+      "test_samples": null,
       "status": "healthy",
       "status_note": "Train/val loss tracked together; no overfit signal."
     },
     {
-      "slug": "v2_baseline",
-      "display_name": "v2_baseline",
-      "published_at": "2026-05-12T05:32:12+00:00",
+      "slug": "v2_regression_mild_crop",
+      "display_name": "v2_regression_mild_crop",
+      "published_at": "2026-05-12T05:57:57+00:00",
+      "started_at": "2026-03-15T00:39:13+00:00",
+      "target_type": "regression",
+      "binary_metrics": {
+        "val_f1": null,
+        "val_precision": null,
+        "val_recall": null,
+        "val_accuracy": null
+      },
+      "regression_metrics": {
+        "val_mse": 0.6090537880493783
+      },
+      "best_metric_name": "n_a",
+      "best_metric_value": 0.0,
+      "best_epoch": 7,
+      "epochs_total": 10,
+      "early_stopped": false,
+      "train_samples": 3294,
+      "val_samples": 726,
+      "test_samples": null,
+      "status": "healthy",
+      "status_note": "Train/val loss tracked together; no overfit signal."
+    },
+    {
+      "slug": "v2_full_crop_balanced",
+      "display_name": "v2_full_crop_balanced",
+      "published_at": "2026-05-12T05:57:57+00:00",
+      "started_at": "2026-03-14T19:45:28+00:00",
       "target_type": "binary",
       "binary_metrics": {
-        "val_f1": 1.0,
-        "val_precision": 1.0,
-        "val_recall": 1.0,
-        "val_accuracy": 1.0
+        "val_f1": 0.7397260273972602,
+        "val_precision": 0.6585365853658537,
+        "val_recall": 0.84375,
+        "val_accuracy": 0.8906474820143885
       },
       "regression_metrics": {},
       "best_metric_name": "val_f1",
-      "best_metric_value": 1.0,
-      "best_epoch": 1,
+      "best_metric_value": 0.7397260273972602,
+      "best_epoch": 2,
       "epochs_total": 10,
       "early_stopped": false,
-      "status": "mild_overfit",
-      "status_note": "Slight val-loss drift (10%) after the best epoch."
+      "train_samples": 3284,
+      "val_samples": 723,
+      "test_samples": null,
+      "status": "overfit",
+      "status_note": "Val loss drifted up 32% after the best epoch (2)."
+    },
+    {
+      "slug": "v2_no_crop_balanced",
+      "display_name": "v2_no_crop_balanced",
+      "published_at": "2026-05-12T05:57:57+00:00",
+      "started_at": "2026-03-14T08:29:56+00:00",
+      "target_type": "binary",
+      "binary_metrics": {
+        "val_f1": 0.7163120567375887,
+        "val_precision": 0.6558441558441559,
+        "val_recall": 0.7890625,
+        "val_accuracy": 0.8848920863309353
+      },
+      "regression_metrics": {},
+      "best_metric_name": "val_f1",
+      "best_metric_value": 0.7163120567375887,
+      "best_epoch": 2,
+      "epochs_total": 10,
+      "early_stopped": false,
+      "train_samples": 3284,
+      "val_samples": 723,
+      "test_samples": null,
+      "status": "severe_overfit",
+      "status_note": "Val loss grew 63% from epoch 2 to epoch 10."
+    },
+    {
+      "slug": "v2_mild_crop_balanced",
+      "display_name": "v2_mild_crop_balanced",
+      "published_at": "2026-05-12T05:57:56+00:00",
+      "started_at": "2026-03-14T07:07:06+00:00",
+      "target_type": "binary",
+      "binary_metrics": {
+        "val_f1": 0.7567567567567568,
+        "val_precision": 0.6666666666666666,
+        "val_recall": 0.875,
+        "val_accuracy": 0.8964028776978418
+      },
+      "regression_metrics": {},
+      "best_metric_name": "val_f1",
+      "best_metric_value": 0.7567567567567568,
+      "best_epoch": 10,
+      "epochs_total": 10,
+      "early_stopped": false,
+      "train_samples": 3284,
+      "val_samples": 723,
+      "test_samples": null,
+      "status": "healthy",
+      "status_note": "Train/val loss tracked together; no overfit signal."
+    },
+    {
+      "slug": "v2_mild_crop_balanced_pilot",
+      "display_name": "v2_mild_crop_balanced_pilot",
+      "published_at": "2026-05-12T05:57:56+00:00",
+      "started_at": "2026-03-14T06:28:31+00:00",
+      "target_type": "binary",
+      "binary_metrics": {
+        "val_f1": 0.7008547008547008,
+        "val_precision": 0.7735849056603774,
+        "val_recall": 0.640625,
+        "val_accuracy": 0.8992805755395683
+      },
+      "regression_metrics": {},
+      "best_metric_name": "val_f1",
+      "best_metric_value": 0.7008547008547008,
+      "best_epoch": 2,
+      "epochs_total": 3,
+      "early_stopped": false,
+      "train_samples": 3284,
+      "val_samples": 723,
+      "test_samples": null,
+      "status": "healthy",
+      "status_note": "Train/val loss tracked together; no overfit signal."
     },
     {
       "slug": "v2_no_crop_b",
       "display_name": "v2_no_crop_b",
-      "published_at": "2026-05-12T05:32:12+00:00",
+      "published_at": "2026-05-12T05:57:56+00:00",
+      "started_at": "2026-03-14T05:35:39+00:00",
       "target_type": "binary",
       "binary_metrics": {
         "val_f1": 1.0,
@@ -166,8 +171,35 @@
       "best_epoch": 1,
       "epochs_total": 10,
       "early_stopped": false,
+      "train_samples": 22,
+      "val_samples": 2,
+      "test_samples": null,
       "status": "severe_overfit",
       "status_note": "Val loss grew 85% from epoch 1 to epoch 10."
+    },
+    {
+      "slug": "v2_baseline",
+      "display_name": "v2_baseline",
+      "published_at": "2026-05-12T05:57:56+00:00",
+      "started_at": "2026-03-14T05:33:51+00:00",
+      "target_type": "binary",
+      "binary_metrics": {
+        "val_f1": 1.0,
+        "val_precision": 1.0,
+        "val_recall": 1.0,
+        "val_accuracy": 1.0
+      },
+      "regression_metrics": {},
+      "best_metric_name": "val_f1",
+      "best_metric_value": 1.0,
+      "best_epoch": 1,
+      "epochs_total": 10,
+      "early_stopped": false,
+      "train_samples": 22,
+      "val_samples": 2,
+      "test_samples": null,
+      "status": "mild_overfit",
+      "status_note": "Slight val-loss drift (10%) after the best epoch."
     }
   ]
 }

@@ -2,7 +2,8 @@
   "schema_version": 1,
   "slug": "v2_no_crop_b",
   "display_name": "v2_no_crop_b",
-  "published_at": "2026-05-12T05:32:12+00:00",
+  "published_at": "2026-05-12T05:57:56+00:00",
+  "started_at": "2026-03-14T05:35:39+00:00",
   "config_summary": {
     "model": {
       "name": "resnet18",
@@ -32,7 +33,7 @@
     "note": "Val loss grew 85% from epoch 1 to epoch 10."
   },
   "data": {
-    "train_samples": null,
+    "train_samples": 22,
     "val_samples": 2,
     "test_samples": null,
     "class_balance": {

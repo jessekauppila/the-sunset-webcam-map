@@ -2,7 +2,8 @@
   "schema_version": 1,
   "slug": "v3_regression_llm_labels",
   "display_name": "v3_regression_llm_labels",
-  "published_at": "2026-05-12T05:32:13+00:00",
+  "published_at": "2026-05-12T05:57:57+00:00",
+  "started_at": "2026-05-11T05:48:02+00:00",
   "config_summary": {
     "model": {
       "name": "resnet18",
@@ -39,8 +40,8 @@
     "note": "Train/val loss tracked together; no overfit signal."
   },
   "data": {
-    "train_samples": null,
-    "val_samples": 702,
+    "train_samples": 3314,
+    "val_samples": 732,
     "test_samples": null,
     "class_balance": {
       "negative": null,

@@ -2,7 +2,8 @@
   "schema_version": 1,
   "slug": "v2_mild_crop_balanced",
   "display_name": "v2_mild_crop_balanced",
-  "published_at": "2026-05-12T05:32:13+00:00",
+  "published_at": "2026-05-12T05:57:56+00:00",
+  "started_at": "2026-03-14T07:07:06+00:00",
   "config_summary": {
     "model": {
       "name": "resnet18",
@@ -32,8 +33,8 @@
     "note": "Train/val loss tracked together; no overfit signal."
   },
   "data": {
-    "train_samples": null,
-    "val_samples": 695,
+    "train_samples": 3284,
+    "val_samples": 723,
     "test_samples": null,
     "class_balance": {
       "negative": 2638,
