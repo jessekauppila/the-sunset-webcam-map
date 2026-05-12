@@ -7,6 +7,7 @@ import type { ManifestEntry } from '@/app/lib/modelRuns.types';
 import { ModelRunList } from './ModelRunList';
 import { ModelLeaderboard } from './ModelLeaderboard';
 import { ModelRunSummaryCard } from './ModelRunSummaryCard';
+import { WhatIsThisPlaque } from './WhatIsThisPlaque';
 
 interface Props {
   runs: ManifestEntry[];
@@ -18,12 +19,26 @@ export function ModelAnalysisTab({ runs }: Props) {
 
   if (runs.length === 0) {
     return (
-      <Box sx={{ p: 3, color: '#94a3b8' }}>
-        <Typography variant="body2">
-          No published runs yet. Run an experiment with{' '}
-          <code>python ml/run_experiment.py --config &lt;cfg&gt; --publish</code>{' '}
-          to populate this view.
-        </Typography>
+      <Box sx={{ p: 2.25 }}>
+        <WhatIsThisPlaque />
+        <Box
+          sx={{
+            mt: 1,
+            p: 2,
+            border: '1px dashed #334155',
+            borderRadius: 1,
+            color: '#94a3b8',
+          }}
+        >
+          <Typography variant="body2" sx={{ mb: 0.5, color: '#cbd5e1' }}>
+            No published runs yet.
+          </Typography>
+          <Typography variant="caption" sx={{ display: 'block' }}>
+            Run an experiment with{' '}
+            <code>python ml/run_experiment.py --config &lt;cfg&gt; --publish</code>{' '}
+            and commit <code>public/ml-runs/</code> to populate this view.
+          </Typography>
+        </Box>
       </Box>
     );
   }

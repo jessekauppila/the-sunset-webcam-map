@@ -31,8 +31,9 @@ describe('ModelAnalysisTab', () => {
     expect(screen.getByRole('link', { name: /open full view/i })).toBeInTheDocument();
   });
 
-  it('renders an empty state when there are no runs', () => {
+  it('renders an empty state with the "What is this?" plaque when there are no runs', () => {
     render(<ModelAnalysisTab runs={[]} />);
     expect(screen.getByText(/no published runs yet/i)).toBeInTheDocument();
+    expect(screen.getByText(/what is this\?/i)).toBeInTheDocument();
   });
 });
