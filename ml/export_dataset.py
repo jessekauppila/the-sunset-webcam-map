@@ -46,24 +46,36 @@ def merge_label(
     strategy: str,
     llm_weight: float,
 ) -> float | None:
-    """Compute final label value using the chosen merge strategy."""
+    """Compute final label value using the chosen merge strategy.
+
+    All returned values are in the normalised 0.0–1.0 range. Raw human
+    ratings (1–5 scale) are mapped with (v - 1) / 4 when the strategy
+    permits a human fallback.
+    """
     llm_value = llm_overrides.get(snapshot_id)
 
+    def _norm_human(v: float | None) -> float | None:
+        if v is None:
+            return None
+        # If a 1–5 raw rating snuck through, map to 0–1; clip otherwise.
+        if v > 1.0:
+            return max(0.0, min(1.0, (v - 1.0) / 4.0))
+        return max(0.0, min(1.0, v))
+
     if strategy == "llm_only":
-        return llm_value if llm_value is not None else human_value
+        # Strict: an LLM label is required; rows without one are skipped.
+        return llm_value
     if strategy == "human_override":
-        return human_value if human_value is not None else llm_value
+        return _norm_human(human_value) if human_value is not None else llm_value
     if strategy == "weighted_average":
-        if llm_value is not None and human_value is not None:
-            human_norm = human_value / 5.0
-            return llm_weight * llm_value + (1 - llm_weight) * human_norm
+        h = _norm_human(human_value)
+        if llm_value is not None and h is not None:
+            return llm_weight * llm_value + (1 - llm_weight) * h
         if llm_value is not None:
             return llm_value
-        if human_value is not None:
-            return human_value / 5.0
-        return None
+        return h
     # human_only (default)
-    return human_value
+    return _norm_human(human_value)
 
 
 def summarize_targets(rows: list[dict[str, Any]], target_type: str) -> dict[str, Any]:
