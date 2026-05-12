@@ -90,6 +90,25 @@ export default async function ModelPage({ params }: PageProps) {
 {JSON.stringify(index, null, 2)}
         </pre>
       </CollapsibleSection>
+
+      <footer
+        style={{
+          marginTop: 48,
+          paddingTop: 16,
+          borderTop: '1px solid #1e293b',
+          color: '#64748b',
+          fontSize: 12,
+          display: 'flex',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: 8,
+        }}
+      >
+        <span>Published {new Date(index.published_at).toLocaleString()}</span>
+        <Link href="/" style={{ color: '#60a5fa' }}>
+          ← Back to leaderboard
+        </Link>
+      </footer>
     </main>
   );
 }
