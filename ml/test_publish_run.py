@@ -96,40 +96,40 @@ class TestUpdateManifest(unittest.TestCase):
 
 
 class TestBuildIndexJson(unittest.TestCase):
-    def test_minimal_regression_run(self):
+    def test_regression_run_real_shape(self):
+        """Mirrors the actual eval_report.json / train_summary.json a real
+        regression run writes: flat top-level keys + derived_binary_sweep."""
         eval_report = {
             "target_type": "regression",
-            "metrics": {
-                "pearson_r": 0.82,
-                "spearman_r": 0.81,
-                "r_squared": 0.67,
-                "val_mse": 0.041,
-                "binary_threshold_sweep": {"best_f1": 0.847, "threshold": 0.5},
-            },
-            "data": {
-                "train_samples": 3284, "val_samples": 723, "test_samples": 731,
-                "class_balance": {"negative": 2638, "positive": 646},
-            },
+            "num_samples": 702,
+            "mae": 0.197,
+            "rmse": 0.367,
+            "pearson_r": 0.51,
+            "spearman_r": 0.64,
+            "r_squared": 0.21,
+            "derived_binary_sweep": [
+                {"threshold": 0.3, "precision": 0.71, "recall": 0.79, "f1": 0.74},
+                {"threshold": 0.5, "precision": 0.51, "recall": 0.72, "f1": 0.60},
+            ],
         }
         train_summary = {
-            "epochs_completed": 12,
-            "early_stopped_epoch": 12,
-            "best_epoch": 7,
-            "epoch_history": [
-                {"epoch": 1, "train_loss": 0.4, "val_loss": 0.4},
-                {"epoch": 7, "train_loss": 0.2, "val_loss": 0.22},
-                {"epoch": 12, "train_loss": 0.15, "val_loss": 0.23},
+            "target_type": "regression",
+            "model_name": "resnet18",
+            "epochs": 30,
+            "epochs_completed": 16,
+            "early_stopped_epoch": 16,
+            "head_dropout": 0.3,
+            "lr_schedule": "cosine",
+            "history": [
+                {"epoch": 1, "train_loss": 0.44, "val_loss": 0.14, "val_metric": 0.14},
+                {"epoch": 7, "train_loss": 0.20, "val_loss": 0.08, "val_metric": 0.08},
+                {"epoch": 16, "train_loss": 0.12, "val_loss": 0.09, "val_metric": 0.09},
             ],
         }
         config = {
             "run_name": "v3_regression_llm_labels",
             "model": "resnet18",
             "target_type": "regression",
-            "epochs": 15,
-            "lr_schedule": "cosine",
-            "early_stopping_patience": 5,
-            "head_dropout": 0.3,
-            "class_weighting": "balanced",
             "label_source": "llm",
         }
 
@@ -141,15 +141,60 @@ class TestBuildIndexJson(unittest.TestCase):
             published_at="2026-05-11T00:00:00Z",
         )
 
-        self.assertEqual(idx["schema_version"], 1)
-        self.assertEqual(idx["slug"], "v3_regression_llm_labels")
         self.assertEqual(idx["config_summary"]["target_type"], "regression")
-        self.assertAlmostEqual(idx["metrics"]["pearson_r"], 0.82)
-        self.assertAlmostEqual(idx["metrics"]["best_f1"], 0.847)
-        self.assertIn(idx["diagnosis"]["status"],
-                      {"healthy", "mild_overfit", "overfit", "severe_overfit"})
-        self.assertEqual(idx["data"]["class_balance"]["ratio"],
-                         round(2638 / 646, 2))
+        self.assertAlmostEqual(idx["metrics"]["pearson_r"], 0.51)
+        # best row from derived_binary_sweep is the threshold=0.3 row
+        self.assertAlmostEqual(idx["metrics"]["best_f1"], 0.74)
+        # val_mse derived from rmse**2
+        self.assertAlmostEqual(idx["metrics"]["val_mse"], 0.367 ** 2)
+        # best epoch picked from history (lowest val_loss = epoch 7)
+        self.assertEqual(idx["metrics"]["best_epoch"], 7)
+        self.assertEqual(idx["metrics"]["epochs_completed"], 16)
+        self.assertEqual(idx["metrics"]["early_stopped_epoch"], 16)
+
+    def test_binary_run_real_shape(self):
+        """Real binary run: flat f1/precision/recall + confusion matrix."""
+        eval_report = {
+            "target_type": "binary",
+            "num_samples": 100,
+            "precision": 0.85,
+            "recall": 0.78,
+            "f1": 0.81,
+            "confusion": {"tn": 30, "fp": 10, "fn": 12, "tp": 48},
+        }
+        train_summary = {
+            "target_type": "binary",
+            "model_name": "resnet18",
+            "epochs": 10,
+            "train_class_counts": {"0": 40, "1": 60},
+            "history": [
+                {"epoch": 1, "train_loss": 0.8, "val_loss": 0.6, "val_metric": 0.7},
+                {"epoch": 5, "train_loss": 0.4, "val_loss": 0.3, "val_metric": 0.85},
+                {"epoch": 10, "train_loss": 0.2, "val_loss": 0.4, "val_metric": 0.81},
+            ],
+        }
+        config = {"run_name": "v2_baseline", "target_type": "binary"}
+
+        idx = build_index_json(
+            slug="v2_baseline",
+            eval_report=eval_report,
+            train_summary=train_summary,
+            config=config,
+            published_at="2026-05-11T00:00:00Z",
+        )
+
+        self.assertEqual(idx["config_summary"]["target_type"], "binary")
+        self.assertAlmostEqual(idx["metrics"]["best_f1"], 0.81)
+        self.assertAlmostEqual(idx["metrics"]["val_precision"], 0.85)
+        self.assertAlmostEqual(idx["metrics"]["val_recall"], 0.78)
+        # accuracy from confusion: (tn + tp) / total = (30+48)/100
+        self.assertAlmostEqual(idx["metrics"]["val_accuracy"], 0.78)
+        # best epoch picked from history (max val_metric = epoch 5)
+        self.assertEqual(idx["metrics"]["best_epoch"], 5)
+        self.assertEqual(idx["metrics"]["epochs_completed"], 10)
+        # class balance falls back to train_class_counts
+        self.assertEqual(idx["data"]["class_balance"]["negative"], 40)
+        self.assertEqual(idx["data"]["class_balance"]["positive"], 60)
 
 
 if __name__ == "__main__":

@@ -71,40 +71,84 @@ def classify_status(
     return {"status": status, "note": note}
 
 
-def _class_balance(eval_report: dict[str, Any]) -> dict[str, Any]:
+def _class_balance(
+    eval_report: dict[str, Any],
+    train_summary: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Class balance from eval_report.data, or fall back to train_class_counts."""
     cb = eval_report.get("data", {}).get("class_balance", {})
     neg = cb.get("negative")
     pos = cb.get("positive")
+    if (neg is None or pos is None) and train_summary is not None:
+        counts = train_summary.get("train_class_counts") or {}
+        # train_class_counts keys may be strings ("0", "1") or ints
+        if neg is None:
+            neg = counts.get("0", counts.get(0))
+        if pos is None:
+            pos = counts.get("1", counts.get(1))
     if neg is not None and pos:
         return {"negative": neg, "positive": pos, "ratio": round(neg / pos, 2)}
     return {"negative": neg, "positive": pos, "ratio": None}
 
 
 def _binary_metrics(eval_report: dict[str, Any]) -> dict[str, float]:
-    metrics = eval_report.get("metrics", {})
-    sweep = metrics.get("binary_threshold_sweep", {})
+    """Extract binary classification metrics.
+
+    Handles two real-world shapes:
+      - Binary run: flat top-level keys (f1, precision, recall, confusion).
+      - Regression run with thresholding: pick the best row from
+        derived_binary_sweep by f1.
+    """
     out: dict[str, float] = {}
-    for src_key, dst_key in [
-        ("val_f1", "val_f1"),
-        ("best_f1", "val_f1"),
-        ("val_precision", "val_precision"),
-        ("val_recall", "val_recall"),
-        ("val_accuracy", "val_accuracy"),
-    ]:
-        if src_key in metrics:
-            out[dst_key] = float(metrics[src_key])
-        elif src_key in sweep:
-            out[dst_key] = float(sweep[src_key])
+    target_type = eval_report.get("target_type")
+    if target_type == "binary":
+        for k in ("f1", "precision", "recall"):
+            v = eval_report.get(k)
+            if v is not None:
+                out[f"val_{k}"] = float(v)
+        conf = eval_report.get("confusion", {}) or {}
+        total = sum((conf.get(k) or 0) for k in ("tn", "fp", "fn", "tp"))
+        if total > 0:
+            out["val_accuracy"] = (
+                (conf.get("tn") or 0) + (conf.get("tp") or 0)
+            ) / total
+    elif target_type == "regression":
+        sweep = eval_report.get("derived_binary_sweep") or []
+        if sweep:
+            best = max(sweep, key=lambda r: r.get("f1", float("-inf")))
+            for k in ("f1", "precision", "recall"):
+                v = best.get(k)
+                if v is not None:
+                    out[f"val_{k}"] = float(v)
     return out
 
 
 def _regression_metrics(eval_report: dict[str, Any]) -> dict[str, float]:
-    metrics = eval_report.get("metrics", {})
-    return {
-        k: float(metrics[k])
-        for k in ("pearson_r", "spearman_r", "r_squared", "val_mse")
-        if k in metrics
-    }
+    """Regression metrics from flat top-level keys; derive val_mse from rmse."""
+    out: dict[str, float] = {}
+    for k in ("pearson_r", "spearman_r", "r_squared"):
+        v = eval_report.get(k)
+        if v is not None:
+            out[k] = float(v)
+    rmse = eval_report.get("rmse")
+    if rmse is not None:
+        out["val_mse"] = float(rmse) ** 2
+    return out
+
+
+def _best_epoch_from_history(
+    history: list[dict[str, Any]],
+    target_type: str | None,
+) -> int | None:
+    """Pick the best epoch index: lowest val_loss for regression, highest
+    val_metric for binary (which is typically f1 or balanced accuracy)."""
+    if not history:
+        return None
+    if target_type == "regression":
+        best = min(history, key=lambda e: e.get("val_loss", float("inf")))
+    else:
+        best = max(history, key=lambda e: e.get("val_metric", float("-inf")))
+    return best.get("epoch")
 
 
 def build_index_json(
@@ -115,13 +159,27 @@ def build_index_json(
     config: dict[str, Any],
     published_at: str,
 ) -> dict[str, Any]:
-    target_type = eval_report.get("target_type", config.get("target_type"))
-    diagnosis = classify_status(
-        train_summary.get("epoch_history", []),
-        best_epoch=train_summary.get("best_epoch", 0),
+    target_type = (
+        eval_report.get("target_type")
+        or train_summary.get("target_type")
+        or config.get("target_type")
     )
+    history = (
+        train_summary.get("history")
+        or train_summary.get("epoch_history")
+        or []
+    )
+    best_epoch = train_summary.get("best_epoch")
+    if best_epoch is None:
+        best_epoch = _best_epoch_from_history(history, target_type)
+
+    diagnosis = classify_status(history, best_epoch=best_epoch or 0)
     binary = _binary_metrics(eval_report)
     regression = _regression_metrics(eval_report)
+
+    epochs_completed = train_summary.get("epochs_completed")
+    if epochs_completed is None and history:
+        epochs_completed = history[-1].get("epoch")
 
     return {
         "schema_version": 1,
@@ -129,13 +187,22 @@ def build_index_json(
         "display_name": config.get("run_name", slug),
         "published_at": published_at,
         "config_summary": {
-            "model": config.get("model"),
+            "model": config.get("model") or train_summary.get("model_name"),
             "target_type": target_type,
-            "epochs_configured": config.get("epochs"),
-            "lr_schedule": config.get("lr_schedule"),
-            "early_stopping_patience": config.get("early_stopping_patience"),
-            "head_dropout": config.get("head_dropout"),
-            "class_weighting": config.get("class_weighting"),
+            "epochs_configured": config.get("epochs") or train_summary.get("epochs"),
+            "lr_schedule": (
+                config.get("lr_schedule") or train_summary.get("lr_schedule")
+            ),
+            "early_stopping_patience": (
+                config.get("early_stopping_patience")
+                or train_summary.get("early_stopping_patience")
+            ),
+            "head_dropout": (
+                config.get("head_dropout") or train_summary.get("head_dropout")
+            ),
+            "class_weighting": (
+                config.get("class_weighting") or train_summary.get("class_weighting")
+            ),
             "label_source": config.get("label_source"),
         },
         "metrics": {
@@ -144,16 +211,19 @@ def build_index_json(
             "val_precision": binary.get("val_precision"),
             "val_recall": binary.get("val_recall"),
             "val_accuracy": binary.get("val_accuracy"),
-            "best_epoch": train_summary.get("best_epoch"),
-            "epochs_completed": train_summary.get("epochs_completed"),
+            "best_epoch": best_epoch,
+            "epochs_completed": epochs_completed,
             "early_stopped_epoch": train_summary.get("early_stopped_epoch"),
         },
         "diagnosis": diagnosis,
         "data": {
             "train_samples": eval_report.get("data", {}).get("train_samples"),
-            "val_samples": eval_report.get("data", {}).get("val_samples"),
+            "val_samples": (
+                eval_report.get("data", {}).get("val_samples")
+                or eval_report.get("num_samples")
+            ),
             "test_samples": eval_report.get("data", {}).get("test_samples"),
-            "class_balance": _class_balance(eval_report),
+            "class_balance": _class_balance(eval_report, train_summary),
         },
         "assets": {
             "loss_curves_png": "plots/loss_curves.png",
@@ -199,9 +269,7 @@ def build_manifest_entry(idx: dict[str, Any]) -> dict[str, Any]:
         "best_metric_value": primary_value,
         "best_epoch": metrics.get("best_epoch"),
         "epochs_total": metrics.get("epochs_completed"),
-        "early_stopped": metrics.get("early_stopped_epoch") is not None
-                         and metrics.get("early_stopped_epoch")
-                             != metrics.get("epochs_completed"),
+        "early_stopped": metrics.get("early_stopped_epoch") is not None,
         "status": idx["diagnosis"]["status"],
         "status_note": idx["diagnosis"]["note"],
     }
