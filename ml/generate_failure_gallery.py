@@ -60,7 +60,7 @@ def resolve_image_urls(
     sql = """
         SELECT
             id::text AS snapshot_id,
-            image_url,
+            firebase_url AS image_url,
             webcam_id,
             captured_at,
             llm_rating_explanation

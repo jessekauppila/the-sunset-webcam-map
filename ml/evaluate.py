@@ -241,7 +241,25 @@ def main() -> None:
     out = Path(args.output)
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(report, indent=2), encoding="utf-8")
-    print(json.dumps({"ok": True, "report": report, "output": str(out)}, indent=2))
+
+    # Also write per-row predictions next to the report so downstream tools
+    # (e.g. generate_failure_gallery.py) don't have to re-run inference.
+    predictions_path = out.parent / "predictions.csv"
+    pred_df = ds.df.loc[:, ["snapshot_id"]].copy()
+    pred_df["y_true"] = y_true
+    if args.target_type == "regression":
+        pred_df["y_pred"] = y_pred
+    else:
+        pred_df["y_pred"] = y_pred
+        pred_df["y_pred_proba"] = y_scores
+    pred_df.to_csv(predictions_path, index=False)
+
+    print(json.dumps({
+        "ok": True,
+        "report": report,
+        "output": str(out),
+        "predictions_csv": str(predictions_path),
+    }, indent=2))
 
 
 if __name__ == "__main__":
