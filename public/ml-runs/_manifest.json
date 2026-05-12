@@ -1,32 +1,32 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-05-12T06:11:50+00:00",
+  "generated_at": "2026-05-12T11:14:22+00:00",
   "runs": [
     {
       "slug": "v3_regression_llm_labels",
       "display_name": "v3_regression_llm_labels",
-      "published_at": "2026-05-12T06:11:50+00:00",
-      "started_at": "2026-05-11T05:48:02+00:00",
+      "published_at": "2026-05-12T11:14:22+00:00",
+      "started_at": "2026-05-12T10:33:48+00:00",
       "target_type": "regression",
       "binary_metrics": {
-        "val_f1": 0.7455621301775148,
-        "val_precision": 0.7078651685393258,
-        "val_recall": 0.7875,
+        "val_f1": 0.7405340773216421,
+        "val_precision": 0.9441056910569106,
+        "val_recall": 0.6091803278688525,
         "val_accuracy": null
       },
       "regression_metrics": {
-        "pearson_r": 0.5105889957401696,
-        "spearman_r": 0.6425261964329976,
-        "r_squared": 0.2103303853335502,
-        "val_mse": 0.1343818565008777
+        "pearson_r": 0.7354320873563323,
+        "spearman_r": 0.753063255676955,
+        "r_squared": 0.5384481880817059,
+        "val_mse": 0.03149714413799963
       },
       "best_metric_name": "val_f1",
-      "best_metric_value": 0.7455621301775148,
-      "best_epoch": 11,
-      "epochs_total": 16,
+      "best_metric_value": 0.7405340773216421,
+      "best_epoch": 9,
+      "epochs_total": 14,
       "early_stopped": true,
-      "train_samples": 3314,
-      "val_samples": 732,
+      "train_samples": 20189,
+      "val_samples": 4816,
       "test_samples": null,
       "status": "healthy",
       "status_note": "Train/val loss tracked together; no overfit signal."
