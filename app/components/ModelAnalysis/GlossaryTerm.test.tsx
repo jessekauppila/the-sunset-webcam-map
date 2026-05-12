@@ -25,4 +25,16 @@ describe('GlossaryTerm', () => {
     await user.tab();
     expect(await screen.findByText(/precision \+ recall/i)).toBeInTheDocument();
   });
+
+  it('renders an info icon next to the label when withIcon is true', () => {
+    const { container } = render(
+      <GlossaryTerm slug="val_f1" withIcon>F1</GlossaryTerm>
+    );
+    expect(container.querySelector('svg')).not.toBeNull();
+  });
+
+  it('does not render an icon when withIcon is omitted', () => {
+    const { container } = render(<GlossaryTerm slug="val_f1">F1</GlossaryTerm>);
+    expect(container.querySelector('svg')).toBeNull();
+  });
 });

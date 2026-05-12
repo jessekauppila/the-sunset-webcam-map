@@ -86,18 +86,18 @@ export function ModelLeaderboard({ runs, onSelect }: Props) {
               <TableCell>Run</TableCell>
               {group === 'binary' ? (
                 <>
-                  <TableCell><GlossaryTerm slug="val_f1">F1</GlossaryTerm></TableCell>
-                  <TableCell><GlossaryTerm slug="val_precision">Precision</GlossaryTerm></TableCell>
-                  <TableCell><GlossaryTerm slug="val_recall">Recall</GlossaryTerm></TableCell>
+                  <TableCell><GlossaryTerm slug="val_f1" withIcon>F1</GlossaryTerm></TableCell>
+                  <TableCell><GlossaryTerm slug="val_precision" withIcon>Precision</GlossaryTerm></TableCell>
+                  <TableCell><GlossaryTerm slug="val_recall" withIcon>Recall</GlossaryTerm></TableCell>
                 </>
               ) : (
                 <>
-                  <TableCell><GlossaryTerm slug="pearson_r">Pearson r</GlossaryTerm></TableCell>
-                  <TableCell><GlossaryTerm slug="spearman_r">Spearman r</GlossaryTerm></TableCell>
-                  <TableCell><GlossaryTerm slug="val_mse">MSE</GlossaryTerm></TableCell>
+                  <TableCell><GlossaryTerm slug="pearson_r" withIcon>Pearson r</GlossaryTerm></TableCell>
+                  <TableCell><GlossaryTerm slug="spearman_r" withIcon>Spearman r</GlossaryTerm></TableCell>
+                  <TableCell><GlossaryTerm slug="val_mse" withIcon>MSE</GlossaryTerm></TableCell>
                 </>
               )}
-              <TableCell><GlossaryTerm slug="best_epoch">Best epoch</GlossaryTerm></TableCell>
+              <TableCell><GlossaryTerm slug="best_epoch" withIcon>Best epoch</GlossaryTerm></TableCell>
               <TableCell>Status</TableCell>
             </TableRow>
           </TableHead>
