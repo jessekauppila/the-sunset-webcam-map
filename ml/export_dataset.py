@@ -139,6 +139,7 @@ def fetch_rows(
     conn: psycopg2.extensions.connection,
     label_source: str,
     min_rating_count: int,
+    label_merge_strategy: str = "human_only",
 ) -> list[dict[str, Any]]:
     """
     Query candidate labeled snapshots for export.
@@ -147,8 +148,30 @@ def fetch_rows(
       Uses all snapshots with calculated rating and minimum rating count.
     public_aggregate:
       Uses snapshots backed by public votes and stricter confidence gate.
+    llm_only (via --label-merge-strategy):
+      Uses *all* snapshots with an image; the LLM override CSV supplies the
+      label. Human rating count is not required since the LLM is the label
+      source.
     """
-    if label_source == "public_aggregate":
+    if label_merge_strategy == "llm_only":
+        query = """
+        SELECT
+          s.id AS snapshot_id,
+          s.webcam_id,
+          s.firebase_url AS image_path_or_url,
+          s.phase,
+          s.captured_at,
+          s.calculated_rating AS label_value,
+          COALESCE(c.rating_count, 0)::int AS rating_count
+        FROM webcam_snapshots s
+        LEFT JOIN (
+          SELECT snapshot_id, COUNT(*) AS rating_count
+          FROM webcam_snapshot_ratings
+          GROUP BY snapshot_id
+        ) c ON c.snapshot_id = s.id
+        WHERE s.firebase_url IS NOT NULL
+        """
+    elif label_source == "public_aggregate":
         query = """
         SELECT
           s.id AS snapshot_id,
@@ -286,7 +309,12 @@ def main() -> None:
     use_llm_labels = bool(llm_overrides) and args.label_merge_strategy != "human_only"
 
     with psycopg2.connect(database_url) as conn:
-        rows = fetch_rows(conn, args.label_source, args.min_rating_count)
+        rows = fetch_rows(
+            conn,
+            args.label_source,
+            args.min_rating_count,
+            label_merge_strategy=args.label_merge_strategy,
+        )
 
         manifest: list[dict[str, Any]] = []
         for row in tqdm(
