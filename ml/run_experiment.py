@@ -256,7 +256,6 @@ def main() -> None:
     # Make sibling modules importable when this script is run as a file
     # (`python ml/run_experiment.py`) rather than as a package
     # (`python -m ml.run_experiment`).
-    import sys
     _ml_dir = Path(__file__).resolve().parent
     if str(_ml_dir) not in sys.path:
         sys.path.insert(0, str(_ml_dir))
