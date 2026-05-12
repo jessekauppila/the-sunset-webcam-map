@@ -10,7 +10,7 @@
  * - Only updates webcam rows when fields actually change
  */
 
-import { fetchTerminatorWebcams } from '@/app/api/db-terminator-webcams/route';
+import { fetchTerminatorWebcams } from '@/app/lib/terminatorPayload';
 import { setCachedTerminatorPayload } from '@/app/lib/cache';
 import { NextResponse } from 'next/server';
 import { subsolarPoint } from '@/app/components/Map/lib/subsolarLocation';
