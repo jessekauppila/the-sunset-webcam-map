@@ -2,6 +2,7 @@
 import { Box, Typography } from '@mui/material';
 import type { RunIndex } from '@/app/lib/modelRuns.types';
 import { GlossaryTerm } from './GlossaryTerm';
+import { ML_GLOSSARY } from '@/app/lib/mlGlossary';
 import { STATUS_EMOJI, STATUS_LABEL } from './statusEmoji';
 
 interface Props {
@@ -45,7 +46,7 @@ export function MetricTiles({ index }: Props) {
         <Box
           key={t.slug}
           data-testid="metric-tile"
-          sx={{ background: '#111827', p: 1.5, borderRadius: 1 }}
+          sx={{ background: '#111827', p: 1.5, borderRadius: 1, display: 'flex', flexDirection: 'column' }}
         >
           <Typography
             variant="caption"
@@ -56,16 +57,26 @@ export function MetricTiles({ index }: Props) {
           <Typography variant="h6" sx={{ color: '#fff', mt: 0.5 }}>
             {t.value}
           </Typography>
+          {ML_GLOSSARY[t.slug]?.short && (
+            <Typography variant="caption" sx={{ color: '#64748b', mt: 0.5, lineHeight: 1.3 }}>
+              {ML_GLOSSARY[t.slug].short}
+            </Typography>
+          )}
         </Box>
       ))}
       <Box
         data-testid="metric-tile"
-        sx={{ background: '#111827', p: 1.5, borderRadius: 1 }}
+        sx={{ background: '#111827', p: 1.5, borderRadius: 1, display: 'flex', flexDirection: 'column' }}
       >
         <Typography variant="caption" sx={{ color: '#94a3b8' }}>Status</Typography>
         <Typography variant="h6" sx={{ color: '#fff', mt: 0.5 }}>
           {STATUS_EMOJI[index.diagnosis.status]} {STATUS_LABEL[index.diagnosis.status]}
         </Typography>
+        {ML_GLOSSARY[index.diagnosis.status]?.short && (
+          <Typography variant="caption" sx={{ color: '#64748b', mt: 0.5, lineHeight: 1.3 }}>
+            {ML_GLOSSARY[index.diagnosis.status].short}
+          </Typography>
+        )}
       </Box>
     </Box>
   );

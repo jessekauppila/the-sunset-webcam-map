@@ -45,6 +45,47 @@ def _count_csv_rows(path: Path | None) -> int | None:
         return max(sum(1 for _ in f) - 1, 0)
 
 
+def _bucket_label(value: float) -> str:
+    """Map a normalised 0.0–1.0 label to a 1–5 bucket label.
+
+    Values outside [0, 1] (e.g. raw human 1–5 ratings that never got
+    normalised) get tagged separately so we can flag them as a data
+    quality issue.
+    """
+    if value < 0 or value > 1:
+        return "unnormalized"
+    if value < 0.125:
+        return "1"
+    if value < 0.375:
+        return "2"
+    if value < 0.625:
+        return "3"
+    if value < 0.875:
+        return "4"
+    return "5"
+
+
+def _label_distribution(path: Path | None) -> dict[str, int] | None:
+    """Count label_value bucket occurrences in a manifest CSV. None if
+    the file is missing or has no label_value column."""
+    if path is None or not path.is_file():
+        return None
+    import csv
+    counts: dict[str, int] = {}
+    with path.open() as f:
+        reader = csv.DictReader(f)
+        if reader.fieldnames is None or "label_value" not in reader.fieldnames:
+            return None
+        for row in reader:
+            try:
+                v = float(row["label_value"])
+            except (TypeError, ValueError):
+                continue
+            key = _bucket_label(v)
+            counts[key] = counts.get(key, 0) + 1
+    return counts or None
+
+
 def classify_status(
     epoch_history: list[dict[str, Any]],
     *,
@@ -185,6 +226,7 @@ def build_index_json(
     published_at: str,
     started_at: str | None = None,
     sample_counts: dict[str, int | None] | None = None,
+    label_distribution: dict[str, dict[str, int] | None] | None = None,
 ) -> dict[str, Any]:
     target_type = (
         eval_report.get("target_type")
@@ -260,6 +302,7 @@ def build_index_json(
                 or eval_report.get("data", {}).get("test_samples")
             ),
             "class_balance": _class_balance(eval_report, train_summary),
+            "label_distribution": label_distribution or {},
         },
         "assets": {
             "loss_curves_png": "plots/loss_curves.png",
@@ -372,10 +415,18 @@ def publish(
     def _maybe_path(value: Any) -> Path | None:
         return Path(value) if isinstance(value, str) and value else None
 
+    train_csv = _maybe_path(train_summary.get("train_manifest"))
+    val_csv = _maybe_path(train_summary.get("val_manifest"))
+    test_csv = _maybe_path(train_summary.get("test_manifest"))
     sample_counts = {
-        "train": _count_csv_rows(_maybe_path(train_summary.get("train_manifest"))),
-        "val": _count_csv_rows(_maybe_path(train_summary.get("val_manifest"))),
-        "test": _count_csv_rows(_maybe_path(train_summary.get("test_manifest"))),
+        "train": _count_csv_rows(train_csv),
+        "val": _count_csv_rows(val_csv),
+        "test": _count_csv_rows(test_csv),
+    }
+    label_distribution = {
+        "train": _label_distribution(train_csv),
+        "val": _label_distribution(val_csv),
+        "test": _label_distribution(test_csv),
     }
     idx = build_index_json(
         slug=slug,
@@ -385,6 +436,7 @@ def publish(
         published_at=published_at,
         started_at=started_at,
         sample_counts=sample_counts,
+        label_distribution=label_distribution,
     )
     (out_dir / "index.json").write_text(json.dumps(idx, indent=2))
 

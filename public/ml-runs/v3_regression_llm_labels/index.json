@@ -2,7 +2,7 @@
   "schema_version": 1,
   "slug": "v3_regression_llm_labels",
   "display_name": "v3_regression_llm_labels",
-  "published_at": "2026-05-12T05:57:57+00:00",
+  "published_at": "2026-05-12T06:11:50+00:00",
   "started_at": "2026-05-11T05:48:02+00:00",
   "config_summary": {
     "model": {
@@ -47,6 +47,25 @@
       "negative": null,
       "positive": null,
       "ratio": null
+    },
+    "label_distribution": {
+      "train": {
+        "3": 744,
+        "1": 1874,
+        "2": 381,
+        "4": 245,
+        "5": 44,
+        "unnormalized": 26
+      },
+      "val": {
+        "1": 364,
+        "2": 74,
+        "4": 69,
+        "3": 208,
+        "5": 15,
+        "unnormalized": 2
+      },
+      "test": null
     }
   },
   "assets": {

@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-05-12T05:57:57+00:00",
+  "generated_at": "2026-05-12T06:11:50+00:00",
   "runs": [
     {
       "slug": "v3_regression_llm_labels",
       "display_name": "v3_regression_llm_labels",
-      "published_at": "2026-05-12T05:57:57+00:00",
+      "published_at": "2026-05-12T06:11:50+00:00",
       "started_at": "2026-05-11T05:48:02+00:00",
       "target_type": "regression",
       "binary_metrics": {
@@ -34,7 +34,7 @@
     {
       "slug": "v2_regression_mild_crop",
       "display_name": "v2_regression_mild_crop",
-      "published_at": "2026-05-12T05:57:57+00:00",
+      "published_at": "2026-05-12T06:11:50+00:00",
       "started_at": "2026-03-15T00:39:13+00:00",
       "target_type": "regression",
       "binary_metrics": {
@@ -60,7 +60,7 @@
     {
       "slug": "v2_full_crop_balanced",
       "display_name": "v2_full_crop_balanced",
-      "published_at": "2026-05-12T05:57:57+00:00",
+      "published_at": "2026-05-12T06:11:49+00:00",
       "started_at": "2026-03-14T19:45:28+00:00",
       "target_type": "binary",
       "binary_metrics": {
@@ -84,7 +84,7 @@
     {
       "slug": "v2_no_crop_balanced",
       "display_name": "v2_no_crop_balanced",
-      "published_at": "2026-05-12T05:57:57+00:00",
+      "published_at": "2026-05-12T06:11:49+00:00",
       "started_at": "2026-03-14T08:29:56+00:00",
       "target_type": "binary",
       "binary_metrics": {
@@ -108,7 +108,7 @@
     {
       "slug": "v2_mild_crop_balanced",
       "display_name": "v2_mild_crop_balanced",
-      "published_at": "2026-05-12T05:57:56+00:00",
+      "published_at": "2026-05-12T06:11:49+00:00",
       "started_at": "2026-03-14T07:07:06+00:00",
       "target_type": "binary",
       "binary_metrics": {
@@ -132,7 +132,7 @@
     {
       "slug": "v2_mild_crop_balanced_pilot",
       "display_name": "v2_mild_crop_balanced_pilot",
-      "published_at": "2026-05-12T05:57:56+00:00",
+      "published_at": "2026-05-12T06:11:49+00:00",
       "started_at": "2026-03-14T06:28:31+00:00",
       "target_type": "binary",
       "binary_metrics": {
@@ -156,7 +156,7 @@
     {
       "slug": "v2_no_crop_b",
       "display_name": "v2_no_crop_b",
-      "published_at": "2026-05-12T05:57:56+00:00",
+      "published_at": "2026-05-12T06:11:49+00:00",
       "started_at": "2026-03-14T05:35:39+00:00",
       "target_type": "binary",
       "binary_metrics": {
@@ -180,7 +180,7 @@
     {
       "slug": "v2_baseline",
       "display_name": "v2_baseline",
-      "published_at": "2026-05-12T05:57:56+00:00",
+      "published_at": "2026-05-12T06:11:49+00:00",
       "started_at": "2026-03-14T05:33:51+00:00",
       "target_type": "binary",
       "binary_metrics": {

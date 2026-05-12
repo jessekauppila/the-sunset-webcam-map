@@ -80,6 +80,11 @@ export interface RunIndex {
       positive: number | null;
       ratio: number | null;
     };
+    label_distribution?: {
+      train?: Record<string, number> | null;
+      val?: Record<string, number> | null;
+      test?: Record<string, number> | null;
+    };
   };
   assets: {
     loss_curves_png: string;
