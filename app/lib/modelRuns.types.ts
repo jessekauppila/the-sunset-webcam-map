@@ -26,6 +26,7 @@ export interface ManifestEntry {
   slug: string;
   display_name: string;
   published_at: string;
+  started_at?: string | null;
   target_type: TargetType;
   binary_metrics: BinaryMetrics;
   regression_metrics: RegressionMetrics;
@@ -34,6 +35,9 @@ export interface ManifestEntry {
   best_epoch: number | null;
   epochs_total: number | null;
   early_stopped: boolean;
+  train_samples?: number | null;
+  val_samples?: number | null;
+  test_samples?: number | null;
   status: RunStatus;
   status_note: string;
 }
@@ -49,6 +53,7 @@ export interface RunIndex {
   slug: string;
   display_name: string;
   published_at: string;
+  started_at?: string | null;
   config_summary: {
     model: string | null;
     target_type: TargetType;

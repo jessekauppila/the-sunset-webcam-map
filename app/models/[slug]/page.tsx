@@ -26,7 +26,8 @@ export default async function ModelPage({ params }: PageProps) {
   if (!index) notFound();
 
   const failure = readFailureGallery(slug);
-  const publishedDate = new Date(index.published_at).toLocaleDateString();
+  const trainedAt = index.started_at ?? index.published_at;
+  const trainedDate = new Date(trainedAt).toLocaleDateString();
   const lossCurves = `/ml-runs/${slug}/${index.assets.loss_curves_png}`;
   const labelDist = `/ml-runs/${slug}/${index.assets.label_distribution_png}`;
 
@@ -47,9 +48,19 @@ export default async function ModelPage({ params }: PageProps) {
         <h1 style={{ margin: 0 }}>{index.display_name}</h1>
         <ShareButton />
       </div>
-      <div style={{ color: '#94a3b8', fontSize: 13, marginTop: 4 }}>
-        Published {publishedDate} · {index.config_summary.target_type} ·{' '}
+      <div style={{ color: '#cbd5e1', fontSize: 13, marginTop: 4 }}>
+        Trained {trainedDate} · {index.config_summary.target_type} ·{' '}
         {index.metrics.epochs_completed ?? '?'} epochs
+        {(index.data.train_samples || index.data.val_samples || index.data.test_samples) && (
+          <>
+            {' '}·{' '}
+            {index.data.train_samples?.toLocaleString() ?? '?'} train /{' '}
+            {index.data.val_samples?.toLocaleString() ?? '?'} val
+            {index.data.test_samples
+              ? ` / ${index.data.test_samples.toLocaleString()} test`
+              : ''}
+          </>
+        )}
       </div>
 
       <section style={{ marginTop: 24 }}>
@@ -104,7 +115,10 @@ export default async function ModelPage({ params }: PageProps) {
           gap: 8,
         }}
       >
-        <span>Published {new Date(index.published_at).toLocaleString()}</span>
+        <span>
+          Trained {new Date(trainedAt).toLocaleString()}
+          {index.started_at && ` · published ${new Date(index.published_at).toLocaleString()}`}
+        </span>
         <Link href="/" style={{ color: '#60a5fa' }}>
           ← Back to leaderboard
         </Link>

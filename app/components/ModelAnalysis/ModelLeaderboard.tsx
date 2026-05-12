@@ -32,6 +32,30 @@ function fmt(value: number | null | undefined, digits = 3): string {
   return typeof value === 'number' ? value.toFixed(digits) : '—';
 }
 
+function totalSamples(run: ManifestEntry): number | null {
+  const sum =
+    (run.train_samples ?? 0) +
+    (run.val_samples ?? 0) +
+    (run.test_samples ?? 0);
+  return sum > 0 ? sum : null;
+}
+
+function fmtSamples(n: number | null): string {
+  if (n === null) return '—';
+  if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
+  return n.toString();
+}
+
+function runDate(run: ManifestEntry): string {
+  const iso = run.started_at ?? run.published_at;
+  if (!iso) return '—';
+  return new Date(iso).toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    year: '2-digit',
+  });
+}
+
 export function ModelLeaderboard({ runs, onSelect }: Props) {
   const [group, setGroup] = useState<MetricGroup>(() => pickDefaultGroup(runs));
 
@@ -72,18 +96,50 @@ export function ModelLeaderboard({ runs, onSelect }: Props) {
         exclusive
         size="small"
         onChange={(_, v) => v && changeGroup(v)}
-        sx={{ mb: 1 }}
+        sx={{
+          mb: 1,
+          '& .MuiToggleButton-root': {
+            color: '#cbd5e1',
+            borderColor: '#334155',
+            '&.Mui-selected': {
+              color: '#fff',
+              background: '#1e293b',
+              '&:hover': { background: '#1e293b' },
+            },
+          },
+        }}
       >
         <ToggleButton value="binary">Binary classification</ToggleButton>
         <ToggleButton value="regression">Regression</ToggleButton>
       </ToggleButtonGroup>
 
       <TableContainer>
-        <Table size="small">
+        <Table
+          size="small"
+          sx={{
+            '& .MuiTableCell-root': {
+              color: '#e5e7eb',
+              borderColor: '#334155',
+            },
+            '& .MuiTableCell-head': {
+              color: '#cbd5e1',
+              fontWeight: 600,
+              background: '#0f172a',
+            },
+            '& tbody .MuiTableRow-root:hover': {
+              background: '#1e293b',
+            },
+            '& tbody .dimmed .MuiTableCell-root': {
+              color: '#64748b',
+            },
+          }}
+        >
           <TableHead>
             <TableRow>
               <TableCell>#</TableCell>
               <TableCell>Run</TableCell>
+              <TableCell>Date</TableCell>
+              <TableCell>Samples</TableCell>
               {group === 'binary' ? (
                 <>
                   <TableCell><GlossaryTerm slug="val_f1" withIcon>F1</GlossaryTerm></TableCell>
@@ -112,13 +168,12 @@ export function ModelLeaderboard({ runs, onSelect }: Props) {
                   hover
                   className={missing ? 'dimmed' : ''}
                   onClick={() => onSelect(r.slug)}
-                  sx={{
-                    cursor: 'pointer',
-                    opacity: missing ? 0.5 : 1,
-                  }}
+                  sx={{ cursor: 'pointer' }}
                 >
                   <TableCell>{i + 1}</TableCell>
                   <TableCell>{r.display_name}</TableCell>
+                  <TableCell>{runDate(r)}</TableCell>
+                  <TableCell>{fmtSamples(totalSamples(r))}</TableCell>
                   {group === 'binary' ? (
                     <>
                       <TableCell>{fmt(r.binary_metrics?.val_f1)}</TableCell>

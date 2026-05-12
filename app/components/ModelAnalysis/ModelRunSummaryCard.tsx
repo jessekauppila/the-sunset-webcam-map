@@ -16,9 +16,12 @@ function fmt(v: number | null | undefined, digits = 2): string {
 }
 
 export function ModelRunSummaryCard({ run }: Props) {
+  const trainedAt = run.started_at ?? run.published_at;
+  const totalSamples =
+    (run.train_samples ?? 0) + (run.val_samples ?? 0) + (run.test_samples ?? 0);
   return (
     <Box sx={{ p: 2.25 }}>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', mb: 2 }}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', mb: 0.5 }}>
         <Typography variant="h6" sx={{ color: '#fff' }}>{run.display_name}</Typography>
         <Button
           component={Link}
@@ -26,10 +29,21 @@ export function ModelRunSummaryCard({ run }: Props) {
           endIcon={<OpenInNewIcon />}
           variant="outlined"
           size="small"
+          sx={{
+            color: '#cbd5e1',
+            borderColor: '#334155',
+            '&:hover': { borderColor: '#475569', background: '#1e293b' },
+          }}
         >
           Open full view
         </Button>
       </Box>
+      <Typography variant="caption" sx={{ display: 'block', color: '#cbd5e1', mb: 2 }}>
+        Trained {new Date(trainedAt).toLocaleString()}
+        {totalSamples > 0 && (
+          <> · {run.train_samples?.toLocaleString() ?? '?'} train / {run.val_samples?.toLocaleString() ?? '?'} val{run.test_samples ? ` / ${run.test_samples.toLocaleString()} test` : ''}</>
+        )}
+      </Typography>
 
       <Box
         sx={{

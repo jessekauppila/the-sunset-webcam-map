@@ -10,10 +10,14 @@ interface Props {
   onSelect: (slug: string) => void;
 }
 
-function formatDate(iso: string): string {
+function formatDate(iso: string | null | undefined): string {
   if (!iso) return '';
   const d = new Date(iso);
   return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+
+function runDate(run: ManifestEntry): string {
+  return formatDate(run.started_at ?? run.published_at);
 }
 
 function primaryMetric(run: ManifestEntry): string {
@@ -22,6 +26,19 @@ function primaryMetric(run: ManifestEntry): string {
   const r = run.regression_metrics?.pearson_r;
   if (typeof r === 'number') return `r ${r.toFixed(2)}`;
   return '—';
+}
+
+function totalSamples(run: ManifestEntry): number | null {
+  const t = run.train_samples ?? 0;
+  const v = run.val_samples ?? 0;
+  const te = run.test_samples ?? 0;
+  const sum = t + v + te;
+  return sum > 0 ? sum : null;
+}
+
+function formatSamples(n: number): string {
+  if (n >= 1000) return `${(n / 1000).toFixed(1)}k samples`;
+  return `${n} samples`;
 }
 
 export function ModelRunList({ runs, selectedSlug, onSelect }: Props) {
@@ -72,12 +89,17 @@ export function ModelRunList({ runs, selectedSlug, onSelect }: Props) {
             <Typography variant="body2" sx={{ color: '#e5e7eb', fontWeight: 600 }}>
               {run.display_name}
             </Typography>
-            <Typography variant="caption" sx={{ color: '#94a3b8' }}>
-              {formatDate(run.published_at)} · {primaryMetric(run)} ·{' '}
+            <Typography variant="caption" sx={{ display: 'block', color: '#cbd5e1' }}>
+              {runDate(run)} · {primaryMetric(run)} ·{' '}
               <span aria-label={STATUS_LABEL[run.status]}>
                 {STATUS_EMOJI[run.status]}
               </span>
             </Typography>
+            {totalSamples(run) !== null && (
+              <Typography variant="caption" sx={{ display: 'block', color: '#94a3b8', mt: 0.25 }}>
+                {formatSamples(totalSamples(run) as number)}
+              </Typography>
+            )}
           </Box>
         );
       })}

@@ -20,6 +20,31 @@ def slugify(text: str) -> str:
     return re.sub(r"_+", "_", out)
 
 
+def parse_started_at(run_dir: Path) -> str | None:
+    """Derive the run's start time from the directory name prefix.
+
+    Convention is `<YYYYMMDD>_<HHMMSS>_<run_name>`. Returns ISO-8601 in UTC,
+    or None if the directory name doesn't match.
+    """
+    m = re.match(r"^(\d{8})_(\d{6})_", run_dir.name)
+    if not m:
+        return None
+    try:
+        dt = datetime.strptime(m.group(1) + m.group(2), "%Y%m%d%H%M%S")
+        return dt.replace(tzinfo=timezone.utc).isoformat(timespec="seconds")
+    except ValueError:
+        return None
+
+
+def _count_csv_rows(path: Path | None) -> int | None:
+    """Count data rows (excluding header) in a CSV. None if path missing
+    or empty."""
+    if path is None or not path.is_file():
+        return None
+    with path.open() as f:
+        return max(sum(1 for _ in f) - 1, 0)
+
+
 def classify_status(
     epoch_history: list[dict[str, Any]],
     *,
@@ -158,6 +183,8 @@ def build_index_json(
     train_summary: dict[str, Any],
     config: dict[str, Any],
     published_at: str,
+    started_at: str | None = None,
+    sample_counts: dict[str, int | None] | None = None,
 ) -> dict[str, Any]:
     target_type = (
         eval_report.get("target_type")
@@ -181,11 +208,13 @@ def build_index_json(
     if epochs_completed is None and history:
         epochs_completed = history[-1].get("epoch")
 
+    sample_counts = sample_counts or {}
     return {
         "schema_version": 1,
         "slug": slug,
         "display_name": config.get("run_name", slug),
         "published_at": published_at,
+        "started_at": started_at,
         "config_summary": {
             "model": config.get("model") or train_summary.get("model_name"),
             "target_type": target_type,
@@ -217,12 +246,19 @@ def build_index_json(
         },
         "diagnosis": diagnosis,
         "data": {
-            "train_samples": eval_report.get("data", {}).get("train_samples"),
+            "train_samples": (
+                sample_counts.get("train")
+                or eval_report.get("data", {}).get("train_samples")
+            ),
             "val_samples": (
-                eval_report.get("data", {}).get("val_samples")
+                sample_counts.get("val")
+                or eval_report.get("data", {}).get("val_samples")
                 or eval_report.get("num_samples")
             ),
-            "test_samples": eval_report.get("data", {}).get("test_samples"),
+            "test_samples": (
+                sample_counts.get("test")
+                or eval_report.get("data", {}).get("test_samples")
+            ),
             "class_balance": _class_balance(eval_report, train_summary),
         },
         "assets": {
@@ -257,6 +293,7 @@ def build_manifest_entry(idx: dict[str, Any]) -> dict[str, Any]:
         "slug": idx["slug"],
         "display_name": idx["display_name"],
         "published_at": idx["published_at"],
+        "started_at": idx.get("started_at"),
         "target_type": idx["config_summary"]["target_type"],
         "binary_metrics": {
             "val_f1": binary.get("best_f1"),
@@ -270,6 +307,9 @@ def build_manifest_entry(idx: dict[str, Any]) -> dict[str, Any]:
         "best_epoch": metrics.get("best_epoch"),
         "epochs_total": metrics.get("epochs_completed"),
         "early_stopped": metrics.get("early_stopped_epoch") is not None,
+        "train_samples": idx["data"]["train_samples"],
+        "val_samples": idx["data"]["val_samples"],
+        "test_samples": idx["data"]["test_samples"],
         "status": idx["diagnosis"]["status"],
         "status_note": idx["diagnosis"]["note"],
     }
@@ -279,10 +319,14 @@ def update_manifest(
     manifest: dict[str, Any],
     new_entry: dict[str, Any],
 ) -> dict[str, Any]:
-    """Insert or replace `new_entry` keyed by slug; sort by published_at desc."""
+    """Insert or replace `new_entry` keyed by slug; sort by started_at desc
+    (falling back to published_at) so the most-recently-trained run is first."""
     runs = [r for r in manifest.get("runs", []) if r["slug"] != new_entry["slug"]]
     runs.append(new_entry)
-    runs.sort(key=lambda r: r.get("published_at", ""), reverse=True)
+    runs.sort(
+        key=lambda r: (r.get("started_at") or r.get("published_at") or ""),
+        reverse=True,
+    )
     return {
         "schema_version": 1,
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
@@ -324,12 +368,23 @@ def publish(
         (run_dir / "train" / "train_summary.json").read_text()
     )
     published_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    started_at = parse_started_at(run_dir)
+    def _maybe_path(value: Any) -> Path | None:
+        return Path(value) if isinstance(value, str) and value else None
+
+    sample_counts = {
+        "train": _count_csv_rows(_maybe_path(train_summary.get("train_manifest"))),
+        "val": _count_csv_rows(_maybe_path(train_summary.get("val_manifest"))),
+        "test": _count_csv_rows(_maybe_path(train_summary.get("test_manifest"))),
+    }
     idx = build_index_json(
         slug=slug,
         eval_report=eval_report,
         train_summary=train_summary,
         config=config,
         published_at=published_at,
+        started_at=started_at,
+        sample_counts=sample_counts,
     )
     (out_dir / "index.json").write_text(json.dumps(idx, indent=2))
 
