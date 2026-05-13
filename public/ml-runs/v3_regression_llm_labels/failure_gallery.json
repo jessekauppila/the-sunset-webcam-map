@@ -1,208 +1,208 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-05-12T17:26:11+00:00",
+  "generated_at": "2026-05-13T19:14:54+00:00",
   "split": "val",
   "target_type": "regression",
   "items": [
     {
-      "snapshot_id": "79036.0",
-      "webcam_id": null,
-      "image_url": null,
+      "snapshot_id": "79036",
+      "webcam_id": 15931067,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/15931067/1773170044103.jpg",
       "true_label": 0.78,
       "predicted_score": 0.0522358603775501,
       "absolute_error": 0.7277641396224499,
-      "captured_at": null,
-      "llm_explanation": null
+      "captured_at": "2026-03-10T19:14:04.378197+00:00",
+      "llm_explanation": "Striking contrast between brilliant golden yellow light at the horizon and dark, dramatic storm clouds creates a powerful and vivid scene with palm trees silhouetted against the light."
     },
     {
-      "snapshot_id": "70447.0",
-      "webcam_id": null,
-      "image_url": null,
+      "snapshot_id": "70447",
+      "webcam_id": 11181337,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/11181337/1771155649468.jpg",
       "true_label": 0.72,
       "predicted_score": -0.0055383630096912,
       "absolute_error": 0.7255383630096912,
-      "captured_at": null,
-      "llm_explanation": null
+      "captured_at": "2026-02-15T11:40:49.755532+00:00",
+      "llm_explanation": "Beautiful golden light with warm orange and pink tones illuminating the winter landscape, though limited sky visibility reduces dramatic impact."
     },
     {
-      "snapshot_id": "70459.0",
-      "webcam_id": null,
-      "image_url": null,
+      "snapshot_id": "70459",
+      "webcam_id": 11181337,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/11181337/1771157509426.jpg",
       "true_label": 0.72,
       "predicted_score": 0.0033057071268558,
       "absolute_error": 0.7166942928731441,
-      "captured_at": null,
-      "llm_explanation": null
+      "captured_at": "2026-02-15T12:11:49.703557+00:00",
+      "llm_explanation": "Golden sun visible through atmospheric haze with warm light illuminating the snowy landscape and subtle cloud formations creating a pleasant winter sunrise scene."
     },
     {
-      "snapshot_id": "70478.0",
-      "webcam_id": null,
-      "image_url": null,
+      "snapshot_id": "70478",
+      "webcam_id": 11181337,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/11181337/1771162069679.jpg",
       "true_label": 0.72,
       "predicted_score": 0.0240576602518558,
       "absolute_error": 0.6959423397481441,
-      "captured_at": null,
-      "llm_explanation": null
+      "captured_at": "2026-02-15T13:27:50.013271+00:00",
+      "llm_explanation": "Warm golden and pink hues illuminate the snowy landscape and clouds, creating a vivid winter sunrise scene."
     },
     {
-      "snapshot_id": "70487.0",
-      "webcam_id": null,
-      "image_url": null,
+      "snapshot_id": "70487",
+      "webcam_id": 11181337,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/11181337/1771163930075.jpg",
       "true_label": 0.72,
       "predicted_score": 0.0282978452742099,
       "absolute_error": 0.6917021547257901,
-      "captured_at": null,
-      "llm_explanation": null
+      "captured_at": "2026-02-15T13:58:50.425927+00:00",
+      "llm_explanation": "Good sunset with warm golden and pink hues illuminating the snowy landscape and clouds, creating a pleasant winter scene."
     },
     {
-      "snapshot_id": "70436.0",
-      "webcam_id": null,
-      "image_url": null,
+      "snapshot_id": "70436",
+      "webcam_id": 11181337,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/11181337/1771153789453.jpg",
       "true_label": 0.72,
       "predicted_score": 0.0285758711397647,
       "absolute_error": 0.6914241288602353,
-      "captured_at": null,
-      "llm_explanation": null
+      "captured_at": "2026-02-15T11:09:49.771496+00:00",
+      "llm_explanation": "Beautiful pastel sunrise colors with soft pink and golden tones illuminating the snowy landscape and clouds, creating a serene winter scene."
     },
     {
-      "snapshot_id": "92212.0",
-      "webcam_id": null,
-      "image_url": null,
+      "snapshot_id": "92212",
+      "webcam_id": 1457,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/1457/1774465173444.jpg",
       "true_label": 0.72,
       "predicted_score": 0.0351122505962848,
       "absolute_error": 0.6848877494037152,
-      "captured_at": null,
-      "llm_explanation": null
+      "captured_at": "2026-03-25T18:59:33.740668+00:00",
+      "llm_explanation": "Warm golden light filtering through trees with pleasant orange-yellow sky tones visible above the lodge buildings, creating a pleasant evening atmosphere."
     },
     {
-      "snapshot_id": "89465.0",
-      "webcam_id": null,
-      "image_url": null,
+      "snapshot_id": "89465",
+      "webcam_id": 15931067,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/15931067/1773861692158.jpg",
       "true_label": 0.72,
       "predicted_score": 0.0371350832283496,
       "absolute_error": 0.6828649167716504,
-      "captured_at": null,
-      "llm_explanation": null
+      "captured_at": "2026-03-18T19:21:32.504747+00:00",
+      "llm_explanation": "Dramatic golden light breaking through dark storm clouds creates a striking contrast with illuminated palm trees in the foreground."
     },
     {
-      "snapshot_id": "89852.0",
-      "webcam_id": null,
-      "image_url": null,
+      "snapshot_id": "89852",
+      "webcam_id": 15931067,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/15931067/1773949952176.jpg",
       "true_label": 0.72,
       "predicted_score": 0.061037827283144,
       "absolute_error": 0.658962172716856,
-      "captured_at": null,
-      "llm_explanation": null
+      "captured_at": "2026-03-19T19:52:32.511751+00:00",
+      "llm_explanation": "Dramatic golden light breaking through dark storm clouds creates a striking contrast with vivid amber and yellow tones illuminating the scene."
     },
     {
-      "snapshot_id": "89842.0",
-      "webcam_id": null,
-      "image_url": null,
+      "snapshot_id": "89842",
+      "webcam_id": 15931067,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/15931067/1773948093333.jpg",
       "true_label": 0.72,
       "predicted_score": 0.0669130533933639,
       "absolute_error": 0.653086946606636,
-      "captured_at": null,
-      "llm_explanation": null
+      "captured_at": "2026-03-19T19:21:33.699224+00:00",
+      "llm_explanation": "Dramatic golden light breaking through dark storm clouds creates a striking contrast with vivid yellow-amber tones illuminating the scene."
     },
     {
-      "snapshot_id": "70070.0",
-      "webcam_id": null,
-      "image_url": null,
+      "snapshot_id": "70070",
+      "webcam_id": 11181337,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/11181337/1771079209195.jpg",
       "true_label": 0.72,
       "predicted_score": 0.0793275237083435,
       "absolute_error": 0.6406724762916565,
-      "captured_at": null,
-      "llm_explanation": null
+      "captured_at": "2026-02-14T14:26:49.488503+00:00",
+      "llm_explanation": "Beautiful pastel sunrise colors illuminating snow-covered landscape with layered clouds creating depth and atmosphere."
     },
     {
-      "snapshot_id": "70498.0",
-      "webcam_id": null,
-      "image_url": null,
+      "snapshot_id": "70498",
+      "webcam_id": 11181337,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/11181337/1771165789217.jpg",
       "true_label": 0.72,
       "predicted_score": 0.0909112989902496,
       "absolute_error": 0.6290887010097503,
-      "captured_at": null,
-      "llm_explanation": null
+      "captured_at": "2026-02-15T14:29:49.523936+00:00",
+      "llm_explanation": "Golden light illuminates snow-covered landscape with warm peachy sky tones breaking through dramatic gray clouds creating good contrast and color."
     },
     {
-      "snapshot_id": "90218.0",
-      "webcam_id": null,
-      "image_url": null,
+      "snapshot_id": "90218",
+      "webcam_id": 15931067,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/15931067/1774036472184.jpg",
       "true_label": 0.72,
       "predicted_score": 0.1195625066757202,
       "absolute_error": 0.6004374933242798,
-      "captured_at": null,
-      "llm_explanation": null
+      "captured_at": "2026-03-20T19:54:32.557236+00:00",
+      "llm_explanation": "Dramatic golden light breaking through dark storm clouds creates a striking contrast with illuminated palm trees in the foreground."
     },
     {
-      "snapshot_id": "86551.0",
-      "webcam_id": null,
-      "image_url": null,
+      "snapshot_id": "86551",
+      "webcam_id": 15931067,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/15931067/1773515853507.jpg",
       "true_label": 0.72,
       "predicted_score": 0.1358396112918853,
       "absolute_error": 0.5841603887081147,
-      "captured_at": null,
-      "llm_explanation": null
+      "captured_at": "2026-03-14T19:17:33.794063+00:00",
+      "llm_explanation": "Dramatic golden light illuminating the scene with striking contrast between bright yellow sky and dark storm clouds above."
     },
     {
-      "snapshot_id": "91358.0",
-      "webcam_id": null,
-      "image_url": null,
+      "snapshot_id": "91358",
+      "webcam_id": 17580012,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/17580012/1774288172140.jpg",
       "true_label": 0.72,
       "predicted_score": 0.1699983924627304,
       "absolute_error": 0.5500016075372696,
-      "captured_at": null,
-      "llm_explanation": null
+      "captured_at": "2026-03-23T17:49:32.479516+00:00",
+      "llm_explanation": "Dramatic cloud formations with bright illumination breaking through darker storm clouds creating strong contrast and visual interest."
     },
     {
-      "snapshot_id": "80093.0",
-      "webcam_id": null,
-      "image_url": null,
+      "snapshot_id": "80093",
+      "webcam_id": 5961426,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/5961426/1773416370171.jpg",
       "true_label": 0.65,
       "predicted_score": 0.1107247620820999,
       "absolute_error": 0.5392752379179001,
-      "captured_at": null,
-      "llm_explanation": null
+      "captured_at": "2026-03-13T15:39:30.661028+00:00",
+      "llm_explanation": "Golden hour light with warm tones illuminating the landscape, though sky detail is limited by frame composition focusing on parking lot."
     },
     {
-      "snapshot_id": "84763.0",
-      "webcam_id": null,
-      "image_url": null,
+      "snapshot_id": "84763",
+      "webcam_id": 1482706,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/1482706/1773489825956.jpg",
       "true_label": 0.72,
       "predicted_score": 0.1905591338872909,
       "absolute_error": 0.529440866112709,
-      "captured_at": null,
-      "llm_explanation": null
+      "captured_at": "2026-03-14T12:03:46.237116+00:00",
+      "llm_explanation": "Vivid golden-orange glow on the horizon with warm light illuminating the snowy landscape, though sky coverage is limited by terrain."
     },
     {
-      "snapshot_id": "84579.0",
-      "webcam_id": null,
-      "image_url": null,
+      "snapshot_id": "84579",
+      "webcam_id": 1482706,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/1482706/1773487955029.jpg",
       "true_label": 0.72,
       "predicted_score": 0.1905591338872909,
       "absolute_error": 0.529440866112709,
-      "captured_at": null,
-      "llm_explanation": null
+      "captured_at": "2026-03-14T11:32:35.307923+00:00",
+      "llm_explanation": "Vivid golden-orange glow on the horizon with warm pink tones spreading across the sky, creating a beautiful winter sunset scene."
     },
     {
-      "snapshot_id": "75403.0",
-      "webcam_id": null,
-      "image_url": null,
+      "snapshot_id": "75403",
+      "webcam_id": 11181337,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/11181337/1772291329793.jpg",
       "true_label": 0.65,
       "predicted_score": 0.1210629045963287,
       "absolute_error": 0.5289370954036713,
-      "captured_at": null,
-      "llm_explanation": null
+      "captured_at": "2026-02-28T15:08:50.160480+00:00",
+      "llm_explanation": "Pleasant pastel sunset colors with a gentle gradient across the horizon, though lacking dramatic clouds or intense saturation."
     },
     {
-      "snapshot_id": "78683.0",
-      "webcam_id": null,
-      "image_url": null,
+      "snapshot_id": "78683",
+      "webcam_id": 15931067,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/15931067/1773083464620.jpg",
       "true_label": 0.72,
       "predicted_score": 0.1911537051200866,
       "absolute_error": 0.5288462948799134,
-      "captured_at": null,
-      "llm_explanation": null
+      "captured_at": "2026-03-09T19:11:04.898054+00:00",
+      "llm_explanation": "Dramatic contrast between bright golden horizon and dark storm clouds creates a striking sunset scene with vivid colors."
     }
   ]
 }

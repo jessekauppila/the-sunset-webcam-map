@@ -246,6 +246,12 @@ def main() -> None:
     # (e.g. generate_failure_gallery.py) don't have to re-run inference.
     predictions_path = out.parent / "predictions.csv"
     pred_df = ds.df.loc[:, ["snapshot_id"]].copy()
+    # Keep snapshot_id as a string of the integer form so downstream tools
+    # (generate_failure_gallery.py) can match against webcam_snapshots.id
+    # without worrying about pandas float-coercion (1694 -> 1694.0).
+    pred_df["snapshot_id"] = (
+        pred_df["snapshot_id"].astype("Int64").astype("string")
+    )
     pred_df["y_true"] = y_true
     if args.target_type == "regression":
         pred_df["y_pred"] = y_pred

@@ -57,21 +57,41 @@ def resolve_image_urls(
     if not snapshot_ids:
         return {}
 
+    # Look up the snapshot_id in both possible source tables. Webcam wins
+    # if there's a numeric-id collision (matches v3 behaviour).
     sql = """
         SELECT
             id::text AS snapshot_id,
             firebase_url AS image_url,
             webcam_id,
             captured_at,
-            llm_rating_explanation
+            llm_rating_explanation,
+            1 AS table_priority
         FROM webcam_snapshots
         WHERE id::text = ANY(%s)
+        UNION ALL
+        SELECT
+            id::text AS snapshot_id,
+            image_url,
+            NULL::int AS webcam_id,
+            scraped_at AS captured_at,
+            llm_rating_explanation,
+            2 AS table_priority
+        FROM external_images
+        WHERE id::text = ANY(%s)
+        ORDER BY snapshot_id, table_priority
     """
     out: dict[str, dict[str, Any]] = {}
     with psycopg2.connect(db_url) as conn:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-            cur.execute(sql, (snapshot_ids,))
+            cur.execute(sql, (snapshot_ids, snapshot_ids))
             for row in cur.fetchall():
+                # ORDER BY snapshot_id, table_priority means the webcam
+                # row (priority 1) is processed first; the external row
+                # (priority 2) only "wins" if no webcam match — which
+                # is exactly what setdefault gives us.
+                if row["snapshot_id"] in out:
+                    continue  # webcam row already won
                 out[row["snapshot_id"]] = {
                     "image_url": row["image_url"],
                     "webcam_id": row["webcam_id"],
@@ -125,14 +145,18 @@ def generate_from_run(
     df = pd.read_csv(predictions_csv)
     top = compute_top_failures(df, target_type=target_type, n=n)
 
-    enriched = resolve_image_urls(
-        snapshot_ids=top["snapshot_id"].astype(str).tolist(),
-        db_url=db_url,
-    )
+    # pandas can read snapshot_id as float64 (e.g. 1694 -> 1694.0). Strip the
+    # trailing .0 so the SQL lookup against webcam_snapshots.id::text matches.
+    def _norm_id(v: Any) -> str:
+        s = str(v).strip()
+        return s[:-2] if s.endswith(".0") else s
+
+    snapshot_ids = [_norm_id(v) for v in top["snapshot_id"].tolist()]
+    enriched = resolve_image_urls(snapshot_ids=snapshot_ids, db_url=db_url)
 
     items: list[dict[str, Any]] = []
     for _, row in top.iterrows():
-        sid = str(row["snapshot_id"])
+        sid = _norm_id(row["snapshot_id"])
         meta = enriched.get(sid, {})
         if "y_pred" in row:
             predicted_score = float(row["y_pred"])
