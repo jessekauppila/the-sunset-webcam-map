@@ -159,8 +159,22 @@ def upload_to_firebase(
 
         if not firebase_admin._apps:
             cred_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+            project_id = os.getenv("FIREBASE_PROJECT_ID")
+            client_email = os.getenv("FIREBASE_CLIENT_EMAIL")
+            private_key = os.getenv("FIREBASE_PRIVATE_KEY")
             if cred_path:
                 cred = credentials.Certificate(cred_path)
+            elif project_id and client_email and private_key:
+                # Build a service-account dict from individual env vars
+                # (matches the pattern used by app/lib/firebase.ts).
+                cred_dict = {
+                    "type": "service_account",
+                    "project_id": project_id,
+                    "client_email": client_email,
+                    "private_key": private_key.replace("\\n", "\n"),
+                    "token_uri": "https://oauth2.googleapis.com/token",
+                }
+                cred = credentials.Certificate(cred_dict)
             else:
                 cred = credentials.ApplicationDefault()
             firebase_admin.initialize_app(cred, {"storageBucket": bucket_name})
