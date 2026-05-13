@@ -1,0 +1,208 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-05-13T13:19:51+00:00",
+  "split": "val",
+  "target_type": "regression",
+  "items": [
+    {
+      "snapshot_id": "1694.0",
+      "webcam_id": null,
+      "image_url": null,
+      "true_label": 0.88,
+      "predicted_score": 0.0387325659394264,
+      "absolute_error": 0.8412674340605736,
+      "captured_at": null,
+      "llm_explanation": null
+    },
+    {
+      "snapshot_id": "70436.0",
+      "webcam_id": null,
+      "image_url": null,
+      "true_label": 0.72,
+      "predicted_score": -0.0335906110703945,
+      "absolute_error": 0.7535906110703945,
+      "captured_at": null,
+      "llm_explanation": null
+    },
+    {
+      "snapshot_id": "70447.0",
+      "webcam_id": null,
+      "image_url": null,
+      "true_label": 0.72,
+      "predicted_score": -0.0307121388614177,
+      "absolute_error": 0.7507121388614176,
+      "captured_at": null,
+      "llm_explanation": null
+    },
+    {
+      "snapshot_id": "70459.0",
+      "webcam_id": null,
+      "image_url": null,
+      "true_label": 0.72,
+      "predicted_score": -0.0210145078599452,
+      "absolute_error": 0.7410145078599452,
+      "captured_at": null,
+      "llm_explanation": null
+    },
+    {
+      "snapshot_id": "79036.0",
+      "webcam_id": null,
+      "image_url": null,
+      "true_label": 0.78,
+      "predicted_score": 0.0736714899539947,
+      "absolute_error": 0.7063285100460053,
+      "captured_at": null,
+      "llm_explanation": null
+    },
+    {
+      "snapshot_id": "70478.0",
+      "webcam_id": null,
+      "image_url": null,
+      "true_label": 0.72,
+      "predicted_score": 0.0194849632680416,
+      "absolute_error": 0.7005150367319584,
+      "captured_at": null,
+      "llm_explanation": null
+    },
+    {
+      "snapshot_id": "4367.0",
+      "webcam_id": null,
+      "image_url": null,
+      "true_label": 0.0,
+      "predicted_score": 0.6849902272224426,
+      "absolute_error": 0.6849902272224426,
+      "captured_at": null,
+      "llm_explanation": null
+    },
+    {
+      "snapshot_id": "4380.0",
+      "webcam_id": null,
+      "image_url": null,
+      "true_label": 0.0,
+      "predicted_score": 0.6672196388244629,
+      "absolute_error": 0.6672196388244629,
+      "captured_at": null,
+      "llm_explanation": null
+    },
+    {
+      "snapshot_id": "5689.0",
+      "webcam_id": null,
+      "image_url": null,
+      "true_label": 0.0,
+      "predicted_score": 0.6645410656929016,
+      "absolute_error": 0.6645410656929016,
+      "captured_at": null,
+      "llm_explanation": null
+    },
+    {
+      "snapshot_id": "92212.0",
+      "webcam_id": null,
+      "image_url": null,
+      "true_label": 0.72,
+      "predicted_score": 0.0560631677508354,
+      "absolute_error": 0.6639368322491646,
+      "captured_at": null,
+      "llm_explanation": null
+    },
+    {
+      "snapshot_id": "89842.0",
+      "webcam_id": null,
+      "image_url": null,
+      "true_label": 0.72,
+      "predicted_score": 0.0564424060285091,
+      "absolute_error": 0.6635575939714908,
+      "captured_at": null,
+      "llm_explanation": null
+    },
+    {
+      "snapshot_id": "70070.0",
+      "webcam_id": null,
+      "image_url": null,
+      "true_label": 0.72,
+      "predicted_score": 0.0804895013570785,
+      "absolute_error": 0.6395104986429214,
+      "captured_at": null,
+      "llm_explanation": null
+    },
+    {
+      "snapshot_id": "2615.0",
+      "webcam_id": null,
+      "image_url": null,
+      "true_label": 0.78,
+      "predicted_score": 0.1560487598180771,
+      "absolute_error": 0.6239512401819229,
+      "captured_at": null,
+      "llm_explanation": null
+    },
+    {
+      "snapshot_id": "89852.0",
+      "webcam_id": null,
+      "image_url": null,
+      "true_label": 0.72,
+      "predicted_score": 0.1021918505430221,
+      "absolute_error": 0.6178081494569778,
+      "captured_at": null,
+      "llm_explanation": null
+    },
+    {
+      "snapshot_id": "81925.0",
+      "webcam_id": null,
+      "image_url": null,
+      "true_label": 0.65,
+      "predicted_score": 0.0349381938576698,
+      "absolute_error": 0.6150618061423302,
+      "captured_at": null,
+      "llm_explanation": null
+    },
+    {
+      "snapshot_id": "70487.0",
+      "webcam_id": null,
+      "image_url": null,
+      "true_label": 0.72,
+      "predicted_score": 0.1127020567655563,
+      "absolute_error": 0.6072979432344436,
+      "captured_at": null,
+      "llm_explanation": null
+    },
+    {
+      "snapshot_id": "3309.0",
+      "webcam_id": null,
+      "image_url": null,
+      "true_label": 0.72,
+      "predicted_score": 0.1193171441555023,
+      "absolute_error": 0.6006828558444977,
+      "captured_at": null,
+      "llm_explanation": null
+    },
+    {
+      "snapshot_id": "5553.0",
+      "webcam_id": null,
+      "image_url": null,
+      "true_label": 0.0,
+      "predicted_score": 0.5954145193099976,
+      "absolute_error": 0.5954145193099976,
+      "captured_at": null,
+      "llm_explanation": null
+    },
+    {
+      "snapshot_id": "86551.0",
+      "webcam_id": null,
+      "image_url": null,
+      "true_label": 0.72,
+      "predicted_score": 0.1336978077888488,
+      "absolute_error": 0.5863021922111512,
+      "captured_at": null,
+      "llm_explanation": null
+    },
+    {
+      "snapshot_id": "4893.0",
+      "webcam_id": null,
+      "image_url": null,
+      "true_label": 0.0,
+      "predicted_score": 0.5782719254493713,
+      "absolute_error": 0.5782719254493713,
+      "captured_at": null,
+      "llm_explanation": null
+    }
+  ]
+}

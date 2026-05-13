@@ -1,7 +1,36 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-05-12T17:34:30+00:00",
+  "generated_at": "2026-05-13T13:19:51+00:00",
   "runs": [
+    {
+      "slug": "v4_regression_llm_with_flickr",
+      "display_name": "v4_regression_llm_with_flickr",
+      "published_at": "2026-05-13T13:19:51+00:00",
+      "started_at": "2026-05-13T11:32:43+00:00",
+      "target_type": "regression",
+      "binary_metrics": {
+        "val_f1": 0.8456680980045466,
+        "val_precision": 0.943630214205186,
+        "val_recall": 0.7661327231121281,
+        "val_accuracy": null
+      },
+      "regression_metrics": {
+        "pearson_r": 0.8965405758679741,
+        "spearman_r": 0.8224553733212765,
+        "r_squared": 0.8037291394125738,
+        "val_mse": 0.015785833266765092
+      },
+      "best_metric_name": "val_f1",
+      "best_metric_value": 0.8456680980045466,
+      "best_epoch": 12,
+      "epochs_total": 27,
+      "early_stopped": true,
+      "train_samples": 24133,
+      "val_samples": 5703,
+      "test_samples": null,
+      "status": "healthy",
+      "status_note": "Train/val loss tracked together; no overfit signal."
+    },
     {
       "slug": "v3_regression_llm_labels",
       "display_name": "v3_regression_llm_labels",
