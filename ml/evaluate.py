@@ -54,15 +54,25 @@ class EvalDataset(Dataset):
         return x, y
 
 
-def build_model(model_name: str, target_type: str):
+def _make_head(in_features: int, out_features: int, with_dropout: bool) -> torch.nn.Module:
+    if with_dropout:
+        return torch.nn.Sequential(torch.nn.Dropout(p=0.0), torch.nn.Linear(in_features, out_features))
+    return torch.nn.Linear(in_features, out_features)
+
+
+def build_model(model_name: str, target_type: str, state_dict: dict | None = None):
+    out_features = 1 if target_type == "regression" else 2
     if model_name == "mobilenet_v3_small":
         model = models.mobilenet_v3_small(weights=None)
         in_features = model.classifier[-1].in_features
-        model.classifier[-1] = torch.nn.Linear(in_features, 1 if target_type == "regression" else 2)
+        last_idx = len(model.classifier) - 1
+        with_dropout = state_dict is not None and f"classifier.{last_idx}.1.weight" in state_dict
+        model.classifier[-1] = _make_head(in_features, out_features, with_dropout)
         return model
     model = models.resnet18(weights=None)
     in_features = model.fc.in_features
-    model.fc = torch.nn.Linear(in_features, 1 if target_type == "regression" else 2)
+    with_dropout = state_dict is not None and "fc.1.weight" in state_dict
+    model.fc = _make_head(in_features, out_features, with_dropout)
     return model
 
 
@@ -105,12 +115,17 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    if torch.cuda.is_available():
+        device = torch.device("cuda")
+    elif torch.backends.mps.is_available():
+        device = torch.device("mps")
+    else:
+        device = torch.device("cpu")
     ds = EvalDataset(args.test_manifest, args.target_type)
     loader = DataLoader(ds, batch_size=32, shuffle=False)
 
-    model = build_model(args.model_name, args.target_type).to(device)
     state = torch.load(args.checkpoint, map_location=device)
+    model = build_model(args.model_name, args.target_type, state_dict=state).to(device)
     model.load_state_dict(state)
     model.eval()
 
@@ -226,7 +241,25 @@ def main() -> None:
     out = Path(args.output)
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(report, indent=2), encoding="utf-8")
-    print(json.dumps({"ok": True, "report": report, "output": str(out)}, indent=2))
+
+    # Also write per-row predictions next to the report so downstream tools
+    # (e.g. generate_failure_gallery.py) don't have to re-run inference.
+    predictions_path = out.parent / "predictions.csv"
+    pred_df = ds.df.loc[:, ["snapshot_id"]].copy()
+    pred_df["y_true"] = y_true
+    if args.target_type == "regression":
+        pred_df["y_pred"] = y_pred
+    else:
+        pred_df["y_pred"] = y_pred
+        pred_df["y_pred_proba"] = y_scores
+    pred_df.to_csv(predictions_path, index=False)
+
+    print(json.dumps({
+        "ok": True,
+        "report": report,
+        "output": str(out),
+        "predictions_csv": str(predictions_path),
+    }, indent=2))
 
 
 if __name__ == "__main__":

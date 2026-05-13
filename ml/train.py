@@ -342,7 +342,13 @@ def build_loader(
 def main() -> None:
     args = parse_args()
     set_seed(args.seed)
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    if torch.cuda.is_available():
+        device = torch.device("cuda")
+    elif torch.backends.mps.is_available():
+        device = torch.device("mps")
+    else:
+        device = torch.device("cpu")
+    print(json.dumps({"device": str(device)}))
     run_start = time.perf_counter()
 
     train_tf = build_train_transform(args)

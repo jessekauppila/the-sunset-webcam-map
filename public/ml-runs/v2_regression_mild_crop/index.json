@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "slug": "v2_regression_mild_crop",
+  "display_name": "v2_regression_mild_crop",
+  "published_at": "2026-05-12T06:11:50+00:00",
+  "started_at": "2026-03-15T00:39:13+00:00",
+  "config_summary": {
+    "model": {
+      "name": "resnet18",
+      "epochs": 10,
+      "batch_size": 32,
+      "learning_rate": 0.0001
+    },
+    "target_type": "regression",
+    "epochs_configured": 10,
+    "lr_schedule": null,
+    "early_stopping_patience": null,
+    "head_dropout": null,
+    "class_weighting": "none",
+    "label_source": null
+  },
+  "metrics": {
+    "val_mse": 0.6090537880493783,
+    "best_f1": null,
+    "val_precision": null,
+    "val_recall": null,
+    "val_accuracy": null,
+    "best_epoch": 7,
+    "epochs_completed": 10,
+    "early_stopped_epoch": null
+  },
+  "diagnosis": {
+    "status": "healthy",
+    "note": "Train/val loss tracked together; no overfit signal."
+  },
+  "data": {
+    "train_samples": 3294,
+    "val_samples": 726,
+    "test_samples": null,
+    "class_balance": {
+      "negative": null,
+      "positive": null,
+      "ratio": null
+    },
+    "label_distribution": {
+      "train": {
+        "unnormalized": 1284,
+        "5": 2010
+      },
+      "val": {
+        "5": 457,
+        "unnormalized": 269
+      },
+      "test": null
+    }
+  },
+  "assets": {
+    "loss_curves_png": "plots/loss_curves.png",
+    "label_distribution_png": "plots/label_distribution.png",
+    "config_yaml": "config.yaml",
+    "failure_gallery_json": "failure_gallery.json"
+  }
+}

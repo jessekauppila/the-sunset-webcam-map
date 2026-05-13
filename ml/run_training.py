@@ -25,6 +25,17 @@ def parse_args() -> argparse.Namespace:
         help="Optional explicit DATABASE_URL override (takes precedence over env file).",
     )
     parser.add_argument("--no-progress", action="store_true")
+    parser.add_argument(
+        "--publish",
+        action="store_true",
+        help="Forward --publish to run_experiment.py.",
+    )
+    parser.add_argument(
+        "--failure-gallery-n",
+        type=int,
+        default=20,
+        help="Top-N worst predictions forwarded to run_experiment.py.",
+    )
     return parser.parse_args()
 
 
@@ -44,6 +55,9 @@ def main() -> None:
     cmd = [sys.executable, "ml/run_experiment.py", "--config", args.config]
     if args.no_progress:
         cmd.append("--no-progress")
+    if args.publish:
+        cmd.append("--publish")
+    cmd.extend(["--failure-gallery-n", str(args.failure_gallery_n)])
     print({"cmd": cmd, "env_file": args.env_file, "database_url_loaded": True})
     subprocess.run(cmd, check=True, env=env)
 

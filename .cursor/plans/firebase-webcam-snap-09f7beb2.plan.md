@@ -1,4 +1,28 @@
-<!-- 09f7beb2-bc96-4ffb-8896-3b1679c26095 97f0d301-3e80-4c42-984a-4c05926c8fee -->
+---
+name: Snapshot Rating Console - Updated Plan
+overview: ""
+todos:
+  - id: 6080eb8d-87d5-41c6-b8b3-bbeea5018323
+    content: Consolidate console styling into global.css and update WebcamConsole
+    status: pending
+  - id: a96fab7a-cb40-4fdb-8178-99a9cba1da0a
+    content: Create useSnapshots hook to fetch snapshots from API
+    status: pending
+  - id: 8e1962de-e1a2-4e6c-98aa-943fe36fa4ed
+    content: Create snapshot rating utilities with user session tracking
+    status: pending
+  - id: 60333711-9463-4f28-be97-fd0c89f2ee1e
+    content: Create SnapshotConsole component with grid layout and rating controls
+    status: pending
+  - id: e549d17c-e53b-4bfa-9142-5b16912fcb09
+    content: Add Snapshot Archive tab to page.tsx drawer
+    status: pending
+  - id: 2bf7a3e8-2a93-4555-86f0-11645b835fdd
+    content: Test end-to-end snapshot rating workflow
+    status: pending
+isProject: false
+---
+
 # Snapshot Rating Console - Updated Plan
 
 ## Goal
@@ -355,12 +379,3 @@ const snapshots = useSnapshotStore((s) => s.snapshots);
 ✅ Styling is consolidated and maintainable
 
 ✅ Snapshots can be used throughout the app
-
-### To-dos
-
-- [ ] Consolidate console styling into global.css and update WebcamConsole
-- [ ] Create useSnapshots hook to fetch snapshots from API
-- [ ] Create snapshot rating utilities with user session tracking
-- [ ] Create SnapshotConsole component with grid layout and rating controls
-- [ ] Add Snapshot Archive tab to page.tsx drawer
-- [ ] Test end-to-end snapshot rating workflow
