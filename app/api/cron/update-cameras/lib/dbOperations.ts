@@ -297,3 +297,79 @@ export async function upsertSnapshotAiInference(
   `;
 }
 
+export interface CustomSnapshotNeedingScore {
+  snapshotId: number;
+  webcamId: number;
+  firebaseUrl: string;
+}
+
+/**
+ * Snapshot rows for source='custom' webcams that still need a server-side
+ * regression score. Bounded by `limit` so a backlog can't blow the tick
+ * deadline.
+ */
+export async function findCustomSnapshotsNeedingScore(
+  limit: number
+): Promise<CustomSnapshotNeedingScore[]> {
+  const rows = (await sql`
+    select s.id        as snapshot_id,
+           s.webcam_id as webcam_id,
+           s.firebase_url
+    from webcam_snapshots s
+    join webcams w on w.id = s.webcam_id
+    where w.source = 'custom'
+      and s.ai_regression_score is null
+      and s.firebase_url is not null
+    order by s.captured_at desc
+    limit ${limit}
+  `) as {
+    snapshot_id: number;
+    webcam_id: number;
+    firebase_url: string;
+  }[];
+
+  return rows.map((r) => ({
+    snapshotId: r.snapshot_id,
+    webcamId: r.webcam_id,
+    firebaseUrl: r.firebase_url,
+  }));
+}
+
+export async function updateSnapshotAiRegressionScore(
+  snapshotId: number,
+  score: number,
+  modelVersion: string
+): Promise<void> {
+  await sql`
+    update webcam_snapshots
+    set ai_regression_score = ${score},
+        ai_model_version_regression = ${modelVersion}
+    where id = ${snapshotId}
+  `;
+}
+
+/**
+ * After scoring custom snapshots, sync the webcam-level score to the latest
+ * snapshot's regression score so mosaic tile sizing reflects the most recent
+ * captured moment. Single SQL — no read-then-write race.
+ */
+export async function updateWebcamRegressionScoreFromLatestCustomSnapshot(
+  webcamId: number
+): Promise<void> {
+  await sql`
+    update webcams
+    set ai_rating_regression = ls.ai_regression_score,
+        ai_model_version_regression = ls.ai_model_version_regression,
+        updated_at = now()
+    from (
+      select ai_regression_score, ai_model_version_regression
+      from webcam_snapshots
+      where webcam_id = ${webcamId}
+        and ai_regression_score is not null
+      order by captured_at desc
+      limit 1
+    ) ls
+    where id = ${webcamId}
+  `;
+}
+
