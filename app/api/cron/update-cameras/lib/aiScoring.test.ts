@@ -94,4 +94,19 @@ describe('scoreImage', () => {
     });
     expect(result.source).toBe('custom');
   });
+
+  it('returns pathTaken=baseline when AI_SCORING_MODE is not onnx', async () => {
+    process.env.AI_SCORING_MODE = 'baseline';
+    const result = await scoreImage({
+      webcamId: 1,
+      imageBytes: Buffer.from('jpeg'),
+      source: 'windy',
+      fallbackMeta: { viewCount: 1000, manualRating: 4 },
+    });
+    expect(result.pathTaken).toBe('baseline');
+    expect(result.rawScore).toBeGreaterThanOrEqual(0);
+    expect(result.rawScore).toBeLessThanOrEqual(1);
+    expect(preprocessMock).not.toHaveBeenCalled();
+    expect(runMock).not.toHaveBeenCalled();
+  });
 });

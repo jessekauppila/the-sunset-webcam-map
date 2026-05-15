@@ -29,7 +29,7 @@ export interface ScoreImageInput {
   fallbackMeta?: { viewCount?: number; manualRating?: number };
 }
 
-export type ScorePath = 'onnx' | 'cache-hit' | 'baseline-fallback';
+export type ScorePath = 'onnx' | 'cache-hit' | 'baseline' | 'baseline-fallback';
 
 export interface ScoreImageResult {
   rawScore: number;   // 0..1
@@ -143,7 +143,7 @@ export async function scoreImage(
       modelVersion,
       imageHash,
       source: input.source,
-      pathTaken: 'baseline-fallback',
+      pathTaken: 'baseline',
     };
   }
 
