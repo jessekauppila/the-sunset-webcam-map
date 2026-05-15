@@ -1,7 +1,7 @@
 {
   "crons": [
     {
-      "path": "/api/cron/update-windy",
+      "path": "/api/cron/update-cameras",
       "schedule": "*/1 * * * *"
     }
   ]
