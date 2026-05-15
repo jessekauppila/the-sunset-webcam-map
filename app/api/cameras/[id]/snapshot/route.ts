@@ -5,6 +5,7 @@ import {
   uploadCameraSnapshot,
   insertCameraSnapshotRow,
 } from '@/app/lib/cameraSnapshot';
+import { invalidateTerminatorPayload } from '@/app/lib/cache';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -130,6 +131,17 @@ export async function POST(request: Request, context: RouteContext) {
     `.catch((err) => {
       console.warn(
         `[cameras/snapshot] last_seen_at update failed for cameraId=${cameraId}:`,
+        err
+      );
+    });
+
+    // Fire-and-forget: drop the terminator payload cache so the next mosaic
+    // fetch surfaces this snapshot's firebase_url without waiting for the
+    // 300s TTL. Same poisoning rule as last_seen_at — failures here must
+    // not 500 the ingest.
+    invalidateTerminatorPayload().catch((err) => {
+      console.warn(
+        `[cameras/snapshot] cache invalidate failed for cameraId=${cameraId}:`,
         err
       );
     });

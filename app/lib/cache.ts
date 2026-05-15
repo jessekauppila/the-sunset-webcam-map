@@ -36,3 +36,19 @@ export async function setCachedTerminatorPayload(payload: unknown): Promise<void
     console.error('Cache write failed:', error);
   }
 }
+
+/**
+ * Drop the cached terminator payload. Call after writes that need to be
+ * visible to the next mosaic fetch — e.g. a custom-camera snapshot insert
+ * whose firebase_url has to surface in the popup without waiting for the
+ * 300s TTL to expire.
+ */
+export async function invalidateTerminatorPayload(): Promise<void> {
+  const c = getClient();
+  if (!c) return;
+  try {
+    await c.del(TERMINATOR_KEY);
+  } catch (error) {
+    console.error('Cache invalidate failed:', error);
+  }
+}

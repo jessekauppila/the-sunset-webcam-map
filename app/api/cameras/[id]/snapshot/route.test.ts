@@ -5,6 +5,7 @@ const verifyDeviceTokenMock = vi.fn();
 const uploadCameraSnapshotMock = vi.fn();
 const insertCameraSnapshotRowMock = vi.fn();
 const sqlMock = vi.fn();
+const invalidateTerminatorPayloadMock = vi.fn();
 
 vi.mock('@/app/lib/cameraAuth', () => ({
   verifyDeviceToken: (...args: unknown[]) => verifyDeviceTokenMock(...args),
@@ -18,6 +19,10 @@ vi.mock('@/app/lib/cameraSnapshot', () => ({
 vi.mock('@/app/lib/db', () => ({
   sql: (strings: TemplateStringsArray, ...values: unknown[]) =>
     sqlMock(strings, ...values),
+}));
+vi.mock('@/app/lib/cache', () => ({
+  invalidateTerminatorPayload: (...args: unknown[]) =>
+    invalidateTerminatorPayloadMock(...args),
 }));
 
 import { POST } from './route';
@@ -59,6 +64,7 @@ describe('POST /api/cameras/[id]/snapshot', () => {
     uploadCameraSnapshotMock.mockReset();
     insertCameraSnapshotRowMock.mockReset();
     sqlMock.mockReset();
+    invalidateTerminatorPayloadMock.mockReset().mockResolvedValue(undefined);
   });
 
   it('returns 401 when token verification fails', async () => {
@@ -133,5 +139,27 @@ describe('POST /api/cameras/[id]/snapshot', () => {
         firebasePath: 'snapshots/custom/42/1.jpg',
       })
     );
+    expect(invalidateTerminatorPayloadMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not 500 the ingest when cache invalidation fails', async () => {
+    verifyDeviceTokenMock.mockResolvedValue({ id: 42, status: 'active' });
+    sqlMock.mockResolvedValue([{ webcam_id: 10042 }]);
+    uploadCameraSnapshotMock.mockResolvedValue({
+      url: 'https://example.com/x.jpg',
+      path: 'snapshots/custom/42/1.jpg',
+    });
+    insertCameraSnapshotRowMock.mockResolvedValue(78902);
+    invalidateTerminatorPayloadMock.mockRejectedValue(new Error('redis down'));
+
+    const req = makeRequest({
+      bearer: 'good',
+      imageBytes: Buffer.from('jpeg-bytes'),
+    });
+    const res = await POST(req, { params: Promise.resolve({ id: '42' }) });
+
+    expect(res.status).toBe(202);
+    const body = await res.json();
+    expect(body.snapshot_id).toBe(78902);
   });
 });
