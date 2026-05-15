@@ -12,23 +12,33 @@ export type Orientation =
   | 'W'
   | 'NW';
 
+/**
+ * Format discriminator for what kind of live asset a webcam row carries.
+ * Use this to decide HOW to render (img vs video), not WHAT hardware produced
+ * the asset — hardware traceability lives in dedicated fields on the row.
+ */
+export type LiveAssetKind =
+  | 'windy_bundle'
+  | 'custom_snapshot'
+  | 'custom_stream';
+
 export interface WindyWebcam {
   webcamId: number;
   title: string;
   viewCount: number;
   status: string;
   images?: {
-    sizes: {
+    sizes?: {
       icon: { width: number; height: number };
       preview: { width: number; height: number };
       thumbnail: { width: number; height: number };
     };
     current: {
-      icon: string;
       preview: string;
-      thumbnail: string;
+      icon?: string;
+      thumbnail?: string;
     };
-    daylight: {
+    daylight?: {
       icon: string;
       preview: string;
       thumbnail: string;
@@ -79,6 +89,21 @@ export interface WindyWebcam {
   aiModelVersionBinary?: string; // Model version for binary score
   aiRatingRegression?: number; // 0-5 normalized regression score
   aiModelVersionRegression?: string; // Model version for regression score
+
+  // Live-asset format discriminator. Tells the popup/renderer what KIND of
+  // asset is on screen. Omitted when no asset is available (no snapshot, no
+  // Windy images).
+  liveAssetKind?: LiveAssetKind;
+
+  // Per-camera traceability — populated only for source='custom' rows.
+  // The cameras row joined via webcams.custom_camera_id.
+  deviceClass?: string;            // e.g. 'rpi-zero-2w'
+  firmwareVersion?: string;        // e.g. '0.1.0'
+  hardwareId?: string;             // e.g. 'pi-zero-2w-tier0-jesse-house'
+
+  // ISO8601 UTC timestamp of the snapshot whose firebase_url is in
+  // images.current.preview. Only set when liveAssetKind === 'custom_snapshot'.
+  latestSnapshotCapturedAt?: string;
 }
 
 export function windyWebcamToLocation(
