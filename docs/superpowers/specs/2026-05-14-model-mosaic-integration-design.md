@@ -194,8 +194,8 @@ Internal changes beyond renaming:
 
 - Iterates over all `webcams` rows currently in `terminator_webcam_state` regardless of source.
 - **For `source='windy'` rows:** use `images.current.preview` as the image URL (existing path). The cron scores the live preview and writes the result to `webcams.ai_rating_regression` (this is what the mosaic reads for tile size). It does **not** insert `webcam_snapshots` rows for Windy — those come only when a snapshot is intentionally captured by other code paths.
-- **For `source='custom'` rows:** the device POSTs frames directly to `POST /api/cameras/[id]/snapshot`, which inserts a `webcam_snapshots` row with `image_url`, `edge_score`, `window_id` — but no AI score. The cron's job for custom rows is to:
-  1. Find any `webcam_snapshots` rows for this camera with `ai_regression_score IS NULL` and a populated `image_url`.
+- **For `source='custom'` rows:** the device POSTs frames directly to `POST /api/cameras/[id]/snapshot`, which inserts a `webcam_snapshots` row with `firebase_url`, `edge_score`, `window_id` — but no AI score. The cron's job for custom rows is to:
+  1. Find any `webcam_snapshots` rows for this camera with `ai_regression_score IS NULL` and a populated `firebase_url`.
   2. Score each via `scoreImage()`.
   3. Write `ai_regression_score` and `ai_model_version_regression` back on the snapshot row.
   4. Also UPDATE `webcams.ai_rating_regression` for the camera's row to the most recent snapshot's score (so the mosaic tile sizes for custom cameras reflect their latest captured moment).
@@ -325,8 +325,8 @@ loser_threshold = current_date - LOSER_RETENTION_DAYS (UTC)
 SELECT * FROM webcam_snapshots
   WHERE captured_at::date <= loser_threshold
     AND is_window_winner = false
-    AND image_url IS NOT NULL
-for each: deleteImage(image_url); UPDATE webcam_snapshots SET image_url = NULL
+    AND firebase_url IS NOT NULL
+for each: deleteImage(firebase_url); UPDATE webcam_snapshots SET firebase_url = NULL
 
 # 3. Finalize daily_sunset_stats
 UPDATE daily_sunset_stats SET
@@ -335,9 +335,9 @@ UPDATE daily_sunset_stats SET
 WHERE date = yesterday;
 ```
 
-`image_url = NULL` indicates the blob is gone but the row stays (kept for re-rank-when-models-improve, per the protocol's spirit — except we've lost the actual bytes, so re-ranking can't happen). The DB row + score history are kept forever. Cheap.
+`firebase_url = NULL` indicates the blob is gone but the row stays (kept for re-rank-when-models-improve, per the protocol's spirit — except we've lost the actual bytes, so re-ranking can't happen). The DB row + score history are kept forever. Cheap.
 
-If Firebase delete fails for a row, leave `image_url` populated. Next day retries.
+If Firebase delete fails for a row, leave `firebase_url` populated. Next day retries.
 
 ### 3.3 One small schema gap to close
 
@@ -444,7 +444,7 @@ The cron never goes dark. If anything fails, the mosaic and kiosk render with wh
 | Redis unavailable | Process-wide | All cache misses → re-infer (slow but correct) | warn |
 | Neon unavailable | Process-wide | Tick fails, retries next minute; kiosk serves from Redis | error |
 | Vercel timeout (>50 s soft deadline) | Per-tick | Stop processing new cameras, log remaining | warn |
-| Firebase delete during cleanup fails | Per-row | Leave `image_url` populated, retry next day | warn |
+| Firebase delete during cleanup fails | Per-row | Leave `firebase_url` populated, retry next day | warn |
 | Winner selection finds no clearer (<MIN_SCORE_TO_WIN) | Per-window | No winner set; previous winner (if any) stays demoted | info |
 
 ### 5.2 Rollback levers (no redeploy needed)
@@ -470,7 +470,7 @@ If v4 misbehaves: flip via Vercel dashboard in seconds. Cached ONNX session rese
 | Winner selection — custom | Given snapshots with `edge_score` + `ai_regression_score` for one `window_id`, the argmax of the weighted sum gets `is_window_winner = true`; others stay false; below `MIN_SCORE_TO_WIN` → none flagged. |
 | Winner selection — Windy | Rolling 90-min window: a newer higher score demotes the old winner. |
 | Daily cap cleanup | N winners + cap K → exactly K remain `is_window_winner = true`. |
-| Loser sweep | `image_url` cleared for old losers after `LOSER_RETENTION_DAYS`. DB row stays. |
+| Loser sweep | `firebase_url` cleared for old losers after `LOSER_RETENTION_DAYS`. DB row stays. |
 | Redis helpers | `getHash`, `setHash`, `incrementDailyCounter`, including Redis-down fallback paths. |
 
 ### 6.2 Integration tests
@@ -525,7 +525,7 @@ These are picked from observed `daily_sunset_stats` after a week:
 ## Future cleanup (acknowledged, not bundled)
 
 - Collapse the dual scoring scale (`rawScore` 0..1 vs `aiRating` 0..5). The 0..5 scale is legacy; eventual cleanup is "everything moves to 0..1, retune mosaic on 0..1." Coordinated migration; not now.
-- Loser-blob deletion currently zeroes `image_url`. A future migration could add `image_url_deleted_at timestamptz` for cleaner audit; not needed now.
+- Loser-blob deletion currently zeroes `firebase_url`. A future migration could add `firebase_url_deleted_at timestamptz` for cleaner audit; not needed now.
 
 ---
 
