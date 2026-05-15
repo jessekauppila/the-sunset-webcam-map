@@ -1,6 +1,22 @@
 import type { WindyWebcam } from '../../../lib/types';
 
 /**
+ * Format an ISO timestamp as a short relative-time label for the popup.
+ * Thresholds: <60s → "Ns ago", <60min → "Nm ago", <24h → "Nh ago",
+ * else absolute YYYY-MM-DD date.
+ */
+function formatCapturedAgo(iso: string): string {
+  const then = new Date(iso).getTime();
+  const now = Date.now();
+  const deltaSec = Math.max(0, Math.floor((now - then) / 1000));
+
+  if (deltaSec < 60) return `${deltaSec}s ago`;
+  if (deltaSec < 60 * 60) return `${Math.floor(deltaSec / 60)}m ago`;
+  if (deltaSec < 24 * 60 * 60) return `${Math.floor(deltaSec / 3600)}h ago`;
+  return new Date(iso).toISOString().slice(0, 10);
+}
+
+/**
  * Creates HTML content for a Mapbox popup displaying webcam information.
  * Returns a string of HTML markup that Mapbox GL JS can render.
  *
@@ -17,6 +33,11 @@ export function createWebcamPopupContent(
   webcam: WindyWebcam
 ): string {
   const hasImage = webcam.images?.current?.preview;
+
+  const capturedSection =
+    webcam.liveAssetKind === 'custom_snapshot' && webcam.latestSnapshotCapturedAt
+      ? `<p style="margin: 0 0 4px 0; font-size: 10px; color: #9ca3af;line-height: 1;">Captured ${formatCapturedAgo(webcam.latestSnapshotCapturedAt)}</p>`
+      : '';
 
   // Helper function to format location
   const formatLocation = () => {
@@ -105,6 +126,7 @@ export function createWebcamPopupContent(
           <p style="margin: 0 0 4px 0; font-size: 10px; color: #9ca3af;line-height: 1;">
             Updated: ${formatLastUpdated()}
           </p>
+          ${capturedSection}
           ${aiSection}
           
           <!-- ID -->
