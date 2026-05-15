@@ -47,7 +47,9 @@ import { downloadImage } from '@/app/lib/webcamSnapshot';
 
 const TICK_DEADLINE_MS = 50_000;
 const PER_IMAGE_TIMEOUT_MS = 3_000;
-const WINDY_BATCH_SIZE = 10;
+// Concurrency limit for ONNX scoring — distinct from WINDY_FETCH_BATCH_SIZE
+// (API call batch size in masterConfig).
+const SCORING_CONCURRENCY = 10;
 
 export async function GET(req: Request) {
   // Verify authentication
@@ -160,7 +162,9 @@ export async function GET(req: Request) {
       if (scored.pathTaken === 'baseline-fallback') fallbacks += 1;
       windyScores.push(scored.rawScore);
 
-      await setCameraImageHash('windy', webcamId, scored.imageHash);
+      // Write Neon first: if the DB write fails, Redis hash is not committed
+      // and the next tick will re-score. Committing the hash before the DB
+      // write would silently starve the row on transient DB failures.
       await updateWebcamAiFields([
         {
           webcamId,
@@ -172,6 +176,7 @@ export async function GET(req: Request) {
           aiModelVersionRegression: scored.modelVersion,
         },
       ]);
+      await setCameraImageHash('windy', webcamId, scored.imageHash);
     } catch (error) {
       console.warn(
         `[update-cameras] windy webcam ${webcam.webcamId} scoring failed:`,
@@ -181,12 +186,15 @@ export async function GET(req: Request) {
     }
   }
 
-  for (let i = 0; i < windyAll.length; i += WINDY_BATCH_SIZE) {
+  for (let i = 0; i < windyAll.length; i += SCORING_CONCURRENCY) {
+    // Per-batch granularity: a batch that starts 1 ms before the deadline can
+    // still run for up to PER_IMAGE_TIMEOUT_MS × SCORING_CONCURRENCY (~30 s).
+    // Intentional trade-off — simpler than per-image checks.
     if (Date.now() - tickStartedAt > TICK_DEADLINE_MS) {
       console.warn('[update-cameras] tick deadline reached, stopping batches');
       break;
     }
-    const batch = windyAll.slice(i, i + WINDY_BATCH_SIZE);
+    const batch = windyAll.slice(i, i + SCORING_CONCURRENCY);
     await Promise.all(batch.map(scoreOneWindy));
   }
 
@@ -236,6 +244,9 @@ export async function GET(req: Request) {
     windyScores,
     customScores: backfillResult.scores,
     cacheHits,
+    // Windy ONNX-fallback paths and custom-snapshot failures are summed for the
+    // per-day `fallbacks` column. sourceBreakdown already separates them by
+    // source, so this conflation is observability-only, not a correctness issue.
     fallbacks: fallbacks + backfillResult.failed,
     modelVersion:
       backfillResult.modelVersion ??

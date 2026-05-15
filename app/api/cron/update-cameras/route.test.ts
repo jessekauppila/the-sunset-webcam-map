@@ -17,6 +17,7 @@ const setHashMock = vi.fn();
 const backfillMock = vi.fn();
 const upsertStatsMock = vi.fn();
 const verifyAuthMock = vi.fn(() => true);
+const computeTickStatsMock = vi.fn();
 
 vi.mock('@/app/lib/terminatorPayload', () => ({
   fetchTerminatorWebcams: () => fetchTerminatorWebcamsMock(),
@@ -56,7 +57,7 @@ vi.mock('./lib/customBackfill', () => ({
   backfillCustomSnapshotScores: (...a: unknown[]) => backfillMock(...a),
 }));
 vi.mock('./lib/dailyStats', () => ({
-  computeTickStats: vi.fn(() => ({ modelVersion: 'v4', webcamsScored: 1, cacheHits: 0, fallbacks: 0, scoreAvg: 0.5, scoreP50: 0.5, scoreP90: 0.5, scoreP99: 0.5, aboveMinScoreToWinCount: 0, sourceBreakdown: { windy: { scored: 1, avg: 0.5 }, custom: { scored: 0, avg: null } } })),
+  computeTickStats: (...a: unknown[]) => computeTickStatsMock(...a),
   upsertDailyStats: (...a: unknown[]) => upsertStatsMock(...a),
 }));
 vi.mock('@/app/components/Map/lib/subsolarLocation', () => ({
@@ -91,6 +92,8 @@ beforeEach(() => {
   upsertStatsMock.mockReset().mockResolvedValue(undefined);
   setCachedMock.mockReset().mockResolvedValue(undefined);
   fetchTerminatorWebcamsMock.mockReset().mockResolvedValue([]);
+  computeTickStatsMock.mockReset().mockReturnValue({ modelVersion: 'v4', webcamsScored: 1, cacheHits: 0, fallbacks: 0, scoreAvg: 0.5, scoreP50: 0.5, scoreP90: 0.5, scoreP99: 0.5, aboveMinScoreToWinCount: 0, sourceBreakdown: { windy: { scored: 1, avg: 0.5 }, custom: { scored: 0, avg: null } } });
+  verifyAuthMock.mockReset().mockReturnValue(true);
 });
 
 function makeReq(): Request {
@@ -125,5 +128,24 @@ describe('GET /api/cron/update-cameras', () => {
   it('UPSERTs daily_sunset_stats at end of tick', async () => {
     await GET(makeReq());
     expect(upsertStatsMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('handles download failure gracefully and skips Neon + Redis writes', async () => {
+    downloadMock.mockRejectedValueOnce(new Error('network'));
+    const res = await GET(makeReq());
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.cacheHits).toBe(0);
+    expect(scoreMock).not.toHaveBeenCalled();
+    expect(updateAiFieldsMock).not.toHaveBeenCalled();
+    expect(setHashMock).not.toHaveBeenCalled();
+  });
+
+  it('returns 401 when auth fails', async () => {
+    verifyAuthMock.mockReturnValueOnce(false);
+    const res = await GET(makeReq());
+    expect(res.status).toBe(401);
+    expect(scoreMock).not.toHaveBeenCalled();
+    expect(backfillMock).not.toHaveBeenCalled();
   });
 });
