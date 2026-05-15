@@ -1,60 +1,107 @@
 /**
- * AI scoring adapter for cron ingestion.
+ * Real-image scoring for the update-cameras cron.
  *
- * Returns both binary and regression outputs so downstream code can:
- * - use binary score for capture gating
- * - use regression score for 1-5 UX display
+ * scoreImage() takes pre-fetched JPEG bytes and returns a regression score
+ * via the v4 ResNet18 ONNX model. A SHA-256 of the bytes lets callers
+ * short-circuit re-scoring identical frames (Redis-backed at call site).
+ * On any ONNX failure, falls back to the metadata-only baseline so the
+ * cron never crashes.
  */
 
-import type { WindyWebcam } from '@/app/lib/types';
 import path from 'node:path';
 import {
-  AI_BINARY_MODEL_VERSION_DEFAULT,
-  AI_MODEL_VERSION_DEFAULT,
-  AI_ONNX_BINARY_MODEL_PATH_DEFAULT,
-  AI_ONNX_REGRESSION_MODEL_PATH_DEFAULT,
   AI_REGRESSION_MODEL_VERSION_DEFAULT,
+  AI_ONNX_REGRESSION_MODEL_PATH_DEFAULT,
   AI_SCORING_MODE_DEFAULT,
 } from '@/app/lib/masterConfig';
+import { sha256Hex } from './imageHash';
+import { preprocessJpegToImagenetTensor } from './imagePreprocess';
 
-type ModelTarget = 'binary' | 'regression';
+export type WebcamSource = 'windy' | 'custom';
 
-export type ModelScore = {
-  rawScore: number; // 0..1 normalized
-  aiRating: number; // 0..5 normalized display rating
+export interface ScoreImageInput {
+  webcamId: number;
+  imageBytes: Buffer;
+  source: WebcamSource;
+  /** From Redis. When equal to the new hash, returns cache-hit without scoring. */
+  lastImageHash?: string;
+  /** Used only when ONNX fails. Optional. */
+  fallbackMeta?: { viewCount?: number; manualRating?: number };
+}
+
+export type ScorePath = 'onnx' | 'cache-hit' | 'baseline-fallback';
+
+export interface ScoreImageResult {
+  rawScore: number;   // 0..1
+  aiRating: number;   // 0..5 (display)
   modelVersion: string;
-};
+  imageHash: string;
+  source: WebcamSource;
+  pathTaken: ScorePath;
+}
 
-export type WebcamAiScore = ModelScore & {
-  binary: ModelScore;
-  regression: ModelScore;
-};
-
-// Process-level caches avoid reloading the runtime/session for each webcam.
-let cachedOrt: unknown | null = null;
 const cachedSessions = new Map<string, unknown>();
+let cachedOrt: unknown | null = null;
 
-function clamp(value: number, min: number, max: number): number {
-  return Math.min(max, Math.max(min, value));
+export function __resetScoreImageCacheForTests(): void {
+  cachedSessions.clear();
+  cachedOrt = null;
 }
 
-function ratingFromRaw(rawScore: number): number {
-  return Number((rawScore * 5).toFixed(2));
+function clamp(v: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, v));
 }
 
-function normalizeScore(
-  value: number,
-  target: ModelTarget
-): { rawScore: number; aiRating: number } {
-  if (target === 'binary') {
-    const rawScore = clamp(value, 0, 1);
-    return {
-      rawScore: Number(rawScore.toFixed(6)),
-      aiRating: ratingFromRaw(rawScore),
-    };
-  }
+function resolveModelPath(): string {
+  const ref =
+    process.env.AI_ONNX_REGRESSION_MODEL_PATH?.trim() ||
+    AI_ONNX_REGRESSION_MODEL_PATH_DEFAULT;
+  return path.isAbsolute(ref) ? ref : path.join(process.cwd(), ref);
+}
 
-  // Regression model predicts rating-space values.
+function resolveModelVersion(): string {
+  return (
+    process.env.AI_REGRESSION_MODEL_VERSION?.trim() ||
+    AI_REGRESSION_MODEL_VERSION_DEFAULT
+  );
+}
+
+async function getOrt(): Promise<unknown> {
+  if (cachedOrt) return cachedOrt;
+  const moduleName = 'onnxruntime-node';
+  cachedOrt = await import(moduleName);
+  return cachedOrt;
+}
+
+async function getSession(modelPath: string): Promise<unknown> {
+  const hit = cachedSessions.get(modelPath);
+  if (hit) return hit;
+  const ort = (await getOrt()) as {
+    InferenceSession: { create: (p: string) => Promise<unknown> };
+  };
+  const session = await ort.InferenceSession.create(modelPath);
+  cachedSessions.set(modelPath, session);
+  return session;
+}
+
+function baselineRaw(input: ScoreImageInput): number {
+  const views = input.fallbackMeta?.viewCount ?? 0;
+  const manual = input.fallbackMeta?.manualRating ?? 3;
+  const normViews = clamp(Math.log10(views + 1) / 6, 0, 1);
+  const normManual = clamp(manual / 5, 0, 1);
+  return clamp(normViews * 0.65 + normManual * 0.35, 0, 1);
+}
+
+function ratingFromRaw(raw: number): number {
+  return Number((raw * 5).toFixed(2));
+}
+
+/** Map an ONNX output number to a normalized {rawScore, aiRating} pair. */
+function normalizeOnnxOutput(value: number): {
+  rawScore: number;
+  aiRating: number;
+} {
+  // Regression model emits a 0..5 rating-space value.
   const aiRating = clamp(value, 0, 5);
   const rawScore = clamp(aiRating / 5, 0, 1);
   return {
@@ -63,214 +110,81 @@ function normalizeScore(
   };
 }
 
-function buildFeatureVector(webcam: WindyWebcam): number[] {
-  // Current baseline relies on metadata-derived features.
-  // ONNX v2 can replace this with richer image-derived features.
-  const normalizedViews = clamp(
-    Math.log10((webcam.viewCount ?? 0) + 1) / 6,
-    0,
-    1
-  );
-  const normalizedManual = clamp((webcam.rating ?? 3) / 5, 0, 1);
-  const phaseBoost = webcam.phase === 'sunset' ? 0.04 : 0;
-  return [normalizedViews, normalizedManual, phaseBoost];
-}
-
-function baselineModelScore(
-  webcam: WindyWebcam,
-  target: ModelTarget,
-  modelVersion: string
-): ModelScore {
-  const [normalizedViews, normalizedManual, phaseBoost] =
-    buildFeatureVector(webcam);
-
-  const baseRaw = clamp(
-    normalizedViews * 0.65 + normalizedManual * 0.35 + phaseBoost,
-    0,
-    1
-  );
-
-  // Keep baseline deterministic while allowing different score shapes.
-  const rawForTarget =
-    target === 'binary'
-      ? baseRaw
-      : clamp(baseRaw * 0.9 + normalizedManual * 0.1, 0, 1);
-
-  return {
-    rawScore: Number(rawForTarget.toFixed(6)),
-    aiRating: ratingFromRaw(rawForTarget),
-    modelVersion,
-  };
-}
-
-function baselineScore(webcam: WindyWebcam): WebcamAiScore {
-  const binaryModelVersion =
-    process.env.AI_BINARY_MODEL_VERSION?.trim() ||
-    process.env.AI_MODEL_VERSION?.trim() ||
-    AI_MODEL_VERSION_DEFAULT ||
-    AI_BINARY_MODEL_VERSION_DEFAULT;
-  const regressionModelVersion =
-    process.env.AI_REGRESSION_MODEL_VERSION?.trim() ||
-    AI_REGRESSION_MODEL_VERSION_DEFAULT;
-
-  const binary = baselineModelScore(webcam, 'binary', binaryModelVersion);
-  const regression = baselineModelScore(
-    webcam,
-    'regression',
-    regressionModelVersion
-  );
-
-  // Keep legacy top-level fields stable.
-  return {
-    rawScore: binary.rawScore,
-    aiRating: regression.aiRating,
-    modelVersion: regression.modelVersion,
-    binary,
-    regression,
-  };
-}
-
-async function getOnnxRuntime(): Promise<unknown> {
-  // Dynamic import keeps runtime optional in baseline mode.
-  if (cachedOrt) return cachedOrt;
-  const moduleName = 'onnxruntime-node';
-  const runtime = await import(moduleName);
-  cachedOrt = runtime;
-  return runtime;
-}
-
-async function getSession(modelPath: string): Promise<unknown> {
-  // Reuse session while model path is unchanged.
-  const cached = cachedSessions.get(modelPath);
-  if (cached) return cached;
-  const runtime = (await getOnnxRuntime()) as {
-    InferenceSession: { create: (p: string) => Promise<unknown> };
-  };
-  const session = await runtime.InferenceSession.create(modelPath);
-  cachedSessions.set(modelPath, session);
-  return session;
-}
-
-function resolveModelPath(
-  configuredPath: string | undefined,
-  defaultPath: string
-): string {
-  const modelRef = configuredPath?.trim() || defaultPath;
-  return path.isAbsolute(modelRef)
-    ? modelRef
-    : path.join(process.cwd(), modelRef);
-}
-
-async function scoreSingleModelWithOnnx(
-  webcam: WindyWebcam,
-  target: ModelTarget,
-  configuredPath: string | undefined,
-  defaultPath: string,
-  modelVersion: string
-): Promise<ModelScore> {
-  const runtime = (await getOnnxRuntime()) as {
-    Tensor: new (type: string, data: Float32Array, dims: number[]) => unknown;
-  };
-  const modelPath = resolveModelPath(configuredPath, defaultPath);
-  const session = (await getSession(modelPath)) as {
-    inputNames: string[];
-    outputNames: string[];
-    run: (feeds: Record<string, unknown>) => Promise<Record<string, unknown>>;
-  };
-  const inputName = session.inputNames[0];
-  const outputName = session.outputNames[0];
-
-  // NOTE: This remains a compatibility bridge.
-  // We currently feed compact feature vectors for cron-level webcam scoring.
-  const features = buildFeatureVector(webcam);
-  const tensor = new runtime.Tensor(
-    'float32',
-    Float32Array.from(features),
-    [1, features.length]
-  );
-  const outputs = await session.run({ [inputName]: tensor });
-  const output = outputs[outputName] as {
-    data?: ArrayLike<number>;
-  };
-  const defaultValue = target === 'regression' ? 2.5 : 0;
-  const value = Number(output?.data?.[0] ?? defaultValue);
-
-  const normalized = normalizeScore(value, target);
-  return {
-    rawScore: normalized.rawScore,
-    aiRating: normalized.aiRating,
-    modelVersion,
-  };
-}
-
-async function scoreWithOnnx(webcam: WindyWebcam): Promise<WebcamAiScore> {
-  const binaryModelVersion =
-    process.env.AI_BINARY_MODEL_VERSION?.trim() ||
-    process.env.AI_MODEL_VERSION?.trim() ||
-    AI_MODEL_VERSION_DEFAULT ||
-    AI_BINARY_MODEL_VERSION_DEFAULT;
-  const regressionModelVersion =
-    process.env.AI_REGRESSION_MODEL_VERSION?.trim() ||
-    AI_REGRESSION_MODEL_VERSION_DEFAULT;
-
-  const binaryConfiguredPath =
-    process.env.AI_ONNX_BINARY_MODEL_PATH?.trim() ||
-    process.env.AI_ONNX_MODEL_PATH?.trim() ||
-    AI_ONNX_BINARY_MODEL_PATH_DEFAULT;
-  const regressionConfiguredPath =
-    process.env.AI_ONNX_REGRESSION_MODEL_PATH?.trim() ||
-    AI_ONNX_REGRESSION_MODEL_PATH_DEFAULT;
-
-  const [binary, regression] = await Promise.all([
-    scoreSingleModelWithOnnx(
-      webcam,
-      'binary',
-      binaryConfiguredPath,
-      AI_ONNX_BINARY_MODEL_PATH_DEFAULT,
-      binaryModelVersion
-    ),
-    scoreSingleModelWithOnnx(
-      webcam,
-      'regression',
-      regressionConfiguredPath,
-      AI_ONNX_REGRESSION_MODEL_PATH_DEFAULT,
-      regressionModelVersion
-    ),
-  ]);
-
-  // Keep legacy top-level fields stable.
-  return {
-    rawScore: binary.rawScore,
-    aiRating: regression.aiRating,
-    modelVersion: regression.modelVersion,
-    binary,
-    regression,
-  };
-}
-
 /**
- * Generate AI scores for a webcam preview record.
- * Uses baseline scoring by default and supports ONNX via AI_SCORING_MODE=onnx.
+ * Score a single image. Caller is responsible for fetching bytes and
+ * for the Redis hash lookup/write — this function is pure on its inputs
+ * apart from the ONNX session cache.
  */
-export async function scoreWebcamPreview(
-  webcam: WindyWebcam
-): Promise<WebcamAiScore> {
+export async function scoreImage(
+  input: ScoreImageInput
+): Promise<ScoreImageResult> {
+  const modelVersion = resolveModelVersion();
+  const imageHash = sha256Hex(input.imageBytes);
+
+  if (input.lastImageHash && input.lastImageHash === imageHash) {
+    return {
+      rawScore: 0, // ignored by caller on cache-hit
+      aiRating: 0,
+      modelVersion,
+      imageHash,
+      source: input.source,
+      pathTaken: 'cache-hit',
+    };
+  }
+
   const mode =
     process.env.AI_SCORING_MODE?.trim() || AI_SCORING_MODE_DEFAULT;
 
   if (mode !== 'onnx') {
-    // Baseline mode is deterministic and dependency-light.
-    return baselineScore(webcam);
+    const raw = baselineRaw(input);
+    return {
+      rawScore: raw,
+      aiRating: ratingFromRaw(raw),
+      modelVersion,
+      imageHash,
+      source: input.source,
+      pathTaken: 'baseline-fallback',
+    };
   }
 
   try {
-    return await scoreWithOnnx(webcam);
+    const ort = (await getOrt()) as {
+      Tensor: new (t: string, d: Float32Array, dims: number[]) => unknown;
+    };
+    const session = (await getSession(resolveModelPath())) as {
+      inputNames: string[];
+      outputNames: string[];
+      run: (feeds: Record<string, unknown>) => Promise<Record<string, unknown>>;
+    };
+
+    const tensorData = await preprocessJpegToImagenetTensor(input.imageBytes);
+    const tensor = new ort.Tensor('float32', tensorData, [1, 3, 224, 224]);
+    const outputs = await session.run({ [session.inputNames[0]]: tensor });
+    const raw = outputs[session.outputNames[0]] as { data?: ArrayLike<number> };
+    const value = Number(raw?.data?.[0] ?? 2.5);
+    const normalized = normalizeOnnxOutput(value);
+
+    return {
+      rawScore: normalized.rawScore,
+      aiRating: normalized.aiRating,
+      modelVersion,
+      imageHash,
+      source: input.source,
+      pathTaken: 'onnx',
+    };
   } catch (error) {
-    // Never break cron ingestion if ONNX loading/inference fails.
     console.warn(
-      'ONNX scorer unavailable, falling back to baseline:',
+      `[scoreImage] ONNX failed for webcam ${input.webcamId}, falling back:`,
       error
     );
-    return baselineScore(webcam);
+    const raw = baselineRaw(input);
+    return {
+      rawScore: raw,
+      aiRating: ratingFromRaw(raw),
+      modelVersion,
+      imageHash,
+      source: input.source,
+      pathTaken: 'baseline-fallback',
+    };
   }
 }
