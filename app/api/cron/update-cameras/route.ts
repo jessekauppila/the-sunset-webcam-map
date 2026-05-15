@@ -11,7 +11,11 @@
  */
 
 import { fetchTerminatorWebcams } from '@/app/lib/terminatorPayload';
-import { setCachedTerminatorPayload } from '@/app/lib/cache';
+import {
+  setCachedTerminatorPayload,
+  getCameraImageHash,
+  setCameraImageHash,
+} from '@/app/lib/cache';
 import { NextResponse } from 'next/server';
 import { subsolarPoint } from '@/app/components/Map/lib/subsolarLocation';
 import { createTerminatorQueryRing } from '@/app/components/Map/lib/terminatorRing';
@@ -19,9 +23,6 @@ import {
   TERMINATOR_RING_OFFSETS_DEG,
   TERMINATOR_PRECISION_DEG,
   TERMINATOR_SUN_ALTITUDE_DEG,
-  AI_SNAPSHOT_MIN_RAW_SCORE_THRESHOLD,
-  AI_SNAPSHOT_RECENT_WINDOW_MINUTES,
-  SNAPSHOTS_ENABLED,
   WINDY_FETCH_BATCH_SIZE,
   WINDY_FETCH_DELAY_BETWEEN_BATCHES_MS,
 } from '@/app/lib/masterConfig';
@@ -38,12 +39,15 @@ import {
   upsertTerminatorState,
   deactivateMissingTerminatorState,
   updateWebcamAiFields,
-  findRecentSnapshot,
-  insertSnapshotRecord,
-  upsertSnapshotAiInference,
 } from './lib/dbOperations';
-import { scoreWebcamPreview } from './lib/aiScoring';
-import { captureWebcamSnapshot } from '@/app/lib/webcamSnapshot';
+import { scoreImage } from './lib/aiScoring';
+import { backfillCustomSnapshotScores } from './lib/customBackfill';
+import { computeTickStats, upsertDailyStats } from './lib/dailyStats';
+import { downloadImage } from '@/app/lib/webcamSnapshot';
+
+const TICK_DEADLINE_MS = 50_000;
+const PER_IMAGE_TIMEOUT_MS = 3_000;
+const WINDY_BATCH_SIZE = 10;
 
 export async function GET(req: Request) {
   // Verify authentication
@@ -116,134 +120,91 @@ export async function GET(req: Request) {
   const externalIds = windyAll.map((w) => String(w.webcamId));
   const idByExternal = await getWebcamIdMap(externalIds);
 
-  // Build phase/rank lookup for AI snapshot metadata.
-  const phaseByExternal = new Map<
-    string,
-    { phase: 'sunrise' | 'sunset'; rank: number | null }
-  >();
-  sunriseList.forEach((webcam, index) => {
-    phaseByExternal.set(String(webcam.webcamId), {
-      phase: 'sunrise',
-      rank: webcam.rank ?? index,
-    });
-  });
-  sunsetList.forEach((webcam, index) => {
-    phaseByExternal.set(String(webcam.webcamId), {
-      phase: 'sunset',
-      rank: webcam.rank ?? index,
-    });
-  });
+  // AI scoring via real image pipeline — per-tick counters.
+  const tickStartedAt = Date.now();
+  const windyScores: number[] = [];
+  let cacheHits = 0;
+  let fallbacks = 0;
 
-  // AI scoring + persistence counters (structured for observability).
-  const aiStats = {
-    total_scored: 0,
-    above_threshold: 0,
-    snapshots_captured: 0,
-    inference_rows_written: 0,
-    failures: 0,
-  };
-  const webcamAiUpdates: Array<{
-    webcamId: number;
-    aiRating: number;
-    aiModelVersion: string;
-    aiRatingBinary: number;
-    aiModelVersionBinary: string;
-    aiRatingRegression: number;
-    aiModelVersionRegression: string;
-  }> = [];
-
-  for (const webcam of windyAll) {
+  async function scoreOneWindy(webcam: typeof windyAll[number]): Promise<void> {
     const externalId = String(webcam.webcamId);
     const webcamId = idByExternal.get(externalId);
-    if (!webcamId) continue;
+    if (!webcamId) return;
+
+    const previewUrl = webcam.images?.current?.preview;
+    if (!previewUrl) return;
 
     try {
-      const phaseMeta = phaseByExternal.get(externalId) ?? {
-        phase: 'sunset' as const,
-        rank: null,
-      };
-
-      const scored = await scoreWebcamPreview({
-        ...webcam,
-        phase: phaseMeta.phase,
-        rank: phaseMeta.rank ?? undefined,
-      });
-      aiStats.total_scored += 1;
-
-      webcamAiUpdates.push({
+      const bytes = await Promise.race([
+        downloadImage(previewUrl),
+        new Promise<never>((_, rej) =>
+          setTimeout(() => rej(new Error('image fetch timeout')), PER_IMAGE_TIMEOUT_MS)
+        ),
+      ]);
+      const lastHash = await getCameraImageHash('windy', webcamId);
+      const scored = await scoreImage({
         webcamId,
-        aiRating: scored.aiRating,
-        aiModelVersion: scored.modelVersion,
-        aiRatingBinary: scored.binary.aiRating,
-        aiModelVersionBinary: scored.binary.modelVersion,
-        aiRatingRegression: scored.regression.aiRating,
-        aiModelVersionRegression: scored.regression.modelVersion,
+        imageBytes: bytes,
+        source: 'windy',
+        lastImageHash: lastHash ?? undefined,
+        fallbackMeta: {
+          viewCount: webcam.viewCount,
+          manualRating: webcam.rating ?? undefined,
+        },
       });
 
-      if (scored.rawScore < AI_SNAPSHOT_MIN_RAW_SCORE_THRESHOLD)
-        continue;
-      aiStats.above_threshold += 1;
-
-      if (!SNAPSHOTS_ENABLED) continue;
-
-      let snapshotId: number;
-      const recent = await findRecentSnapshot(
-        webcamId,
-        AI_SNAPSHOT_RECENT_WINDOW_MINUTES,
-      );
-      if (recent) {
-        snapshotId = recent.id;
-      } else {
-        const captured = await captureWebcamSnapshot({
-          ...webcam,
-          webcamId,
-          phase: phaseMeta.phase,
-          rank: phaseMeta.rank ?? undefined,
-        });
-
-        if (!captured) {
-          aiStats.failures += 1;
-          continue;
-        }
-
-        snapshotId = await insertSnapshotRecord(
-          webcamId,
-          phaseMeta.phase,
-          phaseMeta.rank,
-          webcam.rating ?? null,
-          captured.url,
-          captured.path,
-          scored.aiRating,
-        );
-        aiStats.snapshots_captured += 1;
+      if (scored.pathTaken === 'cache-hit') {
+        cacheHits += 1;
+        return;
       }
+      if (scored.pathTaken === 'baseline-fallback') fallbacks += 1;
+      windyScores.push(scored.rawScore);
 
-      await upsertSnapshotAiInference(
-        snapshotId,
-        scored.binary.modelVersion,
-        scored.binary.rawScore,
-        scored.binary.aiRating,
-      );
-      await upsertSnapshotAiInference(
-        snapshotId,
-        scored.regression.modelVersion,
-        scored.regression.rawScore,
-        scored.regression.aiRating,
-      );
-      aiStats.inference_rows_written += 2;
+      await setCameraImageHash('windy', webcamId, scored.imageHash);
+      await updateWebcamAiFields([
+        {
+          webcamId,
+          aiRating: scored.aiRating,
+          aiModelVersion: scored.modelVersion,
+          aiRatingBinary: scored.aiRating, // binary scoring not in Phase 1
+          aiModelVersionBinary: scored.modelVersion,
+          aiRatingRegression: scored.aiRating,
+          aiModelVersionRegression: scored.modelVersion,
+        },
+      ]);
     } catch (error) {
-      aiStats.failures += 1;
-      console.error(
-        `AI scoring failed for webcam ${webcam.webcamId}:`,
+      console.warn(
+        `[update-cameras] windy webcam ${webcam.webcamId} scoring failed:`,
         error,
       );
+      fallbacks += 1;
     }
   }
 
-  if (webcamAiUpdates.length > 0) {
-    await updateWebcamAiFields(webcamAiUpdates);
+  for (let i = 0; i < windyAll.length; i += WINDY_BATCH_SIZE) {
+    if (Date.now() - tickStartedAt > TICK_DEADLINE_MS) {
+      console.warn('[update-cameras] tick deadline reached, stopping batches');
+      break;
+    }
+    const batch = windyAll.slice(i, i + WINDY_BATCH_SIZE);
+    await Promise.all(batch.map(scoreOneWindy));
   }
-  console.log('🤖 AI scoring summary:', aiStats);
+
+  // Custom-camera score backfill — bounded by the same tick deadline.
+  const remainingBudget = Math.max(
+    10,
+    TICK_DEADLINE_MS - (Date.now() - tickStartedAt),
+  );
+  const backfillResult = await backfillCustomSnapshotScores({
+    limit: Math.min(50, Math.floor(remainingBudget / 100)),
+  });
+
+  console.log('🤖 AI scoring summary:', {
+    windyScored: windyScores.length,
+    cacheHits,
+    fallbacks,
+    customBackfill: backfillResult,
+  });
 
   // Upsert terminator state for sunrise webcams
   await upsertTerminatorState(sunriseList, 'sunrise', idByExternal);
@@ -271,10 +232,32 @@ export async function GET(req: Request) {
     console.error('Failed to update terminator cache:', error);
   }
 
+  const tickStats = computeTickStats({
+    windyScores,
+    customScores: backfillResult.scores,
+    cacheHits,
+    fallbacks: fallbacks + backfillResult.failed,
+    modelVersion:
+      backfillResult.modelVersion ??
+      process.env.AI_REGRESSION_MODEL_VERSION?.trim() ??
+      'unknown',
+    // 0.5 matches the device-protocol §9.4.2 default. Task 14 replaces this
+    // literal with WINNER_POLICY_WINDY_MIN_SCORE_TO_WIN once Phase 2 lands.
+    minScoreToWin: 0.5,
+  });
+  try {
+    await upsertDailyStats(new Date(), tickStats);
+  } catch (err) {
+    console.error('[update-cameras] daily_sunset_stats UPSERT failed:', err);
+  }
+
   return NextResponse.json({
     ok: true,
     sunrise: sunriseList.length,
     sunset: sunsetList.length,
-    ai: aiStats,
+    windyScored: windyScores.length,
+    cacheHits,
+    fallbacks,
+    customBackfill: backfillResult,
   });
 }
