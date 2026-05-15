@@ -4,5 +4,10 @@
       "path": "/api/cron/update-cameras",
       "schedule": "*/1 * * * *"
     }
-  ]
+  ],
+  "functions": {
+    "app/api/cron/update-cameras/route.ts": {
+      "includeFiles": "ml/artifacts/models/regression_resnet18/**"
+    }
+  }
 }
