@@ -52,3 +52,41 @@ export async function invalidateTerminatorPayload(): Promise<void> {
     console.error('Cache invalidate failed:', error);
   }
 }
+
+const CAMERA_HASH_TTL_SECONDS = 60 * 60 * 24;
+
+type CameraSource = 'windy' | 'custom';
+
+function cameraHashKey(source: CameraSource, webcamId: number): string {
+  return `camera:hash:${source}:${webcamId}`;
+}
+
+export async function getCameraImageHash(
+  source: CameraSource,
+  webcamId: number
+): Promise<string | null> {
+  const c = getClient();
+  if (!c) return null;
+  try {
+    return (await c.get<string>(cameraHashKey(source, webcamId))) ?? null;
+  } catch (error) {
+    console.error('Camera hash read failed:', error);
+    return null;
+  }
+}
+
+export async function setCameraImageHash(
+  source: CameraSource,
+  webcamId: number,
+  imageHash: string
+): Promise<void> {
+  const c = getClient();
+  if (!c) return;
+  try {
+    await c.set(cameraHashKey(source, webcamId), imageHash, {
+      ex: CAMERA_HASH_TTL_SECONDS,
+    });
+  } catch (error) {
+    console.error('Camera hash write failed:', error);
+  }
+}
