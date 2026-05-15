@@ -18,17 +18,17 @@ export interface WindyWebcam {
   viewCount: number;
   status: string;
   images?: {
-    sizes: {
+    sizes?: {
       icon: { width: number; height: number };
       preview: { width: number; height: number };
       thumbnail: { width: number; height: number };
     };
     current: {
-      icon: string;
       preview: string;
-      thumbnail: string;
+      icon?: string;
+      thumbnail?: string;
     };
-    daylight: {
+    daylight?: {
       icon: string;
       preview: string;
       thumbnail: string;
