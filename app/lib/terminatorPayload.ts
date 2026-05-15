@@ -42,6 +42,19 @@ const toMaybeNumber = (
   return Number.isFinite(n) ? n : undefined;
 };
 
+/**
+ * For source='custom' rows: synthesize a minimal Windy-shaped `images`
+ * payload from a single snapshot URL. Only `current.preview` is populated —
+ * we don't have icon/thumbnail/sizes/daylight assets for custom snapshots
+ * and refuse to fabricate them.
+ */
+export function imagesFromCustomSnapshot(
+  url: string | null
+): WindyWebcam['images'] | undefined {
+  if (!url) return undefined;
+  return { current: { preview: url } };
+}
+
 export async function fetchTerminatorWebcams(): Promise<WindyWebcam[]> {
   const rows = (await sql`
     select s.webcam_id, s.phase, s.rank,
