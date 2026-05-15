@@ -55,6 +55,8 @@ export async function invalidateTerminatorPayload(): Promise<void> {
 
 const CAMERA_HASH_TTL_SECONDS = 60 * 60 * 24;
 
+// Narrower than the public WebcamSource union (which includes 'openweather')
+// — openweather rows have no per-camera image to hash, so they never key here.
 type CameraSource = 'windy' | 'custom';
 
 function cameraHashKey(source: CameraSource, webcamId: number): string {
