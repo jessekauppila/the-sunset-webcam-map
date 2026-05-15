@@ -7,10 +7,10 @@ const nextConfig: NextConfig = {
         protocol: 'https',
         hostname: 'firebasestorage.googleapis.com',
         pathname: '/**',
-        serverExternalPackages: ['onnxruntime-node', 'sharp'],
       },
     ],
   },
+  serverExternalPackages: ['onnxruntime-node', 'sharp'],
 };
 
 export default nextConfig;
