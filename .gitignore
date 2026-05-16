@@ -46,8 +46,13 @@ next-env.d.ts
 # superpowers worktrees
 .worktrees/
 
-# ML artifacts
-ml/artifacts/
+# ML artifacts — surgical exclusions only.
+# Keep configs, manifests, eval reports, plots, ONNX models, meta sidecars,
+# llm_ratings CSVs, scraper summaries, failure galleries version-controlled.
+ml/artifacts/image_cache/
+ml/artifacts/**/*.pt
+ml/artifacts/**/*.pth
+ml/artifacts/**/*.ckpt
 ml/.venv/
 /.venv/
 /.venv*/

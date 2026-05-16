@@ -1,0 +1,57 @@
+run:
+  name: v2_regression_mild_crop
+  seed: 20260212
+  notes: Regression model with mild crop for 1-5 style rating prediction.
+  tags: [v2, regression, mild_crop]
+
+data:
+  label_source: manual_only
+  target_type: regression
+  binary_threshold: 4.0
+  min_rating_count: 1
+  splits:
+    seed: 20260212
+    train_pct: 70
+    val_pct: 15
+    test_pct: 15
+
+model:
+  name: resnet18
+  epochs: 10
+  batch_size: 32
+  learning_rate: 0.0001
+
+imbalance:
+  class_weighting: none
+  sampler: none
+  manual_weights: {}
+
+augmentation:
+  profile: light
+
+cropping:
+  strategy: random_resized
+  scale_min: 0.95
+  scale_max: 1.0
+
+performance:
+  num_workers: 0
+  pin_memory: false
+  prefetch_factor: 2
+  persistent_workers: false
+
+subset:
+  max_train_samples: 0
+  max_val_samples: 0
+
+image_cache:
+  enabled: false
+  cache_dir: ml/artifacts/image_cache
+  precache: false
+
+metrics:
+  decision_threshold: 0.5
+  threshold_sweep: false
+  threshold_sweep_start: 0.1
+  threshold_sweep_end: 0.9
+  threshold_sweep_step: 0.1

@@ -1,0 +1,95 @@
+{
+  "target_type": "binary",
+  "model_name": "resnet18",
+  "epochs": 3,
+  "batch_size": 32,
+  "learning_rate": 0.0001,
+  "seed": 20260212,
+  "train_manifest": "ml/artifacts/experiments/20260314_062831_v2_mild_crop_balanced_pilot/dataset/20260314_062832/manifest_train.csv",
+  "val_manifest": "ml/artifacts/experiments/20260314_062831_v2_mild_crop_balanced_pilot/dataset/20260314_062832/manifest_val.csv",
+  "class_weighting": "balanced",
+  "manual_class_weight_neg": null,
+  "manual_class_weight_pos": null,
+  "effective_class_weights": [
+    0.6224412433661866,
+    2.541795665634675
+  ],
+  "sampler": "none",
+  "augmentation_profile": "light",
+  "crop_strategy": "random_resized",
+  "crop_scale_min": 0.95,
+  "crop_scale_max": 1.0,
+  "num_workers": 0,
+  "pin_memory": false,
+  "prefetch_factor": 2,
+  "persistent_workers": false,
+  "max_train_samples": 0,
+  "max_val_samples": 0,
+  "cache_urls": false,
+  "cache_dir": null,
+  "precache_urls": false,
+  "cache_state_before_train": {
+    "enabled": false,
+    "unique_url_count": 3284,
+    "cached_count": 0,
+    "missing_count": 3284
+  },
+  "cache_state_before_val": {
+    "enabled": false,
+    "unique_url_count": 723,
+    "cached_count": 0,
+    "missing_count": 723
+  },
+  "cache_warmup_train": {
+    "enabled": false
+  },
+  "cache_warmup_val": {
+    "enabled": false
+  },
+  "cache_state_after_train": {
+    "enabled": false,
+    "unique_url_count": 3284,
+    "cached_count": 0,
+    "missing_count": 3284
+  },
+  "cache_state_after_val": {
+    "enabled": false,
+    "unique_url_count": 723,
+    "cached_count": 0,
+    "missing_count": 723
+  },
+  "train_class_counts": {
+    "0": 2638,
+    "1": 646
+  },
+  "train_num_samples": 3284,
+  "val_num_samples": 723,
+  "total_runtime_sec": 1688.0367710419814,
+  "epoch_times_sec": [
+    571.4339499580092,
+    528.0063671660027,
+    588.3589438750059
+  ],
+  "best_metric": 0.7455197132616488,
+  "best_checkpoint": "ml/artifacts/experiments/20260314_062831_v2_mild_crop_balanced_pilot/train/best.pt",
+  "history": [
+    {
+      "epoch": 1,
+      "train_loss": 0.3805214897593827,
+      "val_loss": 0.41805554683441704,
+      "val_metric": 0.7245508982035929
+    },
+    {
+      "epoch": 2,
+      "train_loss": 0.2307197644004544,
+      "val_loss": 0.5347468976093375,
+      "val_metric": 0.7455197132616488
+    },
+    {
+      "epoch": 3,
+      "train_loss": 0.1994612997813711,
+      "val_loss": 0.4390707284859989,
+      "val_metric": 0.7244897959183674
+    }
+  ]
+}

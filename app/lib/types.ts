@@ -82,12 +82,14 @@ export interface WindyWebcam {
   rating?: number; // 1-5 star rating
   orientation?: Orientation; // Direction the webcam is facing
 
-  // Latest AI scoring fields (updated by cron ingestion)
-  aiRating?: number; // 0-5 normalized score
+  // Latest AI scoring fields (updated by cron ingestion).
+  // All three ratings are on a 1-5 scale, matching human stars
+  // (aiScoring.ts maps the model's [0,1] output via 1 + rawScore * 4).
+  aiRating?: number; // 1-5 normalized score
   aiModelVersion?: string; // Model version for aiRating
-  aiRatingBinary?: number; // 0-5 normalized binary score
+  aiRatingBinary?: number; // 1-5 normalized binary score
   aiModelVersionBinary?: string; // Model version for binary score
-  aiRatingRegression?: number; // 0-5 normalized regression score
+  aiRatingRegression?: number; // 1-5 normalized regression score
   aiModelVersionRegression?: string; // Model version for regression score
 
   // Live-asset format discriminator. Tells the popup/renderer what KIND of

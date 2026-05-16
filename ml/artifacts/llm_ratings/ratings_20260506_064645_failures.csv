@@ -1,0 +1,65 @@
+record_id,source_table,image_url,error
+66500,webcam,https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/3153444/1764618967009.jpg,"Error code: 400 - {'type': 'error', 'error': {'type': 'invalid_request_error', 'message': 'messages.0.content.0.image.source.base64: The image was specified using the image/jpeg media type, but the image appears to be a image/png image'}, 'request_id': 'req_011CaksCNLxQDdebGg7Bs2TZ'}"
+66501,webcam,https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/3759756/1764618970072.jpg,"Error code: 400 - {'type': 'error', 'error': {'type': 'invalid_request_error', 'message': 'messages.0.content.0.image.source.base64: The image was specified using the image/jpeg media type, but the image appears to be a image/png image'}, 'request_id': 'req_011CaksD2AYBJMMKd5z8ARpf'}"
+66525,webcam,https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/103/1770144681900.jpg,"Error code: 400 - {'type': 'error', 'error': {'type': 'invalid_request_error', 'message': 'messages.0.content.0.image.source.base64: The image was specified using the image/jpeg media type, but the image appears to be a image/png image'}, 'request_id': 'req_011CaksKmzSuMiWtgFkFjPZg'}"
+66546,webcam,https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/2946548/1770149249053.jpg,"could not receive data from server: Operation timed out
+SSL SYSCALL error: Operation timed out
+"
+66547,webcam,https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/5137840/1770149256826.jpg,connection already closed
+66548,webcam,https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/9728932/1770149258868.jpg,connection already closed
+66549,webcam,https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/4589070/1770149261198.jpg,connection already closed
+66550,webcam,https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/10163488/1770149265352.jpg,connection already closed
+66551,webcam,https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/10162590/1770149267234.jpg,connection already closed
+66552,webcam,https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/10495330/1770149280494.jpg,connection already closed
+66553,webcam,https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/3798295/1770149292027.jpg,connection already closed
+66554,webcam,https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/301/1770171566906.jpg,connection already closed
+66555,webcam,https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/400/1770171577975.jpg,connection already closed
+66556,webcam,https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/368/1770171579450.jpg,connection already closed
+66557,webcam,https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/2923203/1770171586296.jpg,connection already closed
+66558,webcam,https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/2922913/1770171595543.jpg,connection already closed
+66559,webcam,https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/2924752/1770171598889.jpg,connection already closed
+66560,webcam,https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/5649571/1770171601141.jpg,connection already closed
+66561,webcam,https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/5713644/1770171605165.jpg,connection already closed
+66562,webcam,https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/8211030/1770171608479.jpg,connection already closed
+66563,webcam,https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/333/1770171612791.jpg,connection already closed
+66564,webcam,https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/536/1770171617152.jpg,connection already closed
+66565,webcam,https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/21846/1770171621166.jpg,connection already closed
+66566,webcam,https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/12451/1770171627263.jpg,connection already closed
+66567,webcam,https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/3375326/1770177196250.jpg,connection already closed
+66568,webcam,https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/2926564/1770177199707.jpg,connection already closed
+66569,webcam,https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/4520535/1770177210846.jpg,connection already closed
+66570,webcam,https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/2926257/1770177217659.jpg,connection already closed
+66571,webcam,https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/153/1770177219043.jpg,connection already closed
+66572,webcam,https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/10067720/1770177225688.jpg,connection already closed
+66573,webcam,https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/2978042/1770177234539.jpg,connection already closed
+66574,webcam,https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/331/1770177237926.jpg,connection already closed
+66575,webcam,https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/536/1770177244045.jpg,connection already closed
+66576,webcam,https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/8223042/1770178352991.jpg,connection already closed
+66577,webcam,https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/7450206/1770178355890.jpg,connection already closed
+66578,webcam,https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/137/1770178372375.jpg,connection already closed
+66579,webcam,https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/8221516/1770178378000.jpg,connection already closed
+66580,webcam,https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/609/1770178384095.jpg,connection already closed
+66581,webcam,https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/2926722/1770178391707.jpg,connection already closed
+66582,webcam,https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/640640/1770178395019.jpg,connection already closed
+66583,webcam,https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/3792954/1770178402380.jpg,connection already closed
+66584,webcam,https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/9669371/1770178407274.jpg,connection already closed
+66585,webcam,https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/9669619/1770178411188.jpg,connection already closed
+66586,webcam,https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/7040222/1770178415236.jpg,connection already closed
+66587,webcam,https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/1792/1770178421426.jpg,connection already closed
+66588,webcam,https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/3563010/1770178913417.jpg,connection already closed
+66589,webcam,https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/2927004/1770178917291.jpg,connection already closed
+66590,webcam,https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/3313596/1770178924655.jpg,connection already closed
+66591,webcam,https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/3656741/1770178927827.jpg,connection already closed
+66592,webcam,https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/8190097/1770178931742.jpg,connection already closed
+66593,webcam,https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/10520373/1770178940958.jpg,connection already closed
+66594,webcam,https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/5379767/1770179073643.jpg,connection already closed
+66595,webcam,https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/10144729/1770182931989.jpg,connection already closed
+66596,webcam,https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/9252619/1770182933847.jpg,connection already closed
+66597,webcam,https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/7687669/1770182936237.jpg,connection already closed
+66598,webcam,https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/16360/1770182940185.jpg,connection already closed
+66599,webcam,https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/1372/1770182945252.jpg,connection already closed
+66600,webcam,https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/1946/1770182947801.jpg,connection already closed
+66601,webcam,https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/2929663/1770182952740.jpg,connection already closed
+66602,webcam,https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/10360409/1770182961697.jpg,connection already closed
+66603,webcam,https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/281167/1770187130378.jpg,connection already closed
+66604,webcam,https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/8313324/1770187135450.jpg,connection already closed

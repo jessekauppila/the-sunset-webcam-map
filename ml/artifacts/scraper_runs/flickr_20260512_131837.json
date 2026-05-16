@@ -1,0 +1,12 @@
+{
+  "queries": [
+    "twilight"
+  ],
+  "max_images": 800,
+  "category": "sunset",
+  "downloaded": 800,
+  "skipped_existing": 89,
+  "skipped_no_url": 12,
+  "errors": 0,
+  "dry_run": false
+}

@@ -1,0 +1,1496 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<title>LLM Rater Dry Run — anthropic / claude-haiku-4-5</title>
+<style>
+  body { font-family: -apple-system, system-ui, sans-serif; background: #fafafa; margin: 0; padding: 24px; }
+  h1 { font-size: 22px; margin: 0 0 4px 0; }
+  .summary { color: #555; margin-bottom: 24px; font-size: 14px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 16px; }
+  .card { background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 6px rgba(0,0,0,0.08); }
+  .card img { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; background: #eee; display: block; }
+  .meta { padding: 12px 14px; }
+  .header { display: flex; justify-content: space-between; font-size: 12px; color: #888; margin-bottom: 6px; }
+  .id { font-family: monospace; }
+  .source { text-transform: uppercase; letter-spacing: 0.5px; }
+  .quality-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .quality-num { font-size: 24px; font-weight: 600; min-width: 56px; }
+  .quality-bar { flex: 1; height: 8px; background: #eee; border-radius: 4px; overflow: hidden; }
+  .quality-fill { height: 100%; }
+  .badges { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+  .badge { font-size: 11px; padding: 3px 8px; border-radius: 10px; background: #eee; color: #555; }
+  .badge.on { background: #e8f5e9; color: #2e7d32; }
+  .badge.off { background: #fafafa; color: #999; }
+  .badge.muted { background: #f0f0f0; color: #666; }
+  .palette { font-size: 13px; color: #444; margin-bottom: 4px; line-height: 1.4; }
+  .obstruction { font-size: 12px; color: #c62828; margin-bottom: 4px; }
+  .human { font-size: 12px; color: #555; }
+  .human.muted { color: #aaa; }
+  .agreement { font-size: 12px; font-weight: 600; margin-top: 2px; }
+</style>
+</head>
+<body>
+  <h1>LLM Rater dry run</h1>
+  <div class="summary">
+    Provider: <strong>anthropic</strong> &nbsp; Model: <strong>claude-haiku-4-5</strong> &nbsp;
+    Images: <strong>50</strong> &nbsp;
+    Detected sunsets: <strong>20</strong> &nbsp;
+    Average quality: <strong>0.22</strong> &nbsp;
+    Sorted by quality (high to low). Use this to verify ratings make visual sense before running the full archive.
+  </div>
+  <div class="grid">
+    
+        <div class="card">
+          <img src="https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/10300/1775435492525.jpg" alt="image 96919" loading="lazy"/>
+          <div class="meta">
+            <div class="header">
+              <span class="id">#96919</span>
+              <span class="source">webcam</span>
+            </div>
+            <div class="quality-row">
+              <div class="quality-num" style="color:#2e7d32;">0.72</div>
+              <div class="quality-bar">
+                <div class="quality-fill" style="width:72%; background:#2e7d32;"></div>
+              </div>
+            </div>
+            <div class="badges">
+              <span class="badge on">
+                sunset
+              </span>
+              <span class="badge on">
+                has clouds
+              </span>
+              <span class="badge muted">conf 0.85</span>
+            </div>
+            <div class="palette">Golden yellow and white light breaking through dark gray and blue clouds</div>
+            <div class="obstruction">obstruction: rain on lens</div>
+            <div class="human muted">No human rating</div>
+            
+          </div>
+        </div>
+        
+        <div class="card">
+          <img src="https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/609/1764120749296.jpg" alt="image 66407" loading="lazy"/>
+          <div class="meta">
+            <div class="header">
+              <span class="id">#66407</span>
+              <span class="source">webcam</span>
+            </div>
+            <div class="quality-row">
+              <div class="quality-num" style="color:#2e7d32;">0.65</div>
+              <div class="quality-bar">
+                <div class="quality-fill" style="width:65%; background:#2e7d32;"></div>
+              </div>
+            </div>
+            <div class="badges">
+              <span class="badge on">
+                sunset
+              </span>
+              <span class="badge on">
+                has clouds
+              </span>
+              <span class="badge muted">conf 0.85</span>
+            </div>
+            <div class="palette">warm golden and orange tones with peachy hues transitioning to pale blue sky</div>
+            
+            <div class="human">Human: 5.00/5 (1 rater)</div>
+            <div class="agreement" style="color:#c62828;">Agreement: DISAGREE (diff 0.35)</div>
+          </div>
+        </div>
+        
+        <div class="card">
+          <img src="https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/4443/1771097748949.jpg" alt="image 70179" loading="lazy"/>
+          <div class="meta">
+            <div class="header">
+              <span class="id">#70179</span>
+              <span class="source">webcam</span>
+            </div>
+            <div class="quality-row">
+              <div class="quality-num" style="color:#2e7d32;">0.65</div>
+              <div class="quality-bar">
+                <div class="quality-fill" style="width:65%; background:#2e7d32;"></div>
+              </div>
+            </div>
+            <div class="badges">
+              <span class="badge on">
+                sunset
+              </span>
+              <span class="badge on">
+                has clouds
+              </span>
+              <span class="badge muted">conf 0.85</span>
+            </div>
+            <div class="palette">Golden orange and warm amber tones with hints of pink, transitioning to pale blue sky</div>
+            
+            <div class="human muted">No human rating</div>
+            
+          </div>
+        </div>
+        
+        <div class="card">
+          <img src="https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/4443/1772741089995.jpg" alt="image 77310" loading="lazy"/>
+          <div class="meta">
+            <div class="header">
+              <span class="id">#77310</span>
+              <span class="source">webcam</span>
+            </div>
+            <div class="quality-row">
+              <div class="quality-num" style="color:#2e7d32;">0.65</div>
+              <div class="quality-bar">
+                <div class="quality-fill" style="width:65%; background:#2e7d32;"></div>
+              </div>
+            </div>
+            <div class="badges">
+              <span class="badge on">
+                sunset
+              </span>
+              <span class="badge on">
+                has clouds
+              </span>
+              <span class="badge muted">conf 0.85</span>
+            </div>
+            <div class="palette">Golden orange and warm yellow tones with blue sky, soft white clouds</div>
+            
+            <div class="human">Human: 5.00/5 (1 rater)</div>
+            <div class="agreement" style="color:#c62828;">Agreement: DISAGREE (diff 0.35)</div>
+          </div>
+        </div>
+        
+        <div class="card">
+          <img src="https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/160/1772891583646.jpg" alt="image 77904" loading="lazy"/>
+          <div class="meta">
+            <div class="header">
+              <span class="id">#77904</span>
+              <span class="source">webcam</span>
+            </div>
+            <div class="quality-row">
+              <div class="quality-num" style="color:#2e7d32;">0.65</div>
+              <div class="quality-bar">
+                <div class="quality-fill" style="width:65%; background:#2e7d32;"></div>
+              </div>
+            </div>
+            <div class="badges">
+              <span class="badge on">
+                sunset
+              </span>
+              <span class="badge on">
+                has clouds
+              </span>
+              <span class="badge muted">conf 0.85</span>
+            </div>
+            <div class="palette">Dark gray and charcoal sky with orange and amber light on the horizon, creating a moody twilight atmosphere</div>
+            
+            <div class="human">Human: 1.00/5 (1 rater)</div>
+            <div class="agreement" style="color:#c62828;">Agreement: DISAGREE (diff 0.45)</div>
+          </div>
+        </div>
+        
+        <div class="card">
+          <img src="https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/10503/1773446123390.jpg" alt="image 81470" loading="lazy"/>
+          <div class="meta">
+            <div class="header">
+              <span class="id">#81470</span>
+              <span class="source">webcam</span>
+            </div>
+            <div class="quality-row">
+              <div class="quality-num" style="color:#2e7d32;">0.65</div>
+              <div class="quality-bar">
+                <div class="quality-fill" style="width:65%; background:#2e7d32;"></div>
+              </div>
+            </div>
+            <div class="badges">
+              <span class="badge on">
+                sunset
+              </span>
+              <span class="badge on">
+                has clouds
+              </span>
+              <span class="badge muted">conf 0.85</span>
+            </div>
+            <div class="palette">Golden orange and warm amber tones breaking through gray clouds above dark mountain silhouettes</div>
+            
+            <div class="human muted">No human rating</div>
+            
+          </div>
+        </div>
+        
+        <div class="card">
+          <img src="https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/7437829/1773535116338.jpg" alt="image 88006" loading="lazy"/>
+          <div class="meta">
+            <div class="header">
+              <span class="id">#88006</span>
+              <span class="source">webcam</span>
+            </div>
+            <div class="quality-row">
+              <div class="quality-num" style="color:#2e7d32;">0.65</div>
+              <div class="quality-bar">
+                <div class="quality-fill" style="width:65%; background:#2e7d32;"></div>
+              </div>
+            </div>
+            <div class="badges">
+              <span class="badge on">
+                sunset
+              </span>
+              <span class="badge on">
+                has clouds
+              </span>
+              <span class="badge muted">conf 0.85</span>
+            </div>
+            <div class="palette">warm orange and peachy tones transitioning to teal and blue in upper sky</div>
+            
+            <div class="human muted">No human rating</div>
+            
+          </div>
+        </div>
+        
+        <div class="card">
+          <img src="https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/17580012/1773940412800.jpg" alt="image 89789" loading="lazy"/>
+          <div class="meta">
+            <div class="header">
+              <span class="id">#89789</span>
+              <span class="source">webcam</span>
+            </div>
+            <div class="quality-row">
+              <div class="quality-num" style="color:#2e7d32;">0.65</div>
+              <div class="quality-bar">
+                <div class="quality-fill" style="width:65%; background:#2e7d32;"></div>
+              </div>
+            </div>
+            <div class="badges">
+              <span class="badge on">
+                sunset
+              </span>
+              <span class="badge on">
+                has clouds
+              </span>
+              <span class="badge muted">conf 0.85</span>
+            </div>
+            <div class="palette">Golden orange and yellow horizon transitioning to deep blue and gray clouds above</div>
+            
+            <div class="human muted">No human rating</div>
+            
+          </div>
+        </div>
+        
+        <div class="card">
+          <img src="https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/4027/1775302774967.jpg" alt="image 96325" loading="lazy"/>
+          <div class="meta">
+            <div class="header">
+              <span class="id">#96325</span>
+              <span class="source">webcam</span>
+            </div>
+            <div class="quality-row">
+              <div class="quality-num" style="color:#2e7d32;">0.65</div>
+              <div class="quality-bar">
+                <div class="quality-fill" style="width:65%; background:#2e7d32;"></div>
+              </div>
+            </div>
+            <div class="badges">
+              <span class="badge on">
+                sunset
+              </span>
+              <span class="badge on">
+                has clouds
+              </span>
+              <span class="badge muted">conf 0.85</span>
+            </div>
+            <div class="palette">Purple, blue, and orange gradient with warm golden city lights</div>
+            
+            <div class="human muted">No human rating</div>
+            
+          </div>
+        </div>
+        
+        <div class="card">
+          <img src="https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/8695193/1772177869819.jpg" alt="image 74933" loading="lazy"/>
+          <div class="meta">
+            <div class="header">
+              <span class="id">#74933</span>
+              <span class="source">webcam</span>
+            </div>
+            <div class="quality-row">
+              <div class="quality-num" style="color:#ed6c02;">0.55</div>
+              <div class="quality-bar">
+                <div class="quality-fill" style="width:55%; background:#ed6c02;"></div>
+              </div>
+            </div>
+            <div class="badges">
+              <span class="badge on">
+                sunset
+              </span>
+              <span class="badge on">
+                has clouds
+              </span>
+              <span class="badge muted">conf 0.85</span>
+            </div>
+            <div class="palette">warm orange and golden tones transitioning to pale blue-gray sky, with snow-capped peaks catching the last light</div>
+            
+            <div class="human muted">No human rating</div>
+            
+          </div>
+        </div>
+        
+        <div class="card">
+          <img src="https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/16102828/1774205194169.jpg" alt="image 90977" loading="lazy"/>
+          <div class="meta">
+            <div class="header">
+              <span class="id">#90977</span>
+              <span class="source">webcam</span>
+            </div>
+            <div class="quality-row">
+              <div class="quality-num" style="color:#ed6c02;">0.55</div>
+              <div class="quality-bar">
+                <div class="quality-fill" style="width:55%; background:#ed6c02;"></div>
+              </div>
+            </div>
+            <div class="badges">
+              <span class="badge on">
+                sunset
+              </span>
+              <span class="badge on">
+                has clouds
+              </span>
+              <span class="badge muted">conf 0.75</span>
+            </div>
+            <div class="palette">golden orange and warm yellow tones with gray and white clouds against blue sky</div>
+            
+            <div class="human muted">No human rating</div>
+            
+          </div>
+        </div>
+        
+        <div class="card">
+          <img src="https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/17580012/1774459173831.jpg" alt="image 92166" loading="lazy"/>
+          <div class="meta">
+            <div class="header">
+              <span class="id">#92166</span>
+              <span class="source">webcam</span>
+            </div>
+            <div class="quality-row">
+              <div class="quality-num" style="color:#ed6c02;">0.55</div>
+              <div class="quality-bar">
+                <div class="quality-fill" style="width:55%; background:#ed6c02;"></div>
+              </div>
+            </div>
+            <div class="badges">
+              <span class="badge on">
+                sunset
+              </span>
+              <span class="badge on">
+                has clouds
+              </span>
+              <span class="badge muted">conf 0.85</span>
+            </div>
+            <div class="palette">golden orange, soft pink, and gray-blue tones with white cloud highlights</div>
+            
+            <div class="human muted">No human rating</div>
+            
+          </div>
+        </div>
+        
+        <div class="card">
+          <img src="https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/536/1771218229354.jpg" alt="image 70774" loading="lazy"/>
+          <div class="meta">
+            <div class="header">
+              <span class="id">#70774</span>
+              <span class="source">webcam</span>
+            </div>
+            <div class="quality-row">
+              <div class="quality-num" style="color:#ed6c02;">0.45</div>
+              <div class="quality-bar">
+                <div class="quality-fill" style="width:45%; background:#ed6c02;"></div>
+              </div>
+            </div>
+            <div class="badges">
+              <span class="badge on">
+                sunset
+              </span>
+              <span class="badge on">
+                has clouds
+              </span>
+              <span class="badge muted">conf 0.75</span>
+            </div>
+            <div class="palette">pale orange and gray with muted golden tones</div>
+            
+            <div class="human muted">No human rating</div>
+            
+          </div>
+        </div>
+        
+        <div class="card">
+          <img src="https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/3914190/1773310651221.jpg" alt="image 79687" loading="lazy"/>
+          <div class="meta">
+            <div class="header">
+              <span class="id">#79687</span>
+              <span class="source">webcam</span>
+            </div>
+            <div class="quality-row">
+              <div class="quality-num" style="color:#ed6c02;">0.45</div>
+              <div class="quality-bar">
+                <div class="quality-fill" style="width:45%; background:#ed6c02;"></div>
+              </div>
+            </div>
+            <div class="badges">
+              <span class="badge on">
+                sunset
+              </span>
+              <span class="badge on">
+                has clouds
+              </span>
+              <span class="badge muted">conf 0.75</span>
+            </div>
+            <div class="palette">orange, pink, and gray with muted tones</div>
+            
+            <div class="human muted">No human rating</div>
+            
+          </div>
+        </div>
+        
+        <div class="card">
+          <img src="https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/3137717/1773492876705.jpg" alt="image 85035" loading="lazy"/>
+          <div class="meta">
+            <div class="header">
+              <span class="id">#85035</span>
+              <span class="source">webcam</span>
+            </div>
+            <div class="quality-row">
+              <div class="quality-num" style="color:#ed6c02;">0.45</div>
+              <div class="quality-bar">
+                <div class="quality-fill" style="width:45%; background:#ed6c02;"></div>
+              </div>
+            </div>
+            <div class="badges">
+              <span class="badge on">
+                sunset
+              </span>
+              <span class="badge on">
+                has clouds
+              </span>
+              <span class="badge muted">conf 0.75</span>
+            </div>
+            <div class="palette">warm golden and orange tones with pale blue sky, soft peachy hues near horizon</div>
+            
+            <div class="human muted">No human rating</div>
+            
+          </div>
+        </div>
+        
+        <div class="card">
+          <img src="https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/544/1770982249296.jpg" alt="image 69585" loading="lazy"/>
+          <div class="meta">
+            <div class="header">
+              <span class="id">#69585</span>
+              <span class="source">webcam</span>
+            </div>
+            <div class="quality-row">
+              <div class="quality-num" style="color:#ed6c02;">0.35</div>
+              <div class="quality-bar">
+                <div class="quality-fill" style="width:35%; background:#ed6c02;"></div>
+              </div>
+            </div>
+            <div class="badges">
+              <span class="badge on">
+                sunset
+              </span>
+              <span class="badge on">
+                has clouds
+              </span>
+              <span class="badge muted">conf 0.75</span>
+            </div>
+            <div class="palette">Deep blue and purple tones with muted gray clouds</div>
+            
+            <div class="human muted">No human rating</div>
+            
+          </div>
+        </div>
+        
+        <div class="card">
+          <img src="https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/3997423/1773429238993.jpg" alt="image 80281" loading="lazy"/>
+          <div class="meta">
+            <div class="header">
+              <span class="id">#80281</span>
+              <span class="source">webcam</span>
+            </div>
+            <div class="quality-row">
+              <div class="quality-num" style="color:#ed6c02;">0.35</div>
+              <div class="quality-bar">
+                <div class="quality-fill" style="width:35%; background:#ed6c02;"></div>
+              </div>
+            </div>
+            <div class="badges">
+              <span class="badge on">
+                sunset
+              </span>
+              <span class="badge on">
+                has clouds
+              </span>
+              <span class="badge muted">conf 0.75</span>
+            </div>
+            <div class="palette">pale yellow, gray, and muted orange tones</div>
+            <div class="obstruction">obstruction: fog</div>
+            <div class="human">Human: 5.00/5 (1 rater)</div>
+            <div class="agreement" style="color:#c62828;">Agreement: DISAGREE (diff 0.65)</div>
+          </div>
+        </div>
+        
+        <div class="card">
+          <img src="https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/3552381/1773502051427.jpg" alt="image 85629" loading="lazy"/>
+          <div class="meta">
+            <div class="header">
+              <span class="id">#85629</span>
+              <span class="source">webcam</span>
+            </div>
+            <div class="quality-row">
+              <div class="quality-num" style="color:#ed6c02;">0.35</div>
+              <div class="quality-bar">
+                <div class="quality-fill" style="width:35%; background:#ed6c02;"></div>
+              </div>
+            </div>
+            <div class="badges">
+              <span class="badge on">
+                sunset
+              </span>
+              <span class="badge on">
+                has clouds
+              </span>
+              <span class="badge muted">conf 0.72</span>
+            </div>
+            <div class="palette">pale orange and gray with muted tones</div>
+            
+            <div class="human muted">No human rating</div>
+            
+          </div>
+        </div>
+        
+        <div class="card">
+          <img src="https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/3702/1775162852056.jpg" alt="image 95731" loading="lazy"/>
+          <div class="meta">
+            <div class="header">
+              <span class="id">#95731</span>
+              <span class="source">webcam</span>
+            </div>
+            <div class="quality-row">
+              <div class="quality-num" style="color:#ed6c02;">0.35</div>
+              <div class="quality-bar">
+                <div class="quality-fill" style="width:35%; background:#ed6c02;"></div>
+              </div>
+            </div>
+            <div class="badges">
+              <span class="badge on">
+                sunset
+              </span>
+              <span class="badge on">
+                has clouds
+              </span>
+              <span class="badge muted">conf 0.75</span>
+            </div>
+            <div class="palette">pale orange, gray, and white with muted tones</div>
+            
+            <div class="human muted">No human rating</div>
+            
+          </div>
+        </div>
+        
+        <div class="card">
+          <img src="https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/3236/1773528754850.jpg" alt="image 87412" loading="lazy"/>
+          <div class="meta">
+            <div class="header">
+              <span class="id">#87412</span>
+              <span class="source">webcam</span>
+            </div>
+            <div class="quality-row">
+              <div class="quality-num" style="color:#c62828;">0.25</div>
+              <div class="quality-bar">
+                <div class="quality-fill" style="width:25%; background:#c62828;"></div>
+              </div>
+            </div>
+            <div class="badges">
+              <span class="badge on">
+                sunset
+              </span>
+              <span class="badge on">
+                has clouds
+              </span>
+              <span class="badge muted">conf 0.75</span>
+            </div>
+            <div class="palette">dark brown, deep orange, muted amber tones</div>
+            
+            <div class="human muted">No human rating</div>
+            
+          </div>
+        </div>
+        
+        <div class="card">
+          <img src="https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/3967/1772320609352.jpg" alt="image 75527" loading="lazy"/>
+          <div class="meta">
+            <div class="header">
+              <span class="id">#75527</span>
+              <span class="source">webcam</span>
+            </div>
+            <div class="quality-row">
+              <div class="quality-num" style="color:#c62828;">0.05</div>
+              <div class="quality-bar">
+                <div class="quality-fill" style="width:5%; background:#c62828;"></div>
+              </div>
+            </div>
+            <div class="badges">
+              <span class="badge off">
+                not sunset
+              </span>
+              <span class="badge off">
+                no clouds
+              </span>
+              <span class="badge muted">conf 0.95</span>
+            </div>
+            <div class="palette">uniform gray</div>
+            <div class="obstruction">obstruction: fog</div>
+            <div class="human muted">No human rating</div>
+            
+          </div>
+        </div>
+        
+        <div class="card">
+          <img src="https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/1854/1772610648896.jpg" alt="image 76716" loading="lazy"/>
+          <div class="meta">
+            <div class="header">
+              <span class="id">#76716</span>
+              <span class="source">webcam</span>
+            </div>
+            <div class="quality-row">
+              <div class="quality-num" style="color:#c62828;">0.05</div>
+              <div class="quality-bar">
+                <div class="quality-fill" style="width:5%; background:#c62828;"></div>
+              </div>
+            </div>
+            <div class="badges">
+              <span class="badge off">
+                not sunset
+              </span>
+              <span class="badge on">
+                has clouds
+              </span>
+              <span class="badge muted">conf 0.95</span>
+            </div>
+            <div class="palette">Gray, white, and muted beige tones</div>
+            <div class="obstruction">obstruction: fog</div>
+            <div class="human">Human: 3.00/5 (1 rater)</div>
+            <div class="agreement" style="color:#c62828;">Agreement: DISAGREE (diff 0.55)</div>
+          </div>
+        </div>
+        
+        <div class="card">
+          <img src="https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/544/1773040742957.jpg" alt="image 78498" loading="lazy"/>
+          <div class="meta">
+            <div class="header">
+              <span class="id">#78498</span>
+              <span class="source">webcam</span>
+            </div>
+            <div class="quality-row">
+              <div class="quality-num" style="color:#c62828;">0.05</div>
+              <div class="quality-bar">
+                <div class="quality-fill" style="width:5%; background:#c62828;"></div>
+              </div>
+            </div>
+            <div class="badges">
+              <span class="badge off">
+                not sunset
+              </span>
+              <span class="badge off">
+                no clouds
+              </span>
+              <span class="badge muted">conf 0.95</span>
+            </div>
+            <div class="palette">uniform blue-gray</div>
+            
+            <div class="human">Human: 1.00/5 (1 rater)</div>
+            <div class="agreement" style="color:#ed6c02;">Agreement: OK (diff 0.15)</div>
+          </div>
+        </div>
+        
+        <div class="card">
+          <img src="https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/12840548/1773479671475.jpg" alt="image 83846" loading="lazy"/>
+          <div class="meta">
+            <div class="header">
+              <span class="id">#83846</span>
+              <span class="source">webcam</span>
+            </div>
+            <div class="quality-row">
+              <div class="quality-num" style="color:#c62828;">0.05</div>
+              <div class="quality-bar">
+                <div class="quality-fill" style="width:5%; background:#c62828;"></div>
+              </div>
+            </div>
+            <div class="badges">
+              <span class="badge off">
+                not sunset
+              </span>
+              <span class="badge off">
+                no clouds
+              </span>
+              <span class="badge muted">conf 0.95</span>
+            </div>
+            <div class="palette">nearly black with faint distant lights</div>
+            
+            <div class="human muted">No human rating</div>
+            
+          </div>
+        </div>
+        
+        <div class="card">
+          <img src="https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/13473465/1773510753128.jpg" alt="image 86223" loading="lazy"/>
+          <div class="meta">
+            <div class="header">
+              <span class="id">#86223</span>
+              <span class="source">webcam</span>
+            </div>
+            <div class="quality-row">
+              <div class="quality-num" style="color:#c62828;">0.05</div>
+              <div class="quality-bar">
+                <div class="quality-fill" style="width:5%; background:#c62828;"></div>
+              </div>
+            </div>
+            <div class="badges">
+              <span class="badge off">
+                not sunset
+              </span>
+              <span class="badge on">
+                has clouds
+              </span>
+              <span class="badge muted">conf 0.95</span>
+            </div>
+            <div class="palette">Dark gray, charcoal, black with minimal light</div>
+            <div class="obstruction">obstruction: fog</div>
+            <div class="human muted">No human rating</div>
+            
+          </div>
+        </div>
+        
+        <div class="card">
+          <img src="https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/2341116/1774569692562.jpg" alt="image 92760" loading="lazy"/>
+          <div class="meta">
+            <div class="header">
+              <span class="id">#92760</span>
+              <span class="source">webcam</span>
+            </div>
+            <div class="quality-row">
+              <div class="quality-num" style="color:#c62828;">0.05</div>
+              <div class="quality-bar">
+                <div class="quality-fill" style="width:5%; background:#c62828;"></div>
+              </div>
+            </div>
+            <div class="badges">
+              <span class="badge off">
+                not sunset
+              </span>
+              <span class="badge off">
+                no clouds
+              </span>
+              <span class="badge muted">conf 0.95</span>
+            </div>
+            <div class="palette">pale gray, washed out</div>
+            
+            <div class="human muted">No human rating</div>
+            
+          </div>
+        </div>
+        
+        <div class="card">
+          <img src="https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/11458/1770427608574.jpg" alt="image 67001" loading="lazy"/>
+          <div class="meta">
+            <div class="header">
+              <span class="id">#67001</span>
+              <span class="source">webcam</span>
+            </div>
+            <div class="quality-row">
+              <div class="quality-num" style="color:#c62828;">0.00</div>
+              <div class="quality-bar">
+                <div class="quality-fill" style="width:0%; background:#c62828;"></div>
+              </div>
+            </div>
+            <div class="badges">
+              <span class="badge off">
+                not sunset
+              </span>
+              <span class="badge off">
+                no clouds
+              </span>
+              <span class="badge muted">conf 0.95</span>
+            </div>
+            <div class="palette">gray, overcast, neutral</div>
+            <div class="obstruction">obstruction: fog</div>
+            <div class="human">Human: 1.00/5 (1 rater)</div>
+            <div class="agreement" style="color:#ed6c02;">Agreement: OK (diff 0.20)</div>
+          </div>
+        </div>
+        
+        <div class="card">
+          <img src="https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/1946/1770874167246.jpg" alt="image 68991" loading="lazy"/>
+          <div class="meta">
+            <div class="header">
+              <span class="id">#68991</span>
+              <span class="source">webcam</span>
+            </div>
+            <div class="quality-row">
+              <div class="quality-num" style="color:#c62828;">0.00</div>
+              <div class="quality-bar">
+                <div class="quality-fill" style="width:0%; background:#c62828;"></div>
+              </div>
+            </div>
+            <div class="badges">
+              <span class="badge off">
+                not sunset
+              </span>
+              <span class="badge on">
+                has clouds
+              </span>
+              <span class="badge muted">conf 0.95</span>
+            </div>
+            <div class="palette">Gray and blue with white clouds, daytime overcast conditions</div>
+            
+            <div class="human muted">No human rating</div>
+            
+          </div>
+        </div>
+        
+        <div class="card">
+          <img src="https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/308/1771340031053.jpg" alt="image 71368" loading="lazy"/>
+          <div class="meta">
+            <div class="header">
+              <span class="id">#71368</span>
+              <span class="source">webcam</span>
+            </div>
+            <div class="quality-row">
+              <div class="quality-num" style="color:#c62828;">0.00</div>
+              <div class="quality-bar">
+                <div class="quality-fill" style="width:0%; background:#c62828;"></div>
+              </div>
+            </div>
+            <div class="badges">
+              <span class="badge off">
+                not sunset
+              </span>
+              <span class="badge on">
+                has clouds
+              </span>
+              <span class="badge muted">conf 0.95</span>
+            </div>
+            <div class="palette">gray, white, muted</div>
+            <div class="obstruction">obstruction: fog</div>
+            <div class="human muted">No human rating</div>
+            
+          </div>
+        </div>
+        
+        <div class="card">
+          <img src="https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/1725339/1771459370474.jpg" alt="image 71962" loading="lazy"/>
+          <div class="meta">
+            <div class="header">
+              <span class="id">#71962</span>
+              <span class="source">webcam</span>
+            </div>
+            <div class="quality-row">
+              <div class="quality-num" style="color:#c62828;">0.00</div>
+              <div class="quality-bar">
+                <div class="quality-fill" style="width:0%; background:#c62828;"></div>
+              </div>
+            </div>
+            <div class="badges">
+              <span class="badge off">
+                not sunset
+              </span>
+              <span class="badge off">
+                no clouds
+              </span>
+              <span class="badge muted">conf 0.95</span>
+            </div>
+            <div class="palette">bright white and light gray</div>
+            
+            <div class="human muted">No human rating</div>
+            
+          </div>
+        </div>
+        
+        <div class="card">
+          <img src="https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/12182/1771595088845.jpg" alt="image 72556" loading="lazy"/>
+          <div class="meta">
+            <div class="header">
+              <span class="id">#72556</span>
+              <span class="source">webcam</span>
+            </div>
+            <div class="quality-row">
+              <div class="quality-num" style="color:#c62828;">0.00</div>
+              <div class="quality-bar">
+                <div class="quality-fill" style="width:0%; background:#c62828;"></div>
+              </div>
+            </div>
+            <div class="badges">
+              <span class="badge off">
+                not sunset
+              </span>
+              <span class="badge off">
+                no clouds
+              </span>
+              <span class="badge muted">conf 0.95</span>
+            </div>
+            <div class="palette">dark gray to black with artificial lighting</div>
+            
+            <div class="human muted">No human rating</div>
+            
+          </div>
+        </div>
+        
+        <div class="card">
+          <img src="https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/137/1771738548862.jpg" alt="image 73150" loading="lazy"/>
+          <div class="meta">
+            <div class="header">
+              <span class="id">#73150</span>
+              <span class="source">webcam</span>
+            </div>
+            <div class="quality-row">
+              <div class="quality-num" style="color:#c62828;">0.00</div>
+              <div class="quality-bar">
+                <div class="quality-fill" style="width:0%; background:#c62828;"></div>
+              </div>
+            </div>
+            <div class="badges">
+              <span class="badge off">
+                not sunset
+              </span>
+              <span class="badge off">
+                no clouds
+              </span>
+              <span class="badge muted">conf 0.95</span>
+            </div>
+            <div class="palette">dark blue/black night sky</div>
+            
+            <div class="human muted">No human rating</div>
+            
+          </div>
+        </div>
+        
+        <div class="card">
+          <img src="https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/4443/1771876789162.jpg" alt="image 73745" loading="lazy"/>
+          <div class="meta">
+            <div class="header">
+              <span class="id">#73745</span>
+              <span class="source">webcam</span>
+            </div>
+            <div class="quality-row">
+              <div class="quality-num" style="color:#c62828;">0.00</div>
+              <div class="quality-bar">
+                <div class="quality-fill" style="width:0%; background:#c62828;"></div>
+              </div>
+            </div>
+            <div class="badges">
+              <span class="badge off">
+                not sunset
+              </span>
+              <span class="badge on">
+                has clouds
+              </span>
+              <span class="badge muted">conf 0.95</span>
+            </div>
+            <div class="palette">Gray, white, and muted tones</div>
+            <div class="obstruction">obstruction: fog</div>
+            <div class="human muted">No human rating</div>
+            
+          </div>
+        </div>
+        
+        <div class="card">
+          <img src="https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/548/1772030089802.jpg" alt="image 74339" loading="lazy"/>
+          <div class="meta">
+            <div class="header">
+              <span class="id">#74339</span>
+              <span class="source">webcam</span>
+            </div>
+            <div class="quality-row">
+              <div class="quality-num" style="color:#c62828;">0.00</div>
+              <div class="quality-bar">
+                <div class="quality-fill" style="width:0%; background:#c62828;"></div>
+              </div>
+            </div>
+            <div class="badges">
+              <span class="badge off">
+                not sunset
+              </span>
+              <span class="badge on">
+                has clouds
+              </span>
+              <span class="badge muted">conf 0.95</span>
+            </div>
+            <div class="palette">uniform gray and white</div>
+            <div class="obstruction">obstruction: fog</div>
+            <div class="human muted">No human rating</div>
+            
+          </div>
+        </div>
+        
+        <div class="card">
+          <img src="https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/400/1772468449218.jpg" alt="image 76122" loading="lazy"/>
+          <div class="meta">
+            <div class="header">
+              <span class="id">#76122</span>
+              <span class="source">webcam</span>
+            </div>
+            <div class="quality-row">
+              <div class="quality-num" style="color:#c62828;">0.00</div>
+              <div class="quality-bar">
+                <div class="quality-fill" style="width:0%; background:#c62828;"></div>
+              </div>
+            </div>
+            <div class="badges">
+              <span class="badge off">
+                not sunset
+              </span>
+              <span class="badge off">
+                no clouds
+              </span>
+              <span class="badge muted">conf 0.95</span>
+            </div>
+            <div class="palette">black, dark gray</div>
+            
+            <div class="human">Human: 1.00/5 (1 rater)</div>
+            <div class="agreement" style="color:#ed6c02;">Agreement: OK (diff 0.20)</div>
+          </div>
+        </div>
+        
+        <div class="card">
+          <img src="https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/7840/1773181620920.jpg" alt="image 79093" loading="lazy"/>
+          <div class="meta">
+            <div class="header">
+              <span class="id">#79093</span>
+              <span class="source">webcam</span>
+            </div>
+            <div class="quality-row">
+              <div class="quality-num" style="color:#c62828;">0.00</div>
+              <div class="quality-bar">
+                <div class="quality-fill" style="width:0%; background:#c62828;"></div>
+              </div>
+            </div>
+            <div class="badges">
+              <span class="badge off">
+                not sunset
+              </span>
+              <span class="badge off">
+                no clouds
+              </span>
+              <span class="badge muted">conf 0.95</span>
+            </div>
+            <div class="palette">blue sky with clear daylight</div>
+            
+            <div class="human">Human: 1.00/5 (1 rater)</div>
+            <div class="agreement" style="color:#ed6c02;">Agreement: OK (diff 0.20)</div>
+          </div>
+        </div>
+        
+        <div class="card">
+          <img src="https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/16377321/1773439643710.jpg" alt="image 80875" loading="lazy"/>
+          <div class="meta">
+            <div class="header">
+              <span class="id">#80875</span>
+              <span class="source">webcam</span>
+            </div>
+            <div class="quality-row">
+              <div class="quality-num" style="color:#c62828;">0.00</div>
+              <div class="quality-bar">
+                <div class="quality-fill" style="width:0%; background:#c62828;"></div>
+              </div>
+            </div>
+            <div class="badges">
+              <span class="badge off">
+                not sunset
+              </span>
+              <span class="badge off">
+                no clouds
+              </span>
+              <span class="badge muted">conf 0.95</span>
+            </div>
+            <div class="palette">dark purple and black night sky</div>
+            
+            <div class="human muted">No human rating</div>
+            
+          </div>
+        </div>
+        
+        <div class="card">
+          <img src="https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/3601639/1773452606105.jpg" alt="image 82064" loading="lazy"/>
+          <div class="meta">
+            <div class="header">
+              <span class="id">#82064</span>
+              <span class="source">webcam</span>
+            </div>
+            <div class="quality-row">
+              <div class="quality-num" style="color:#c62828;">0.00</div>
+              <div class="quality-bar">
+                <div class="quality-fill" style="width:0%; background:#c62828;"></div>
+              </div>
+            </div>
+            <div class="badges">
+              <span class="badge off">
+                not sunset
+              </span>
+              <span class="badge off">
+                no clouds
+              </span>
+              <span class="badge muted">conf 0.95</span>
+            </div>
+            <div class="palette">black/dark gray</div>
+            
+            <div class="human muted">No human rating</div>
+            
+          </div>
+        </div>
+        
+        <div class="card">
+          <img src="https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/13119581/1773459267654.jpg" alt="image 82658" loading="lazy"/>
+          <div class="meta">
+            <div class="header">
+              <span class="id">#82658</span>
+              <span class="source">webcam</span>
+            </div>
+            <div class="quality-row">
+              <div class="quality-num" style="color:#c62828;">0.00</div>
+              <div class="quality-bar">
+                <div class="quality-fill" style="width:0%; background:#c62828;"></div>
+              </div>
+            </div>
+            <div class="badges">
+              <span class="badge off">
+                not sunset
+              </span>
+              <span class="badge off">
+                no clouds
+              </span>
+              <span class="badge muted">conf 0.95</span>
+            </div>
+            <div class="palette">black and dark gray</div>
+            
+            <div class="human muted">No human rating</div>
+            
+          </div>
+        </div>
+        
+        <div class="card">
+          <img src="https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/4874034/1773467784698.jpg" alt="image 83252" loading="lazy"/>
+          <div class="meta">
+            <div class="header">
+              <span class="id">#83252</span>
+              <span class="source">webcam</span>
+            </div>
+            <div class="quality-row">
+              <div class="quality-num" style="color:#c62828;">0.00</div>
+              <div class="quality-bar">
+                <div class="quality-fill" style="width:0%; background:#c62828;"></div>
+              </div>
+            </div>
+            <div class="badges">
+              <span class="badge off">
+                not sunset
+              </span>
+              <span class="badge off">
+                no clouds
+              </span>
+              <span class="badge muted">conf 0.95</span>
+            </div>
+            <div class="palette">uniform gray</div>
+            <div class="obstruction">obstruction: fog</div>
+            <div class="human muted">No human rating</div>
+            
+          </div>
+        </div>
+        
+        <div class="card">
+          <img src="https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/9786670/1773486579707.jpg" alt="image 84441" loading="lazy"/>
+          <div class="meta">
+            <div class="header">
+              <span class="id">#84441</span>
+              <span class="source">webcam</span>
+            </div>
+            <div class="quality-row">
+              <div class="quality-num" style="color:#c62828;">0.00</div>
+              <div class="quality-bar">
+                <div class="quality-fill" style="width:0%; background:#c62828;"></div>
+              </div>
+            </div>
+            <div class="badges">
+              <span class="badge off">
+                not sunset
+              </span>
+              <span class="badge off">
+                no clouds
+              </span>
+              <span class="badge muted">conf 0.95</span>
+            </div>
+            <div class="palette">gray, overcast, dim</div>
+            
+            <div class="human muted">No human rating</div>
+            
+          </div>
+        </div>
+        
+        <div class="card">
+          <img src="https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/3916778/1773520771392.jpg" alt="image 86818" loading="lazy"/>
+          <div class="meta">
+            <div class="header">
+              <span class="id">#86818</span>
+              <span class="source">webcam</span>
+            </div>
+            <div class="quality-row">
+              <div class="quality-num" style="color:#c62828;">0.00</div>
+              <div class="quality-bar">
+                <div class="quality-fill" style="width:0%; background:#c62828;"></div>
+              </div>
+            </div>
+            <div class="badges">
+              <span class="badge off">
+                not sunset
+              </span>
+              <span class="badge off">
+                no clouds
+              </span>
+              <span class="badge muted">conf 0.95</span>
+            </div>
+            <div class="palette">gray, overcast, muted tones</div>
+            
+            <div class="human muted">No human rating</div>
+            
+          </div>
+        </div>
+        
+        <div class="card">
+          <img src="https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/15872738/1773657873605.jpg" alt="image 88600" loading="lazy"/>
+          <div class="meta">
+            <div class="header">
+              <span class="id">#88600</span>
+              <span class="source">webcam</span>
+            </div>
+            <div class="quality-row">
+              <div class="quality-num" style="color:#c62828;">0.00</div>
+              <div class="quality-bar">
+                <div class="quality-fill" style="width:0%; background:#c62828;"></div>
+              </div>
+            </div>
+            <div class="badges">
+              <span class="badge off">
+                not sunset
+              </span>
+              <span class="badge off">
+                no clouds
+              </span>
+              <span class="badge muted">conf 0.95</span>
+            </div>
+            <div class="palette">monochromatic grayscale</div>
+            <div class="obstruction">obstruction: fog</div>
+            <div class="human muted">No human rating</div>
+            
+          </div>
+        </div>
+        
+        <div class="card">
+          <img src="https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/536/1773803252169.jpg" alt="image 89194" loading="lazy"/>
+          <div class="meta">
+            <div class="header">
+              <span class="id">#89194</span>
+              <span class="source">webcam</span>
+            </div>
+            <div class="quality-row">
+              <div class="quality-num" style="color:#c62828;">0.00</div>
+              <div class="quality-bar">
+                <div class="quality-fill" style="width:0%; background:#c62828;"></div>
+              </div>
+            </div>
+            <div class="badges">
+              <span class="badge off">
+                not sunset
+              </span>
+              <span class="badge off">
+                no clouds
+              </span>
+              <span class="badge muted">conf 0.95</span>
+            </div>
+            <div class="palette">black and white</div>
+            
+            <div class="human muted">No human rating</div>
+            
+          </div>
+        </div>
+        
+        <div class="card">
+          <img src="https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/4443/1774079851939.jpg" alt="image 90383" loading="lazy"/>
+          <div class="meta">
+            <div class="header">
+              <span class="id">#90383</span>
+              <span class="source">webcam</span>
+            </div>
+            <div class="quality-row">
+              <div class="quality-num" style="color:#c62828;">0.00</div>
+              <div class="quality-bar">
+                <div class="quality-fill" style="width:0%; background:#c62828;"></div>
+              </div>
+            </div>
+            <div class="badges">
+              <span class="badge off">
+                not sunset
+              </span>
+              <span class="badge off">
+                no clouds
+              </span>
+              <span class="badge muted">conf 0.95</span>
+            </div>
+            <div class="palette">monochromatic grayscale</div>
+            <div class="obstruction">obstruction: fog</div>
+            <div class="human muted">No human rating</div>
+            
+          </div>
+        </div>
+        
+        <div class="card">
+          <img src="https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/400/1774335571680.jpg" alt="image 91571" loading="lazy"/>
+          <div class="meta">
+            <div class="header">
+              <span class="id">#91571</span>
+              <span class="source">webcam</span>
+            </div>
+            <div class="quality-row">
+              <div class="quality-num" style="color:#c62828;">0.00</div>
+              <div class="quality-bar">
+                <div class="quality-fill" style="width:0%; background:#c62828;"></div>
+              </div>
+            </div>
+            <div class="badges">
+              <span class="badge off">
+                not sunset
+              </span>
+              <span class="badge off">
+                no clouds
+              </span>
+              <span class="badge muted">conf 0.95</span>
+            </div>
+            <div class="palette">black, dark gray</div>
+            
+            <div class="human muted">No human rating</div>
+            
+          </div>
+        </div>
+        
+        <div class="card">
+          <img src="https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/368/1774680813170.jpg" alt="image 93354" loading="lazy"/>
+          <div class="meta">
+            <div class="header">
+              <span class="id">#93354</span>
+              <span class="source">webcam</span>
+            </div>
+            <div class="quality-row">
+              <div class="quality-num" style="color:#c62828;">0.00</div>
+              <div class="quality-bar">
+                <div class="quality-fill" style="width:0%; background:#c62828;"></div>
+              </div>
+            </div>
+            <div class="badges">
+              <span class="badge off">
+                not sunset
+              </span>
+              <span class="badge off">
+                no clouds
+              </span>
+              <span class="badge muted">conf 0.95</span>
+            </div>
+            <div class="palette">dark blue/black night sky</div>
+            <div class="obstruction">obstruction: dust/construction debris</div>
+            <div class="human muted">No human rating</div>
+            
+          </div>
+        </div>
+        
+        <div class="card">
+          <img src="https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/17885510/1774792352389.jpg" alt="image 93948" loading="lazy"/>
+          <div class="meta">
+            <div class="header">
+              <span class="id">#93948</span>
+              <span class="source">webcam</span>
+            </div>
+            <div class="quality-row">
+              <div class="quality-num" style="color:#c62828;">0.00</div>
+              <div class="quality-bar">
+                <div class="quality-fill" style="width:0%; background:#c62828;"></div>
+              </div>
+            </div>
+            <div class="badges">
+              <span class="badge off">
+                not sunset
+              </span>
+              <span class="badge off">
+                no clouds
+              </span>
+              <span class="badge muted">conf 0.95</span>
+            </div>
+            <div class="palette">monochromatic grayscale</div>
+            <div class="obstruction">obstruction: fog</div>
+            <div class="human muted">No human rating</div>
+            
+          </div>
+        </div>
+        
+        <div class="card">
+          <img src="https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/447/1774904612470.jpg" alt="image 94542" loading="lazy"/>
+          <div class="meta">
+            <div class="header">
+              <span class="id">#94542</span>
+              <span class="source">webcam</span>
+            </div>
+            <div class="quality-row">
+              <div class="quality-num" style="color:#c62828;">0.00</div>
+              <div class="quality-bar">
+                <div class="quality-fill" style="width:0%; background:#c62828;"></div>
+              </div>
+            </div>
+            <div class="badges">
+              <span class="badge off">
+                not sunset
+              </span>
+              <span class="badge off">
+                no clouds
+              </span>
+              <span class="badge muted">conf 0.95</span>
+            </div>
+            <div class="palette">dark gray/black with artificial yellow lights</div>
+            <div class="obstruction">obstruction: fog</div>
+            <div class="human muted">No human rating</div>
+            
+          </div>
+        </div>
+        
+        <div class="card">
+          <img src="https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/7084/1775035952980.jpg" alt="image 95137" loading="lazy"/>
+          <div class="meta">
+            <div class="header">
+              <span class="id">#95137</span>
+              <span class="source">webcam</span>
+            </div>
+            <div class="quality-row">
+              <div class="quality-num" style="color:#c62828;">0.00</div>
+              <div class="quality-bar">
+                <div class="quality-fill" style="width:0%; background:#c62828;"></div>
+              </div>
+            </div>
+            <div class="badges">
+              <span class="badge off">
+                not sunset
+              </span>
+              <span class="badge off">
+                no clouds
+              </span>
+              <span class="badge muted">conf 0.99</span>
+            </div>
+            <div class="palette">artificial white and yellow lighting</div>
+            <div class="obstruction">obstruction: building</div>
+            <div class="human muted">No human rating</div>
+            
+          </div>
+        </div>
+        
+  </div>
+</body>
+</html>

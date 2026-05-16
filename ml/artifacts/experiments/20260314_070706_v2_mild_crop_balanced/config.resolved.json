@@ -1,0 +1,70 @@
+{
+  "run": {
+    "name": "v2_mild_crop_balanced",
+    "seed": 20260212
+  },
+  "data": {
+    "label_source": "manual_only",
+    "target_type": "binary",
+    "binary_threshold": 4.0,
+    "min_rating_count": 1,
+    "splits": {
+      "seed": 20260212,
+      "train_pct": 70,
+      "val_pct": 15,
+      "test_pct": 15
+    }
+  },
+  "model": {
+    "name": "resnet18",
+    "epochs": 10,
+    "batch_size": 32,
+    "learning_rate": 0.0001
+  },
+  "imbalance": {
+    "class_weighting": "balanced",
+    "sampler": "none",
+    "manual_weights": {}
+  },
+  "augmentation": {
+    "profile": "light"
+  },
+  "cropping": {
+    "strategy": "random_resized",
+    "scale_min": 0.95,
+    "scale_max": 1.0
+  },
+  "performance": {
+    "num_workers": 0,
+    "pin_memory": false,
+    "prefetch_factor": 2,
+    "persistent_workers": false
+  },
+  "subset": {
+    "max_train_samples": 0,
+    "max_val_samples": 0
+  },
+  "image_cache": {
+    "enabled": false,
+    "cache_dir": "ml/artifacts/image_cache",
+    "precache": false
+  },
+  "metrics": {
+    "decision_threshold": 0.5,
+    "threshold_sweep": true,
+    "threshold_sweep_start": 0.1,
+    "threshold_sweep_end": 0.9,
+    "threshold_sweep_step": 0.1
+  },
+  "paths": {
+    "run_dir": "ml/artifacts/experiments/20260314_070706_v2_mild_crop_balanced",
+    "dataset_dir": "ml/artifacts/experiments/20260314_070706_v2_mild_crop_balanced/dataset/20260314_070708",
+    "train_dir": "ml/artifacts/experiments/20260314_070706_v2_mild_crop_balanced/train",
+    "eval_dir": "ml/artifacts/experiments/20260314_070706_v2_mild_crop_balanced/eval",
+    "train_manifest": "ml/artifacts/experiments/20260314_070706_v2_mild_crop_balanced/dataset/20260314_070708/manifest_train.csv",
+    "val_manifest": "ml/artifacts/experiments/20260314_070706_v2_mild_crop_balanced/dataset/20260314_070708/manifest_val.csv",
+    "test_manifest": "ml/artifacts/experiments/20260314_070706_v2_mild_crop_balanced/dataset/20260314_070708/manifest_test.csv",
+    "checkpoint": "ml/artifacts/experiments/20260314_070706_v2_mild_crop_balanced/train/best.pt",
+    "eval_report": "ml/artifacts/experiments/20260314_070706_v2_mild_crop_balanced/eval/eval_report.json"
+  }
+}

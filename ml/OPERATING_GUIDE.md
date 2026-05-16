@@ -1043,6 +1043,52 @@ Outputs:
 
 The script prints the env var values you need for production.
 
+### head_dropout is auto-read from the run config
+
+If the training config had `model.head_dropout > 0`, the head is
+`Sequential(Dropout, Linear)` instead of a flat `Linear`. The export
+must match or the state-dict load will fail with
+`Missing fc.weight / Unexpected fc.1.weight`.
+
+`ml/export_onnx_versioned.py` reads `model.head_dropout` from
+`<run_dir>/config.resolved.json` automatically. Override with
+`--head-dropout <value>` if needed. If you ever invoke
+`ml/export_onnx.py` directly (skipping the wrapper), pass the same
+`--head-dropout` flag explicitly.
+
+### Training vs export — which artifact ships
+
+- **Training** (`ml/run_training.py`) writes a PyTorch checkpoint
+  `<run_dir>/train/best.pt`. This is the source of truth for the
+  trained weights and stays local (`.pt` files are gitignored —
+  ~43 MB each, large and quick to regenerate from the config + data).
+- **Export** (`ml/export_onnx_versioned.py`) reads that `.pt` and
+  emits `ml/artifacts/models/<type>_<arch>/<version_tag>/model.onnx`
+  + `model.meta.json`. The ONNX is a build artifact: deterministic,
+  ~44 MB, and what production actually runs.
+
+The `.gitignore` is surgical — it excludes `image_cache/` and
+`*.pt`/`*.pth`/`*.ckpt` only, so configs, manifests, eval reports,
+plots, and exported `model.onnx` files all version-control normally.
+
+### Bundle the ONNX into the Vercel deploy
+
+`vercel.json`'s `functions.includeFiles` glob picks up any
+`ml/artifacts/models/regression_resnet18/**` file that's part of the
+git source tree. After running `export_onnx_versioned.py`, just
+`git add` the new model directory and commit — no `-f` needed:
+
+```bash
+git add ml/artifacts/models/regression_resnet18/<version_tag>/
+git commit -m "deploy: add <version_tag> regression ONNX to bundle"
+```
+
+Each ResNet-18 model.onnx is ~44 MB. Below GitHub's 100 MB per-file
+limit but meaningful — only commit the artifacts you actually plan to
+serve. Leave older versions in `ml/artifacts/models/` locally for
+rollback testing; `git rm` them once they're retired so the repo
+doesn't accumulate dead models.
+
 ### Production env vars
 
 ```bash
@@ -1053,7 +1099,28 @@ AI_BINARY_MODEL_VERSION=<version_tag>
 AI_REGRESSION_MODEL_VERSION=<version_tag>
 ```
 
-If ONNX cannot load, the scorer falls back to baseline mode.
+If ONNX cannot load, the scorer falls back to baseline mode. After a
+deploy, `curl https://<host>/api/cron/update-cameras | jq .fallbacks`
+should be near zero if ONNX is actually running — a high `fallbacks`
+count means every image fell through to the metadata-only baseline
+(usually because the model file isn't bundled or the path is wrong).
+
+### Output → display-rating mapping
+
+`ml/export_dataset.py` normalizes every training label via `(v-1)/4`
+so the regression head learns to predict a value in [0,1] where:
+
+- `0.0` ↔ human rating 1
+- `0.5` ↔ human rating 3
+- `1.0` ↔ human rating 5
+
+The cron's `normalizeOnnxOutput` clamps the raw output to [0,1]
+(stored as `rawScore` and `ai_regression_score` in the DB) and applies
+the inverse `1 + rawScore * 4` for the user-facing `aiRating` /
+`ai_rating_regression` column. If you ever change the training
+normalization, update both `aiScoring.ts` (`normalizeOnnxOutput` +
+`ratingFromRaw`) and `customBackfill.ts` to match — they are the only
+two places the model output is consumed.
 
 ---
 

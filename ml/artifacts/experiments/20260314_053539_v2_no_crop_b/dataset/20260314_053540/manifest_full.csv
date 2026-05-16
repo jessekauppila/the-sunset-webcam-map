@@ -1,0 +1,27 @@
+snapshot_id,webcam_id,label_source,label_value,target_label,split,image_path_or_url,phase,captured_at,rating_count
+66661,281167,manual_only,4.00,1,train,https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/281167/1770357843813.jpg,sunrise,2026-02-06 06:04:04.496563,2
+77441,21846,manual_only,3.50,0,train,https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/21846/1772775255549.jpg,sunrise,2026-03-06 05:34:16.047672,2
+66680,2929663,manual_only,1.00,0,train,https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/2929663/1770357932097.jpg,sunset,2026-02-06 06:05:32.510545,2
+67171,4520535,manual_only,3.00,0,train,https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/4520535/1770609927869.jpg,sunrise,2026-02-09 04:05:28.133744,2
+67169,2926564,manual_only,3.00,0,train,https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/2926564/1770609921343.jpg,sunrise,2026-02-09 04:05:21.640338,2
+66804,2923203,manual_only,1.00,0,train,https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/2923203/1770398443093.jpg,sunrise,2026-02-06 17:20:43.536118,2
+77440,12273552,manual_only,2.50,0,train,https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/12273552/1772775205665.jpg,sunrise,2026-03-06 05:33:26.130559,2
+66720,4520535,manual_only,3.50,0,train,https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/4520535/1770395437530.jpg,sunset,2026-02-06 16:30:37.889507,2
+67374,41,manual_only,4.00,1,train,https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/41/1770680995111.jpg,sunset,2026-02-09 23:49:55.364758,2
+67162,3563010,manual_only,4.00,1,train,https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/3563010/1770609898676.jpg,sunrise,2026-02-09 04:04:58.955861,2
+66722,3066299,manual_only,5.00,1,train,https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/3066299/1770395450769.jpg,sunset,2026-02-06 16:30:51.042837,2
+66719,281167,manual_only,4.50,1,train,https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/281167/1770395428269.jpg,sunset,2026-02-06 16:30:28.585058,2
+66663,10716214,manual_only,5.00,1,train,https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/10716214/1770357857879.jpg,sunrise,2026-02-06 06:04:18.401502,2
+77427,7883821,manual_only,4.50,1,train,https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/7883821/1772773428531.jpg,sunrise,2026-03-06 05:03:49.222792,2
+66734,10657705,manual_only,5.00,1,test,https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/10657705/1770395507465.jpg,sunset,2026-02-06 16:31:47.750742,2
+67185,137,manual_only,4.00,1,train,https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/137/1770609973728.jpg,sunset,2026-02-09 04:06:13.992038,2
+67375,9798192,manual_only,5.00,1,train,https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/9798192/1770681946972.jpg,sunset,2026-02-10 00:05:47.276541,2
+67168,3375326,manual_only,4.00,1,train,https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/3375326/1770609916715.jpg,sunrise,2026-02-09 04:05:17.030759,2
+67175,3066299,manual_only,4.50,1,train,https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/3066299/1770609941610.jpg,sunrise,2026-02-09 04:05:41.878164,2
+77429,4328025,manual_only,4.00,1,val,https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/4328025/1772773460547.jpg,sunset,2026-03-06 05:04:21.209141,2
+77435,536,manual_only,5.00,1,train,https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/536/1772774808720.jpg,sunrise,2026-03-06 05:26:49.077382,2
+66802,10303154,manual_only,5.00,1,test,https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/10303154/1770398436239.jpg,sunset,2026-02-06 17:20:36.692489,2
+77438,4769517,manual_only,3.00,0,train,https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/4769517/1772775186153.jpg,sunrise,2026-03-06 05:33:06.836049,2
+66801,7631944,manual_only,5.00,1,train,https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/7631944/1770398432740.jpg,sunset,2026-02-06 17:20:33.163152,2
+67174,153,manual_only,5.00,1,val,https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/153/1770609939106.jpg,sunrise,2026-02-09 04:05:39.438691,2
+77439,281167,manual_only,3.50,0,train,https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/281167/1772775198501.jpg,sunrise,2026-03-06 05:33:18.931389,2

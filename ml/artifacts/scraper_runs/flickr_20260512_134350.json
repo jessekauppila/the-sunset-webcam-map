@@ -1,0 +1,12 @@
+{
+  "queries": [
+    "sky colors"
+  ],
+  "max_images": 400,
+  "category": "sunset",
+  "downloaded": 281,
+  "skipped_existing": 16,
+  "skipped_no_url": 0,
+  "errors": 1,
+  "dry_run": false
+}

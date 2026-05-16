@@ -1,0 +1,7 @@
+{
+  "config_input": "ml/artifacts/experiments/20260315_003913_v2_regression_mild_crop/config.input.yaml",
+  "config_resolved": "ml/artifacts/experiments/20260315_003913_v2_regression_mild_crop/config.resolved.json",
+  "dataset_meta": "ml/artifacts/experiments/20260315_003913_v2_regression_mild_crop/dataset/20260315_003915/export_meta.json",
+  "train_summary": "ml/artifacts/experiments/20260315_003913_v2_regression_mild_crop/train/train_summary.json",
+  "eval_report": "ml/artifacts/experiments/20260315_003913_v2_regression_mild_crop/eval/eval_report.json"
+}

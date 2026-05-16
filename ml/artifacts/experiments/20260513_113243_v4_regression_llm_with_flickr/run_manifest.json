@@ -1,0 +1,7 @@
+{
+  "config_input": "ml/artifacts/experiments/20260513_113243_v4_regression_llm_with_flickr/config.input.yaml",
+  "config_resolved": "ml/artifacts/experiments/20260513_113243_v4_regression_llm_with_flickr/config.resolved.json",
+  "dataset_meta": "ml/artifacts/experiments/20260513_113243_v4_regression_llm_with_flickr/dataset/20260513_113247/export_meta.json",
+  "train_summary": "ml/artifacts/experiments/20260513_113243_v4_regression_llm_with_flickr/train/train_summary.json",
+  "eval_report": "ml/artifacts/experiments/20260513_113243_v4_regression_llm_with_flickr/eval/eval_report.json"
+}

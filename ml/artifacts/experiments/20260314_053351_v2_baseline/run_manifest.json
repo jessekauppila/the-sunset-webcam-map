@@ -1,0 +1,7 @@
+{
+  "config_input": "ml/artifacts/experiments/20260314_053351_v2_baseline/config.input.yaml",
+  "config_resolved": "ml/artifacts/experiments/20260314_053351_v2_baseline/config.resolved.json",
+  "dataset_meta": "ml/artifacts/experiments/20260314_053351_v2_baseline/dataset/20260314_053352/export_meta.json",
+  "train_summary": "ml/artifacts/experiments/20260314_053351_v2_baseline/train/train_summary.json",
+  "eval_report": "ml/artifacts/experiments/20260314_053351_v2_baseline/eval/eval_report.json"
+}
