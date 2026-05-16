@@ -1,0 +1,21 @@
+{
+  "checkpoint": "ml/artifacts/experiments/20260513_113243_v4_regression_llm_with_flickr/train/best.pt",
+  "model_name": "resnet18",
+  "target_type": "regression",
+  "head_dropout": 0.3,
+  "output": "ml/artifacts/models/regression_resnet18/20260513_113243_v4_regression_llm_with_flickr/model.onnx",
+  "sha256": "ed83b5efbed290d14fe35c215b116d3b5a6efbbd599d07a93c473d88415c1b2e",
+  "opset": 17,
+  "input_shape": [
+    1,
+    3,
+    224,
+    224
+  ],
+  "smoke_output_shapes": [
+    [
+      1,
+      1
+    ]
+  ]
+}

@@ -101,9 +101,11 @@ function normalizeOnnxOutput(value: number): {
   rawScore: number;
   aiRating: number;
 } {
-  // Regression model emits a 0..5 rating-space value.
-  const aiRating = clamp(value, 0, 5);
-  const rawScore = clamp(aiRating / 5, 0, 1);
+  // Regression model emits a 0..1 normalized value (training labels are
+  // mapped (rating-1)/4 in ml/export_dataset.py). Multiply by 5 for the
+  // display rating.
+  const rawScore = clamp(value, 0, 1);
+  const aiRating = clamp(rawScore * 5, 0, 5);
   return {
     rawScore: Number(rawScore.toFixed(6)),
     aiRating: Number(aiRating.toFixed(2)),
@@ -161,7 +163,7 @@ export async function scoreImage(
     const tensor = new ort.Tensor('float32', tensorData, [1, 3, 224, 224]);
     const outputs = await session.run({ [session.inputNames[0]]: tensor });
     const raw = outputs[session.outputNames[0]] as { data?: ArrayLike<number> };
-    const value = Number(raw?.data?.[0] ?? 2.5);
+    const value = Number(raw?.data?.[0] ?? 0.5);
     const normalized = normalizeOnnxOutput(value);
 
     return {

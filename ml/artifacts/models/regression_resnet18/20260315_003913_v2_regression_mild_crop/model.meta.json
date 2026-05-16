@@ -1,0 +1,20 @@
+{
+  "checkpoint": "ml/artifacts/experiments/20260315_003913_v2_regression_mild_crop/train/best.pt",
+  "model_name": "resnet18",
+  "target_type": "regression",
+  "output": "ml/artifacts/models/regression_resnet18/20260315_003913_v2_regression_mild_crop/model.onnx",
+  "sha256": "320f8a4494767c9411ec35ddb63ebb1a75fc47a29361814c92e01ea490310f7d",
+  "opset": 17,
+  "input_shape": [
+    1,
+    3,
+    224,
+    224
+  ],
+  "smoke_output_shapes": [
+    [
+      1,
+      1
+    ]
+  ]
+}

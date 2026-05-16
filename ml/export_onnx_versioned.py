@@ -41,7 +41,23 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument("--opset", type=int, default=17)
+    parser.add_argument(
+        "--head-dropout",
+        type=float,
+        default=None,
+        help="Override head dropout. Defaults to value from run's config.resolved.json.",
+    )
     return parser.parse_args()
+
+
+def resolve_head_dropout(run_dir: Path, override: float | None) -> float:
+    if override is not None:
+        return override
+    resolved_config = run_dir / "config.resolved.json"
+    if not resolved_config.exists():
+        return 0.0
+    data = json.loads(resolved_config.read_text(encoding="utf-8"))
+    return float(data.get("model", {}).get("head_dropout", 0.0))
 
 
 def main() -> None:
@@ -51,6 +67,8 @@ def main() -> None:
     checkpoint = run_dir / "train" / "best.pt"
     if not checkpoint.exists():
         raise FileNotFoundError(f"Checkpoint not found: {checkpoint}")
+
+    head_dropout = resolve_head_dropout(run_dir, args.head_dropout)
 
     target_folder = f"{args.target_type}_{args.model_name}"
     output = Path(args.artifact_root) / target_folder / version_tag / "model.onnx"
@@ -69,6 +87,8 @@ def main() -> None:
         output.as_posix(),
         "--opset",
         str(args.opset),
+        "--head-dropout",
+        str(head_dropout),
     ]
     print(json.dumps({"cmd": cmd}))
     subprocess.run(cmd, check=True)
