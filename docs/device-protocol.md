@@ -176,6 +176,8 @@ Called by the AR placement portal (running on the operator's phone) to submit pl
 
 The server stores the placement + preferences against the claim code. No `device_token` is issued — that comes when the device itself registers.
 
+**Either-order semantics.** Pre-register may arrive either before or after the device's own `register` call. If pre-register arrives first, the server creates a `cameras` row with the placement and operator-preferences fields populated; `hardware_id` and `device_token_hash` are filled in atomically when `register` later runs. If `register` arrives first, the server creates a `cameras` row with the device fields populated and no placement; a subsequent `pre-register` call with the same `claim_code` matches that row and fills in placement. The device's next heartbeat returns the now-populated placement (see §6.3's `request_placement` flag).
+
 **Errors:**
 - `400` — invalid payload, malformed coordinates
 - `401` — claim code unknown or expired
@@ -239,21 +241,25 @@ When the operator uses the AR portal, all of these fields arrive at the server v
 **Response (201):**
 ```json
 {
-  "camera_id": 42,
-  "device_token": "7f3a9b8c4e5d6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a",
-  "webcam_id": 10042,
-  "server_config": {
-    "active_window_offset_min_before_sunrise": 45,
-    "active_window_offset_min_after_sunrise": 30,
-    "active_window_offset_min_before_sunset": 30,
-    "active_window_offset_min_after_sunset": 45,
-    "edge_score_threshold": 0.3,
-    "heartbeat_interval_active_s": 300,
-    "heartbeat_interval_idle_s": 1800,
-    "max_fps_active": 1
+  "camera_id": 17,
+  "device_token": "<64-char hex>",
+  "placement_status": "ready",
+  "placement": {
+    "lat": 47.6062,
+    "lng": -122.3321,
+    "elevation_m": 30,
+    "timezone": "America/Los_Angeles",
+    "azimuth_deg": 270,
+    "tilt_deg": 5,
+    "horizon_altitude_deg": 2.5,
+    "horizon_profile": [...],
+    "phase_preference": "sunset",
+    "delivery_preferences": { "type": "email", "..." : "..." }
   }
 }
 ```
+
+`placement_status` is `"ready"` iff pre-register populated placement for this `claim_code` before this call. Otherwise it is `"pending"` and the `placement` field is omitted — the device should idle, heartbeat with `request_placement: true`, and start its capture loop once a heartbeat response delivers placement.
 
 **Errors:**
 - `400` — invalid payload, malformed coordinates
@@ -271,6 +277,7 @@ Liveness check, capability refresh, control-plane response. Sent every `heartbea
 {
   "status": "active",
   "uptime_s": 12345,
+  "request_placement": true,
   "last_frame_at": "2026-05-03T01:32:14Z",
   "current_window": {
     "phase": "sunset",
@@ -297,7 +304,7 @@ Liveness check, capability refresh, control-plane response. Sent every `heartbea
 }
 ```
 
-`status` ∈ `"active" | "idle" | "error"`. `current_window` may be `null` when idle. `capabilities` and `telemetry` fields are optional but recommended.
+`status` ∈ `"active" | "idle" | "error"`. `current_window` may be `null` when idle. `capabilities` and `telemetry` fields are optional but recommended. `request_placement` is optional (default `false`); devices in the `IDLE` post-register state should set it to `true` on every heartbeat until placement arrives; devices in `ACTIVE` should omit it to save bandwidth.
 
 **Response (200):**
 ```json
@@ -317,6 +324,16 @@ Liveness check, capability refresh, control-plane response. Sent every `heartbea
 ```
 
 `config_overrides` is a partial set; the device merges over its current config. `stream_request` is the MJPEG-upgrade hook (see §8). `edge_model_update` is reserved for OTA model updates (mechanism out of scope).
+
+**Optional placement delivery.** When the request includes `"request_placement": true`, the response carries `placement_status` and (if `ready`) the full `placement` block from §6.2's response. Devices in the `IDLE` post-register state set this flag on every heartbeat; devices in `ACTIVE` should omit it to save bandwidth.
+
+```json
+{
+  "acknowledged_at": "2026-05-16T01:32:14.000Z",
+  "placement_status": "ready",
+  "placement": { "..." : "..." }
+}
+```
 
 The device should sync its clock against `server_time` if drift exceeds a threshold (e.g., 30s). NTP is the primary clock source; this is a fallback.
 
