@@ -15,6 +15,7 @@ const scoreMock = vi.fn();
 const getHashMock = vi.fn();
 const setHashMock = vi.fn();
 const backfillMock = vi.fn();
+const customClassifyMock = vi.fn();
 const upsertStatsMock = vi.fn();
 const verifyAuthMock = vi.fn(() => true);
 const computeTickStatsMock = vi.fn();
@@ -56,6 +57,9 @@ vi.mock('./lib/aiScoring', () => ({
 vi.mock('./lib/customBackfill', () => ({
   backfillCustomSnapshotScores: (...a: unknown[]) => backfillMock(...a),
 }));
+vi.mock('./lib/customClassification', () => ({
+  classifyCustomCamerasForTick: (...a: unknown[]) => customClassifyMock(...a),
+}));
 vi.mock('./lib/dailyStats', () => ({
   computeTickStats: (...a: unknown[]) => computeTickStatsMock(...a),
   upsertDailyStats: (...a: unknown[]) => upsertStatsMock(...a),
@@ -89,6 +93,7 @@ beforeEach(() => {
     imageHash: 'newhash', source: 'windy', pathTaken: 'onnx',
   });
   backfillMock.mockReset().mockResolvedValue({ scored: 0, failed: 0, modelVersion: null, scores: [] });
+  customClassifyMock.mockReset().mockResolvedValue({ sunrise: [], sunset: [] });
   upsertStatsMock.mockReset().mockResolvedValue(undefined);
   setCachedMock.mockReset().mockResolvedValue(undefined);
   fetchTerminatorWebcamsMock.mockReset().mockResolvedValue([]);

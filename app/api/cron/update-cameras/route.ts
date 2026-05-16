@@ -25,7 +25,9 @@ import {
   TERMINATOR_SUN_ALTITUDE_DEG,
   WINDY_FETCH_BATCH_SIZE,
   WINDY_FETCH_DELAY_BETWEEN_BATCHES_MS,
+  CUSTOM_CAM_FRESHNESS_WINDOW_MINUTES,
 } from '@/app/lib/masterConfig';
+import { classifyCustomCamerasForTick } from './lib/customClassification';
 import { verifyCronAuth } from './lib/auth';
 import {
   dedupeCoords,
@@ -214,15 +216,47 @@ export async function GET(req: Request) {
     customBackfill: backfillResult,
   });
 
-  // Resolve Windy external_id → DB webcam_id once for both upsert + deactivate
-  function toDbRows(list: typeof sunriseList) {
+  // Resolve Windy external_id → DB webcam_id rows
+  function toWindyDbRows(list: typeof sunriseList) {
     return list
       .map((w) => idByExternal.get(String(w.webcamId)))
       .filter((id): id is number => id !== undefined)
       .map((webcamId) => ({ webcamId }));
   }
-  const sunriseRows = toDbRows(sunriseList);
-  const sunsetRows = toDbRows(sunsetList);
+  const sunriseWindyRows = toWindyDbRows(sunriseList);
+  const sunsetWindyRows = toWindyDbRows(sunsetList);
+
+  // Classify custom cams against the same ring coords + freshness window
+  const customClassified = await classifyCustomCamerasForTick({
+    sunriseCoords,
+    sunsetCoords,
+    freshnessWindowMinutes: CUSTOM_CAM_FRESHNESS_WINDOW_MINUTES,
+    now,
+  });
+
+  // Union Windy + custom by webcamId, Windy first (preserves Windy lat-sorted rank).
+  function unionByWebcamId(
+    primary: Array<{ webcamId: number }>,
+    secondary: Array<{ webcamId: number }>,
+  ): Array<{ webcamId: number }> {
+    const seen = new Set<number>();
+    const out: Array<{ webcamId: number }> = [];
+    for (const r of primary) {
+      if (!seen.has(r.webcamId)) {
+        seen.add(r.webcamId);
+        out.push(r);
+      }
+    }
+    for (const r of secondary) {
+      if (!seen.has(r.webcamId)) {
+        seen.add(r.webcamId);
+        out.push(r);
+      }
+    }
+    return out;
+  }
+  const sunriseRows = unionByWebcamId(sunriseWindyRows, customClassified.sunrise);
+  const sunsetRows = unionByWebcamId(sunsetWindyRows, customClassified.sunset);
 
   await upsertTerminatorState(sunriseRows, 'sunrise');
   await upsertTerminatorState(sunsetRows, 'sunset');
