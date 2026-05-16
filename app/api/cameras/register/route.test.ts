@@ -150,4 +150,22 @@ describe('POST /api/cameras/register', () => {
     const res = await POST(makeRequest({ ...REGISTER_BODY, hardware_id: '' }));
     expect(res.status).toBe(400);
   });
+
+  it('returns 500 when consumeClaimCode races and returns null', async () => {
+    getClaimCodeMock.mockResolvedValueOnce({
+      code: 'SUNSET-AAAA-BBBB',
+      expires_at: new Date('2099-01-01'),
+      consumed_at: null,
+      consumed_by_camera_id: null,
+    });
+    // SELECT existing camera → none (register-first path)
+    sqlMock.mockResolvedValueOnce([]);
+    // INSERT succeeds
+    sqlMock.mockResolvedValueOnce([{ id: 19 }]);
+    // consumeClaimCode races: returns null instead of the row
+    consumeClaimCodeMock.mockResolvedValueOnce(null);
+
+    const res = await POST(makeRequest(REGISTER_BODY));
+    expect(res.status).toBe(500);
+  });
 });

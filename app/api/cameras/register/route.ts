@@ -65,6 +65,12 @@ export async function POST(request: Request) {
   const firmwareVersion = asString(body.firmware_version);
   const capabilities = JSON.stringify(body.capabilities ?? {});
 
+  // Known race: two devices booting at the same instant with the same claim
+  // code can both pass the consumed_at null check above. Both will attempt to
+  // INSERT a cameras row; the loser hits the hardware_id UNIQUE constraint
+  // and surfaces as 500. At Tier 0 deployment volume this is acceptable; if
+  // this surfaces in practice, wrap SELECT/INSERT/consume in a single CTE
+  // guarded by ON CONFLICT.
   try {
     const existingRows = (await sql`
       SELECT id, lat, lng, elevation_m, timezone,
@@ -113,7 +119,16 @@ export async function POST(request: Request) {
       placementRow = inserted[0];
     }
 
-    await consumeClaimCode(claimCode, cameraId);
+    const consumed = await consumeClaimCode(claimCode, cameraId);
+    if (!consumed) {
+      console.error(
+        `[cameras/register] consumeClaimCode returned null after row creation cameraId=${cameraId} claim=${claimCode}`
+      );
+      return NextResponse.json(
+        { error: 'internal server error', details: 'claim consumption failed after row creation' },
+        { status: 500 }
+      );
+    }
 
     const status = derivePlacementStatus(placementRow);
     const responseBody: Record<string, unknown> = {
