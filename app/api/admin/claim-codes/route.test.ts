@@ -8,8 +8,6 @@ vi.mock('@/app/lib/cameraClaimCode', () => ({
 
 import { POST } from './route';
 
-const ORIGINAL_CRON_SECRET = process.env.CRON_SECRET;
-
 beforeEach(() => {
   mintClaimCodeMock.mockReset();
   process.env.CRON_SECRET = 'test-secret-12345';
