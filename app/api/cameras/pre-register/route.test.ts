@@ -3,16 +3,13 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const getClaimCodeMock = vi.fn();
 const upsertCameraByClaimCodeMock = vi.fn();
+const derivePlacementStatusMock = vi.fn();
 vi.mock('@/app/lib/cameraClaimCode', () => ({
   getClaimCode: (...args: unknown[]) => getClaimCodeMock(...args),
 }));
 vi.mock('@/app/lib/cameraRegistration', () => ({
-  upsertCameraByClaimCode: (...args: unknown[]) =>
-    upsertCameraByClaimCodeMock(...args),
-  derivePlacementStatus: (row: { lat: unknown; lng: unknown; azimuth_deg: unknown; tilt_deg: unknown }) =>
-    row.lat != null && row.lng != null && row.azimuth_deg != null && row.tilt_deg != null
-      ? 'ready'
-      : 'pending',
+  upsertCameraByClaimCode: (...args: unknown[]) => upsertCameraByClaimCodeMock(...args),
+  derivePlacementStatus: (...args: unknown[]) => derivePlacementStatusMock(...args),
 }));
 
 import { POST } from './route';
@@ -20,6 +17,7 @@ import { POST } from './route';
 beforeEach(() => {
   getClaimCodeMock.mockReset();
   upsertCameraByClaimCodeMock.mockReset();
+  derivePlacementStatusMock.mockReset();
 });
 
 const VALID_BODY = {
@@ -64,6 +62,7 @@ describe('POST /api/cameras/pre-register', () => {
       azimuth_deg: 270,
       tilt_deg: 5,
     });
+    derivePlacementStatusMock.mockReturnValueOnce('ready');
 
     const res = await POST(makeRequest(VALID_BODY));
     expect(res.status).toBe(202);
@@ -107,6 +106,7 @@ describe('POST /api/cameras/pre-register', () => {
       azimuth_deg: 270,
       tilt_deg: 5,
     });
+    derivePlacementStatusMock.mockReturnValueOnce('ready');
 
     const res = await POST(makeRequest(VALID_BODY));
     expect(res.status).toBe(202);
