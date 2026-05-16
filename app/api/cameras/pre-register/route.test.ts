@@ -10,6 +10,7 @@ vi.mock('@/app/lib/cameraClaimCode', () => ({
 vi.mock('@/app/lib/cameraRegistration', () => ({
   upsertCameraByClaimCode: (...args: unknown[]) => upsertCameraByClaimCodeMock(...args),
   derivePlacementStatus: (...args: unknown[]) => derivePlacementStatusMock(...args),
+  PHASE_VALUES: ['sunrise', 'sunset', 'both'],
 }));
 
 import { POST } from './route';
@@ -121,6 +122,22 @@ describe('POST /api/cameras/pre-register', () => {
       consumed_by_camera_id: null,
     });
     const bad = { ...VALID_BODY, lat: undefined };
+    const res = await POST(makeRequest(bad));
+    expect(res.status).toBe(400);
+    expect(upsertCameraByClaimCodeMock).not.toHaveBeenCalled();
+  });
+
+  it('rejects when horizon_profile is not an array', async () => {
+    getClaimCodeMock.mockResolvedValueOnce({
+      code: 'SUNSET-AAAA-BBBB',
+      expires_at: new Date('2099-01-01'),
+      consumed_at: null,
+      consumed_by_camera_id: null,
+    });
+    const bad = {
+      ...VALID_BODY,
+      placement: { ...VALID_BODY.placement, horizon_profile: 'not an array' },
+    };
     const res = await POST(makeRequest(bad));
     expect(res.status).toBe(400);
     expect(upsertCameraByClaimCodeMock).not.toHaveBeenCalled();

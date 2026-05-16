@@ -3,6 +3,7 @@ import { getClaimCode } from '@/app/lib/cameraClaimCode';
 import {
   upsertCameraByClaimCode,
   derivePlacementStatus,
+  PHASE_VALUES,
 } from '@/app/lib/cameraRegistration';
 
 export const dynamic = 'force-dynamic';
@@ -58,14 +59,21 @@ export async function POST(request: Request) {
     );
   }
 
+  const horizonProfile = body.placement?.horizon_profile;
+  if (horizonProfile != null && !Array.isArray(horizonProfile)) {
+    return NextResponse.json(
+      { error: 'placement.horizon_profile must be an array or null' },
+      { status: 400 }
+    );
+  }
+
   const phaseRaw = asString(body.operator_preferences?.phase_preference);
-  const phase =
-    phaseRaw === 'sunrise' || phaseRaw === 'sunset' || phaseRaw === 'both'
-      ? phaseRaw
-      : null;
+  const phase = phaseRaw != null && (PHASE_VALUES as readonly string[]).includes(phaseRaw)
+    ? (phaseRaw as typeof PHASE_VALUES[number])
+    : null;
   if (!phase) {
     return NextResponse.json(
-      { error: 'operator_preferences.phase_preference must be sunrise|sunset|both' },
+      { error: `operator_preferences.phase_preference must be one of ${PHASE_VALUES.join('|')}` },
       { status: 400 }
     );
   }
@@ -87,7 +95,7 @@ export async function POST(request: Request) {
       azimuth_deg: azimuth,
       tilt_deg: tilt,
       horizon_altitude_deg: asNumber(body.placement?.horizon_altitude_deg) ?? 0,
-      horizon_profile: body.placement?.horizon_profile ?? null,
+      horizon_profile: horizonProfile ?? null,
       phase_preference: phase,
       delivery_preferences: body.operator_preferences?.delivery ?? null,
     });

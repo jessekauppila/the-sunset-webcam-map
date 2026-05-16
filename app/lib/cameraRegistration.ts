@@ -2,6 +2,9 @@ import { randomBytes } from 'node:crypto';
 import { sql } from '@/app/lib/db';
 import { hashDeviceToken } from '@/app/lib/cameraAuth';
 
+export const PHASE_VALUES = ['sunrise', 'sunset', 'both'] as const;
+export type PhasePreference = typeof PHASE_VALUES[number];
+
 export type PlacementStatus = 'pending' | 'ready';
 
 export type PlacementShape = {
@@ -33,7 +36,7 @@ export type CameraUpsertInput = {
   tilt_deg: number | null;
   horizon_altitude_deg: number | null;
   horizon_profile: unknown;
-  phase_preference: 'sunrise' | 'sunset' | 'both';
+  phase_preference: PhasePreference;
   delivery_preferences: unknown;
 };
 
