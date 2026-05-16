@@ -264,9 +264,8 @@ When the operator uses the AR portal, all of these fields arrive at the server v
 **Errors:**
 - `400` — body missing `claim_code` or `hardware_id`
 - `404` — claim code not found
-- `409` — claim code already consumed
+- `409` — claim code already consumed, OR `hardware_id` already registered (response body includes `existing_camera_id` in the latter case)
 - `410` — claim code expired
-- `500` — `hardware_id` UNIQUE collision (v1 limitation — re-registration after token loss surfaces as 500; planned upgrade is to translate to `409 { existing_camera_id }` in a follow-up PR)
 
 The server creates two paired rows: a `cameras` row (custom-camera fields) and a `webcams` row (so the camera shows up in the existing query path). They are linked 1:1 via `webcams.custom_camera_id`.
 

@@ -98,6 +98,8 @@ describe('POST /api/cameras/register', () => {
     });
     // SELECT existing camera by claim_code → none
     sqlMock.mockResolvedValueOnce([]);
+    // SELECT cameras by hardware_id (collision check) → none
+    sqlMock.mockResolvedValueOnce([]);
     // INSERT cameras with sentinel placement
     sqlMock.mockResolvedValueOnce([{ id: 18 }]);
     consumeClaimCodeMock.mockResolvedValueOnce({ consumed_by_camera_id: 18 });
@@ -151,6 +153,26 @@ describe('POST /api/cameras/register', () => {
     expect(res.status).toBe(400);
   });
 
+  it('returns 409 with existing_camera_id when hardware_id is already registered', async () => {
+    getClaimCodeMock.mockResolvedValueOnce({
+      code: 'SUNSET-AAAA-BBBB',
+      expires_at: new Date('2099-01-01'),
+      consumed_at: null,
+      consumed_by_camera_id: null,
+    });
+    // SELECT existing camera by claim_code → none (register-first path)
+    sqlMock.mockResolvedValueOnce([]);
+    // NEW: SELECT cameras by hardware_id → found
+    sqlMock.mockResolvedValueOnce([{ id: 99 }]);
+
+    const res = await POST(makeRequest(REGISTER_BODY));
+    expect(res.status).toBe(409);
+    const body = await res.json();
+    expect(body.existing_camera_id).toBe(99);
+    // Should NOT have called consumeClaimCode
+    expect(consumeClaimCodeMock).not.toHaveBeenCalled();
+  });
+
   it('returns 500 when consumeClaimCode races and returns null', async () => {
     getClaimCodeMock.mockResolvedValueOnce({
       code: 'SUNSET-AAAA-BBBB',
@@ -159,6 +181,8 @@ describe('POST /api/cameras/register', () => {
       consumed_by_camera_id: null,
     });
     // SELECT existing camera → none (register-first path)
+    sqlMock.mockResolvedValueOnce([]);
+    // SELECT cameras by hardware_id (collision check) → none
     sqlMock.mockResolvedValueOnce([]);
     // INSERT succeeds
     sqlMock.mockResolvedValueOnce([{ id: 19 }]);

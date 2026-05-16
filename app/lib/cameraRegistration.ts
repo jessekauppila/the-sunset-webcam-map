@@ -14,6 +14,10 @@ export type PlacementShape = {
   tilt_deg: number | null;
 };
 
+export function sentinelForClaimCode(claimCode: string): string {
+  return `pending-${claimCode}`;
+}
+
 export function derivePlacementStatus(row: PlacementShape): PlacementStatus {
   if (row.lat == null) return 'pending';
   if (row.lng == null) return 'pending';
@@ -80,7 +84,7 @@ export async function upsertCameraByClaimCode(
   // hardware_id and device_token_hash are filled in by the device's later
   // register call (Task 6). We use sentinel placeholders so the existing
   // NOT NULL constraint holds; register replaces them atomically.
-  const sentinelToken = `pending-${claimCode}`;
+  const sentinelToken = sentinelForClaimCode(claimCode);
   const rows = (await sql`
     INSERT INTO cameras (
       hardware_id, device_token_hash, claim_code,

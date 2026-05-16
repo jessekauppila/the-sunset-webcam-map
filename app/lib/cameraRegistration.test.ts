@@ -10,6 +10,7 @@ vi.mock('@/app/lib/db', () => ({
 import {
   derivePlacementStatus,
   mintDeviceToken,
+  sentinelForClaimCode,
   upsertCameraByClaimCode,
 } from './cameraRegistration';
 
@@ -180,5 +181,11 @@ describe('upsertCameraByClaimCode', () => {
 
     const insertValues = sqlMock.mock.calls[1].slice(1);
     expect(insertValues).not.toContain('null');
+  });
+});
+
+describe('sentinelForClaimCode', () => {
+  it('returns the pending-<code> shape', () => {
+    expect(sentinelForClaimCode('SUNSET-AAAA-BBBB')).toBe('pending-SUNSET-AAAA-BBBB');
   });
 });

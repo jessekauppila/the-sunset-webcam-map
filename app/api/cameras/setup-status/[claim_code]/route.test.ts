@@ -10,6 +10,7 @@ vi.mock('@/app/lib/cameraClaimCode', () => ({
 }));
 vi.mock('@/app/lib/cameraRegistration', () => ({
   derivePlacementStatus: (...a: unknown[]) => derivePlacementStatusMock(...a),
+  sentinelForClaimCode: (code: string) => `pending-${code}`,
 }));
 vi.mock('@/app/lib/db', () => ({
   sql: (s: TemplateStringsArray, ...v: unknown[]) => sqlMock(s, ...v),
