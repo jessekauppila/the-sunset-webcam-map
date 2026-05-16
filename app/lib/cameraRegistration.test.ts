@@ -140,4 +140,45 @@ describe('upsertCameraByClaimCode', () => {
     expect(row.id).toBe(17);
     expect(sqlMock).toHaveBeenCalledTimes(2);
   });
+
+  it('passes SQL NULL (not the string "null") for horizon_profile and delivery_preferences on UPDATE', async () => {
+    sqlMock
+      .mockResolvedValueOnce([{ id: 17, claim_code: 'SUNSET-AAAA-BBBB' }])
+      .mockResolvedValueOnce([
+        { id: 17, claim_code: 'SUNSET-AAAA-BBBB', lat: null, lng: null, azimuth_deg: null, tilt_deg: null },
+      ]);
+
+    await upsertCameraByClaimCode('SUNSET-AAAA-BBBB', {
+      lat: 1, lng: 2, timezone: 'UTC',
+      azimuth_deg: 3, tilt_deg: 4, horizon_altitude_deg: 5,
+      horizon_profile: null,
+      phase_preference: 'sunset',
+      delivery_preferences: null,
+    });
+
+    // sqlMock.mock.calls[1] is the UPDATE call. Index 0 is the strings TemplateStringsArray;
+    // remaining indices are the interpolated values, in order.
+    const updateValues = sqlMock.mock.calls[1].slice(1);
+    // No value should ever be the string 'null' — that would be the bug.
+    expect(updateValues).not.toContain('null');
+  });
+
+  it('passes SQL NULL (not the string "null") for horizon_profile and delivery_preferences on INSERT', async () => {
+    sqlMock
+      .mockResolvedValueOnce([]) // SELECT — none
+      .mockResolvedValueOnce([
+        { id: 18, claim_code: 'SUNSET-CCCC-DDDD', lat: 1, lng: 2, azimuth_deg: 3, tilt_deg: 4 },
+      ]);
+
+    await upsertCameraByClaimCode('SUNSET-CCCC-DDDD', {
+      lat: 1, lng: 2, timezone: 'UTC',
+      azimuth_deg: 3, tilt_deg: 4, horizon_altitude_deg: 5,
+      horizon_profile: null,
+      phase_preference: 'sunset',
+      delivery_preferences: null,
+    });
+
+    const insertValues = sqlMock.mock.calls[1].slice(1);
+    expect(insertValues).not.toContain('null');
+  });
 });

@@ -1,5 +1,6 @@
-import { createHash, randomBytes } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
 import { sql } from '@/app/lib/db';
+import { hashDeviceToken } from '@/app/lib/cameraAuth';
 
 export type PlacementStatus = 'pending' | 'ready';
 
@@ -20,8 +21,7 @@ export function derivePlacementStatus(row: PlacementShape): PlacementStatus {
 
 export function mintDeviceToken(): { plaintext: string; hash: string } {
   const plaintext = randomBytes(32).toString('hex');
-  const hash = createHash('sha256').update(plaintext, 'utf8').digest('hex');
-  return { plaintext, hash };
+  return { plaintext, hash: hashDeviceToken(plaintext) };
 }
 
 export type CameraUpsertInput = {
@@ -64,9 +64,9 @@ export async function upsertCameraByClaimCode(
         azimuth_deg = ${input.azimuth_deg},
         tilt_deg = ${input.tilt_deg},
         horizon_altitude_deg = ${input.horizon_altitude_deg},
-        horizon_profile = ${JSON.stringify(input.horizon_profile)}::jsonb,
+        horizon_profile = ${input.horizon_profile == null ? null : JSON.stringify(input.horizon_profile)}::jsonb,
         phase_preference = ${input.phase_preference},
-        delivery_preferences = ${JSON.stringify(input.delivery_preferences)}::jsonb
+        delivery_preferences = ${input.delivery_preferences == null ? null : JSON.stringify(input.delivery_preferences)}::jsonb
       WHERE id = ${existing[0].id}
       RETURNING id, claim_code, lat, lng, azimuth_deg, tilt_deg
     `) as CameraRow[];
@@ -88,8 +88,8 @@ export async function upsertCameraByClaimCode(
     VALUES (
       ${sentinelToken}, ${sentinelToken}, ${claimCode},
       ${input.lat}, ${input.lng}, ${input.elevation_m ?? null}, ${input.timezone},
-      ${input.azimuth_deg}, ${input.tilt_deg}, ${input.horizon_altitude_deg}, ${JSON.stringify(input.horizon_profile)}::jsonb,
-      ${input.phase_preference}, ${JSON.stringify(input.delivery_preferences)}::jsonb
+      ${input.azimuth_deg}, ${input.tilt_deg}, ${input.horizon_altitude_deg}, ${input.horizon_profile == null ? null : JSON.stringify(input.horizon_profile)}::jsonb,
+      ${input.phase_preference}, ${input.delivery_preferences == null ? null : JSON.stringify(input.delivery_preferences)}::jsonb
     )
     RETURNING id, claim_code, lat, lng, azimuth_deg, tilt_deg
   `) as CameraRow[];
