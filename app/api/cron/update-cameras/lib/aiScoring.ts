@@ -32,8 +32,8 @@ export interface ScoreImageInput {
 export type ScorePath = 'onnx' | 'cache-hit' | 'baseline' | 'baseline-fallback';
 
 export interface ScoreImageResult {
-  rawScore: number;   // 0..1
-  aiRating: number;   // 0..5 (display)
+  rawScore: number;   // 0..1 (normalized; matches training label scale)
+  aiRating: number;   // 1..5 (display; inverse of (rating-1)/4 used at train time)
   modelVersion: string;
   imageHash: string;
   source: WebcamSource;
@@ -93,7 +93,9 @@ function baselineRaw(input: ScoreImageInput): number {
 }
 
 function ratingFromRaw(raw: number): number {
-  return Number((raw * 5).toFixed(2));
+  // Inverse of the (rating-1)/4 label normalization in ml/export_dataset.py:
+  // rawScore=0 -> 1 star, rawScore=1 -> 5 stars, rawScore=0.5 -> 3 stars.
+  return Number((1 + clamp(raw, 0, 1) * 4).toFixed(2));
 }
 
 /** Map an ONNX output number to a normalized {rawScore, aiRating} pair. */
@@ -101,11 +103,11 @@ function normalizeOnnxOutput(value: number): {
   rawScore: number;
   aiRating: number;
 } {
-  // Regression model emits a 0..1 normalized value (training labels are
-  // mapped (rating-1)/4 in ml/export_dataset.py). Multiply by 5 for the
-  // display rating.
+  // Model emits a 0..1 normalized value (training labels are mapped
+  // (rating-1)/4 in ml/export_dataset.py). Inverse-map to the 1..5 user
+  // scale via 1 + raw*4.
   const rawScore = clamp(value, 0, 1);
-  const aiRating = clamp(rawScore * 5, 0, 5);
+  const aiRating = 1 + rawScore * 4;
   return {
     rawScore: Number(rawScore.toFixed(6)),
     aiRating: Number(aiRating.toFixed(2)),

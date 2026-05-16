@@ -46,7 +46,7 @@ describe('scoreImage', () => {
     expect(runMock).not.toHaveBeenCalled();
   });
 
-  it('runs ONNX inference when no matching hash, returns score in [0,1]', async () => {
+  it('runs ONNX inference when no matching hash, returns rawScore in [0,1] and aiRating in [1,5]', async () => {
     const result = await scoreImage({
       webcamId: 1,
       imageBytes: Buffer.from('jpeg'),
@@ -56,8 +56,10 @@ describe('scoreImage', () => {
     expect(result.pathTaken).toBe('onnx');
     expect(result.rawScore).toBeGreaterThanOrEqual(0);
     expect(result.rawScore).toBeLessThanOrEqual(1);
-    expect(result.aiRating).toBeGreaterThanOrEqual(0);
+    expect(result.aiRating).toBeGreaterThanOrEqual(1);
     expect(result.aiRating).toBeLessThanOrEqual(5);
+    // rawScore 0.64 -> 1 + 0.64*4 = 3.56
+    expect(result.aiRating).toBeCloseTo(3.56, 2);
     expect(result.modelVersion).toBe('test-v4');
     expect(preprocessMock).toHaveBeenCalledOnce();
   });
@@ -73,15 +75,26 @@ describe('scoreImage', () => {
     expect(result.rawScore).toBe(1);
   });
 
-  it('clamps ONNX output below 0 to rating=0', async () => {
+  it('clamps ONNX output below 0 to rating=1', async () => {
     runMock.mockResolvedValueOnce({ output: { data: [-0.5] } });
     const result = await scoreImage({
       webcamId: 1,
       imageBytes: Buffer.from('jpeg'),
       source: 'windy',
     });
-    expect(result.aiRating).toBe(0);
+    expect(result.aiRating).toBe(1);
     expect(result.rawScore).toBe(0);
+  });
+
+  it('mid-rawScore=0.5 maps to aiRating=3', async () => {
+    runMock.mockResolvedValueOnce({ output: { data: [0.5] } });
+    const result = await scoreImage({
+      webcamId: 1,
+      imageBytes: Buffer.from('jpeg'),
+      source: 'windy',
+    });
+    expect(result.rawScore).toBe(0.5);
+    expect(result.aiRating).toBe(3);
   });
 
   it('falls back to baseline when ONNX inference throws', async () => {
@@ -95,6 +108,8 @@ describe('scoreImage', () => {
     expect(result.pathTaken).toBe('baseline-fallback');
     expect(result.rawScore).toBeGreaterThanOrEqual(0);
     expect(result.rawScore).toBeLessThanOrEqual(1);
+    expect(result.aiRating).toBeGreaterThanOrEqual(1);
+    expect(result.aiRating).toBeLessThanOrEqual(5);
   });
 
   it('preserves the source field on the return value', async () => {
@@ -117,6 +132,8 @@ describe('scoreImage', () => {
     expect(result.pathTaken).toBe('baseline');
     expect(result.rawScore).toBeGreaterThanOrEqual(0);
     expect(result.rawScore).toBeLessThanOrEqual(1);
+    expect(result.aiRating).toBeGreaterThanOrEqual(1);
+    expect(result.aiRating).toBeLessThanOrEqual(5);
     expect(preprocessMock).not.toHaveBeenCalled();
     expect(runMock).not.toHaveBeenCalled();
   });
