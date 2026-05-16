@@ -6,7 +6,7 @@
 
 **Architecture:** All wire-protocol shapes match `docs/device-protocol.md` §6.4 / §10. Pi captures with `picamera2` at 1 fps inside a hardcoded UTC window, attaches a static `device_token` from `config.json`, POSTs `multipart/form-data` to `POST /api/cameras/:id/snapshot`. The Next.js handler authenticates against `cameras.device_token_hash`, uploads bytes to Firebase Storage via `firebase-admin`, writes a `webcam_snapshots` row. A paired `webcams` row (`source='custom'`, `custom_camera_id` linked) plus a `terminator_webcam_state` row with `active=true` make the camera visible to the existing `/api/db-terminator-webcams` query path with zero frontend changes.
 
-**Tech Stack:** Next.js 15 App Router (TypeScript), Neon Postgres via `@neondatabase/serverless`, Firebase Storage via `firebase-admin`, Vitest. Firmware: Python 3.11+, `picamera2`, `requests`, `pytest`. Systemd. Two repos: `the-sunset-webcam-map` (parent) and `~/Documents/GitHub/sunset-cam-firmware` (firmware).
+**Tech Stack:** Next.js 15 App Router (TypeScript), Neon Postgres via `@neondatabase/serverless`, Firebase Storage via `firebase-admin`, Vitest. Firmware: Python 3.11+, `picamera2`, `requests`, `pytest`. Systemd. Two repos: `the-sunset-webcam-map` (parent) and `~/GitHub/sunset-cam-firmware` (firmware).
 
 **Reference docs:**
 - `docs/device-protocol.md` — wire contract (§6.4 snapshot endpoint, §10 schema)
@@ -31,7 +31,7 @@ Code already committed in both repos. This plan assumes these exist and only ver
 | `app/api/cameras/[id]/snapshot/route.ts` | Multipart parse, 400/401/404/413/202 paths. |
 | `app/api/cron/update-windy/lib/dbOperations.ts` | `deactivateMissingTerminatorState` already filtered to `source='windy'` so custom rows survive cron ticks. |
 
-**Firmware repo (`~/Documents/GitHub/sunset-cam-firmware`, branch `main`):**
+**Firmware repo (`~/GitHub/sunset-cam-firmware`, branch `main`):**
 
 6 commits scaffolding: `config.py` (typed loader), `window.py` (hardcoded UTC window), `upload.py` (multipart POST with bearer), `capture.py` (lazy `picamera2`), `main.py` (loop), systemd unit, install script, tests.
 
@@ -53,7 +53,7 @@ Code already committed in both repos. This plan assumes these exist and only ver
 
 ## File Structure
 
-This plan **does not create new files** in either repo. Each task is a sequence of verifications, single-file edits to `config/config.json` on the Pi, and shell invocations. The only artifact that gets *modified* is `~/Documents/GitHub/sunset-cam-firmware/config/config.example.json` if its placeholder `window_id`/dates need updating to reflect today's deployment date — and only as a deploy-time edit on the Pi, not a commit.
+This plan **does not create new files** in either repo. Each task is a sequence of verifications, single-file edits to `config/config.json` on the Pi, and shell invocations. The only artifact that gets *modified* is `~/GitHub/sunset-cam-firmware/config/config.example.json` if its placeholder `window_id`/dates need updating to reflect today's deployment date — and only as a deploy-time edit on the Pi, not a commit.
 
 If a gap is found that requires new code (e.g., the migration won't apply cleanly, an endpoint test fails, the firmware crashes on a Pi-specific edge case), STOP the relevant task and surface it — do not silently extend scope here. Each bucket below has an explicit "halt condition" for that.
 
@@ -323,7 +323,7 @@ This is a local scratch file — **do not commit it anywhere**. It exists so tha
 ## Task 4: Pi firmware deployed to physical hardware
 
 **Files:**
-- Read-only across the firmware repo at `~/Documents/GitHub/sunset-cam-firmware`
+- Read-only across the firmware repo at `~/GitHub/sunset-cam-firmware`
 - One-time edit on the Pi: `/opt/sunset-cam/config/config.json` (from `config.example.json`)
 
 **Halt condition:** Local tests fail on the dev mac, `pip install -e .` fails on the Pi, `picamera2` import errors out (likely `--system-site-packages` was forgotten on the venv), or the systemd unit fails to start.
@@ -332,7 +332,7 @@ This is a local scratch file — **do not commit it anywhere**. It exists so tha
 
 Run:
 ```bash
-cd ~/Documents/GitHub/sunset-cam-firmware
+cd ~/GitHub/sunset-cam-firmware
 python3.11 -m venv .venv  # safe to re-run; no-op if exists
 .venv/bin/pip install -e ".[dev]"
 .venv/bin/pytest
@@ -386,7 +386,7 @@ If the repo isn't on GitHub yet, instead `rsync` it from the dev mac:
 ```bash
 # On dev mac:
 rsync -av --exclude '.venv' --exclude '__pycache__' --exclude '.pytest_cache' \
-  ~/Documents/GitHub/sunset-cam-firmware/ pi@sunset-cam-0.local:/opt/sunset-cam/
+  ~/GitHub/sunset-cam-firmware/ pi@sunset-cam-0.local:/opt/sunset-cam/
 ```
 
 - [ ] **Step 5: Run the installer**

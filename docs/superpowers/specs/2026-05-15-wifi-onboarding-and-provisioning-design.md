@@ -34,7 +34,7 @@ The cost of leaving this unsolved: the network can never have more cameras than 
 
 Verified from the repo as of commit `2fb861537`:
 
-- `pi-webcam-mvp.md`: lists captive-portal WiFi setup as out-of-scope for MVP. The Pi firmware repo (`~/Documents/GitHub/sunset-cam-firmware`) currently expects `wpa_supplicant.conf` to be pre-configured on the SD card.
+- `pi-webcam-mvp.md`: lists captive-portal WiFi setup as out-of-scope for MVP. The Pi firmware repo (`~/GitHub/sunset-cam-firmware`) currently expects `wpa_supplicant.conf` to be pre-configured on the SD card.
 - `device-protocol.md` §4.5.1 (manual config): operator hand-fills `config.json` with claim_code + lat/lng + placement. §4.5.2 (AR portal): assumed device is already online when the portal runs — i.e., it assumes someone else solved the WiFi problem.
 - `device-protocol.md` §6.2a `pre-register`: designed to be called *before* the device boots. This spec amends that ordering (see §5.4).
 - No code exists for AP-mode hosting, captive-portal HTTP, or first-boot WiFi-credential intake.

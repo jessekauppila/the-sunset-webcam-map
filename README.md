@@ -13,6 +13,10 @@ The project has four parts:
 
 This repository is the working tool used to develop the project. For a short visual guide, visit `/about` on the live site.
 
+## Related repositories
+
+Code that runs **on a camera device** lives in a separate, currently local-only firmware repo: [`sunset-cam-firmware`](../sunset-cam-firmware) (path: `~/GitHub/sunset-cam-firmware`). Everything else — web app, kiosk, ML training, AR portal, operator-delivery — lives here. The split was a deliberate Session-2 decision (2026-05-03); see `docs/device-protocol.md` for the wire contract between the two.
+
 ## Features
 
 - 🌅 **Real-time Sunset Tracking**: Automatically finds locations experiencing sunset
