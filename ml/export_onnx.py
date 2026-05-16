@@ -13,15 +13,22 @@ from tqdm.auto import tqdm
 from torchvision import models
 
 
-def build_model(model_name: str, target_type: str):
+def _make_head(in_features: int, out_features: int, dropout: float) -> torch.nn.Module:
+    if dropout > 0:
+        return torch.nn.Sequential(torch.nn.Dropout(p=dropout), torch.nn.Linear(in_features, out_features))
+    return torch.nn.Linear(in_features, out_features)
+
+
+def build_model(model_name: str, target_type: str, head_dropout: float = 0.0):
+    out_features = 1 if target_type == "regression" else 2
     if model_name == "mobilenet_v3_small":
         model = models.mobilenet_v3_small(weights=None)
         in_features = model.classifier[-1].in_features
-        model.classifier[-1] = torch.nn.Linear(in_features, 1 if target_type == "regression" else 2)
+        model.classifier[-1] = _make_head(in_features, out_features, head_dropout)
         return model
     model = models.resnet18(weights=None)
     in_features = model.fc.in_features
-    model.fc = torch.nn.Linear(in_features, 1 if target_type == "regression" else 2)
+    model.fc = _make_head(in_features, out_features, head_dropout)
     return model
 
 
@@ -43,6 +50,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--target-type", choices=["binary", "regression"], default="binary")
     parser.add_argument("--output", default="ml/artifacts/models/model.onnx")
     parser.add_argument("--opset", type=int, default=17)
+    parser.add_argument(
+        "--head-dropout",
+        type=float,
+        default=0.0,
+        help="Must match training (Sequential(Dropout, Linear) when > 0).",
+    )
     return parser.parse_args()
 
 
@@ -52,7 +65,7 @@ def main() -> None:
     out.parent.mkdir(parents=True, exist_ok=True)
     progress = tqdm(total=4, desc="Export ONNX", unit="step")
 
-    model = build_model(args.model_name, args.target_type)
+    model = build_model(args.model_name, args.target_type, head_dropout=args.head_dropout)
     state = torch.load(args.checkpoint, map_location="cpu")
     model.load_state_dict(state)
     model.eval()
@@ -79,6 +92,7 @@ def main() -> None:
         "checkpoint": args.checkpoint,
         "model_name": args.model_name,
         "target_type": args.target_type,
+        "head_dropout": args.head_dropout,
         "output": out.as_posix(),
         "sha256": file_sha256(out),
         "opset": args.opset,
