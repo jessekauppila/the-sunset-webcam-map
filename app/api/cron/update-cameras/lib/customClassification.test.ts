@@ -63,6 +63,23 @@ describe('classifyCustomCamerasForTick', () => {
     expect(sunset).toEqual([]);
   });
 
+  it('excludes cams beyond SEARCH_RADIUS_DEG even if closer to one phase', async () => {
+    // Cam at (50, 50): nearest to sunriseCoords (0,0) at ~70° distance, far beyond 9°
+    sqlMock.mockResolvedValue([
+      { webcam_id: 999, lat: 50, lng: 50 },
+    ]);
+
+    const { sunrise, sunset } = await classifyCustomCamerasForTick({
+      sunriseCoords: [{ lat: 0, lng: 0 }],
+      sunsetCoords: [{ lat: 0, lng: 180 }],
+      freshnessWindowMinutes: 90,
+      now: new Date('2026-05-15T00:00:00Z'),
+    });
+
+    expect(sunrise).toEqual([]);
+    expect(sunset).toEqual([]);
+  });
+
   it('passes freshness threshold into the SQL parameters', async () => {
     sqlMock.mockResolvedValue([]);
     const now = new Date('2026-05-15T12:00:00Z');
