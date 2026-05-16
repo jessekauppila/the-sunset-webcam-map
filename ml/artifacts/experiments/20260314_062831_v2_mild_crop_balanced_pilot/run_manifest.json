@@ -1,0 +1,7 @@
+{
+  "config_input": "ml/artifacts/experiments/20260314_062831_v2_mild_crop_balanced_pilot/config.input.yaml",
+  "config_resolved": "ml/artifacts/experiments/20260314_062831_v2_mild_crop_balanced_pilot/config.resolved.json",
+  "dataset_meta": "ml/artifacts/experiments/20260314_062831_v2_mild_crop_balanced_pilot/dataset/20260314_062832/export_meta.json",
+  "train_summary": "ml/artifacts/experiments/20260314_062831_v2_mild_crop_balanced_pilot/train/train_summary.json",
+  "eval_report": "ml/artifacts/experiments/20260314_062831_v2_mild_crop_balanced_pilot/eval/eval_report.json"
+}

@@ -1,0 +1,44 @@
+{
+  "label_source": "manual_only",
+  "target_type": "binary",
+  "binary_threshold": 4.0,
+  "min_rating_count": 2,
+  "split_config": {
+    "seed": 20260212,
+    "train_pct": 70,
+    "val_pct": 15,
+    "test_pct": 15
+  },
+  "counts": {
+    "total": 26,
+    "train": 22,
+    "val": 2,
+    "test": 2
+  },
+  "target_distribution": {
+    "full": {
+      "count": 26,
+      "negative": 9,
+      "positive": 17,
+      "positive_rate": 0.6538461538461539
+    },
+    "train": {
+      "count": 22,
+      "negative": 9,
+      "positive": 13,
+      "positive_rate": 0.5909090909090909
+    },
+    "val": {
+      "count": 2,
+      "negative": 0,
+      "positive": 2,
+      "positive_rate": 1.0
+    },
+    "test": {
+      "count": 2,
+      "negative": 0,
+      "positive": 2,
+      "positive_rate": 1.0
+    }
+  }
+}

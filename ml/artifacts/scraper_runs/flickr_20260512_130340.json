@@ -1,0 +1,12 @@
+{
+  "queries": [
+    "golden hour"
+  ],
+  "max_images": 1000,
+  "category": "sunset",
+  "downloaded": 1000,
+  "skipped_existing": 80,
+  "skipped_no_url": 2,
+  "errors": 0,
+  "dry_run": false
+}

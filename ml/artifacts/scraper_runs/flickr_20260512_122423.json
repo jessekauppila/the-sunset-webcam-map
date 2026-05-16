@@ -1,0 +1,12 @@
+{
+  "queries": [
+    "sunset"
+  ],
+  "max_images": 1500,
+  "category": "sunset",
+  "downloaded": 1500,
+  "skipped_existing": 169,
+  "skipped_no_url": 3,
+  "errors": 0,
+  "dry_run": false
+}

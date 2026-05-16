@@ -1,0 +1,12 @@
+{
+  "queries": [
+    "evening sky"
+  ],
+  "max_images": 500,
+  "category": "sunset",
+  "downloaded": 500,
+  "skipped_existing": 36,
+  "skipped_no_url": 3,
+  "errors": 0,
+  "dry_run": false
+}

@@ -1,0 +1,4079 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<title>LLM Rater Comparison — anthropic / claude-haiku-4-5 vs anthropic / claude-sonnet-4-5</title>
+<style>
+  body { font-family: -apple-system, system-ui, sans-serif; background: #fafafa; margin: 0; padding: 24px; color: #222; }
+  h1 { font-size: 22px; margin: 0 0 4px 0; }
+  .summary { color: #555; margin-bottom: 16px; font-size: 14px; }
+  .legend { display: flex; gap: 16px; margin-bottom: 16px; font-size: 13px; }
+  .legend .swatch { display: inline-block; width: 14px; height: 14px; border-radius: 4px; vertical-align: middle; margin-right: 6px; }
+  .toolbar {
+    background: white; border-radius: 12px; padding: 12px 16px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 12px 16px; margin-bottom: 16px; align-items: end;
+  }
+  .toolbar label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: #555; }
+  .toolbar input[type=text],
+  .toolbar select {
+    padding: 6px 8px; border: 1px solid #ddd; border-radius: 6px;
+    font-size: 13px; background: white; color: #222;
+  }
+  .toolbar input[type=range] { width: 100%; }
+  .toolbar button {
+    padding: 7px 12px; border: 1px solid #ddd; background: #fafafa;
+    border-radius: 6px; cursor: pointer; font-size: 13px;
+  }
+  .toolbar button:hover { background: #eee; }
+  .toolbar .count-row { font-size: 13px; color: #333; }
+
+  .grid { display: flex; flex-direction: column; gap: 12px; }
+  .row {
+    background: white; border-radius: 12px; box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+    display: grid; grid-template-columns: 320px 1fr 1fr 140px;
+    gap: 12px; padding: 12px; align-items: stretch;
+  }
+  @media (max-width: 1100px) {
+    .row { grid-template-columns: 1fr; }
+  }
+  .row-image img { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 8px; background: #eee; display: block; }
+  .row-meta { font-size: 12px; color: #666; margin-top: 6px; line-height: 1.4; }
+  .row-id { font-family: monospace; }
+  .row-source { text-transform: uppercase; letter-spacing: 0.5px; color: #888; }
+
+  .model-col { display: flex; flex-direction: column; gap: 4px; }
+  .model-label {
+    font-size: 12px; font-weight: 600; padding: 4px 8px; border-radius: 6px;
+    align-self: flex-start; letter-spacing: 0.3px;
+  }
+  .model-a-label { background: #e3f2fd; color: #1565c0; }
+  .model-b-label { background: #f3e5f5; color: #6a1b9a; }
+  .model-block {
+    background: #fafafa; border-radius: 8px; padding: 10px 12px;
+    flex: 1; display: flex; flex-direction: column; gap: 6px;
+  }
+  .model-block.error { background: #fdecea; }
+  .model-error { color: #c62828; font-size: 12px; }
+
+  .quality-row { display: flex; align-items: center; gap: 10px; }
+  .quality-num { font-size: 22px; font-weight: 600; min-width: 50px; }
+  .quality-bar { flex: 1; height: 8px; background: #eee; border-radius: 4px; overflow: hidden; }
+  .quality-fill { height: 100%; }
+  .badges { display: flex; flex-wrap: wrap; gap: 4px; }
+  .badge { font-size: 11px; padding: 3px 8px; border-radius: 10px; background: #eee; color: #555; }
+  .badge.on { background: #e8f5e9; color: #2e7d32; }
+  .badge.off { background: #fafafa; color: #999; }
+  .badge.muted { background: #f0f0f0; color: #666; }
+  .badge.obstructed { background: #fdecea; color: #c62828; }
+  .palette { font-size: 12px; color: #444; line-height: 1.4; }
+  .obstruction { font-size: 11px; color: #c62828; }
+  .human { font-size: 11px; color: #666; }
+  .human.muted { color: #aaa; }
+
+  .delta-col {
+    display: flex; flex-direction: column; gap: 4px;
+    background: #fafafa; border-radius: 8px; padding: 10px 12px;
+    align-items: center; justify-content: center; text-align: center;
+  }
+  .delta-label { font-size: 11px; font-weight: 700; letter-spacing: 0.5px; }
+  .delta-num { font-size: 16px; font-weight: 600; }
+  .delta-detail { font-size: 11px; color: #666; }
+</style>
+</head>
+<body>
+  <h1>LLM Rater comparison</h1>
+  <div class="summary">
+    <strong style="background:#e3f2fd;color:#1565c0;padding:2px 8px;border-radius:4px;">A · anthropic / claude-haiku-4-5</strong>
+    &nbsp;vs&nbsp;
+    <strong style="background:#f3e5f5;color:#6a1b9a;padding:2px 8px;border-radius:4px;">B · anthropic / claude-sonnet-4-5</strong>
+    &nbsp;·&nbsp; 50 images (spread sample)
+    &nbsp;·&nbsp; both succeeded: 50
+    &nbsp;·&nbsp; obstructed (A/B): 15/9
+    &nbsp;·&nbsp; large disagreements (|Δq|≥0.30 or sunset flips): 3
+  </div>
+
+  <div class="legend">
+    <div><span class="swatch" style="background:#2e7d32;"></span>match (|Δq|&lt;0.10)</div>
+    <div><span class="swatch" style="background:#ed6c02;"></span>mild (0.10–0.25)</div>
+    <div><span class="swatch" style="background:#c62828;"></span>BIG (≥0.25)</div>
+  </div>
+
+  <div class="toolbar">
+    <label>Search
+      <input type="text" id="f-search" placeholder="palette, obstruction, id…"/>
+    </label>
+    <label>Sunset disagreement only
+      <select id="f-sunset-disagree">
+        <option value="all">all</option>
+        <option value="yes">disagreement only</option>
+        <option value="no">agreement only</option>
+      </select>
+    </label>
+    <label>Min |Δquality| <span id="f-min-dq-val">0.00</span>
+      <input type="range" id="f-min-dq" min="0" max="1" step="0.05" value="0"/>
+    </label>
+    <label>Min |Δconfidence| <span id="f-min-dc-val">0.00</span>
+      <input type="range" id="f-min-dc" min="0" max="1" step="0.05" value="0"/>
+    </label>
+    <label>Sort by
+      <select id="f-sort">
+        <option value="delta-desc">disagreement (worst first)</option>
+        <option value="delta-asc">agreement (best first)</option>
+        <option value="quality-a-desc">A: quality (high → low)</option>
+        <option value="quality-b-desc">B: quality (high → low)</option>
+        <option value="record-id">record id</option>
+      </select>
+    </label>
+    <div class="count-row">
+      Showing <strong id="count">50 of 50</strong>
+      <button id="f-reset" type="button" style="margin-left: 8px;">Reset</button>
+    </div>
+  </div>
+
+  <div class="grid" id="grid">
+    
+        <div class="row"
+             data-record-id="77904"
+             data-quality-a="0.6500"
+             data-quality-b="0.0000"
+             data-confidence-a="0.8500"
+             data-confidence-b="0.9500"
+             data-delta-quality="0.6500"
+             data-delta-confidence="0.1000"
+             data-sunset-disagree="1"
+             data-search="77904 webcam dark gray and charcoal sky with orange and amber glow on horizon, transitioning to deep blue-gray overhead dark gray, black, nighttime sunset-disagree">
+          <div class="row-image">
+            <img src="https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/160/1772891583646.jpg"
+                 alt="image 77904" loading="lazy"/>
+            <div class="row-meta">
+              <div class="row-id">#77904</div>
+              <div class="row-source">webcam</div>
+              <div class="human">Human: 1.00/5 (1 raters)</div>
+            </div>
+          </div>
+          <div class="model-col">
+            <div class="model-label model-a-label">A · anthropic / claude-haiku-4-5</div>
+            
+    <div class="model-block" data-model="a">
+      <div class="quality-row">
+        <div class="quality-num" style="color:#2e7d32;">0.65</div>
+        <div class="quality-bar">
+          <div class="quality-fill" style="width:65%; background:#2e7d32;"></div>
+        </div>
+      </div>
+      <div class="badges">
+        <span class="badge on">
+          sunset
+        </span>
+        <span class="badge on">
+          has clouds
+        </span>
+        <span class="badge muted">conf 0.85</span>
+        
+      </div>
+      <div class="palette">Dark gray and charcoal sky with orange and amber glow on horizon, transitioning to deep blue-gray overhead</div>
+      
+    </div>
+    
+          </div>
+          <div class="model-col">
+            <div class="model-label model-b-label">B · anthropic / claude-sonnet-4-5</div>
+            
+    <div class="model-block" data-model="b">
+      <div class="quality-row">
+        <div class="quality-num" style="color:#c62828;">0.00</div>
+        <div class="quality-bar">
+          <div class="quality-fill" style="width:0%; background:#c62828;"></div>
+        </div>
+      </div>
+      <div class="badges">
+        <span class="badge off">
+          not sunset
+        </span>
+        <span class="badge off">
+          no clouds
+        </span>
+        <span class="badge muted">conf 0.95</span>
+        
+      </div>
+      <div class="palette">dark gray, black, nighttime</div>
+      
+    </div>
+    
+          </div>
+          <div class="delta-col">
+            <div class="delta-label" style="color:#c62828;">BIG</div>
+            <div class="delta-num" style="color:#c62828;">|Δq| 0.65</div>
+            <div class="delta-detail">|Δconf| 0.10</div>
+            <div class="delta-detail">sunset: <strong style="color:#c62828;">DISAGREE</strong></div>
+          </div>
+        </div>
+        
+        <div class="row"
+             data-record-id="96325"
+             data-quality-a="0.6500"
+             data-quality-b="0.0000"
+             data-confidence-a="0.8500"
+             data-confidence-b="0.9500"
+             data-delta-quality="0.6500"
+             data-delta-confidence="0.1000"
+             data-sunset-disagree="1"
+             data-search="96325 webcam purple, blue, and orange gradient with warm golden city lights deep blue to dark purple gradient sunset-disagree">
+          <div class="row-image">
+            <img src="https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/4027/1775302774967.jpg"
+                 alt="image 96325" loading="lazy"/>
+            <div class="row-meta">
+              <div class="row-id">#96325</div>
+              <div class="row-source">webcam</div>
+              <div class="human muted">No human rating</div>
+            </div>
+          </div>
+          <div class="model-col">
+            <div class="model-label model-a-label">A · anthropic / claude-haiku-4-5</div>
+            
+    <div class="model-block" data-model="a">
+      <div class="quality-row">
+        <div class="quality-num" style="color:#2e7d32;">0.65</div>
+        <div class="quality-bar">
+          <div class="quality-fill" style="width:65%; background:#2e7d32;"></div>
+        </div>
+      </div>
+      <div class="badges">
+        <span class="badge on">
+          sunset
+        </span>
+        <span class="badge on">
+          has clouds
+        </span>
+        <span class="badge muted">conf 0.85</span>
+        
+      </div>
+      <div class="palette">Purple, blue, and orange gradient with warm golden city lights</div>
+      
+    </div>
+    
+          </div>
+          <div class="model-col">
+            <div class="model-label model-b-label">B · anthropic / claude-sonnet-4-5</div>
+            
+    <div class="model-block" data-model="b">
+      <div class="quality-row">
+        <div class="quality-num" style="color:#c62828;">0.00</div>
+        <div class="quality-bar">
+          <div class="quality-fill" style="width:0%; background:#c62828;"></div>
+        </div>
+      </div>
+      <div class="badges">
+        <span class="badge off">
+          not sunset
+        </span>
+        <span class="badge off">
+          no clouds
+        </span>
+        <span class="badge muted">conf 0.95</span>
+        
+      </div>
+      <div class="palette">deep blue to dark purple gradient</div>
+      
+    </div>
+    
+          </div>
+          <div class="delta-col">
+            <div class="delta-label" style="color:#c62828;">BIG</div>
+            <div class="delta-num" style="color:#c62828;">|Δq| 0.65</div>
+            <div class="delta-detail">|Δconf| 0.10</div>
+            <div class="delta-detail">sunset: <strong style="color:#c62828;">DISAGREE</strong></div>
+          </div>
+        </div>
+        
+        <div class="row"
+             data-record-id="96919"
+             data-quality-a="0.7200"
+             data-quality-b="0.4500"
+             data-confidence-a="0.8500"
+             data-confidence-b="0.7000"
+             data-delta-quality="0.2700"
+             data-delta-confidence="0.1500"
+             data-sunset-disagree="0"
+             data-search="96919 webcam golden yellow and white light breaking through dark gray and blue clouds rain on lens muted blue-gray with warm golden-orange glow rain on lens sunset-agree">
+          <div class="row-image">
+            <img src="https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/10300/1775435492525.jpg"
+                 alt="image 96919" loading="lazy"/>
+            <div class="row-meta">
+              <div class="row-id">#96919</div>
+              <div class="row-source">webcam</div>
+              <div class="human muted">No human rating</div>
+            </div>
+          </div>
+          <div class="model-col">
+            <div class="model-label model-a-label">A · anthropic / claude-haiku-4-5</div>
+            
+    <div class="model-block" data-model="a">
+      <div class="quality-row">
+        <div class="quality-num" style="color:#2e7d32;">0.72</div>
+        <div class="quality-bar">
+          <div class="quality-fill" style="width:72%; background:#2e7d32;"></div>
+        </div>
+      </div>
+      <div class="badges">
+        <span class="badge on">
+          sunset
+        </span>
+        <span class="badge on">
+          has clouds
+        </span>
+        <span class="badge muted">conf 0.85</span>
+        <span class="badge obstructed">obstructed</span>
+      </div>
+      <div class="palette">Golden yellow and white light breaking through dark gray and blue clouds</div>
+      <div class="obstruction">obstruction: rain on lens</div>
+    </div>
+    
+          </div>
+          <div class="model-col">
+            <div class="model-label model-b-label">B · anthropic / claude-sonnet-4-5</div>
+            
+    <div class="model-block" data-model="b">
+      <div class="quality-row">
+        <div class="quality-num" style="color:#ed6c02;">0.45</div>
+        <div class="quality-bar">
+          <div class="quality-fill" style="width:45%; background:#ed6c02;"></div>
+        </div>
+      </div>
+      <div class="badges">
+        <span class="badge on">
+          sunset
+        </span>
+        <span class="badge on">
+          has clouds
+        </span>
+        <span class="badge muted">conf 0.70</span>
+        <span class="badge obstructed">obstructed</span>
+      </div>
+      <div class="palette">muted blue-gray with warm golden-orange glow</div>
+      <div class="obstruction">obstruction: rain on lens</div>
+    </div>
+    
+          </div>
+          <div class="delta-col">
+            <div class="delta-label" style="color:#c62828;">BIG</div>
+            <div class="delta-num" style="color:#c62828;">|Δq| 0.27</div>
+            <div class="delta-detail">|Δconf| 0.15</div>
+            <div class="delta-detail">sunset: agree</div>
+          </div>
+        </div>
+        
+        <div class="row"
+             data-record-id="74933"
+             data-quality-a="0.5500"
+             data-quality-b="0.3500"
+             data-confidence-a="0.8500"
+             data-confidence-b="0.8000"
+             data-delta-quality="0.2000"
+             data-delta-confidence="0.0500"
+             data-sunset-disagree="0"
+             data-search="74933 webcam warm orange and golden tones transitioning to pale blue-gray sky pale orange and yellow fading to gray-blue sunset-agree">
+          <div class="row-image">
+            <img src="https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/8695193/1772177869819.jpg"
+                 alt="image 74933" loading="lazy"/>
+            <div class="row-meta">
+              <div class="row-id">#74933</div>
+              <div class="row-source">webcam</div>
+              <div class="human muted">No human rating</div>
+            </div>
+          </div>
+          <div class="model-col">
+            <div class="model-label model-a-label">A · anthropic / claude-haiku-4-5</div>
+            
+    <div class="model-block" data-model="a">
+      <div class="quality-row">
+        <div class="quality-num" style="color:#ed6c02;">0.55</div>
+        <div class="quality-bar">
+          <div class="quality-fill" style="width:55%; background:#ed6c02;"></div>
+        </div>
+      </div>
+      <div class="badges">
+        <span class="badge on">
+          sunset
+        </span>
+        <span class="badge on">
+          has clouds
+        </span>
+        <span class="badge muted">conf 0.85</span>
+        
+      </div>
+      <div class="palette">warm orange and golden tones transitioning to pale blue-gray sky</div>
+      
+    </div>
+    
+          </div>
+          <div class="model-col">
+            <div class="model-label model-b-label">B · anthropic / claude-sonnet-4-5</div>
+            
+    <div class="model-block" data-model="b">
+      <div class="quality-row">
+        <div class="quality-num" style="color:#ed6c02;">0.35</div>
+        <div class="quality-bar">
+          <div class="quality-fill" style="width:35%; background:#ed6c02;"></div>
+        </div>
+      </div>
+      <div class="badges">
+        <span class="badge on">
+          sunset
+        </span>
+        <span class="badge off">
+          no clouds
+        </span>
+        <span class="badge muted">conf 0.80</span>
+        
+      </div>
+      <div class="palette">pale orange and yellow fading to gray-blue</div>
+      
+    </div>
+    
+          </div>
+          <div class="delta-col">
+            <div class="delta-label" style="color:#ed6c02;">mild</div>
+            <div class="delta-num" style="color:#ed6c02;">|Δq| 0.20</div>
+            <div class="delta-detail">|Δconf| 0.05</div>
+            <div class="delta-detail">sunset: agree</div>
+          </div>
+        </div>
+        
+        <div class="row"
+             data-record-id="70179"
+             data-quality-a="0.6500"
+             data-quality-b="0.4500"
+             data-confidence-a="0.8500"
+             data-confidence-b="0.8500"
+             data-delta-quality="0.2000"
+             data-delta-confidence="0.0000"
+             data-sunset-disagree="0"
+             data-search="70179 webcam golden orange and warm amber tones with pale yellow sky, transitioning to light blue pale yellow, soft orange, light blue gradient sunset-agree">
+          <div class="row-image">
+            <img src="https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/4443/1771097748949.jpg"
+                 alt="image 70179" loading="lazy"/>
+            <div class="row-meta">
+              <div class="row-id">#70179</div>
+              <div class="row-source">webcam</div>
+              <div class="human muted">No human rating</div>
+            </div>
+          </div>
+          <div class="model-col">
+            <div class="model-label model-a-label">A · anthropic / claude-haiku-4-5</div>
+            
+    <div class="model-block" data-model="a">
+      <div class="quality-row">
+        <div class="quality-num" style="color:#2e7d32;">0.65</div>
+        <div class="quality-bar">
+          <div class="quality-fill" style="width:65%; background:#2e7d32;"></div>
+        </div>
+      </div>
+      <div class="badges">
+        <span class="badge on">
+          sunset
+        </span>
+        <span class="badge on">
+          has clouds
+        </span>
+        <span class="badge muted">conf 0.85</span>
+        
+      </div>
+      <div class="palette">Golden orange and warm amber tones with pale yellow sky, transitioning to light blue</div>
+      
+    </div>
+    
+          </div>
+          <div class="model-col">
+            <div class="model-label model-b-label">B · anthropic / claude-sonnet-4-5</div>
+            
+    <div class="model-block" data-model="b">
+      <div class="quality-row">
+        <div class="quality-num" style="color:#ed6c02;">0.45</div>
+        <div class="quality-bar">
+          <div class="quality-fill" style="width:45%; background:#ed6c02;"></div>
+        </div>
+      </div>
+      <div class="badges">
+        <span class="badge on">
+          sunset
+        </span>
+        <span class="badge off">
+          no clouds
+        </span>
+        <span class="badge muted">conf 0.85</span>
+        
+      </div>
+      <div class="palette">pale yellow, soft orange, light blue gradient</div>
+      
+    </div>
+    
+          </div>
+          <div class="delta-col">
+            <div class="delta-label" style="color:#ed6c02;">mild</div>
+            <div class="delta-num" style="color:#ed6c02;">|Δq| 0.20</div>
+            <div class="delta-detail">|Δconf| 0.00</div>
+            <div class="delta-detail">sunset: agree</div>
+          </div>
+        </div>
+        
+        <div class="row"
+             data-record-id="70774"
+             data-quality-a="0.4500"
+             data-quality-b="0.2500"
+             data-confidence-a="0.7500"
+             data-confidence-b="0.8000"
+             data-delta-quality="0.2000"
+             data-delta-confidence="0.0500"
+             data-sunset-disagree="0"
+             data-search="70774 webcam pale orange and gray with muted golden tones pale blue and gray with faint yellow-orange glow on horizon sunset-agree">
+          <div class="row-image">
+            <img src="https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/536/1771218229354.jpg"
+                 alt="image 70774" loading="lazy"/>
+            <div class="row-meta">
+              <div class="row-id">#70774</div>
+              <div class="row-source">webcam</div>
+              <div class="human muted">No human rating</div>
+            </div>
+          </div>
+          <div class="model-col">
+            <div class="model-label model-a-label">A · anthropic / claude-haiku-4-5</div>
+            
+    <div class="model-block" data-model="a">
+      <div class="quality-row">
+        <div class="quality-num" style="color:#ed6c02;">0.45</div>
+        <div class="quality-bar">
+          <div class="quality-fill" style="width:45%; background:#ed6c02;"></div>
+        </div>
+      </div>
+      <div class="badges">
+        <span class="badge on">
+          sunset
+        </span>
+        <span class="badge on">
+          has clouds
+        </span>
+        <span class="badge muted">conf 0.75</span>
+        
+      </div>
+      <div class="palette">pale orange and gray with muted golden tones</div>
+      
+    </div>
+    
+          </div>
+          <div class="model-col">
+            <div class="model-label model-b-label">B · anthropic / claude-sonnet-4-5</div>
+            
+    <div class="model-block" data-model="b">
+      <div class="quality-row">
+        <div class="quality-num" style="color:#c62828;">0.25</div>
+        <div class="quality-bar">
+          <div class="quality-fill" style="width:25%; background:#c62828;"></div>
+        </div>
+      </div>
+      <div class="badges">
+        <span class="badge on">
+          sunset
+        </span>
+        <span class="badge on">
+          has clouds
+        </span>
+        <span class="badge muted">conf 0.80</span>
+        
+      </div>
+      <div class="palette">pale blue and gray with faint yellow-orange glow on horizon</div>
+      
+    </div>
+    
+          </div>
+          <div class="delta-col">
+            <div class="delta-label" style="color:#ed6c02;">mild</div>
+            <div class="delta-num" style="color:#ed6c02;">|Δq| 0.20</div>
+            <div class="delta-detail">|Δconf| 0.05</div>
+            <div class="delta-detail">sunset: agree</div>
+          </div>
+        </div>
+        
+        <div class="row"
+             data-record-id="77310"
+             data-quality-a="0.6500"
+             data-quality-b="0.4500"
+             data-confidence-a="0.8500"
+             data-confidence-b="0.7500"
+             data-delta-quality="0.2000"
+             data-delta-confidence="0.1000"
+             data-sunset-disagree="0"
+             data-search="77310 webcam golden orange and yellow sun with blue-gray sky, warm light casting long shadows across snowy landscape pale yellow, white, light blue with bright sun sunset-agree">
+          <div class="row-image">
+            <img src="https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/4443/1772741089995.jpg"
+                 alt="image 77310" loading="lazy"/>
+            <div class="row-meta">
+              <div class="row-id">#77310</div>
+              <div class="row-source">webcam</div>
+              <div class="human">Human: 5.00/5 (1 raters)</div>
+            </div>
+          </div>
+          <div class="model-col">
+            <div class="model-label model-a-label">A · anthropic / claude-haiku-4-5</div>
+            
+    <div class="model-block" data-model="a">
+      <div class="quality-row">
+        <div class="quality-num" style="color:#2e7d32;">0.65</div>
+        <div class="quality-bar">
+          <div class="quality-fill" style="width:65%; background:#2e7d32;"></div>
+        </div>
+      </div>
+      <div class="badges">
+        <span class="badge on">
+          sunset
+        </span>
+        <span class="badge on">
+          has clouds
+        </span>
+        <span class="badge muted">conf 0.85</span>
+        
+      </div>
+      <div class="palette">Golden orange and yellow sun with blue-gray sky, warm light casting long shadows across snowy landscape</div>
+      
+    </div>
+    
+          </div>
+          <div class="model-col">
+            <div class="model-label model-b-label">B · anthropic / claude-sonnet-4-5</div>
+            
+    <div class="model-block" data-model="b">
+      <div class="quality-row">
+        <div class="quality-num" style="color:#ed6c02;">0.45</div>
+        <div class="quality-bar">
+          <div class="quality-fill" style="width:45%; background:#ed6c02;"></div>
+        </div>
+      </div>
+      <div class="badges">
+        <span class="badge on">
+          sunset
+        </span>
+        <span class="badge off">
+          no clouds
+        </span>
+        <span class="badge muted">conf 0.75</span>
+        
+      </div>
+      <div class="palette">pale yellow, white, light blue with bright sun</div>
+      
+    </div>
+    
+          </div>
+          <div class="delta-col">
+            <div class="delta-label" style="color:#ed6c02;">mild</div>
+            <div class="delta-num" style="color:#ed6c02;">|Δq| 0.20</div>
+            <div class="delta-detail">|Δconf| 0.10</div>
+            <div class="delta-detail">sunset: agree</div>
+          </div>
+        </div>
+        
+        <div class="row"
+             data-record-id="81470"
+             data-quality-a="0.6500"
+             data-quality-b="0.4500"
+             data-confidence-a="0.8500"
+             data-confidence-b="0.7500"
+             data-delta-quality="0.2000"
+             data-delta-confidence="0.1000"
+             data-sunset-disagree="0"
+             data-search="81470 webcam warm golden and orange tones transitioning to pale blue and gray, with soft peachy highlights on clouds soft peach and pink tones with gray-blue mountains sunset-agree">
+          <div class="row-image">
+            <img src="https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/10503/1773446123390.jpg"
+                 alt="image 81470" loading="lazy"/>
+            <div class="row-meta">
+              <div class="row-id">#81470</div>
+              <div class="row-source">webcam</div>
+              <div class="human muted">No human rating</div>
+            </div>
+          </div>
+          <div class="model-col">
+            <div class="model-label model-a-label">A · anthropic / claude-haiku-4-5</div>
+            
+    <div class="model-block" data-model="a">
+      <div class="quality-row">
+        <div class="quality-num" style="color:#2e7d32;">0.65</div>
+        <div class="quality-bar">
+          <div class="quality-fill" style="width:65%; background:#2e7d32;"></div>
+        </div>
+      </div>
+      <div class="badges">
+        <span class="badge on">
+          sunset
+        </span>
+        <span class="badge on">
+          has clouds
+        </span>
+        <span class="badge muted">conf 0.85</span>
+        
+      </div>
+      <div class="palette">warm golden and orange tones transitioning to pale blue and gray, with soft peachy highlights on clouds</div>
+      
+    </div>
+    
+          </div>
+          <div class="model-col">
+            <div class="model-label model-b-label">B · anthropic / claude-sonnet-4-5</div>
+            
+    <div class="model-block" data-model="b">
+      <div class="quality-row">
+        <div class="quality-num" style="color:#ed6c02;">0.45</div>
+        <div class="quality-bar">
+          <div class="quality-fill" style="width:45%; background:#ed6c02;"></div>
+        </div>
+      </div>
+      <div class="badges">
+        <span class="badge on">
+          sunset
+        </span>
+        <span class="badge on">
+          has clouds
+        </span>
+        <span class="badge muted">conf 0.75</span>
+        
+      </div>
+      <div class="palette">soft peach and pink tones with gray-blue mountains</div>
+      
+    </div>
+    
+          </div>
+          <div class="delta-col">
+            <div class="delta-label" style="color:#ed6c02;">mild</div>
+            <div class="delta-num" style="color:#ed6c02;">|Δq| 0.20</div>
+            <div class="delta-detail">|Δconf| 0.10</div>
+            <div class="delta-detail">sunset: agree</div>
+          </div>
+        </div>
+        
+        <div class="row"
+             data-record-id="92760"
+             data-quality-a="0.0500"
+             data-quality-b="0.2500"
+             data-confidence-a="0.9500"
+             data-confidence-b="0.7500"
+             data-delta-quality="0.2000"
+             data-delta-confidence="0.2000"
+             data-sunset-disagree="1"
+             data-search="92760 webcam pale gray, washed out white pale gray-blue gradient with subtle warm tones near horizon sunset-disagree">
+          <div class="row-image">
+            <img src="https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/2341116/1774569692562.jpg"
+                 alt="image 92760" loading="lazy"/>
+            <div class="row-meta">
+              <div class="row-id">#92760</div>
+              <div class="row-source">webcam</div>
+              <div class="human muted">No human rating</div>
+            </div>
+          </div>
+          <div class="model-col">
+            <div class="model-label model-a-label">A · anthropic / claude-haiku-4-5</div>
+            
+    <div class="model-block" data-model="a">
+      <div class="quality-row">
+        <div class="quality-num" style="color:#c62828;">0.05</div>
+        <div class="quality-bar">
+          <div class="quality-fill" style="width:5%; background:#c62828;"></div>
+        </div>
+      </div>
+      <div class="badges">
+        <span class="badge off">
+          not sunset
+        </span>
+        <span class="badge off">
+          no clouds
+        </span>
+        <span class="badge muted">conf 0.95</span>
+        
+      </div>
+      <div class="palette">pale gray, washed out white</div>
+      
+    </div>
+    
+          </div>
+          <div class="model-col">
+            <div class="model-label model-b-label">B · anthropic / claude-sonnet-4-5</div>
+            
+    <div class="model-block" data-model="b">
+      <div class="quality-row">
+        <div class="quality-num" style="color:#c62828;">0.25</div>
+        <div class="quality-bar">
+          <div class="quality-fill" style="width:25%; background:#c62828;"></div>
+        </div>
+      </div>
+      <div class="badges">
+        <span class="badge on">
+          sunset
+        </span>
+        <span class="badge off">
+          no clouds
+        </span>
+        <span class="badge muted">conf 0.75</span>
+        
+      </div>
+      <div class="palette">pale gray-blue gradient with subtle warm tones near horizon</div>
+      
+    </div>
+    
+          </div>
+          <div class="delta-col">
+            <div class="delta-label" style="color:#ed6c02;">mild</div>
+            <div class="delta-num" style="color:#ed6c02;">|Δq| 0.20</div>
+            <div class="delta-detail">|Δconf| 0.20</div>
+            <div class="delta-detail">sunset: <strong style="color:#c62828;">DISAGREE</strong></div>
+          </div>
+        </div>
+        
+        <div class="row"
+             data-record-id="79687"
+             data-quality-a="0.4500"
+             data-quality-b="0.3500"
+             data-confidence-a="0.7500"
+             data-confidence-b="0.7500"
+             data-delta-quality="0.1000"
+             data-delta-confidence="0.0000"
+             data-sunset-disagree="0"
+             data-search="79687 webcam orange, pink, and gray with muted tones pale orange and gray with muted warm tones near horizon sunset-agree">
+          <div class="row-image">
+            <img src="https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/3914190/1773310651221.jpg"
+                 alt="image 79687" loading="lazy"/>
+            <div class="row-meta">
+              <div class="row-id">#79687</div>
+              <div class="row-source">webcam</div>
+              <div class="human muted">No human rating</div>
+            </div>
+          </div>
+          <div class="model-col">
+            <div class="model-label model-a-label">A · anthropic / claude-haiku-4-5</div>
+            
+    <div class="model-block" data-model="a">
+      <div class="quality-row">
+        <div class="quality-num" style="color:#ed6c02;">0.45</div>
+        <div class="quality-bar">
+          <div class="quality-fill" style="width:45%; background:#ed6c02;"></div>
+        </div>
+      </div>
+      <div class="badges">
+        <span class="badge on">
+          sunset
+        </span>
+        <span class="badge on">
+          has clouds
+        </span>
+        <span class="badge muted">conf 0.75</span>
+        
+      </div>
+      <div class="palette">orange, pink, and gray with muted tones</div>
+      
+    </div>
+    
+          </div>
+          <div class="model-col">
+            <div class="model-label model-b-label">B · anthropic / claude-sonnet-4-5</div>
+            
+    <div class="model-block" data-model="b">
+      <div class="quality-row">
+        <div class="quality-num" style="color:#ed6c02;">0.35</div>
+        <div class="quality-bar">
+          <div class="quality-fill" style="width:35%; background:#ed6c02;"></div>
+        </div>
+      </div>
+      <div class="badges">
+        <span class="badge on">
+          sunset
+        </span>
+        <span class="badge on">
+          has clouds
+        </span>
+        <span class="badge muted">conf 0.75</span>
+        
+      </div>
+      <div class="palette">pale orange and gray with muted warm tones near horizon</div>
+      
+    </div>
+    
+          </div>
+          <div class="delta-col">
+            <div class="delta-label" style="color:#ed6c02;">mild</div>
+            <div class="delta-num" style="color:#ed6c02;">|Δq| 0.10</div>
+            <div class="delta-detail">|Δconf| 0.00</div>
+            <div class="delta-detail">sunset: agree</div>
+          </div>
+        </div>
+        
+        <div class="row"
+             data-record-id="85035"
+             data-quality-a="0.4500"
+             data-quality-b="0.3500"
+             data-confidence-a="0.7500"
+             data-confidence-b="0.7500"
+             data-delta-quality="0.1000"
+             data-delta-confidence="0.0000"
+             data-sunset-disagree="0"
+             data-search="85035 webcam warm golden and orange tones with pale blue sky, soft peachy hues near horizon pale blue-gray with soft peachy-orange glow near horizon sunset-agree">
+          <div class="row-image">
+            <img src="https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/3137717/1773492876705.jpg"
+                 alt="image 85035" loading="lazy"/>
+            <div class="row-meta">
+              <div class="row-id">#85035</div>
+              <div class="row-source">webcam</div>
+              <div class="human muted">No human rating</div>
+            </div>
+          </div>
+          <div class="model-col">
+            <div class="model-label model-a-label">A · anthropic / claude-haiku-4-5</div>
+            
+    <div class="model-block" data-model="a">
+      <div class="quality-row">
+        <div class="quality-num" style="color:#ed6c02;">0.45</div>
+        <div class="quality-bar">
+          <div class="quality-fill" style="width:45%; background:#ed6c02;"></div>
+        </div>
+      </div>
+      <div class="badges">
+        <span class="badge on">
+          sunset
+        </span>
+        <span class="badge on">
+          has clouds
+        </span>
+        <span class="badge muted">conf 0.75</span>
+        
+      </div>
+      <div class="palette">warm golden and orange tones with pale blue sky, soft peachy hues near horizon</div>
+      
+    </div>
+    
+          </div>
+          <div class="model-col">
+            <div class="model-label model-b-label">B · anthropic / claude-sonnet-4-5</div>
+            
+    <div class="model-block" data-model="b">
+      <div class="quality-row">
+        <div class="quality-num" style="color:#ed6c02;">0.35</div>
+        <div class="quality-bar">
+          <div class="quality-fill" style="width:35%; background:#ed6c02;"></div>
+        </div>
+      </div>
+      <div class="badges">
+        <span class="badge on">
+          sunset
+        </span>
+        <span class="badge off">
+          no clouds
+        </span>
+        <span class="badge muted">conf 0.75</span>
+        
+      </div>
+      <div class="palette">pale blue-gray with soft peachy-orange glow near horizon</div>
+      
+    </div>
+    
+          </div>
+          <div class="delta-col">
+            <div class="delta-label" style="color:#ed6c02;">mild</div>
+            <div class="delta-num" style="color:#ed6c02;">|Δq| 0.10</div>
+            <div class="delta-detail">|Δconf| 0.00</div>
+            <div class="delta-detail">sunset: agree</div>
+          </div>
+        </div>
+        
+        <div class="row"
+             data-record-id="90977"
+             data-quality-a="0.5500"
+             data-quality-b="0.4500"
+             data-confidence-a="0.7500"
+             data-confidence-b="0.7500"
+             data-delta-quality="0.1000"
+             data-delta-confidence="0.0000"
+             data-sunset-disagree="0"
+             data-search="90977 webcam golden orange and warm yellow tones with gray and white clouds against blue sky soft golden orange, blue sky, gray clouds sunset-agree">
+          <div class="row-image">
+            <img src="https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/16102828/1774205194169.jpg"
+                 alt="image 90977" loading="lazy"/>
+            <div class="row-meta">
+              <div class="row-id">#90977</div>
+              <div class="row-source">webcam</div>
+              <div class="human muted">No human rating</div>
+            </div>
+          </div>
+          <div class="model-col">
+            <div class="model-label model-a-label">A · anthropic / claude-haiku-4-5</div>
+            
+    <div class="model-block" data-model="a">
+      <div class="quality-row">
+        <div class="quality-num" style="color:#ed6c02;">0.55</div>
+        <div class="quality-bar">
+          <div class="quality-fill" style="width:55%; background:#ed6c02;"></div>
+        </div>
+      </div>
+      <div class="badges">
+        <span class="badge on">
+          sunset
+        </span>
+        <span class="badge on">
+          has clouds
+        </span>
+        <span class="badge muted">conf 0.75</span>
+        
+      </div>
+      <div class="palette">golden orange and warm yellow tones with gray and white clouds against blue sky</div>
+      
+    </div>
+    
+          </div>
+          <div class="model-col">
+            <div class="model-label model-b-label">B · anthropic / claude-sonnet-4-5</div>
+            
+    <div class="model-block" data-model="b">
+      <div class="quality-row">
+        <div class="quality-num" style="color:#ed6c02;">0.45</div>
+        <div class="quality-bar">
+          <div class="quality-fill" style="width:45%; background:#ed6c02;"></div>
+        </div>
+      </div>
+      <div class="badges">
+        <span class="badge on">
+          sunset
+        </span>
+        <span class="badge on">
+          has clouds
+        </span>
+        <span class="badge muted">conf 0.75</span>
+        
+      </div>
+      <div class="palette">soft golden orange, blue sky, gray clouds</div>
+      
+    </div>
+    
+          </div>
+          <div class="delta-col">
+            <div class="delta-label" style="color:#ed6c02;">mild</div>
+            <div class="delta-num" style="color:#ed6c02;">|Δq| 0.10</div>
+            <div class="delta-detail">|Δconf| 0.00</div>
+            <div class="delta-detail">sunset: agree</div>
+          </div>
+        </div>
+        
+        <div class="row"
+             data-record-id="66407"
+             data-quality-a="0.6500"
+             data-quality-b="0.5500"
+             data-confidence-a="0.8500"
+             data-confidence-b="0.8500"
+             data-delta-quality="0.1000"
+             data-delta-confidence="0.0000"
+             data-sunset-disagree="0"
+             data-search="66407 webcam warm golden and orange tones with peachy hues transitioning to pale blue sky warm orange and peach tones fading to pale blue-gray sunset-agree">
+          <div class="row-image">
+            <img src="https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/609/1764120749296.jpg"
+                 alt="image 66407" loading="lazy"/>
+            <div class="row-meta">
+              <div class="row-id">#66407</div>
+              <div class="row-source">webcam</div>
+              <div class="human">Human: 5.00/5 (1 raters)</div>
+            </div>
+          </div>
+          <div class="model-col">
+            <div class="model-label model-a-label">A · anthropic / claude-haiku-4-5</div>
+            
+    <div class="model-block" data-model="a">
+      <div class="quality-row">
+        <div class="quality-num" style="color:#2e7d32;">0.65</div>
+        <div class="quality-bar">
+          <div class="quality-fill" style="width:65%; background:#2e7d32;"></div>
+        </div>
+      </div>
+      <div class="badges">
+        <span class="badge on">
+          sunset
+        </span>
+        <span class="badge on">
+          has clouds
+        </span>
+        <span class="badge muted">conf 0.85</span>
+        
+      </div>
+      <div class="palette">warm golden and orange tones with peachy hues transitioning to pale blue sky</div>
+      
+    </div>
+    
+          </div>
+          <div class="model-col">
+            <div class="model-label model-b-label">B · anthropic / claude-sonnet-4-5</div>
+            
+    <div class="model-block" data-model="b">
+      <div class="quality-row">
+        <div class="quality-num" style="color:#ed6c02;">0.55</div>
+        <div class="quality-bar">
+          <div class="quality-fill" style="width:55%; background:#ed6c02;"></div>
+        </div>
+      </div>
+      <div class="badges">
+        <span class="badge on">
+          sunset
+        </span>
+        <span class="badge off">
+          no clouds
+        </span>
+        <span class="badge muted">conf 0.85</span>
+        
+      </div>
+      <div class="palette">warm orange and peach tones fading to pale blue-gray</div>
+      
+    </div>
+    
+          </div>
+          <div class="delta-col">
+            <div class="delta-label" style="color:#2e7d32;">match</div>
+            <div class="delta-num" style="color:#2e7d32;">|Δq| 0.10</div>
+            <div class="delta-detail">|Δconf| 0.00</div>
+            <div class="delta-detail">sunset: agree</div>
+          </div>
+        </div>
+        
+        <div class="row"
+             data-record-id="69585"
+             data-quality-a="0.3500"
+             data-quality-b="0.2500"
+             data-confidence-a="0.7500"
+             data-confidence-b="0.7500"
+             data-delta-quality="0.1000"
+             data-delta-confidence="0.0000"
+             data-sunset-disagree="0"
+             data-search="69585 webcam deep blue and purple twilight tones with muted gray clouds muted blue-gray with subtle orange-pink tones near horizon sunset-agree">
+          <div class="row-image">
+            <img src="https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/544/1770982249296.jpg"
+                 alt="image 69585" loading="lazy"/>
+            <div class="row-meta">
+              <div class="row-id">#69585</div>
+              <div class="row-source">webcam</div>
+              <div class="human muted">No human rating</div>
+            </div>
+          </div>
+          <div class="model-col">
+            <div class="model-label model-a-label">A · anthropic / claude-haiku-4-5</div>
+            
+    <div class="model-block" data-model="a">
+      <div class="quality-row">
+        <div class="quality-num" style="color:#ed6c02;">0.35</div>
+        <div class="quality-bar">
+          <div class="quality-fill" style="width:35%; background:#ed6c02;"></div>
+        </div>
+      </div>
+      <div class="badges">
+        <span class="badge on">
+          sunset
+        </span>
+        <span class="badge on">
+          has clouds
+        </span>
+        <span class="badge muted">conf 0.75</span>
+        
+      </div>
+      <div class="palette">Deep blue and purple twilight tones with muted gray clouds</div>
+      
+    </div>
+    
+          </div>
+          <div class="model-col">
+            <div class="model-label model-b-label">B · anthropic / claude-sonnet-4-5</div>
+            
+    <div class="model-block" data-model="b">
+      <div class="quality-row">
+        <div class="quality-num" style="color:#c62828;">0.25</div>
+        <div class="quality-bar">
+          <div class="quality-fill" style="width:25%; background:#c62828;"></div>
+        </div>
+      </div>
+      <div class="badges">
+        <span class="badge on">
+          sunset
+        </span>
+        <span class="badge off">
+          no clouds
+        </span>
+        <span class="badge muted">conf 0.75</span>
+        
+      </div>
+      <div class="palette">muted blue-gray with subtle orange-pink tones near horizon</div>
+      
+    </div>
+    
+          </div>
+          <div class="delta-col">
+            <div class="delta-label" style="color:#2e7d32;">match</div>
+            <div class="delta-num" style="color:#2e7d32;">|Δq| 0.10</div>
+            <div class="delta-detail">|Δconf| 0.00</div>
+            <div class="delta-detail">sunset: agree</div>
+          </div>
+        </div>
+        
+        <div class="row"
+             data-record-id="80281"
+             data-quality-a="0.3500"
+             data-quality-b="0.2500"
+             data-confidence-a="0.7500"
+             data-confidence-b="0.7500"
+             data-delta-quality="0.1000"
+             data-delta-confidence="0.0000"
+             data-sunset-disagree="0"
+             data-search="80281 webcam pale yellow, gray, muted orange tones fog pale yellow-gray gradient fading to dark gray sunset-agree">
+          <div class="row-image">
+            <img src="https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/3997423/1773429238993.jpg"
+                 alt="image 80281" loading="lazy"/>
+            <div class="row-meta">
+              <div class="row-id">#80281</div>
+              <div class="row-source">webcam</div>
+              <div class="human">Human: 5.00/5 (1 raters)</div>
+            </div>
+          </div>
+          <div class="model-col">
+            <div class="model-label model-a-label">A · anthropic / claude-haiku-4-5</div>
+            
+    <div class="model-block" data-model="a">
+      <div class="quality-row">
+        <div class="quality-num" style="color:#ed6c02;">0.35</div>
+        <div class="quality-bar">
+          <div class="quality-fill" style="width:35%; background:#ed6c02;"></div>
+        </div>
+      </div>
+      <div class="badges">
+        <span class="badge on">
+          sunset
+        </span>
+        <span class="badge on">
+          has clouds
+        </span>
+        <span class="badge muted">conf 0.75</span>
+        <span class="badge obstructed">obstructed</span>
+      </div>
+      <div class="palette">pale yellow, gray, muted orange tones</div>
+      <div class="obstruction">obstruction: fog</div>
+    </div>
+    
+          </div>
+          <div class="model-col">
+            <div class="model-label model-b-label">B · anthropic / claude-sonnet-4-5</div>
+            
+    <div class="model-block" data-model="b">
+      <div class="quality-row">
+        <div class="quality-num" style="color:#c62828;">0.25</div>
+        <div class="quality-bar">
+          <div class="quality-fill" style="width:25%; background:#c62828;"></div>
+        </div>
+      </div>
+      <div class="badges">
+        <span class="badge on">
+          sunset
+        </span>
+        <span class="badge off">
+          no clouds
+        </span>
+        <span class="badge muted">conf 0.75</span>
+        
+      </div>
+      <div class="palette">pale yellow-gray gradient fading to dark gray</div>
+      
+    </div>
+    
+          </div>
+          <div class="delta-col">
+            <div class="delta-label" style="color:#2e7d32;">match</div>
+            <div class="delta-num" style="color:#2e7d32;">|Δq| 0.10</div>
+            <div class="delta-detail">|Δconf| 0.00</div>
+            <div class="delta-detail">sunset: agree</div>
+          </div>
+        </div>
+        
+        <div class="row"
+             data-record-id="85629"
+             data-quality-a="0.3500"
+             data-quality-b="0.2500"
+             data-confidence-a="0.7200"
+             data-confidence-b="0.7500"
+             data-delta-quality="0.1000"
+             data-delta-confidence="0.0300"
+             data-sunset-disagree="0"
+             data-search="85629 webcam pale orange and gray with muted tones pale orange and gray sunset-agree">
+          <div class="row-image">
+            <img src="https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/3552381/1773502051427.jpg"
+                 alt="image 85629" loading="lazy"/>
+            <div class="row-meta">
+              <div class="row-id">#85629</div>
+              <div class="row-source">webcam</div>
+              <div class="human muted">No human rating</div>
+            </div>
+          </div>
+          <div class="model-col">
+            <div class="model-label model-a-label">A · anthropic / claude-haiku-4-5</div>
+            
+    <div class="model-block" data-model="a">
+      <div class="quality-row">
+        <div class="quality-num" style="color:#ed6c02;">0.35</div>
+        <div class="quality-bar">
+          <div class="quality-fill" style="width:35%; background:#ed6c02;"></div>
+        </div>
+      </div>
+      <div class="badges">
+        <span class="badge on">
+          sunset
+        </span>
+        <span class="badge on">
+          has clouds
+        </span>
+        <span class="badge muted">conf 0.72</span>
+        
+      </div>
+      <div class="palette">pale orange and gray with muted tones</div>
+      
+    </div>
+    
+          </div>
+          <div class="model-col">
+            <div class="model-label model-b-label">B · anthropic / claude-sonnet-4-5</div>
+            
+    <div class="model-block" data-model="b">
+      <div class="quality-row">
+        <div class="quality-num" style="color:#c62828;">0.25</div>
+        <div class="quality-bar">
+          <div class="quality-fill" style="width:25%; background:#c62828;"></div>
+        </div>
+      </div>
+      <div class="badges">
+        <span class="badge on">
+          sunset
+        </span>
+        <span class="badge off">
+          no clouds
+        </span>
+        <span class="badge muted">conf 0.75</span>
+        
+      </div>
+      <div class="palette">pale orange and gray</div>
+      
+    </div>
+    
+          </div>
+          <div class="delta-col">
+            <div class="delta-label" style="color:#2e7d32;">match</div>
+            <div class="delta-num" style="color:#2e7d32;">|Δq| 0.10</div>
+            <div class="delta-detail">|Δconf| 0.03</div>
+            <div class="delta-detail">sunset: agree</div>
+          </div>
+        </div>
+        
+        <div class="row"
+             data-record-id="88006"
+             data-quality-a="0.6500"
+             data-quality-b="0.5500"
+             data-confidence-a="0.8500"
+             data-confidence-b="0.8500"
+             data-delta-quality="0.1000"
+             data-delta-confidence="0.0000"
+             data-sunset-disagree="0"
+             data-search="88006 webcam warm orange and peachy tones transitioning to teal and blue upper sky orange-peach horizon transitioning to deep teal-blue sky sunset-agree">
+          <div class="row-image">
+            <img src="https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/7437829/1773535116338.jpg"
+                 alt="image 88006" loading="lazy"/>
+            <div class="row-meta">
+              <div class="row-id">#88006</div>
+              <div class="row-source">webcam</div>
+              <div class="human muted">No human rating</div>
+            </div>
+          </div>
+          <div class="model-col">
+            <div class="model-label model-a-label">A · anthropic / claude-haiku-4-5</div>
+            
+    <div class="model-block" data-model="a">
+      <div class="quality-row">
+        <div class="quality-num" style="color:#2e7d32;">0.65</div>
+        <div class="quality-bar">
+          <div class="quality-fill" style="width:65%; background:#2e7d32;"></div>
+        </div>
+      </div>
+      <div class="badges">
+        <span class="badge on">
+          sunset
+        </span>
+        <span class="badge on">
+          has clouds
+        </span>
+        <span class="badge muted">conf 0.85</span>
+        
+      </div>
+      <div class="palette">warm orange and peachy tones transitioning to teal and blue upper sky</div>
+      
+    </div>
+    
+          </div>
+          <div class="model-col">
+            <div class="model-label model-b-label">B · anthropic / claude-sonnet-4-5</div>
+            
+    <div class="model-block" data-model="b">
+      <div class="quality-row">
+        <div class="quality-num" style="color:#ed6c02;">0.55</div>
+        <div class="quality-bar">
+          <div class="quality-fill" style="width:55%; background:#ed6c02;"></div>
+        </div>
+      </div>
+      <div class="badges">
+        <span class="badge on">
+          sunset
+        </span>
+        <span class="badge off">
+          no clouds
+        </span>
+        <span class="badge muted">conf 0.85</span>
+        
+      </div>
+      <div class="palette">orange-peach horizon transitioning to deep teal-blue sky</div>
+      
+    </div>
+    
+          </div>
+          <div class="delta-col">
+            <div class="delta-label" style="color:#2e7d32;">match</div>
+            <div class="delta-num" style="color:#2e7d32;">|Δq| 0.10</div>
+            <div class="delta-detail">|Δconf| 0.00</div>
+            <div class="delta-detail">sunset: agree</div>
+          </div>
+        </div>
+        
+        <div class="row"
+             data-record-id="89789"
+             data-quality-a="0.6500"
+             data-quality-b="0.7200"
+             data-confidence-a="0.8500"
+             data-confidence-b="0.9000"
+             data-delta-quality="0.0700"
+             data-delta-confidence="0.0500"
+             data-sunset-disagree="0"
+             data-search="89789 webcam golden orange and yellow horizon transitioning to deep blue and gray clouds above golden orange, soft pink, deep blue-gray, muted purple sunset-agree">
+          <div class="row-image">
+            <img src="https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/17580012/1773940412800.jpg"
+                 alt="image 89789" loading="lazy"/>
+            <div class="row-meta">
+              <div class="row-id">#89789</div>
+              <div class="row-source">webcam</div>
+              <div class="human muted">No human rating</div>
+            </div>
+          </div>
+          <div class="model-col">
+            <div class="model-label model-a-label">A · anthropic / claude-haiku-4-5</div>
+            
+    <div class="model-block" data-model="a">
+      <div class="quality-row">
+        <div class="quality-num" style="color:#2e7d32;">0.65</div>
+        <div class="quality-bar">
+          <div class="quality-fill" style="width:65%; background:#2e7d32;"></div>
+        </div>
+      </div>
+      <div class="badges">
+        <span class="badge on">
+          sunset
+        </span>
+        <span class="badge on">
+          has clouds
+        </span>
+        <span class="badge muted">conf 0.85</span>
+        
+      </div>
+      <div class="palette">Golden orange and yellow horizon transitioning to deep blue and gray clouds above</div>
+      
+    </div>
+    
+          </div>
+          <div class="model-col">
+            <div class="model-label model-b-label">B · anthropic / claude-sonnet-4-5</div>
+            
+    <div class="model-block" data-model="b">
+      <div class="quality-row">
+        <div class="quality-num" style="color:#2e7d32;">0.72</div>
+        <div class="quality-bar">
+          <div class="quality-fill" style="width:72%; background:#2e7d32;"></div>
+        </div>
+      </div>
+      <div class="badges">
+        <span class="badge on">
+          sunset
+        </span>
+        <span class="badge on">
+          has clouds
+        </span>
+        <span class="badge muted">conf 0.90</span>
+        
+      </div>
+      <div class="palette">golden orange, soft pink, deep blue-gray, muted purple</div>
+      
+    </div>
+    
+          </div>
+          <div class="delta-col">
+            <div class="delta-label" style="color:#2e7d32;">match</div>
+            <div class="delta-num" style="color:#2e7d32;">|Δq| 0.07</div>
+            <div class="delta-detail">|Δconf| 0.05</div>
+            <div class="delta-detail">sunset: agree</div>
+          </div>
+        </div>
+        
+        <div class="row"
+             data-record-id="75527"
+             data-quality-a="0.0500"
+             data-quality-b="0.0000"
+             data-confidence-a="0.9500"
+             data-confidence-b="0.9500"
+             data-delta-quality="0.0500"
+             data-delta-confidence="0.0000"
+             data-sunset-disagree="0"
+             data-search="75527 webcam uniform gray fog monochrome gray, no visible sky colors fog sunset-agree">
+          <div class="row-image">
+            <img src="https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/3967/1772320609352.jpg"
+                 alt="image 75527" loading="lazy"/>
+            <div class="row-meta">
+              <div class="row-id">#75527</div>
+              <div class="row-source">webcam</div>
+              <div class="human muted">No human rating</div>
+            </div>
+          </div>
+          <div class="model-col">
+            <div class="model-label model-a-label">A · anthropic / claude-haiku-4-5</div>
+            
+    <div class="model-block" data-model="a">
+      <div class="quality-row">
+        <div class="quality-num" style="color:#c62828;">0.05</div>
+        <div class="quality-bar">
+          <div class="quality-fill" style="width:5%; background:#c62828;"></div>
+        </div>
+      </div>
+      <div class="badges">
+        <span class="badge off">
+          not sunset
+        </span>
+        <span class="badge off">
+          no clouds
+        </span>
+        <span class="badge muted">conf 0.95</span>
+        <span class="badge obstructed">obstructed</span>
+      </div>
+      <div class="palette">uniform gray</div>
+      <div class="obstruction">obstruction: fog</div>
+    </div>
+    
+          </div>
+          <div class="model-col">
+            <div class="model-label model-b-label">B · anthropic / claude-sonnet-4-5</div>
+            
+    <div class="model-block" data-model="b">
+      <div class="quality-row">
+        <div class="quality-num" style="color:#c62828;">0.00</div>
+        <div class="quality-bar">
+          <div class="quality-fill" style="width:0%; background:#c62828;"></div>
+        </div>
+      </div>
+      <div class="badges">
+        <span class="badge off">
+          not sunset
+        </span>
+        <span class="badge off">
+          no clouds
+        </span>
+        <span class="badge muted">conf 0.95</span>
+        <span class="badge obstructed">obstructed</span>
+      </div>
+      <div class="palette">monochrome gray, no visible sky colors</div>
+      <div class="obstruction">obstruction: fog</div>
+    </div>
+    
+          </div>
+          <div class="delta-col">
+            <div class="delta-label" style="color:#2e7d32;">match</div>
+            <div class="delta-num" style="color:#2e7d32;">|Δq| 0.05</div>
+            <div class="delta-detail">|Δconf| 0.00</div>
+            <div class="delta-detail">sunset: agree</div>
+          </div>
+        </div>
+        
+        <div class="row"
+             data-record-id="76716"
+             data-quality-a="0.0500"
+             data-quality-b="0.0000"
+             data-confidence-a="0.9500"
+             data-confidence-b="0.9500"
+             data-delta-quality="0.0500"
+             data-delta-confidence="0.0000"
+             data-sunset-disagree="0"
+             data-search="76716 webcam gray, white, and muted beige tones fog uniform gray, heavy fog obscuring sky fog sunset-agree">
+          <div class="row-image">
+            <img src="https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/1854/1772610648896.jpg"
+                 alt="image 76716" loading="lazy"/>
+            <div class="row-meta">
+              <div class="row-id">#76716</div>
+              <div class="row-source">webcam</div>
+              <div class="human">Human: 3.00/5 (1 raters)</div>
+            </div>
+          </div>
+          <div class="model-col">
+            <div class="model-label model-a-label">A · anthropic / claude-haiku-4-5</div>
+            
+    <div class="model-block" data-model="a">
+      <div class="quality-row">
+        <div class="quality-num" style="color:#c62828;">0.05</div>
+        <div class="quality-bar">
+          <div class="quality-fill" style="width:5%; background:#c62828;"></div>
+        </div>
+      </div>
+      <div class="badges">
+        <span class="badge off">
+          not sunset
+        </span>
+        <span class="badge on">
+          has clouds
+        </span>
+        <span class="badge muted">conf 0.95</span>
+        <span class="badge obstructed">obstructed</span>
+      </div>
+      <div class="palette">Gray, white, and muted beige tones</div>
+      <div class="obstruction">obstruction: fog</div>
+    </div>
+    
+          </div>
+          <div class="model-col">
+            <div class="model-label model-b-label">B · anthropic / claude-sonnet-4-5</div>
+            
+    <div class="model-block" data-model="b">
+      <div class="quality-row">
+        <div class="quality-num" style="color:#c62828;">0.00</div>
+        <div class="quality-bar">
+          <div class="quality-fill" style="width:0%; background:#c62828;"></div>
+        </div>
+      </div>
+      <div class="badges">
+        <span class="badge off">
+          not sunset
+        </span>
+        <span class="badge off">
+          no clouds
+        </span>
+        <span class="badge muted">conf 0.95</span>
+        <span class="badge obstructed">obstructed</span>
+      </div>
+      <div class="palette">uniform gray, heavy fog obscuring sky</div>
+      <div class="obstruction">obstruction: fog</div>
+    </div>
+    
+          </div>
+          <div class="delta-col">
+            <div class="delta-label" style="color:#2e7d32;">match</div>
+            <div class="delta-num" style="color:#2e7d32;">|Δq| 0.05</div>
+            <div class="delta-detail">|Δconf| 0.00</div>
+            <div class="delta-detail">sunset: agree</div>
+          </div>
+        </div>
+        
+        <div class="row"
+             data-record-id="78498"
+             data-quality-a="0.0500"
+             data-quality-b="0.0000"
+             data-confidence-a="0.9500"
+             data-confidence-b="0.9500"
+             data-delta-quality="0.0500"
+             data-delta-confidence="0.0000"
+             data-sunset-disagree="0"
+             data-search="78498 webcam uniform blue-gray dark blue-gray, uniform overcast sunset-agree">
+          <div class="row-image">
+            <img src="https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/544/1773040742957.jpg"
+                 alt="image 78498" loading="lazy"/>
+            <div class="row-meta">
+              <div class="row-id">#78498</div>
+              <div class="row-source">webcam</div>
+              <div class="human">Human: 1.00/5 (1 raters)</div>
+            </div>
+          </div>
+          <div class="model-col">
+            <div class="model-label model-a-label">A · anthropic / claude-haiku-4-5</div>
+            
+    <div class="model-block" data-model="a">
+      <div class="quality-row">
+        <div class="quality-num" style="color:#c62828;">0.05</div>
+        <div class="quality-bar">
+          <div class="quality-fill" style="width:5%; background:#c62828;"></div>
+        </div>
+      </div>
+      <div class="badges">
+        <span class="badge off">
+          not sunset
+        </span>
+        <span class="badge off">
+          no clouds
+        </span>
+        <span class="badge muted">conf 0.95</span>
+        
+      </div>
+      <div class="palette">uniform blue-gray</div>
+      
+    </div>
+    
+          </div>
+          <div class="model-col">
+            <div class="model-label model-b-label">B · anthropic / claude-sonnet-4-5</div>
+            
+    <div class="model-block" data-model="b">
+      <div class="quality-row">
+        <div class="quality-num" style="color:#c62828;">0.00</div>
+        <div class="quality-bar">
+          <div class="quality-fill" style="width:0%; background:#c62828;"></div>
+        </div>
+      </div>
+      <div class="badges">
+        <span class="badge off">
+          not sunset
+        </span>
+        <span class="badge off">
+          no clouds
+        </span>
+        <span class="badge muted">conf 0.95</span>
+        
+      </div>
+      <div class="palette">dark blue-gray, uniform overcast</div>
+      
+    </div>
+    
+          </div>
+          <div class="delta-col">
+            <div class="delta-label" style="color:#2e7d32;">match</div>
+            <div class="delta-num" style="color:#2e7d32;">|Δq| 0.05</div>
+            <div class="delta-detail">|Δconf| 0.00</div>
+            <div class="delta-detail">sunset: agree</div>
+          </div>
+        </div>
+        
+        <div class="row"
+             data-record-id="83846"
+             data-quality-a="0.0500"
+             data-quality-b="0.0000"
+             data-confidence-a="0.9500"
+             data-confidence-b="0.9500"
+             data-delta-quality="0.0500"
+             data-delta-confidence="0.0000"
+             data-sunset-disagree="0"
+             data-search="83846 webcam nearly black with faint distant lights black sky with distant artificial lights sunset-agree">
+          <div class="row-image">
+            <img src="https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/12840548/1773479671475.jpg"
+                 alt="image 83846" loading="lazy"/>
+            <div class="row-meta">
+              <div class="row-id">#83846</div>
+              <div class="row-source">webcam</div>
+              <div class="human muted">No human rating</div>
+            </div>
+          </div>
+          <div class="model-col">
+            <div class="model-label model-a-label">A · anthropic / claude-haiku-4-5</div>
+            
+    <div class="model-block" data-model="a">
+      <div class="quality-row">
+        <div class="quality-num" style="color:#c62828;">0.05</div>
+        <div class="quality-bar">
+          <div class="quality-fill" style="width:5%; background:#c62828;"></div>
+        </div>
+      </div>
+      <div class="badges">
+        <span class="badge off">
+          not sunset
+        </span>
+        <span class="badge off">
+          no clouds
+        </span>
+        <span class="badge muted">conf 0.95</span>
+        
+      </div>
+      <div class="palette">nearly black with faint distant lights</div>
+      
+    </div>
+    
+          </div>
+          <div class="model-col">
+            <div class="model-label model-b-label">B · anthropic / claude-sonnet-4-5</div>
+            
+    <div class="model-block" data-model="b">
+      <div class="quality-row">
+        <div class="quality-num" style="color:#c62828;">0.00</div>
+        <div class="quality-bar">
+          <div class="quality-fill" style="width:0%; background:#c62828;"></div>
+        </div>
+      </div>
+      <div class="badges">
+        <span class="badge off">
+          not sunset
+        </span>
+        <span class="badge off">
+          no clouds
+        </span>
+        <span class="badge muted">conf 0.95</span>
+        
+      </div>
+      <div class="palette">black sky with distant artificial lights</div>
+      
+    </div>
+    
+          </div>
+          <div class="delta-col">
+            <div class="delta-label" style="color:#2e7d32;">match</div>
+            <div class="delta-num" style="color:#2e7d32;">|Δq| 0.05</div>
+            <div class="delta-detail">|Δconf| 0.00</div>
+            <div class="delta-detail">sunset: agree</div>
+          </div>
+        </div>
+        
+        <div class="row"
+             data-record-id="86223"
+             data-quality-a="0.0500"
+             data-quality-b="0.0000"
+             data-confidence-a="0.9500"
+             data-confidence-b="0.9500"
+             data-delta-quality="0.0500"
+             data-delta-confidence="0.0000"
+             data-sunset-disagree="0"
+             data-search="86223 webcam dark gray, charcoal, black with minimal light fog dark gray, black, minimal artificial lighting sunset-agree">
+          <div class="row-image">
+            <img src="https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/13473465/1773510753128.jpg"
+                 alt="image 86223" loading="lazy"/>
+            <div class="row-meta">
+              <div class="row-id">#86223</div>
+              <div class="row-source">webcam</div>
+              <div class="human muted">No human rating</div>
+            </div>
+          </div>
+          <div class="model-col">
+            <div class="model-label model-a-label">A · anthropic / claude-haiku-4-5</div>
+            
+    <div class="model-block" data-model="a">
+      <div class="quality-row">
+        <div class="quality-num" style="color:#c62828;">0.05</div>
+        <div class="quality-bar">
+          <div class="quality-fill" style="width:5%; background:#c62828;"></div>
+        </div>
+      </div>
+      <div class="badges">
+        <span class="badge off">
+          not sunset
+        </span>
+        <span class="badge on">
+          has clouds
+        </span>
+        <span class="badge muted">conf 0.95</span>
+        <span class="badge obstructed">obstructed</span>
+      </div>
+      <div class="palette">Dark gray, charcoal, black with minimal light</div>
+      <div class="obstruction">obstruction: fog</div>
+    </div>
+    
+          </div>
+          <div class="model-col">
+            <div class="model-label model-b-label">B · anthropic / claude-sonnet-4-5</div>
+            
+    <div class="model-block" data-model="b">
+      <div class="quality-row">
+        <div class="quality-num" style="color:#c62828;">0.00</div>
+        <div class="quality-bar">
+          <div class="quality-fill" style="width:0%; background:#c62828;"></div>
+        </div>
+      </div>
+      <div class="badges">
+        <span class="badge off">
+          not sunset
+        </span>
+        <span class="badge off">
+          no clouds
+        </span>
+        <span class="badge muted">conf 0.95</span>
+        
+      </div>
+      <div class="palette">dark gray, black, minimal artificial lighting</div>
+      
+    </div>
+    
+          </div>
+          <div class="delta-col">
+            <div class="delta-label" style="color:#2e7d32;">match</div>
+            <div class="delta-num" style="color:#2e7d32;">|Δq| 0.05</div>
+            <div class="delta-detail">|Δconf| 0.00</div>
+            <div class="delta-detail">sunset: agree</div>
+          </div>
+        </div>
+        
+        <div class="row"
+             data-record-id="67001"
+             data-quality-a="0.0000"
+             data-quality-b="0.0000"
+             data-confidence-a="0.9500"
+             data-confidence-b="0.9500"
+             data-delta-quality="0.0000"
+             data-delta-confidence="0.0000"
+             data-sunset-disagree="0"
+             data-search="67001 webcam gray, overcast, neutral fog overcast gray, no visible sky colors fog sunset-agree">
+          <div class="row-image">
+            <img src="https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/11458/1770427608574.jpg"
+                 alt="image 67001" loading="lazy"/>
+            <div class="row-meta">
+              <div class="row-id">#67001</div>
+              <div class="row-source">webcam</div>
+              <div class="human">Human: 1.00/5 (1 raters)</div>
+            </div>
+          </div>
+          <div class="model-col">
+            <div class="model-label model-a-label">A · anthropic / claude-haiku-4-5</div>
+            
+    <div class="model-block" data-model="a">
+      <div class="quality-row">
+        <div class="quality-num" style="color:#c62828;">0.00</div>
+        <div class="quality-bar">
+          <div class="quality-fill" style="width:0%; background:#c62828;"></div>
+        </div>
+      </div>
+      <div class="badges">
+        <span class="badge off">
+          not sunset
+        </span>
+        <span class="badge off">
+          no clouds
+        </span>
+        <span class="badge muted">conf 0.95</span>
+        <span class="badge obstructed">obstructed</span>
+      </div>
+      <div class="palette">gray, overcast, neutral</div>
+      <div class="obstruction">obstruction: fog</div>
+    </div>
+    
+          </div>
+          <div class="model-col">
+            <div class="model-label model-b-label">B · anthropic / claude-sonnet-4-5</div>
+            
+    <div class="model-block" data-model="b">
+      <div class="quality-row">
+        <div class="quality-num" style="color:#c62828;">0.00</div>
+        <div class="quality-bar">
+          <div class="quality-fill" style="width:0%; background:#c62828;"></div>
+        </div>
+      </div>
+      <div class="badges">
+        <span class="badge off">
+          not sunset
+        </span>
+        <span class="badge off">
+          no clouds
+        </span>
+        <span class="badge muted">conf 0.95</span>
+        <span class="badge obstructed">obstructed</span>
+      </div>
+      <div class="palette">overcast gray, no visible sky colors</div>
+      <div class="obstruction">obstruction: fog</div>
+    </div>
+    
+          </div>
+          <div class="delta-col">
+            <div class="delta-label" style="color:#2e7d32;">match</div>
+            <div class="delta-num" style="color:#2e7d32;">|Δq| 0.00</div>
+            <div class="delta-detail">|Δconf| 0.00</div>
+            <div class="delta-detail">sunset: agree</div>
+          </div>
+        </div>
+        
+        <div class="row"
+             data-record-id="68991"
+             data-quality-a="0.0000"
+             data-quality-b="0.0000"
+             data-confidence-a="0.9500"
+             data-confidence-b="0.9500"
+             data-delta-quality="0.0000"
+             data-delta-confidence="0.0000"
+             data-sunset-disagree="0"
+             data-search="68991 webcam gray and blue with white clouds, daytime overcast conditions pale gray-blue overcast sky sunset-agree">
+          <div class="row-image">
+            <img src="https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/1946/1770874167246.jpg"
+                 alt="image 68991" loading="lazy"/>
+            <div class="row-meta">
+              <div class="row-id">#68991</div>
+              <div class="row-source">webcam</div>
+              <div class="human muted">No human rating</div>
+            </div>
+          </div>
+          <div class="model-col">
+            <div class="model-label model-a-label">A · anthropic / claude-haiku-4-5</div>
+            
+    <div class="model-block" data-model="a">
+      <div class="quality-row">
+        <div class="quality-num" style="color:#c62828;">0.00</div>
+        <div class="quality-bar">
+          <div class="quality-fill" style="width:0%; background:#c62828;"></div>
+        </div>
+      </div>
+      <div class="badges">
+        <span class="badge off">
+          not sunset
+        </span>
+        <span class="badge on">
+          has clouds
+        </span>
+        <span class="badge muted">conf 0.95</span>
+        
+      </div>
+      <div class="palette">Gray and blue with white clouds, daytime overcast conditions</div>
+      
+    </div>
+    
+          </div>
+          <div class="model-col">
+            <div class="model-label model-b-label">B · anthropic / claude-sonnet-4-5</div>
+            
+    <div class="model-block" data-model="b">
+      <div class="quality-row">
+        <div class="quality-num" style="color:#c62828;">0.00</div>
+        <div class="quality-bar">
+          <div class="quality-fill" style="width:0%; background:#c62828;"></div>
+        </div>
+      </div>
+      <div class="badges">
+        <span class="badge off">
+          not sunset
+        </span>
+        <span class="badge off">
+          no clouds
+        </span>
+        <span class="badge muted">conf 0.95</span>
+        
+      </div>
+      <div class="palette">pale gray-blue overcast sky</div>
+      
+    </div>
+    
+          </div>
+          <div class="delta-col">
+            <div class="delta-label" style="color:#2e7d32;">match</div>
+            <div class="delta-num" style="color:#2e7d32;">|Δq| 0.00</div>
+            <div class="delta-detail">|Δconf| 0.00</div>
+            <div class="delta-detail">sunset: agree</div>
+          </div>
+        </div>
+        
+        <div class="row"
+             data-record-id="71368"
+             data-quality-a="0.0000"
+             data-quality-b="0.0000"
+             data-confidence-a="0.9500"
+             data-confidence-b="0.9500"
+             data-delta-quality="0.0000"
+             data-delta-confidence="0.0000"
+             data-sunset-disagree="0"
+             data-search="71368 webcam gray, white, muted fog gray, overcast, monochromatic fog sunset-agree">
+          <div class="row-image">
+            <img src="https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/308/1771340031053.jpg"
+                 alt="image 71368" loading="lazy"/>
+            <div class="row-meta">
+              <div class="row-id">#71368</div>
+              <div class="row-source">webcam</div>
+              <div class="human muted">No human rating</div>
+            </div>
+          </div>
+          <div class="model-col">
+            <div class="model-label model-a-label">A · anthropic / claude-haiku-4-5</div>
+            
+    <div class="model-block" data-model="a">
+      <div class="quality-row">
+        <div class="quality-num" style="color:#c62828;">0.00</div>
+        <div class="quality-bar">
+          <div class="quality-fill" style="width:0%; background:#c62828;"></div>
+        </div>
+      </div>
+      <div class="badges">
+        <span class="badge off">
+          not sunset
+        </span>
+        <span class="badge on">
+          has clouds
+        </span>
+        <span class="badge muted">conf 0.95</span>
+        <span class="badge obstructed">obstructed</span>
+      </div>
+      <div class="palette">gray, white, muted</div>
+      <div class="obstruction">obstruction: fog</div>
+    </div>
+    
+          </div>
+          <div class="model-col">
+            <div class="model-label model-b-label">B · anthropic / claude-sonnet-4-5</div>
+            
+    <div class="model-block" data-model="b">
+      <div class="quality-row">
+        <div class="quality-num" style="color:#c62828;">0.00</div>
+        <div class="quality-bar">
+          <div class="quality-fill" style="width:0%; background:#c62828;"></div>
+        </div>
+      </div>
+      <div class="badges">
+        <span class="badge off">
+          not sunset
+        </span>
+        <span class="badge off">
+          no clouds
+        </span>
+        <span class="badge muted">conf 0.95</span>
+        <span class="badge obstructed">obstructed</span>
+      </div>
+      <div class="palette">gray, overcast, monochromatic</div>
+      <div class="obstruction">obstruction: fog</div>
+    </div>
+    
+          </div>
+          <div class="delta-col">
+            <div class="delta-label" style="color:#2e7d32;">match</div>
+            <div class="delta-num" style="color:#2e7d32;">|Δq| 0.00</div>
+            <div class="delta-detail">|Δconf| 0.00</div>
+            <div class="delta-detail">sunset: agree</div>
+          </div>
+        </div>
+        
+        <div class="row"
+             data-record-id="71962"
+             data-quality-a="0.0000"
+             data-quality-b="0.0000"
+             data-confidence-a="0.9500"
+             data-confidence-b="0.9500"
+             data-delta-quality="0.0000"
+             data-delta-confidence="0.0000"
+             data-sunset-disagree="0"
+             data-search="71962 webcam bright white and light gray overcast gray-white sunset-agree">
+          <div class="row-image">
+            <img src="https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/1725339/1771459370474.jpg"
+                 alt="image 71962" loading="lazy"/>
+            <div class="row-meta">
+              <div class="row-id">#71962</div>
+              <div class="row-source">webcam</div>
+              <div class="human muted">No human rating</div>
+            </div>
+          </div>
+          <div class="model-col">
+            <div class="model-label model-a-label">A · anthropic / claude-haiku-4-5</div>
+            
+    <div class="model-block" data-model="a">
+      <div class="quality-row">
+        <div class="quality-num" style="color:#c62828;">0.00</div>
+        <div class="quality-bar">
+          <div class="quality-fill" style="width:0%; background:#c62828;"></div>
+        </div>
+      </div>
+      <div class="badges">
+        <span class="badge off">
+          not sunset
+        </span>
+        <span class="badge off">
+          no clouds
+        </span>
+        <span class="badge muted">conf 0.95</span>
+        
+      </div>
+      <div class="palette">bright white and light gray</div>
+      
+    </div>
+    
+          </div>
+          <div class="model-col">
+            <div class="model-label model-b-label">B · anthropic / claude-sonnet-4-5</div>
+            
+    <div class="model-block" data-model="b">
+      <div class="quality-row">
+        <div class="quality-num" style="color:#c62828;">0.00</div>
+        <div class="quality-bar">
+          <div class="quality-fill" style="width:0%; background:#c62828;"></div>
+        </div>
+      </div>
+      <div class="badges">
+        <span class="badge off">
+          not sunset
+        </span>
+        <span class="badge off">
+          no clouds
+        </span>
+        <span class="badge muted">conf 0.95</span>
+        
+      </div>
+      <div class="palette">overcast gray-white</div>
+      
+    </div>
+    
+          </div>
+          <div class="delta-col">
+            <div class="delta-label" style="color:#2e7d32;">match</div>
+            <div class="delta-num" style="color:#2e7d32;">|Δq| 0.00</div>
+            <div class="delta-detail">|Δconf| 0.00</div>
+            <div class="delta-detail">sunset: agree</div>
+          </div>
+        </div>
+        
+        <div class="row"
+             data-record-id="72556"
+             data-quality-a="0.0000"
+             data-quality-b="0.0000"
+             data-confidence-a="0.9900"
+             data-confidence-b="1.0000"
+             data-delta-quality="0.0000"
+             data-delta-confidence="0.0100"
+             data-sunset-disagree="0"
+             data-search="72556 webcam dark gray to black with artificial lighting black night sky with artificial lighting sunset-agree">
+          <div class="row-image">
+            <img src="https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/12182/1771595088845.jpg"
+                 alt="image 72556" loading="lazy"/>
+            <div class="row-meta">
+              <div class="row-id">#72556</div>
+              <div class="row-source">webcam</div>
+              <div class="human muted">No human rating</div>
+            </div>
+          </div>
+          <div class="model-col">
+            <div class="model-label model-a-label">A · anthropic / claude-haiku-4-5</div>
+            
+    <div class="model-block" data-model="a">
+      <div class="quality-row">
+        <div class="quality-num" style="color:#c62828;">0.00</div>
+        <div class="quality-bar">
+          <div class="quality-fill" style="width:0%; background:#c62828;"></div>
+        </div>
+      </div>
+      <div class="badges">
+        <span class="badge off">
+          not sunset
+        </span>
+        <span class="badge off">
+          no clouds
+        </span>
+        <span class="badge muted">conf 0.99</span>
+        
+      </div>
+      <div class="palette">dark gray to black with artificial lighting</div>
+      
+    </div>
+    
+          </div>
+          <div class="model-col">
+            <div class="model-label model-b-label">B · anthropic / claude-sonnet-4-5</div>
+            
+    <div class="model-block" data-model="b">
+      <div class="quality-row">
+        <div class="quality-num" style="color:#c62828;">0.00</div>
+        <div class="quality-bar">
+          <div class="quality-fill" style="width:0%; background:#c62828;"></div>
+        </div>
+      </div>
+      <div class="badges">
+        <span class="badge off">
+          not sunset
+        </span>
+        <span class="badge off">
+          no clouds
+        </span>
+        <span class="badge muted">conf 1.00</span>
+        
+      </div>
+      <div class="palette">black night sky with artificial lighting</div>
+      
+    </div>
+    
+          </div>
+          <div class="delta-col">
+            <div class="delta-label" style="color:#2e7d32;">match</div>
+            <div class="delta-num" style="color:#2e7d32;">|Δq| 0.00</div>
+            <div class="delta-detail">|Δconf| 0.01</div>
+            <div class="delta-detail">sunset: agree</div>
+          </div>
+        </div>
+        
+        <div class="row"
+             data-record-id="73150"
+             data-quality-a="0.0000"
+             data-quality-b="0.0000"
+             data-confidence-a="0.9500"
+             data-confidence-b="1.0000"
+             data-delta-quality="0.0000"
+             data-delta-confidence="0.0500"
+             data-sunset-disagree="0"
+             data-search="73150 webcam dark blue/black night sky dark night sky with artificial lighting sunset-agree">
+          <div class="row-image">
+            <img src="https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/137/1771738548862.jpg"
+                 alt="image 73150" loading="lazy"/>
+            <div class="row-meta">
+              <div class="row-id">#73150</div>
+              <div class="row-source">webcam</div>
+              <div class="human muted">No human rating</div>
+            </div>
+          </div>
+          <div class="model-col">
+            <div class="model-label model-a-label">A · anthropic / claude-haiku-4-5</div>
+            
+    <div class="model-block" data-model="a">
+      <div class="quality-row">
+        <div class="quality-num" style="color:#c62828;">0.00</div>
+        <div class="quality-bar">
+          <div class="quality-fill" style="width:0%; background:#c62828;"></div>
+        </div>
+      </div>
+      <div class="badges">
+        <span class="badge off">
+          not sunset
+        </span>
+        <span class="badge off">
+          no clouds
+        </span>
+        <span class="badge muted">conf 0.95</span>
+        
+      </div>
+      <div class="palette">dark blue/black night sky</div>
+      
+    </div>
+    
+          </div>
+          <div class="model-col">
+            <div class="model-label model-b-label">B · anthropic / claude-sonnet-4-5</div>
+            
+    <div class="model-block" data-model="b">
+      <div class="quality-row">
+        <div class="quality-num" style="color:#c62828;">0.00</div>
+        <div class="quality-bar">
+          <div class="quality-fill" style="width:0%; background:#c62828;"></div>
+        </div>
+      </div>
+      <div class="badges">
+        <span class="badge off">
+          not sunset
+        </span>
+        <span class="badge off">
+          no clouds
+        </span>
+        <span class="badge muted">conf 1.00</span>
+        
+      </div>
+      <div class="palette">dark night sky with artificial lighting</div>
+      
+    </div>
+    
+          </div>
+          <div class="delta-col">
+            <div class="delta-label" style="color:#2e7d32;">match</div>
+            <div class="delta-num" style="color:#2e7d32;">|Δq| 0.00</div>
+            <div class="delta-detail">|Δconf| 0.05</div>
+            <div class="delta-detail">sunset: agree</div>
+          </div>
+        </div>
+        
+        <div class="row"
+             data-record-id="73745"
+             data-quality-a="0.0000"
+             data-quality-b="0.0000"
+             data-confidence-a="0.9500"
+             data-confidence-b="0.9500"
+             data-delta-quality="0.0000"
+             data-delta-confidence="0.0000"
+             data-sunset-disagree="0"
+             data-search="73745 webcam gray, white, and muted tones fog gray, white, overcast sunset-agree">
+          <div class="row-image">
+            <img src="https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/4443/1771876789162.jpg"
+                 alt="image 73745" loading="lazy"/>
+            <div class="row-meta">
+              <div class="row-id">#73745</div>
+              <div class="row-source">webcam</div>
+              <div class="human muted">No human rating</div>
+            </div>
+          </div>
+          <div class="model-col">
+            <div class="model-label model-a-label">A · anthropic / claude-haiku-4-5</div>
+            
+    <div class="model-block" data-model="a">
+      <div class="quality-row">
+        <div class="quality-num" style="color:#c62828;">0.00</div>
+        <div class="quality-bar">
+          <div class="quality-fill" style="width:0%; background:#c62828;"></div>
+        </div>
+      </div>
+      <div class="badges">
+        <span class="badge off">
+          not sunset
+        </span>
+        <span class="badge on">
+          has clouds
+        </span>
+        <span class="badge muted">conf 0.95</span>
+        <span class="badge obstructed">obstructed</span>
+      </div>
+      <div class="palette">Gray, white, and muted tones</div>
+      <div class="obstruction">obstruction: fog</div>
+    </div>
+    
+          </div>
+          <div class="model-col">
+            <div class="model-label model-b-label">B · anthropic / claude-sonnet-4-5</div>
+            
+    <div class="model-block" data-model="b">
+      <div class="quality-row">
+        <div class="quality-num" style="color:#c62828;">0.00</div>
+        <div class="quality-bar">
+          <div class="quality-fill" style="width:0%; background:#c62828;"></div>
+        </div>
+      </div>
+      <div class="badges">
+        <span class="badge off">
+          not sunset
+        </span>
+        <span class="badge on">
+          has clouds
+        </span>
+        <span class="badge muted">conf 0.95</span>
+        
+      </div>
+      <div class="palette">gray, white, overcast</div>
+      
+    </div>
+    
+          </div>
+          <div class="delta-col">
+            <div class="delta-label" style="color:#2e7d32;">match</div>
+            <div class="delta-num" style="color:#2e7d32;">|Δq| 0.00</div>
+            <div class="delta-detail">|Δconf| 0.00</div>
+            <div class="delta-detail">sunset: agree</div>
+          </div>
+        </div>
+        
+        <div class="row"
+             data-record-id="74339"
+             data-quality-a="0.0000"
+             data-quality-b="0.0000"
+             data-confidence-a="0.9500"
+             data-confidence-b="0.9500"
+             data-delta-quality="0.0000"
+             data-delta-confidence="0.0000"
+             data-sunset-disagree="0"
+             data-search="74339 webcam uniform gray and white fog uniform gray-white overcast fog sunset-agree">
+          <div class="row-image">
+            <img src="https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/548/1772030089802.jpg"
+                 alt="image 74339" loading="lazy"/>
+            <div class="row-meta">
+              <div class="row-id">#74339</div>
+              <div class="row-source">webcam</div>
+              <div class="human muted">No human rating</div>
+            </div>
+          </div>
+          <div class="model-col">
+            <div class="model-label model-a-label">A · anthropic / claude-haiku-4-5</div>
+            
+    <div class="model-block" data-model="a">
+      <div class="quality-row">
+        <div class="quality-num" style="color:#c62828;">0.00</div>
+        <div class="quality-bar">
+          <div class="quality-fill" style="width:0%; background:#c62828;"></div>
+        </div>
+      </div>
+      <div class="badges">
+        <span class="badge off">
+          not sunset
+        </span>
+        <span class="badge on">
+          has clouds
+        </span>
+        <span class="badge muted">conf 0.95</span>
+        <span class="badge obstructed">obstructed</span>
+      </div>
+      <div class="palette">uniform gray and white</div>
+      <div class="obstruction">obstruction: fog</div>
+    </div>
+    
+          </div>
+          <div class="model-col">
+            <div class="model-label model-b-label">B · anthropic / claude-sonnet-4-5</div>
+            
+    <div class="model-block" data-model="b">
+      <div class="quality-row">
+        <div class="quality-num" style="color:#c62828;">0.00</div>
+        <div class="quality-bar">
+          <div class="quality-fill" style="width:0%; background:#c62828;"></div>
+        </div>
+      </div>
+      <div class="badges">
+        <span class="badge off">
+          not sunset
+        </span>
+        <span class="badge off">
+          no clouds
+        </span>
+        <span class="badge muted">conf 0.95</span>
+        <span class="badge obstructed">obstructed</span>
+      </div>
+      <div class="palette">uniform gray-white overcast</div>
+      <div class="obstruction">obstruction: fog</div>
+    </div>
+    
+          </div>
+          <div class="delta-col">
+            <div class="delta-label" style="color:#2e7d32;">match</div>
+            <div class="delta-num" style="color:#2e7d32;">|Δq| 0.00</div>
+            <div class="delta-detail">|Δconf| 0.00</div>
+            <div class="delta-detail">sunset: agree</div>
+          </div>
+        </div>
+        
+        <div class="row"
+             data-record-id="76122"
+             data-quality-a="0.0000"
+             data-quality-b="0.0000"
+             data-confidence-a="0.9500"
+             data-confidence-b="0.9500"
+             data-delta-quality="0.0000"
+             data-delta-confidence="0.0000"
+             data-sunset-disagree="0"
+             data-search="76122 webcam black, dark gray black, very dark with minimal visibility sunset-agree">
+          <div class="row-image">
+            <img src="https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/400/1772468449218.jpg"
+                 alt="image 76122" loading="lazy"/>
+            <div class="row-meta">
+              <div class="row-id">#76122</div>
+              <div class="row-source">webcam</div>
+              <div class="human">Human: 1.00/5 (1 raters)</div>
+            </div>
+          </div>
+          <div class="model-col">
+            <div class="model-label model-a-label">A · anthropic / claude-haiku-4-5</div>
+            
+    <div class="model-block" data-model="a">
+      <div class="quality-row">
+        <div class="quality-num" style="color:#c62828;">0.00</div>
+        <div class="quality-bar">
+          <div class="quality-fill" style="width:0%; background:#c62828;"></div>
+        </div>
+      </div>
+      <div class="badges">
+        <span class="badge off">
+          not sunset
+        </span>
+        <span class="badge off">
+          no clouds
+        </span>
+        <span class="badge muted">conf 0.95</span>
+        
+      </div>
+      <div class="palette">black, dark gray</div>
+      
+    </div>
+    
+          </div>
+          <div class="model-col">
+            <div class="model-label model-b-label">B · anthropic / claude-sonnet-4-5</div>
+            
+    <div class="model-block" data-model="b">
+      <div class="quality-row">
+        <div class="quality-num" style="color:#c62828;">0.00</div>
+        <div class="quality-bar">
+          <div class="quality-fill" style="width:0%; background:#c62828;"></div>
+        </div>
+      </div>
+      <div class="badges">
+        <span class="badge off">
+          not sunset
+        </span>
+        <span class="badge off">
+          no clouds
+        </span>
+        <span class="badge muted">conf 0.95</span>
+        
+      </div>
+      <div class="palette">black, very dark with minimal visibility</div>
+      
+    </div>
+    
+          </div>
+          <div class="delta-col">
+            <div class="delta-label" style="color:#2e7d32;">match</div>
+            <div class="delta-num" style="color:#2e7d32;">|Δq| 0.00</div>
+            <div class="delta-detail">|Δconf| 0.00</div>
+            <div class="delta-detail">sunset: agree</div>
+          </div>
+        </div>
+        
+        <div class="row"
+             data-record-id="79093"
+             data-quality-a="0.0000"
+             data-quality-b="0.0000"
+             data-confidence-a="0.9500"
+             data-confidence-b="0.9500"
+             data-delta-quality="0.0000"
+             data-delta-confidence="0.0000"
+             data-sunset-disagree="0"
+             data-search="79093 webcam blue sky with natural daylight pale blue-gray daytime sky sunset-agree">
+          <div class="row-image">
+            <img src="https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/7840/1773181620920.jpg"
+                 alt="image 79093" loading="lazy"/>
+            <div class="row-meta">
+              <div class="row-id">#79093</div>
+              <div class="row-source">webcam</div>
+              <div class="human">Human: 1.00/5 (1 raters)</div>
+            </div>
+          </div>
+          <div class="model-col">
+            <div class="model-label model-a-label">A · anthropic / claude-haiku-4-5</div>
+            
+    <div class="model-block" data-model="a">
+      <div class="quality-row">
+        <div class="quality-num" style="color:#c62828;">0.00</div>
+        <div class="quality-bar">
+          <div class="quality-fill" style="width:0%; background:#c62828;"></div>
+        </div>
+      </div>
+      <div class="badges">
+        <span class="badge off">
+          not sunset
+        </span>
+        <span class="badge off">
+          no clouds
+        </span>
+        <span class="badge muted">conf 0.95</span>
+        
+      </div>
+      <div class="palette">blue sky with natural daylight</div>
+      
+    </div>
+    
+          </div>
+          <div class="model-col">
+            <div class="model-label model-b-label">B · anthropic / claude-sonnet-4-5</div>
+            
+    <div class="model-block" data-model="b">
+      <div class="quality-row">
+        <div class="quality-num" style="color:#c62828;">0.00</div>
+        <div class="quality-bar">
+          <div class="quality-fill" style="width:0%; background:#c62828;"></div>
+        </div>
+      </div>
+      <div class="badges">
+        <span class="badge off">
+          not sunset
+        </span>
+        <span class="badge off">
+          no clouds
+        </span>
+        <span class="badge muted">conf 0.95</span>
+        
+      </div>
+      <div class="palette">pale blue-gray daytime sky</div>
+      
+    </div>
+    
+          </div>
+          <div class="delta-col">
+            <div class="delta-label" style="color:#2e7d32;">match</div>
+            <div class="delta-num" style="color:#2e7d32;">|Δq| 0.00</div>
+            <div class="delta-detail">|Δconf| 0.00</div>
+            <div class="delta-detail">sunset: agree</div>
+          </div>
+        </div>
+        
+        <div class="row"
+             data-record-id="80875"
+             data-quality-a="0.0000"
+             data-quality-b="0.0000"
+             data-confidence-a="0.9500"
+             data-confidence-b="1.0000"
+             data-delta-quality="0.0000"
+             data-delta-confidence="0.0500"
+             data-sunset-disagree="0"
+             data-search="80875 webcam dark purple and black night sky dark night sky, artificial street lighting sunset-agree">
+          <div class="row-image">
+            <img src="https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/16377321/1773439643710.jpg"
+                 alt="image 80875" loading="lazy"/>
+            <div class="row-meta">
+              <div class="row-id">#80875</div>
+              <div class="row-source">webcam</div>
+              <div class="human muted">No human rating</div>
+            </div>
+          </div>
+          <div class="model-col">
+            <div class="model-label model-a-label">A · anthropic / claude-haiku-4-5</div>
+            
+    <div class="model-block" data-model="a">
+      <div class="quality-row">
+        <div class="quality-num" style="color:#c62828;">0.00</div>
+        <div class="quality-bar">
+          <div class="quality-fill" style="width:0%; background:#c62828;"></div>
+        </div>
+      </div>
+      <div class="badges">
+        <span class="badge off">
+          not sunset
+        </span>
+        <span class="badge off">
+          no clouds
+        </span>
+        <span class="badge muted">conf 0.95</span>
+        
+      </div>
+      <div class="palette">dark purple and black night sky</div>
+      
+    </div>
+    
+          </div>
+          <div class="model-col">
+            <div class="model-label model-b-label">B · anthropic / claude-sonnet-4-5</div>
+            
+    <div class="model-block" data-model="b">
+      <div class="quality-row">
+        <div class="quality-num" style="color:#c62828;">0.00</div>
+        <div class="quality-bar">
+          <div class="quality-fill" style="width:0%; background:#c62828;"></div>
+        </div>
+      </div>
+      <div class="badges">
+        <span class="badge off">
+          not sunset
+        </span>
+        <span class="badge off">
+          no clouds
+        </span>
+        <span class="badge muted">conf 1.00</span>
+        
+      </div>
+      <div class="palette">dark night sky, artificial street lighting</div>
+      
+    </div>
+    
+          </div>
+          <div class="delta-col">
+            <div class="delta-label" style="color:#2e7d32;">match</div>
+            <div class="delta-num" style="color:#2e7d32;">|Δq| 0.00</div>
+            <div class="delta-detail">|Δconf| 0.05</div>
+            <div class="delta-detail">sunset: agree</div>
+          </div>
+        </div>
+        
+        <div class="row"
+             data-record-id="82064"
+             data-quality-a="0.0000"
+             data-quality-b="0.0000"
+             data-confidence-a="0.9500"
+             data-confidence-b="1.0000"
+             data-delta-quality="0.0000"
+             data-delta-confidence="0.0500"
+             data-sunset-disagree="0"
+             data-search="82064 webcam black/dark gray completely black sunset-agree">
+          <div class="row-image">
+            <img src="https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/3601639/1773452606105.jpg"
+                 alt="image 82064" loading="lazy"/>
+            <div class="row-meta">
+              <div class="row-id">#82064</div>
+              <div class="row-source">webcam</div>
+              <div class="human muted">No human rating</div>
+            </div>
+          </div>
+          <div class="model-col">
+            <div class="model-label model-a-label">A · anthropic / claude-haiku-4-5</div>
+            
+    <div class="model-block" data-model="a">
+      <div class="quality-row">
+        <div class="quality-num" style="color:#c62828;">0.00</div>
+        <div class="quality-bar">
+          <div class="quality-fill" style="width:0%; background:#c62828;"></div>
+        </div>
+      </div>
+      <div class="badges">
+        <span class="badge off">
+          not sunset
+        </span>
+        <span class="badge off">
+          no clouds
+        </span>
+        <span class="badge muted">conf 0.95</span>
+        
+      </div>
+      <div class="palette">black/dark gray</div>
+      
+    </div>
+    
+          </div>
+          <div class="model-col">
+            <div class="model-label model-b-label">B · anthropic / claude-sonnet-4-5</div>
+            
+    <div class="model-block" data-model="b">
+      <div class="quality-row">
+        <div class="quality-num" style="color:#c62828;">0.00</div>
+        <div class="quality-bar">
+          <div class="quality-fill" style="width:0%; background:#c62828;"></div>
+        </div>
+      </div>
+      <div class="badges">
+        <span class="badge off">
+          not sunset
+        </span>
+        <span class="badge off">
+          no clouds
+        </span>
+        <span class="badge muted">conf 1.00</span>
+        
+      </div>
+      <div class="palette">completely black</div>
+      
+    </div>
+    
+          </div>
+          <div class="delta-col">
+            <div class="delta-label" style="color:#2e7d32;">match</div>
+            <div class="delta-num" style="color:#2e7d32;">|Δq| 0.00</div>
+            <div class="delta-detail">|Δconf| 0.05</div>
+            <div class="delta-detail">sunset: agree</div>
+          </div>
+        </div>
+        
+        <div class="row"
+             data-record-id="82658"
+             data-quality-a="0.0000"
+             data-quality-b="0.0000"
+             data-confidence-a="0.9500"
+             data-confidence-b="0.9500"
+             data-delta-quality="0.0000"
+             data-delta-confidence="0.0000"
+             data-sunset-disagree="0"
+             data-search="82658 webcam black and dark gray black and dark gray with distant artificial lights sunset-agree">
+          <div class="row-image">
+            <img src="https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/13119581/1773459267654.jpg"
+                 alt="image 82658" loading="lazy"/>
+            <div class="row-meta">
+              <div class="row-id">#82658</div>
+              <div class="row-source">webcam</div>
+              <div class="human muted">No human rating</div>
+            </div>
+          </div>
+          <div class="model-col">
+            <div class="model-label model-a-label">A · anthropic / claude-haiku-4-5</div>
+            
+    <div class="model-block" data-model="a">
+      <div class="quality-row">
+        <div class="quality-num" style="color:#c62828;">0.00</div>
+        <div class="quality-bar">
+          <div class="quality-fill" style="width:0%; background:#c62828;"></div>
+        </div>
+      </div>
+      <div class="badges">
+        <span class="badge off">
+          not sunset
+        </span>
+        <span class="badge off">
+          no clouds
+        </span>
+        <span class="badge muted">conf 0.95</span>
+        
+      </div>
+      <div class="palette">black and dark gray</div>
+      
+    </div>
+    
+          </div>
+          <div class="model-col">
+            <div class="model-label model-b-label">B · anthropic / claude-sonnet-4-5</div>
+            
+    <div class="model-block" data-model="b">
+      <div class="quality-row">
+        <div class="quality-num" style="color:#c62828;">0.00</div>
+        <div class="quality-bar">
+          <div class="quality-fill" style="width:0%; background:#c62828;"></div>
+        </div>
+      </div>
+      <div class="badges">
+        <span class="badge off">
+          not sunset
+        </span>
+        <span class="badge off">
+          no clouds
+        </span>
+        <span class="badge muted">conf 0.95</span>
+        
+      </div>
+      <div class="palette">black and dark gray with distant artificial lights</div>
+      
+    </div>
+    
+          </div>
+          <div class="delta-col">
+            <div class="delta-label" style="color:#2e7d32;">match</div>
+            <div class="delta-num" style="color:#2e7d32;">|Δq| 0.00</div>
+            <div class="delta-detail">|Δconf| 0.00</div>
+            <div class="delta-detail">sunset: agree</div>
+          </div>
+        </div>
+        
+        <div class="row"
+             data-record-id="83252"
+             data-quality-a="0.0000"
+             data-quality-b="0.0000"
+             data-confidence-a="0.9500"
+             data-confidence-b="0.9500"
+             data-delta-quality="0.0000"
+             data-delta-confidence="0.0000"
+             data-sunset-disagree="0"
+             data-search="83252 webcam uniform gray fog uniform gray overcast fog sunset-agree">
+          <div class="row-image">
+            <img src="https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/4874034/1773467784698.jpg"
+                 alt="image 83252" loading="lazy"/>
+            <div class="row-meta">
+              <div class="row-id">#83252</div>
+              <div class="row-source">webcam</div>
+              <div class="human muted">No human rating</div>
+            </div>
+          </div>
+          <div class="model-col">
+            <div class="model-label model-a-label">A · anthropic / claude-haiku-4-5</div>
+            
+    <div class="model-block" data-model="a">
+      <div class="quality-row">
+        <div class="quality-num" style="color:#c62828;">0.00</div>
+        <div class="quality-bar">
+          <div class="quality-fill" style="width:0%; background:#c62828;"></div>
+        </div>
+      </div>
+      <div class="badges">
+        <span class="badge off">
+          not sunset
+        </span>
+        <span class="badge off">
+          no clouds
+        </span>
+        <span class="badge muted">conf 0.95</span>
+        <span class="badge obstructed">obstructed</span>
+      </div>
+      <div class="palette">uniform gray</div>
+      <div class="obstruction">obstruction: fog</div>
+    </div>
+    
+          </div>
+          <div class="model-col">
+            <div class="model-label model-b-label">B · anthropic / claude-sonnet-4-5</div>
+            
+    <div class="model-block" data-model="b">
+      <div class="quality-row">
+        <div class="quality-num" style="color:#c62828;">0.00</div>
+        <div class="quality-bar">
+          <div class="quality-fill" style="width:0%; background:#c62828;"></div>
+        </div>
+      </div>
+      <div class="badges">
+        <span class="badge off">
+          not sunset
+        </span>
+        <span class="badge on">
+          has clouds
+        </span>
+        <span class="badge muted">conf 0.95</span>
+        <span class="badge obstructed">obstructed</span>
+      </div>
+      <div class="palette">uniform gray overcast</div>
+      <div class="obstruction">obstruction: fog</div>
+    </div>
+    
+          </div>
+          <div class="delta-col">
+            <div class="delta-label" style="color:#2e7d32;">match</div>
+            <div class="delta-num" style="color:#2e7d32;">|Δq| 0.00</div>
+            <div class="delta-detail">|Δconf| 0.00</div>
+            <div class="delta-detail">sunset: agree</div>
+          </div>
+        </div>
+        
+        <div class="row"
+             data-record-id="84441"
+             data-quality-a="0.0000"
+             data-quality-b="0.0000"
+             data-confidence-a="0.9500"
+             data-confidence-b="1.0000"
+             data-delta-quality="0.0000"
+             data-delta-confidence="0.0500"
+             data-sunset-disagree="0"
+             data-search="84441 webcam gray, overcast, dim gray overcast sunset-agree">
+          <div class="row-image">
+            <img src="https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/9786670/1773486579707.jpg"
+                 alt="image 84441" loading="lazy"/>
+            <div class="row-meta">
+              <div class="row-id">#84441</div>
+              <div class="row-source">webcam</div>
+              <div class="human muted">No human rating</div>
+            </div>
+          </div>
+          <div class="model-col">
+            <div class="model-label model-a-label">A · anthropic / claude-haiku-4-5</div>
+            
+    <div class="model-block" data-model="a">
+      <div class="quality-row">
+        <div class="quality-num" style="color:#c62828;">0.00</div>
+        <div class="quality-bar">
+          <div class="quality-fill" style="width:0%; background:#c62828;"></div>
+        </div>
+      </div>
+      <div class="badges">
+        <span class="badge off">
+          not sunset
+        </span>
+        <span class="badge off">
+          no clouds
+        </span>
+        <span class="badge muted">conf 0.95</span>
+        
+      </div>
+      <div class="palette">gray, overcast, dim</div>
+      
+    </div>
+    
+          </div>
+          <div class="model-col">
+            <div class="model-label model-b-label">B · anthropic / claude-sonnet-4-5</div>
+            
+    <div class="model-block" data-model="b">
+      <div class="quality-row">
+        <div class="quality-num" style="color:#c62828;">0.00</div>
+        <div class="quality-bar">
+          <div class="quality-fill" style="width:0%; background:#c62828;"></div>
+        </div>
+      </div>
+      <div class="badges">
+        <span class="badge off">
+          not sunset
+        </span>
+        <span class="badge off">
+          no clouds
+        </span>
+        <span class="badge muted">conf 1.00</span>
+        
+      </div>
+      <div class="palette">gray overcast</div>
+      
+    </div>
+    
+          </div>
+          <div class="delta-col">
+            <div class="delta-label" style="color:#2e7d32;">match</div>
+            <div class="delta-num" style="color:#2e7d32;">|Δq| 0.00</div>
+            <div class="delta-detail">|Δconf| 0.05</div>
+            <div class="delta-detail">sunset: agree</div>
+          </div>
+        </div>
+        
+        <div class="row"
+             data-record-id="86818"
+             data-quality-a="0.0000"
+             data-quality-b="0.0000"
+             data-confidence-a="0.9500"
+             data-confidence-b="0.9500"
+             data-delta-quality="0.0000"
+             data-delta-confidence="0.0000"
+             data-sunset-disagree="0"
+             data-search="86818 webcam gray, overcast daytime overcast gray-white sunset-agree">
+          <div class="row-image">
+            <img src="https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/3916778/1773520771392.jpg"
+                 alt="image 86818" loading="lazy"/>
+            <div class="row-meta">
+              <div class="row-id">#86818</div>
+              <div class="row-source">webcam</div>
+              <div class="human muted">No human rating</div>
+            </div>
+          </div>
+          <div class="model-col">
+            <div class="model-label model-a-label">A · anthropic / claude-haiku-4-5</div>
+            
+    <div class="model-block" data-model="a">
+      <div class="quality-row">
+        <div class="quality-num" style="color:#c62828;">0.00</div>
+        <div class="quality-bar">
+          <div class="quality-fill" style="width:0%; background:#c62828;"></div>
+        </div>
+      </div>
+      <div class="badges">
+        <span class="badge off">
+          not sunset
+        </span>
+        <span class="badge off">
+          no clouds
+        </span>
+        <span class="badge muted">conf 0.95</span>
+        
+      </div>
+      <div class="palette">gray, overcast daytime</div>
+      
+    </div>
+    
+          </div>
+          <div class="model-col">
+            <div class="model-label model-b-label">B · anthropic / claude-sonnet-4-5</div>
+            
+    <div class="model-block" data-model="b">
+      <div class="quality-row">
+        <div class="quality-num" style="color:#c62828;">0.00</div>
+        <div class="quality-bar">
+          <div class="quality-fill" style="width:0%; background:#c62828;"></div>
+        </div>
+      </div>
+      <div class="badges">
+        <span class="badge off">
+          not sunset
+        </span>
+        <span class="badge off">
+          no clouds
+        </span>
+        <span class="badge muted">conf 0.95</span>
+        
+      </div>
+      <div class="palette">overcast gray-white</div>
+      
+    </div>
+    
+          </div>
+          <div class="delta-col">
+            <div class="delta-label" style="color:#2e7d32;">match</div>
+            <div class="delta-num" style="color:#2e7d32;">|Δq| 0.00</div>
+            <div class="delta-detail">|Δconf| 0.00</div>
+            <div class="delta-detail">sunset: agree</div>
+          </div>
+        </div>
+        
+        <div class="row"
+             data-record-id="87412"
+             data-quality-a="0.2500"
+             data-quality-b="0.2500"
+             data-confidence-a="0.7500"
+             data-confidence-b="0.7000"
+             data-delta-quality="0.0000"
+             data-delta-confidence="0.0500"
+             data-sunset-disagree="0"
+             data-search="87412 webcam dark brown, deep orange, and black with minimal color saturation dark brown, muted orange, deep amber sunset-agree">
+          <div class="row-image">
+            <img src="https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/3236/1773528754850.jpg"
+                 alt="image 87412" loading="lazy"/>
+            <div class="row-meta">
+              <div class="row-id">#87412</div>
+              <div class="row-source">webcam</div>
+              <div class="human muted">No human rating</div>
+            </div>
+          </div>
+          <div class="model-col">
+            <div class="model-label model-a-label">A · anthropic / claude-haiku-4-5</div>
+            
+    <div class="model-block" data-model="a">
+      <div class="quality-row">
+        <div class="quality-num" style="color:#c62828;">0.25</div>
+        <div class="quality-bar">
+          <div class="quality-fill" style="width:25%; background:#c62828;"></div>
+        </div>
+      </div>
+      <div class="badges">
+        <span class="badge on">
+          sunset
+        </span>
+        <span class="badge on">
+          has clouds
+        </span>
+        <span class="badge muted">conf 0.75</span>
+        
+      </div>
+      <div class="palette">dark brown, deep orange, and black with minimal color saturation</div>
+      
+    </div>
+    
+          </div>
+          <div class="model-col">
+            <div class="model-label model-b-label">B · anthropic / claude-sonnet-4-5</div>
+            
+    <div class="model-block" data-model="b">
+      <div class="quality-row">
+        <div class="quality-num" style="color:#c62828;">0.25</div>
+        <div class="quality-bar">
+          <div class="quality-fill" style="width:25%; background:#c62828;"></div>
+        </div>
+      </div>
+      <div class="badges">
+        <span class="badge on">
+          sunset
+        </span>
+        <span class="badge off">
+          no clouds
+        </span>
+        <span class="badge muted">conf 0.70</span>
+        
+      </div>
+      <div class="palette">dark brown, muted orange, deep amber</div>
+      
+    </div>
+    
+          </div>
+          <div class="delta-col">
+            <div class="delta-label" style="color:#2e7d32;">match</div>
+            <div class="delta-num" style="color:#2e7d32;">|Δq| 0.00</div>
+            <div class="delta-detail">|Δconf| 0.05</div>
+            <div class="delta-detail">sunset: agree</div>
+          </div>
+        </div>
+        
+        <div class="row"
+             data-record-id="88600"
+             data-quality-a="0.0000"
+             data-quality-b="0.0000"
+             data-confidence-a="0.9500"
+             data-confidence-b="0.9500"
+             data-delta-quality="0.0000"
+             data-delta-confidence="0.0000"
+             data-sunset-disagree="0"
+             data-search="88600 webcam grayscale, monochromatic fog grayscale, no visible sky colors sunset-agree">
+          <div class="row-image">
+            <img src="https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/15872738/1773657873605.jpg"
+                 alt="image 88600" loading="lazy"/>
+            <div class="row-meta">
+              <div class="row-id">#88600</div>
+              <div class="row-source">webcam</div>
+              <div class="human muted">No human rating</div>
+            </div>
+          </div>
+          <div class="model-col">
+            <div class="model-label model-a-label">A · anthropic / claude-haiku-4-5</div>
+            
+    <div class="model-block" data-model="a">
+      <div class="quality-row">
+        <div class="quality-num" style="color:#c62828;">0.00</div>
+        <div class="quality-bar">
+          <div class="quality-fill" style="width:0%; background:#c62828;"></div>
+        </div>
+      </div>
+      <div class="badges">
+        <span class="badge off">
+          not sunset
+        </span>
+        <span class="badge off">
+          no clouds
+        </span>
+        <span class="badge muted">conf 0.95</span>
+        <span class="badge obstructed">obstructed</span>
+      </div>
+      <div class="palette">grayscale, monochromatic</div>
+      <div class="obstruction">obstruction: fog</div>
+    </div>
+    
+          </div>
+          <div class="model-col">
+            <div class="model-label model-b-label">B · anthropic / claude-sonnet-4-5</div>
+            
+    <div class="model-block" data-model="b">
+      <div class="quality-row">
+        <div class="quality-num" style="color:#c62828;">0.00</div>
+        <div class="quality-bar">
+          <div class="quality-fill" style="width:0%; background:#c62828;"></div>
+        </div>
+      </div>
+      <div class="badges">
+        <span class="badge off">
+          not sunset
+        </span>
+        <span class="badge off">
+          no clouds
+        </span>
+        <span class="badge muted">conf 0.95</span>
+        
+      </div>
+      <div class="palette">grayscale, no visible sky colors</div>
+      
+    </div>
+    
+          </div>
+          <div class="delta-col">
+            <div class="delta-label" style="color:#2e7d32;">match</div>
+            <div class="delta-num" style="color:#2e7d32;">|Δq| 0.00</div>
+            <div class="delta-detail">|Δconf| 0.00</div>
+            <div class="delta-detail">sunset: agree</div>
+          </div>
+        </div>
+        
+        <div class="row"
+             data-record-id="89194"
+             data-quality-a="0.0000"
+             data-quality-b="0.0000"
+             data-confidence-a="0.9500"
+             data-confidence-b="0.9500"
+             data-delta-quality="0.0000"
+             data-delta-confidence="0.0000"
+             data-sunset-disagree="0"
+             data-search="89194 webcam black and white black and white, dark night sky sunset-agree">
+          <div class="row-image">
+            <img src="https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/536/1773803252169.jpg"
+                 alt="image 89194" loading="lazy"/>
+            <div class="row-meta">
+              <div class="row-id">#89194</div>
+              <div class="row-source">webcam</div>
+              <div class="human muted">No human rating</div>
+            </div>
+          </div>
+          <div class="model-col">
+            <div class="model-label model-a-label">A · anthropic / claude-haiku-4-5</div>
+            
+    <div class="model-block" data-model="a">
+      <div class="quality-row">
+        <div class="quality-num" style="color:#c62828;">0.00</div>
+        <div class="quality-bar">
+          <div class="quality-fill" style="width:0%; background:#c62828;"></div>
+        </div>
+      </div>
+      <div class="badges">
+        <span class="badge off">
+          not sunset
+        </span>
+        <span class="badge off">
+          no clouds
+        </span>
+        <span class="badge muted">conf 0.95</span>
+        
+      </div>
+      <div class="palette">black and white</div>
+      
+    </div>
+    
+          </div>
+          <div class="model-col">
+            <div class="model-label model-b-label">B · anthropic / claude-sonnet-4-5</div>
+            
+    <div class="model-block" data-model="b">
+      <div class="quality-row">
+        <div class="quality-num" style="color:#c62828;">0.00</div>
+        <div class="quality-bar">
+          <div class="quality-fill" style="width:0%; background:#c62828;"></div>
+        </div>
+      </div>
+      <div class="badges">
+        <span class="badge off">
+          not sunset
+        </span>
+        <span class="badge off">
+          no clouds
+        </span>
+        <span class="badge muted">conf 0.95</span>
+        
+      </div>
+      <div class="palette">black and white, dark night sky</div>
+      
+    </div>
+    
+          </div>
+          <div class="delta-col">
+            <div class="delta-label" style="color:#2e7d32;">match</div>
+            <div class="delta-num" style="color:#2e7d32;">|Δq| 0.00</div>
+            <div class="delta-detail">|Δconf| 0.00</div>
+            <div class="delta-detail">sunset: agree</div>
+          </div>
+        </div>
+        
+        <div class="row"
+             data-record-id="90383"
+             data-quality-a="0.0000"
+             data-quality-b="0.0000"
+             data-confidence-a="0.9500"
+             data-confidence-b="1.0000"
+             data-delta-quality="0.0000"
+             data-delta-confidence="0.0500"
+             data-sunset-disagree="0"
+             data-search="90383 webcam monochromatic grayscale fog grayscale/monochrome - indoor lighting building sunset-agree">
+          <div class="row-image">
+            <img src="https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/4443/1774079851939.jpg"
+                 alt="image 90383" loading="lazy"/>
+            <div class="row-meta">
+              <div class="row-id">#90383</div>
+              <div class="row-source">webcam</div>
+              <div class="human muted">No human rating</div>
+            </div>
+          </div>
+          <div class="model-col">
+            <div class="model-label model-a-label">A · anthropic / claude-haiku-4-5</div>
+            
+    <div class="model-block" data-model="a">
+      <div class="quality-row">
+        <div class="quality-num" style="color:#c62828;">0.00</div>
+        <div class="quality-bar">
+          <div class="quality-fill" style="width:0%; background:#c62828;"></div>
+        </div>
+      </div>
+      <div class="badges">
+        <span class="badge off">
+          not sunset
+        </span>
+        <span class="badge off">
+          no clouds
+        </span>
+        <span class="badge muted">conf 0.95</span>
+        <span class="badge obstructed">obstructed</span>
+      </div>
+      <div class="palette">monochromatic grayscale</div>
+      <div class="obstruction">obstruction: fog</div>
+    </div>
+    
+          </div>
+          <div class="model-col">
+            <div class="model-label model-b-label">B · anthropic / claude-sonnet-4-5</div>
+            
+    <div class="model-block" data-model="b">
+      <div class="quality-row">
+        <div class="quality-num" style="color:#c62828;">0.00</div>
+        <div class="quality-bar">
+          <div class="quality-fill" style="width:0%; background:#c62828;"></div>
+        </div>
+      </div>
+      <div class="badges">
+        <span class="badge off">
+          not sunset
+        </span>
+        <span class="badge off">
+          no clouds
+        </span>
+        <span class="badge muted">conf 1.00</span>
+        <span class="badge obstructed">obstructed</span>
+      </div>
+      <div class="palette">grayscale/monochrome - indoor lighting</div>
+      <div class="obstruction">obstruction: building</div>
+    </div>
+    
+          </div>
+          <div class="delta-col">
+            <div class="delta-label" style="color:#2e7d32;">match</div>
+            <div class="delta-num" style="color:#2e7d32;">|Δq| 0.00</div>
+            <div class="delta-detail">|Δconf| 0.05</div>
+            <div class="delta-detail">sunset: agree</div>
+          </div>
+        </div>
+        
+        <div class="row"
+             data-record-id="91571"
+             data-quality-a="0.0000"
+             data-quality-b="0.0000"
+             data-confidence-a="0.9500"
+             data-confidence-b="0.9500"
+             data-delta-quality="0.0000"
+             data-delta-confidence="0.0000"
+             data-sunset-disagree="0"
+             data-search="91571 webcam black, dark gray black, dark gray sunset-agree">
+          <div class="row-image">
+            <img src="https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/400/1774335571680.jpg"
+                 alt="image 91571" loading="lazy"/>
+            <div class="row-meta">
+              <div class="row-id">#91571</div>
+              <div class="row-source">webcam</div>
+              <div class="human muted">No human rating</div>
+            </div>
+          </div>
+          <div class="model-col">
+            <div class="model-label model-a-label">A · anthropic / claude-haiku-4-5</div>
+            
+    <div class="model-block" data-model="a">
+      <div class="quality-row">
+        <div class="quality-num" style="color:#c62828;">0.00</div>
+        <div class="quality-bar">
+          <div class="quality-fill" style="width:0%; background:#c62828;"></div>
+        </div>
+      </div>
+      <div class="badges">
+        <span class="badge off">
+          not sunset
+        </span>
+        <span class="badge off">
+          no clouds
+        </span>
+        <span class="badge muted">conf 0.95</span>
+        
+      </div>
+      <div class="palette">black, dark gray</div>
+      
+    </div>
+    
+          </div>
+          <div class="model-col">
+            <div class="model-label model-b-label">B · anthropic / claude-sonnet-4-5</div>
+            
+    <div class="model-block" data-model="b">
+      <div class="quality-row">
+        <div class="quality-num" style="color:#c62828;">0.00</div>
+        <div class="quality-bar">
+          <div class="quality-fill" style="width:0%; background:#c62828;"></div>
+        </div>
+      </div>
+      <div class="badges">
+        <span class="badge off">
+          not sunset
+        </span>
+        <span class="badge off">
+          no clouds
+        </span>
+        <span class="badge muted">conf 0.95</span>
+        
+      </div>
+      <div class="palette">black, dark gray</div>
+      
+    </div>
+    
+          </div>
+          <div class="delta-col">
+            <div class="delta-label" style="color:#2e7d32;">match</div>
+            <div class="delta-num" style="color:#2e7d32;">|Δq| 0.00</div>
+            <div class="delta-detail">|Δconf| 0.00</div>
+            <div class="delta-detail">sunset: agree</div>
+          </div>
+        </div>
+        
+        <div class="row"
+             data-record-id="92166"
+             data-quality-a="0.5500"
+             data-quality-b="0.5500"
+             data-confidence-a="0.8500"
+             data-confidence-b="0.8500"
+             data-delta-quality="0.0000"
+             data-delta-confidence="0.0000"
+             data-sunset-disagree="0"
+             data-search="92166 webcam golden orange, soft pink, and gray-blue tones with white cloud highlights soft orange, peach, and gray-blue tones with muted golden highlights sunset-agree">
+          <div class="row-image">
+            <img src="https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/17580012/1774459173831.jpg"
+                 alt="image 92166" loading="lazy"/>
+            <div class="row-meta">
+              <div class="row-id">#92166</div>
+              <div class="row-source">webcam</div>
+              <div class="human muted">No human rating</div>
+            </div>
+          </div>
+          <div class="model-col">
+            <div class="model-label model-a-label">A · anthropic / claude-haiku-4-5</div>
+            
+    <div class="model-block" data-model="a">
+      <div class="quality-row">
+        <div class="quality-num" style="color:#ed6c02;">0.55</div>
+        <div class="quality-bar">
+          <div class="quality-fill" style="width:55%; background:#ed6c02;"></div>
+        </div>
+      </div>
+      <div class="badges">
+        <span class="badge on">
+          sunset
+        </span>
+        <span class="badge on">
+          has clouds
+        </span>
+        <span class="badge muted">conf 0.85</span>
+        
+      </div>
+      <div class="palette">golden orange, soft pink, and gray-blue tones with white cloud highlights</div>
+      
+    </div>
+    
+          </div>
+          <div class="model-col">
+            <div class="model-label model-b-label">B · anthropic / claude-sonnet-4-5</div>
+            
+    <div class="model-block" data-model="b">
+      <div class="quality-row">
+        <div class="quality-num" style="color:#ed6c02;">0.55</div>
+        <div class="quality-bar">
+          <div class="quality-fill" style="width:55%; background:#ed6c02;"></div>
+        </div>
+      </div>
+      <div class="badges">
+        <span class="badge on">
+          sunset
+        </span>
+        <span class="badge on">
+          has clouds
+        </span>
+        <span class="badge muted">conf 0.85</span>
+        
+      </div>
+      <div class="palette">soft orange, peach, and gray-blue tones with muted golden highlights</div>
+      
+    </div>
+    
+          </div>
+          <div class="delta-col">
+            <div class="delta-label" style="color:#2e7d32;">match</div>
+            <div class="delta-num" style="color:#2e7d32;">|Δq| 0.00</div>
+            <div class="delta-detail">|Δconf| 0.00</div>
+            <div class="delta-detail">sunset: agree</div>
+          </div>
+        </div>
+        
+        <div class="row"
+             data-record-id="93354"
+             data-quality-a="0.0000"
+             data-quality-b="0.0000"
+             data-confidence-a="0.9500"
+             data-confidence-b="0.9500"
+             data-delta-quality="0.0000"
+             data-delta-confidence="0.0000"
+             data-sunset-disagree="0"
+             data-search="93354 webcam dark navy blue, artificial lighting fog dark navy blue and black with stormy clouds sunset-agree">
+          <div class="row-image">
+            <img src="https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/368/1774680813170.jpg"
+                 alt="image 93354" loading="lazy"/>
+            <div class="row-meta">
+              <div class="row-id">#93354</div>
+              <div class="row-source">webcam</div>
+              <div class="human muted">No human rating</div>
+            </div>
+          </div>
+          <div class="model-col">
+            <div class="model-label model-a-label">A · anthropic / claude-haiku-4-5</div>
+            
+    <div class="model-block" data-model="a">
+      <div class="quality-row">
+        <div class="quality-num" style="color:#c62828;">0.00</div>
+        <div class="quality-bar">
+          <div class="quality-fill" style="width:0%; background:#c62828;"></div>
+        </div>
+      </div>
+      <div class="badges">
+        <span class="badge off">
+          not sunset
+        </span>
+        <span class="badge off">
+          no clouds
+        </span>
+        <span class="badge muted">conf 0.95</span>
+        <span class="badge obstructed">obstructed</span>
+      </div>
+      <div class="palette">dark navy blue, artificial lighting</div>
+      <div class="obstruction">obstruction: fog</div>
+    </div>
+    
+          </div>
+          <div class="model-col">
+            <div class="model-label model-b-label">B · anthropic / claude-sonnet-4-5</div>
+            
+    <div class="model-block" data-model="b">
+      <div class="quality-row">
+        <div class="quality-num" style="color:#c62828;">0.00</div>
+        <div class="quality-bar">
+          <div class="quality-fill" style="width:0%; background:#c62828;"></div>
+        </div>
+      </div>
+      <div class="badges">
+        <span class="badge off">
+          not sunset
+        </span>
+        <span class="badge on">
+          has clouds
+        </span>
+        <span class="badge muted">conf 0.95</span>
+        
+      </div>
+      <div class="palette">dark navy blue and black with stormy clouds</div>
+      
+    </div>
+    
+          </div>
+          <div class="delta-col">
+            <div class="delta-label" style="color:#2e7d32;">match</div>
+            <div class="delta-num" style="color:#2e7d32;">|Δq| 0.00</div>
+            <div class="delta-detail">|Δconf| 0.00</div>
+            <div class="delta-detail">sunset: agree</div>
+          </div>
+        </div>
+        
+        <div class="row"
+             data-record-id="93948"
+             data-quality-a="0.0000"
+             data-quality-b="0.0000"
+             data-confidence-a="0.9900"
+             data-confidence-b="1.0000"
+             data-delta-quality="0.0000"
+             data-delta-confidence="0.0100"
+             data-sunset-disagree="0"
+             data-search="93948 webcam monochromatic grayscale fog monochrome grayscale, night vision infrared sunset-agree">
+          <div class="row-image">
+            <img src="https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/17885510/1774792352389.jpg"
+                 alt="image 93948" loading="lazy"/>
+            <div class="row-meta">
+              <div class="row-id">#93948</div>
+              <div class="row-source">webcam</div>
+              <div class="human muted">No human rating</div>
+            </div>
+          </div>
+          <div class="model-col">
+            <div class="model-label model-a-label">A · anthropic / claude-haiku-4-5</div>
+            
+    <div class="model-block" data-model="a">
+      <div class="quality-row">
+        <div class="quality-num" style="color:#c62828;">0.00</div>
+        <div class="quality-bar">
+          <div class="quality-fill" style="width:0%; background:#c62828;"></div>
+        </div>
+      </div>
+      <div class="badges">
+        <span class="badge off">
+          not sunset
+        </span>
+        <span class="badge off">
+          no clouds
+        </span>
+        <span class="badge muted">conf 0.99</span>
+        <span class="badge obstructed">obstructed</span>
+      </div>
+      <div class="palette">monochromatic grayscale</div>
+      <div class="obstruction">obstruction: fog</div>
+    </div>
+    
+          </div>
+          <div class="model-col">
+            <div class="model-label model-b-label">B · anthropic / claude-sonnet-4-5</div>
+            
+    <div class="model-block" data-model="b">
+      <div class="quality-row">
+        <div class="quality-num" style="color:#c62828;">0.00</div>
+        <div class="quality-bar">
+          <div class="quality-fill" style="width:0%; background:#c62828;"></div>
+        </div>
+      </div>
+      <div class="badges">
+        <span class="badge off">
+          not sunset
+        </span>
+        <span class="badge off">
+          no clouds
+        </span>
+        <span class="badge muted">conf 1.00</span>
+        
+      </div>
+      <div class="palette">monochrome grayscale, night vision infrared</div>
+      
+    </div>
+    
+          </div>
+          <div class="delta-col">
+            <div class="delta-label" style="color:#2e7d32;">match</div>
+            <div class="delta-num" style="color:#2e7d32;">|Δq| 0.00</div>
+            <div class="delta-detail">|Δconf| 0.01</div>
+            <div class="delta-detail">sunset: agree</div>
+          </div>
+        </div>
+        
+        <div class="row"
+             data-record-id="94542"
+             data-quality-a="0.0000"
+             data-quality-b="0.0000"
+             data-confidence-a="0.9500"
+             data-confidence-b="0.9500"
+             data-delta-quality="0.0000"
+             data-delta-confidence="0.0000"
+             data-sunset-disagree="0"
+             data-search="94542 webcam black with yellow artificial lights dark black with yellow artificial lights sunset-agree">
+          <div class="row-image">
+            <img src="https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/447/1774904612470.jpg"
+                 alt="image 94542" loading="lazy"/>
+            <div class="row-meta">
+              <div class="row-id">#94542</div>
+              <div class="row-source">webcam</div>
+              <div class="human muted">No human rating</div>
+            </div>
+          </div>
+          <div class="model-col">
+            <div class="model-label model-a-label">A · anthropic / claude-haiku-4-5</div>
+            
+    <div class="model-block" data-model="a">
+      <div class="quality-row">
+        <div class="quality-num" style="color:#c62828;">0.00</div>
+        <div class="quality-bar">
+          <div class="quality-fill" style="width:0%; background:#c62828;"></div>
+        </div>
+      </div>
+      <div class="badges">
+        <span class="badge off">
+          not sunset
+        </span>
+        <span class="badge off">
+          no clouds
+        </span>
+        <span class="badge muted">conf 0.95</span>
+        
+      </div>
+      <div class="palette">black with yellow artificial lights</div>
+      
+    </div>
+    
+          </div>
+          <div class="model-col">
+            <div class="model-label model-b-label">B · anthropic / claude-sonnet-4-5</div>
+            
+    <div class="model-block" data-model="b">
+      <div class="quality-row">
+        <div class="quality-num" style="color:#c62828;">0.00</div>
+        <div class="quality-bar">
+          <div class="quality-fill" style="width:0%; background:#c62828;"></div>
+        </div>
+      </div>
+      <div class="badges">
+        <span class="badge off">
+          not sunset
+        </span>
+        <span class="badge off">
+          no clouds
+        </span>
+        <span class="badge muted">conf 0.95</span>
+        
+      </div>
+      <div class="palette">dark black with yellow artificial lights</div>
+      
+    </div>
+    
+          </div>
+          <div class="delta-col">
+            <div class="delta-label" style="color:#2e7d32;">match</div>
+            <div class="delta-num" style="color:#2e7d32;">|Δq| 0.00</div>
+            <div class="delta-detail">|Δconf| 0.00</div>
+            <div class="delta-detail">sunset: agree</div>
+          </div>
+        </div>
+        
+        <div class="row"
+             data-record-id="95137"
+             data-quality-a="0.0000"
+             data-quality-b="0.0000"
+             data-confidence-a="0.9900"
+             data-confidence-b="0.9500"
+             data-delta-quality="0.0000"
+             data-delta-confidence="0.0400"
+             data-sunset-disagree="0"
+             data-search="95137 webcam artificial white and yellow lighting, no natural sky visible building artificial white light, brown/beige structure building sunset-agree">
+          <div class="row-image">
+            <img src="https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/7084/1775035952980.jpg"
+                 alt="image 95137" loading="lazy"/>
+            <div class="row-meta">
+              <div class="row-id">#95137</div>
+              <div class="row-source">webcam</div>
+              <div class="human muted">No human rating</div>
+            </div>
+          </div>
+          <div class="model-col">
+            <div class="model-label model-a-label">A · anthropic / claude-haiku-4-5</div>
+            
+    <div class="model-block" data-model="a">
+      <div class="quality-row">
+        <div class="quality-num" style="color:#c62828;">0.00</div>
+        <div class="quality-bar">
+          <div class="quality-fill" style="width:0%; background:#c62828;"></div>
+        </div>
+      </div>
+      <div class="badges">
+        <span class="badge off">
+          not sunset
+        </span>
+        <span class="badge off">
+          no clouds
+        </span>
+        <span class="badge muted">conf 0.99</span>
+        <span class="badge obstructed">obstructed</span>
+      </div>
+      <div class="palette">artificial white and yellow lighting, no natural sky visible</div>
+      <div class="obstruction">obstruction: building</div>
+    </div>
+    
+          </div>
+          <div class="model-col">
+            <div class="model-label model-b-label">B · anthropic / claude-sonnet-4-5</div>
+            
+    <div class="model-block" data-model="b">
+      <div class="quality-row">
+        <div class="quality-num" style="color:#c62828;">0.00</div>
+        <div class="quality-bar">
+          <div class="quality-fill" style="width:0%; background:#c62828;"></div>
+        </div>
+      </div>
+      <div class="badges">
+        <span class="badge off">
+          not sunset
+        </span>
+        <span class="badge off">
+          no clouds
+        </span>
+        <span class="badge muted">conf 0.95</span>
+        <span class="badge obstructed">obstructed</span>
+      </div>
+      <div class="palette">artificial white light, brown/beige structure</div>
+      <div class="obstruction">obstruction: building</div>
+    </div>
+    
+          </div>
+          <div class="delta-col">
+            <div class="delta-label" style="color:#2e7d32;">match</div>
+            <div class="delta-num" style="color:#2e7d32;">|Δq| 0.00</div>
+            <div class="delta-detail">|Δconf| 0.04</div>
+            <div class="delta-detail">sunset: agree</div>
+          </div>
+        </div>
+        
+        <div class="row"
+             data-record-id="95731"
+             data-quality-a="0.3500"
+             data-quality-b="0.3500"
+             data-confidence-a="0.7500"
+             data-confidence-b="0.8000"
+             data-delta-quality="0.0000"
+             data-delta-confidence="0.0500"
+             data-sunset-disagree="0"
+             data-search="95731 webcam pale orange, gray, and white with muted tones muted pastels with soft pink, pale blue, and gray tones sunset-agree">
+          <div class="row-image">
+            <img src="https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/3702/1775162852056.jpg"
+                 alt="image 95731" loading="lazy"/>
+            <div class="row-meta">
+              <div class="row-id">#95731</div>
+              <div class="row-source">webcam</div>
+              <div class="human muted">No human rating</div>
+            </div>
+          </div>
+          <div class="model-col">
+            <div class="model-label model-a-label">A · anthropic / claude-haiku-4-5</div>
+            
+    <div class="model-block" data-model="a">
+      <div class="quality-row">
+        <div class="quality-num" style="color:#ed6c02;">0.35</div>
+        <div class="quality-bar">
+          <div class="quality-fill" style="width:35%; background:#ed6c02;"></div>
+        </div>
+      </div>
+      <div class="badges">
+        <span class="badge on">
+          sunset
+        </span>
+        <span class="badge on">
+          has clouds
+        </span>
+        <span class="badge muted">conf 0.75</span>
+        
+      </div>
+      <div class="palette">pale orange, gray, and white with muted tones</div>
+      
+    </div>
+    
+          </div>
+          <div class="model-col">
+            <div class="model-label model-b-label">B · anthropic / claude-sonnet-4-5</div>
+            
+    <div class="model-block" data-model="b">
+      <div class="quality-row">
+        <div class="quality-num" style="color:#ed6c02;">0.35</div>
+        <div class="quality-bar">
+          <div class="quality-fill" style="width:35%; background:#ed6c02;"></div>
+        </div>
+      </div>
+      <div class="badges">
+        <span class="badge on">
+          sunset
+        </span>
+        <span class="badge on">
+          has clouds
+        </span>
+        <span class="badge muted">conf 0.80</span>
+        
+      </div>
+      <div class="palette">muted pastels with soft pink, pale blue, and gray tones</div>
+      
+    </div>
+    
+          </div>
+          <div class="delta-col">
+            <div class="delta-label" style="color:#2e7d32;">match</div>
+            <div class="delta-num" style="color:#2e7d32;">|Δq| 0.00</div>
+            <div class="delta-detail">|Δconf| 0.05</div>
+            <div class="delta-detail">sunset: agree</div>
+          </div>
+        </div>
+        
+  </div>
+  
+<script>
+(function() {
+  const grid = document.getElementById('grid');
+  const rows = Array.from(grid.querySelectorAll('.row'));
+  const counter = document.getElementById('count');
+  const total = rows.length;
+
+  const ctrls = {
+    search:           document.getElementById('f-search'),
+    minDeltaQuality:  document.getElementById('f-min-dq'),
+    minDeltaConf:     document.getElementById('f-min-dc'),
+    sunsetDisagree:   document.getElementById('f-sunset-disagree'),
+    sort:             document.getElementById('f-sort'),
+  };
+  const minDQLabel = document.getElementById('f-min-dq-val');
+  const minDCLabel = document.getElementById('f-min-dc-val');
+
+  function apply() {
+    const q = (ctrls.search.value || '').trim().toLowerCase();
+    const minDQ = parseFloat(ctrls.minDeltaQuality.value);
+    const minDC = parseFloat(ctrls.minDeltaConf.value);
+    minDQLabel.textContent = minDQ.toFixed(2);
+    minDCLabel.textContent = minDC.toFixed(2);
+    const sunsetWanted = ctrls.sunsetDisagree.value;
+
+    let visible = 0;
+    for (const row of rows) {
+      const text = row.dataset.search || '';
+      const dq = parseFloat(row.dataset.deltaQuality);
+      const dc = parseFloat(row.dataset.deltaConfidence);
+      const sd = row.dataset.sunsetDisagree;
+
+      let show = true;
+      if (q && !text.includes(q)) show = false;
+      if (show && dq < minDQ) show = false;
+      if (show && dc < minDC) show = false;
+      if (show && sunsetWanted === 'yes' && sd !== '1') show = false;
+      if (show && sunsetWanted === 'no'  && sd !== '0') show = false;
+
+      row.style.display = show ? '' : 'none';
+      if (show) visible++;
+    }
+    counter.textContent = `${visible} of ${total}`;
+  }
+
+  function sortRows() {
+    const mode = ctrls.sort.value;
+    const cmp = {
+      'delta-desc':       (a,b) => b.dq - a.dq,
+      'delta-asc':        (a,b) => a.dq - b.dq,
+      'quality-a-desc':   (a,b) => b.qa - a.qa,
+      'quality-b-desc':   (a,b) => b.qb - a.qb,
+      'record-id':        (a,b) => String(a.r).localeCompare(String(b.r)),
+    }[mode] || ((a,b) => b.dq - a.dq);
+
+    const sorted = rows.map(row => ({
+      row,
+      dq: parseFloat(row.dataset.deltaQuality),
+      qa: parseFloat(row.dataset.qualityA),
+      qb: parseFloat(row.dataset.qualityB),
+      r:  row.dataset.recordId,
+    })).sort(cmp);
+    for (const item of sorted) grid.appendChild(item.row);
+  }
+
+  for (const ctrl of Object.values(ctrls)) {
+    if (!ctrl) continue;
+    const evt = ctrl.tagName === 'INPUT' && (ctrl.type === 'text' || ctrl.type === 'range')
+      ? 'input' : 'change';
+    ctrl.addEventListener(evt, () => {
+      if (ctrl === ctrls.sort) sortRows();
+      apply();
+    });
+  }
+
+  document.getElementById('f-reset').addEventListener('click', () => {
+    ctrls.search.value = '';
+    ctrls.minDeltaQuality.value = '0';
+    ctrls.minDeltaConf.value = '0';
+    ctrls.sunsetDisagree.value = 'all';
+    ctrls.sort.value = 'delta-desc';
+    sortRows();
+    apply();
+  });
+
+  apply();
+})();
+</script>
+
+</body>
+</html>

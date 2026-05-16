@@ -1,0 +1,18 @@
+{
+  "label_source": "manual_only",
+  "target_type": "regression",
+  "binary_threshold": 4.0,
+  "min_rating_count": 1,
+  "split_config": {
+    "seed": 20260212,
+    "train_pct": 70,
+    "val_pct": 15,
+    "test_pct": 15
+  },
+  "counts": {
+    "total": 1075,
+    "train": 725,
+    "val": 184,
+    "test": 166
+  }
+}

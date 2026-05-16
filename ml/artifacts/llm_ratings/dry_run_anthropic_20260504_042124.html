@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<title>LLM Rater Dry Run — anthropic / claude-haiku-4-5</title>
+<style>
+  body { font-family: -apple-system, system-ui, sans-serif; background: #fafafa; margin: 0; padding: 24px; }
+  h1 { font-size: 22px; margin: 0 0 4px 0; }
+  .summary { color: #555; margin-bottom: 24px; font-size: 14px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 16px; }
+  .card { background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 6px rgba(0,0,0,0.08); }
+  .card img { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; background: #eee; display: block; }
+  .meta { padding: 12px 14px; }
+  .header { display: flex; justify-content: space-between; font-size: 12px; color: #888; margin-bottom: 6px; }
+  .id { font-family: monospace; }
+  .source { text-transform: uppercase; letter-spacing: 0.5px; }
+  .quality-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .quality-num { font-size: 24px; font-weight: 600; min-width: 56px; }
+  .quality-bar { flex: 1; height: 8px; background: #eee; border-radius: 4px; overflow: hidden; }
+  .quality-fill { height: 100%; }
+  .badges { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+  .badge { font-size: 11px; padding: 3px 8px; border-radius: 10px; background: #eee; color: #555; }
+  .badge.on { background: #e8f5e9; color: #2e7d32; }
+  .badge.off { background: #fafafa; color: #999; }
+  .badge.muted { background: #f0f0f0; color: #666; }
+  .palette { font-size: 13px; color: #444; margin-bottom: 4px; line-height: 1.4; }
+  .obstruction { font-size: 12px; color: #c62828; margin-bottom: 4px; }
+  .human { font-size: 12px; color: #555; }
+  .human.muted { color: #aaa; }
+  .agreement { font-size: 12px; font-weight: 600; margin-top: 2px; }
+</style>
+</head>
+<body>
+  <h1>LLM Rater dry run</h1>
+  <div class="summary">
+    Provider: <strong>anthropic</strong> &nbsp; Model: <strong>claude-haiku-4-5</strong> &nbsp;
+    Images: <strong>3</strong> &nbsp;
+    Detected sunsets: <strong>1</strong> &nbsp;
+    Average quality: <strong>0.23</strong> &nbsp;
+    Sorted by quality (high to low). Use this to verify ratings make visual sense before running the full archive.
+  </div>
+  <div class="grid">
+    
+        <div class="card">
+          <img src="https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/609/1764120749296.jpg" alt="image 66407" loading="lazy"/>
+          <div class="meta">
+            <div class="header">
+              <span class="id">#66407</span>
+              <span class="source">webcam</span>
+            </div>
+            <div class="quality-row">
+              <div class="quality-num" style="color:#2e7d32;">0.65</div>
+              <div class="quality-bar">
+                <div class="quality-fill" style="width:65%; background:#2e7d32;"></div>
+              </div>
+            </div>
+            <div class="badges">
+              <span class="badge on">
+                sunset
+              </span>
+              <span class="badge on">
+                has clouds
+              </span>
+              <span class="badge muted">conf 0.85</span>
+            </div>
+            <div class="palette">warm golden and orange tones with peachy hues transitioning to pale blue sky</div>
+            
+            <div class="human">Human: 5.00/5 (1 rater)</div>
+            <div class="agreement" style="color:#c62828;">Agreement: DISAGREE (diff 0.35)</div>
+          </div>
+        </div>
+        
+        <div class="card">
+          <img src="https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/2341116/1772837403959.jpg" alt="image 77706" loading="lazy"/>
+          <div class="meta">
+            <div class="header">
+              <span class="id">#77706</span>
+              <span class="source">webcam</span>
+            </div>
+            <div class="quality-row">
+              <div class="quality-num" style="color:#c62828;">0.05</div>
+              <div class="quality-bar">
+                <div class="quality-fill" style="width:5%; background:#c62828;"></div>
+              </div>
+            </div>
+            <div class="badges">
+              <span class="badge off">
+                not sunset
+              </span>
+              <span class="badge on">
+                has clouds
+              </span>
+              <span class="badge muted">conf 0.95</span>
+            </div>
+            <div class="palette">Gray, overcast, muted tones</div>
+            <div class="obstruction">obstruction: fog</div>
+            <div class="human">Human: 2.00/5 (1 rater)</div>
+            <div class="agreement" style="color:#c62828;">Agreement: DISAGREE (diff 0.35)</div>
+          </div>
+        </div>
+        
+        <div class="card">
+          <img src="https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/7071249/1773530915024.jpg" alt="image 87610" loading="lazy"/>
+          <div class="meta">
+            <div class="header">
+              <span class="id">#87610</span>
+              <span class="source">webcam</span>
+            </div>
+            <div class="quality-row">
+              <div class="quality-num" style="color:#c62828;">0.00</div>
+              <div class="quality-bar">
+                <div class="quality-fill" style="width:0%; background:#c62828;"></div>
+              </div>
+            </div>
+            <div class="badges">
+              <span class="badge off">
+                not sunset
+              </span>
+              <span class="badge on">
+                has clouds
+              </span>
+              <span class="badge muted">conf 0.95</span>
+            </div>
+            <div class="palette">Dark gray and black with artificial white lighting</div>
+            <div class="obstruction">obstruction: fog</div>
+            <div class="human muted">No human rating</div>
+            
+          </div>
+        </div>
+        
+  </div>
+</body>
+</html>

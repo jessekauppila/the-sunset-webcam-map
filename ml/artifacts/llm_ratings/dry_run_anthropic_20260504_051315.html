@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<title>LLM Rater Dry Run — anthropic / claude-haiku-4-5</title>
+<style>
+  body { font-family: -apple-system, system-ui, sans-serif; background: #fafafa; margin: 0; padding: 24px; color: #222; }
+  h1 { font-size: 22px; margin: 0 0 4px 0; }
+  .summary { color: #555; margin-bottom: 16px; font-size: 14px; }
+  .toolbar {
+    background: white; border-radius: 12px; padding: 12px 16px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 12px 16px; margin-bottom: 16px; align-items: end;
+  }
+  .toolbar label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: #555; }
+  .toolbar input[type=text],
+  .toolbar select {
+    padding: 6px 8px; border: 1px solid #ddd; border-radius: 6px;
+    font-size: 13px; background: white; color: #222;
+  }
+  .toolbar input[type=range] { width: 100%; }
+  .toolbar .range-label { display: flex; justify-content: space-between; font-size: 11px; color: #888; }
+  .toolbar button {
+    padding: 7px 12px; border: 1px solid #ddd; background: #fafafa;
+    border-radius: 6px; cursor: pointer; font-size: 13px;
+  }
+  .toolbar button:hover { background: #eee; }
+  .toolbar .count-row { font-size: 13px; color: #333; }
+  .toolbar .count-row strong { font-size: 16px; }
+
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 16px; }
+  .card { background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 6px rgba(0,0,0,0.08); }
+  .card img { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; background: #eee; display: block; }
+  .meta { padding: 12px 14px; }
+  .header { display: flex; justify-content: space-between; font-size: 12px; color: #888; margin-bottom: 6px; }
+  .id { font-family: monospace; }
+  .source { text-transform: uppercase; letter-spacing: 0.5px; }
+  .quality-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .quality-num { font-size: 24px; font-weight: 600; min-width: 56px; }
+  .quality-bar { flex: 1; height: 8px; background: #eee; border-radius: 4px; overflow: hidden; }
+  .quality-fill { height: 100%; }
+  .badges { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+  .badge { font-size: 11px; padding: 3px 8px; border-radius: 10px; background: #eee; color: #555; }
+  .badge.on { background: #e8f5e9; color: #2e7d32; }
+  .badge.off { background: #fafafa; color: #999; }
+  .badge.muted { background: #f0f0f0; color: #666; }
+  .badge.obstructed { background: #fdecea; color: #c62828; }
+  .palette { font-size: 13px; color: #444; margin-bottom: 4px; line-height: 1.4; }
+  .obstruction { font-size: 12px; color: #c62828; margin-bottom: 4px; }
+  .human { font-size: 12px; color: #555; }
+  .human.muted { color: #aaa; }
+  .agreement { font-size: 12px; font-weight: 600; margin-top: 2px; }
+</style>
+</head>
+<body>
+  <h1>LLM Rater dry run</h1>
+  <div class="summary">
+    Provider: <strong>anthropic</strong> &nbsp;
+    Model: <strong>claude-haiku-4-5</strong> &nbsp;
+    Images: <strong>3</strong> &nbsp;
+    Sunsets: <strong>1</strong> &nbsp;
+    Cloudy: <strong>3</strong> &nbsp;
+    Obstructed: <strong>2</strong> &nbsp;
+    Avg quality: <strong>0.23</strong>
+  </div>
+
+  <div class="toolbar">
+    <label>Search
+      <input type="text" id="f-search" placeholder="palette, obstruction, id…"/>
+    </label>
+    <label>Is sunset
+      <select id="f-sunset">
+        <option value="all">all</option>
+        <option value="yes">sunset only</option>
+        <option value="no">not sunset</option>
+      </select>
+    </label>
+    <label>Has clouds
+      <select id="f-clouds">
+        <option value="all">all</option>
+        <option value="yes">cloudy only</option>
+        <option value="no">no clouds</option>
+      </select>
+    </label>
+    <label>Obstruction
+      <select id="f-obstruction">
+        <option value="all">all</option>
+        <option value="yes">obstructed only</option>
+        <option value="no">clear only</option>
+      </select>
+    </label>
+    <label>Has human rating
+      <select id="f-human">
+        <option value="all">all</option>
+        <option value="yes">rated by humans</option>
+        <option value="no">no human rating</option>
+      </select>
+    </label>
+    <label>Min confidence <span id="f-min-conf-val">0.00</span>
+      <input type="range" id="f-min-conf" min="0" max="1" step="0.05" value="0"/>
+    </label>
+    <label>Min quality <span id="f-min-q-val">0.00</span>
+      <input type="range" id="f-min-q" min="0" max="1" step="0.05" value="0"/>
+    </label>
+    <label>Sort by
+      <select id="f-sort">
+        <option value="quality-desc">quality (high → low)</option>
+        <option value="quality-asc">quality (low → high)</option>
+        <option value="confidence-desc">confidence (high → low)</option>
+        <option value="confidence-asc">confidence (low → high)</option>
+        <option value="agreement-worst">human ↔ LLM disagreement</option>
+        <option value="record-id">record id</option>
+      </select>
+    </label>
+    <div class="count-row">
+      Showing <strong id="count">3 of 3</strong>
+      <button id="f-reset" type="button" style="margin-left: 8px;">Reset</button>
+    </div>
+  </div>
+
+  <div class="grid" id="grid">
+    
+        <div class="card"
+             data-quality="0.6500"
+             data-confidence="0.8500"
+             data-is-sunset="1"
+             data-has-clouds="1"
+             data-obstructed="0"
+             data-has-human="1"
+             data-human-norm="1.0000"
+             data-agreement="disagree"
+             data-agreement-diff="0.3500"
+             data-record-id="66407"
+             data-source="webcam"
+             data-search="66407 webcam warm golden and orange tones with peachy hues transitioning to pale blue sky sunset clouds agreement-disagree">
+          <img src="https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/609/1764120749296.jpg"
+               alt="image 66407" loading="lazy"/>
+          <div class="meta">
+            <div class="header">
+              <span class="id">#66407</span>
+              <span class="source">webcam</span>
+            </div>
+            <div class="quality-row">
+              <div class="quality-num" style="color:#2e7d32;">0.65</div>
+              <div class="quality-bar">
+                <div class="quality-fill" style="width:65%; background:#2e7d32;"></div>
+              </div>
+            </div>
+            <div class="badges">
+              <span class="badge on">
+                sunset
+              </span>
+              <span class="badge on">
+                has clouds
+              </span>
+              <span class="badge muted">conf 0.85</span>
+              
+            </div>
+            <div class="palette">warm golden and orange tones with peachy hues transitioning to pale blue sky</div>
+            
+            <div class="human">Human: 5.00/5 (1 rater)</div>
+            <div class="agreement" style="color:#c62828;">Agreement: DISAGREE (diff 0.35)</div>
+          </div>
+        </div>
+        
+        <div class="card"
+             data-quality="0.0500"
+             data-confidence="0.9500"
+             data-is-sunset="0"
+             data-has-clouds="1"
+             data-obstructed="1"
+             data-has-human="1"
+             data-human-norm="0.4000"
+             data-agreement="disagree"
+             data-agreement-diff="0.3500"
+             data-record-id="77706"
+             data-source="webcam"
+             data-search="77706 webcam gray, overcast, muted tones fog not-sunset clouds agreement-disagree">
+          <img src="https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/2341116/1772837403959.jpg"
+               alt="image 77706" loading="lazy"/>
+          <div class="meta">
+            <div class="header">
+              <span class="id">#77706</span>
+              <span class="source">webcam</span>
+            </div>
+            <div class="quality-row">
+              <div class="quality-num" style="color:#c62828;">0.05</div>
+              <div class="quality-bar">
+                <div class="quality-fill" style="width:5%; background:#c62828;"></div>
+              </div>
+            </div>
+            <div class="badges">
+              <span class="badge off">
+                not sunset
+              </span>
+              <span class="badge on">
+                has clouds
+              </span>
+              <span class="badge muted">conf 0.95</span>
+              <span class="badge obstructed">obstructed</span>
+            </div>
+            <div class="palette">Gray, overcast, muted tones</div>
+            <div class="obstruction">obstruction: fog</div>
+            <div class="human">Human: 2.00/5 (1 rater)</div>
+            <div class="agreement" style="color:#c62828;">Agreement: DISAGREE (diff 0.35)</div>
+          </div>
+        </div>
+        
+        <div class="card"
+             data-quality="0.0000"
+             data-confidence="0.9500"
+             data-is-sunset="0"
+             data-has-clouds="1"
+             data-obstructed="1"
+             data-has-human="0"
+             data-human-norm="-1.0000"
+             data-agreement="none"
+             data-agreement-diff="-1.0000"
+             data-record-id="87610"
+             data-source="webcam"
+             data-search="87610 webcam dark gray and black with artificial white lighting fog not-sunset clouds agreement-none">
+          <img src="https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/7071249/1773530915024.jpg"
+               alt="image 87610" loading="lazy"/>
+          <div class="meta">
+            <div class="header">
+              <span class="id">#87610</span>
+              <span class="source">webcam</span>
+            </div>
+            <div class="quality-row">
+              <div class="quality-num" style="color:#c62828;">0.00</div>
+              <div class="quality-bar">
+                <div class="quality-fill" style="width:0%; background:#c62828;"></div>
+              </div>
+            </div>
+            <div class="badges">
+              <span class="badge off">
+                not sunset
+              </span>
+              <span class="badge on">
+                has clouds
+              </span>
+              <span class="badge muted">conf 0.95</span>
+              <span class="badge obstructed">obstructed</span>
+            </div>
+            <div class="palette">Dark gray and black with artificial white lighting</div>
+            <div class="obstruction">obstruction: fog</div>
+            <div class="human muted">No human rating</div>
+            
+          </div>
+        </div>
+        
+  </div>
+  
+<script>
+(function() {
+  const grid = document.getElementById('grid');
+  const cards = Array.from(grid.querySelectorAll('.card'));
+  const counter = document.getElementById('count');
+  const total = cards.length;
+
+  const ctrls = {
+    search:        document.getElementById('f-search'),
+    sunset:        document.getElementById('f-sunset'),
+    clouds:        document.getElementById('f-clouds'),
+    obstruction:   document.getElementById('f-obstruction'),
+    human:         document.getElementById('f-human'),
+    minConfidence: document.getElementById('f-min-conf'),
+    minQuality:    document.getElementById('f-min-q'),
+    sort:          document.getElementById('f-sort'),
+  };
+  const minConfLabel = document.getElementById('f-min-conf-val');
+  const minQLabel    = document.getElementById('f-min-q-val');
+
+  function bool3(value, attr, card) {
+    if (value === 'all') return true;
+    const want = value === 'yes' ? '1' : '0';
+    return card.dataset[attr] === want;
+  }
+
+  function apply() {
+    const q = (ctrls.search.value || '').trim().toLowerCase();
+    const minConf = parseFloat(ctrls.minConfidence.value);
+    const minQ = parseFloat(ctrls.minQuality.value);
+    minConfLabel.textContent = minConf.toFixed(2);
+    minQLabel.textContent = minQ.toFixed(2);
+
+    let visible = 0;
+    for (const card of cards) {
+      const text = card.dataset.search || '';
+      const conf = parseFloat(card.dataset.confidence);
+      const qual = parseFloat(card.dataset.quality);
+
+      let show = true;
+      if (q && !text.includes(q)) show = false;
+      if (show && !bool3(ctrls.sunset.value, 'isSunset', card)) show = false;
+      if (show && !bool3(ctrls.clouds.value, 'hasClouds', card)) show = false;
+      if (show && !bool3(ctrls.obstruction.value, 'obstructed', card)) show = false;
+      if (show && !bool3(ctrls.human.value, 'hasHuman', card)) show = false;
+      if (show && conf < minConf) show = false;
+      if (show && qual < minQ) show = false;
+
+      card.style.display = show ? '' : 'none';
+      if (show) visible++;
+    }
+    counter.textContent = `${visible} of ${total}`;
+  }
+
+  function sortCards() {
+    const mode = ctrls.sort.value;
+    const cmp = {
+      'quality-desc':    (a,b) => b.q - a.q,
+      'quality-asc':     (a,b) => a.q - b.q,
+      'confidence-desc': (a,b) => b.c - a.c,
+      'confidence-asc':  (a,b) => a.c - b.c,
+      'agreement-worst': (a,b) => b.d - a.d,
+      'record-id':       (a,b) => String(a.r).localeCompare(String(b.r)),
+    }[mode] || ((a,b) => b.q - a.q);
+
+    const sorted = cards
+      .map(card => ({
+        card,
+        q: parseFloat(card.dataset.quality),
+        c: parseFloat(card.dataset.confidence),
+        d: parseFloat(card.dataset.agreementDiff),
+        r: card.dataset.recordId,
+      }))
+      .sort(cmp);
+    for (const item of sorted) grid.appendChild(item.card);
+  }
+
+  for (const ctrl of Object.values(ctrls)) {
+    if (!ctrl) continue;
+    const evt = ctrl.tagName === 'INPUT' && (ctrl.type === 'text' || ctrl.type === 'range')
+      ? 'input' : 'change';
+    ctrl.addEventListener(evt, () => {
+      if (ctrl === ctrls.sort) sortCards();
+      apply();
+    });
+  }
+
+  document.getElementById('f-reset').addEventListener('click', () => {
+    ctrls.search.value = '';
+    ctrls.sunset.value = 'all';
+    ctrls.clouds.value = 'all';
+    ctrls.obstruction.value = 'all';
+    ctrls.human.value = 'all';
+    ctrls.minConfidence.value = '0';
+    ctrls.minQuality.value = '0';
+    ctrls.sort.value = 'quality-desc';
+    sortCards();
+    apply();
+  });
+
+  apply();
+})();
+</script>
+
+</body>
+</html>

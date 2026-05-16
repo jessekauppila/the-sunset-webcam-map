@@ -1,0 +1,50 @@
+{
+  "label_source": "manual_only",
+  "label_merge_strategy": "llm_only",
+  "llm_ratings_csv": "ml/artifacts/llm_ratings/initial_ratings.csv",
+  "llm_overrides_count": 29605,
+  "target_type": "regression",
+  "binary_threshold": 4.0,
+  "min_rating_count": 1,
+  "include_external": false,
+  "split_config": {
+    "seed": 20260212,
+    "train_pct": 70,
+    "val_pct": 15,
+    "test_pct": 15
+  },
+  "counts": {
+    "total": 29605,
+    "train": 20119,
+    "val": 4800,
+    "test": 4686,
+    "webcam": 29605,
+    "external": 0
+  },
+  "target_distribution": {
+    "full": {
+      "count": 29605,
+      "min": 0.0,
+      "max": 0.88,
+      "mean": 0.16523965546359334
+    },
+    "train": {
+      "count": 20119,
+      "min": 0.0,
+      "max": 0.88,
+      "mean": 0.16699239524826273
+    },
+    "val": {
+      "count": 4800,
+      "min": 0.0,
+      "max": 0.88,
+      "mean": 0.16827708333333544
+    },
+    "test": {
+      "count": 4686,
+      "min": 0.0,
+      "max": 0.82,
+      "mean": 0.1546030729833565
+    }
+  }
+}

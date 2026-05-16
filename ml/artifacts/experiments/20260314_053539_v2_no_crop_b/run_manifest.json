@@ -1,0 +1,7 @@
+{
+  "config_input": "ml/artifacts/experiments/20260314_053539_v2_no_crop_b/config.input.yaml",
+  "config_resolved": "ml/artifacts/experiments/20260314_053539_v2_no_crop_b/config.resolved.json",
+  "dataset_meta": "ml/artifacts/experiments/20260314_053539_v2_no_crop_b/dataset/20260314_053540/export_meta.json",
+  "train_summary": "ml/artifacts/experiments/20260314_053539_v2_no_crop_b/train/train_summary.json",
+  "eval_report": "ml/artifacts/experiments/20260314_053539_v2_no_crop_b/eval/eval_report.json"
+}

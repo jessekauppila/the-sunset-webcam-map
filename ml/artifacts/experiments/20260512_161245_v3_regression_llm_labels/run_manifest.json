@@ -1,0 +1,7 @@
+{
+  "config_input": "ml/artifacts/experiments/20260512_161245_v3_regression_llm_labels/config.input.yaml",
+  "config_resolved": "ml/artifacts/experiments/20260512_161245_v3_regression_llm_labels/config.resolved.json",
+  "dataset_meta": "ml/artifacts/experiments/20260512_161245_v3_regression_llm_labels/dataset/20260512_161248/export_meta.json",
+  "train_summary": "ml/artifacts/experiments/20260512_161245_v3_regression_llm_labels/train/train_summary.json",
+  "eval_report": "ml/artifacts/experiments/20260512_161245_v3_regression_llm_labels/eval/eval_report.json"
+}

@@ -1,0 +1,3 @@
+snapshot_id,webcam_id,label_source,label_value,target_label,split,image_path_or_url,phase,captured_at,rating_count
+77429,4328025,manual_only,4.00,1,val,https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/4328025/1772773460547.jpg,sunset,2026-03-06 05:04:21.209141,2
+67174,153,manual_only,5.00,1,val,https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/153/1770609939106.jpg,sunrise,2026-02-09 04:05:39.438691,2

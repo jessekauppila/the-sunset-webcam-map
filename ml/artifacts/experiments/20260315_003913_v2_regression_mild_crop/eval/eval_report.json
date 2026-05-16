@@ -1,0 +1,6 @@
+{
+  "target_type": "regression",
+  "num_samples": 695,
+  "mae": 0.6010930689118749,
+  "rmse": 0.7804189823738132
+}

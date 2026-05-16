@@ -1,0 +1,44 @@
+{
+  "label_source": "manual_only",
+  "target_type": "binary",
+  "binary_threshold": 4.0,
+  "min_rating_count": 1,
+  "split_config": {
+    "seed": 20260212,
+    "train_pct": 70,
+    "val_pct": 15,
+    "test_pct": 15
+  },
+  "counts": {
+    "total": 4702,
+    "train": 3284,
+    "val": 723,
+    "test": 695
+  },
+  "target_distribution": {
+    "full": {
+      "count": 4702,
+      "negative": 3766,
+      "positive": 936,
+      "positive_rate": 0.19906422798809018
+    },
+    "train": {
+      "count": 3284,
+      "negative": 2638,
+      "positive": 646,
+      "positive_rate": 0.1967113276492083
+    },
+    "val": {
+      "count": 723,
+      "negative": 561,
+      "positive": 162,
+      "positive_rate": 0.22406639004149378
+    },
+    "test": {
+      "count": 695,
+      "negative": 567,
+      "positive": 128,
+      "positive_rate": 0.1841726618705036
+    }
+  }
+}

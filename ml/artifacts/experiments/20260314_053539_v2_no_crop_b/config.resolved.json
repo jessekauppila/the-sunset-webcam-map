@@ -1,0 +1,54 @@
+{
+  "run": {
+    "name": "v2_no_crop_b",
+    "seed": 20260212
+  },
+  "data": {
+    "label_source": "manual_only",
+    "target_type": "binary",
+    "binary_threshold": 4.0,
+    "min_rating_count": 2,
+    "splits": {
+      "seed": 20260212,
+      "train_pct": 70,
+      "val_pct": 15,
+      "test_pct": 15
+    }
+  },
+  "model": {
+    "name": "resnet18",
+    "epochs": 10,
+    "batch_size": 32,
+    "learning_rate": 0.0001
+  },
+  "imbalance": {
+    "class_weighting": "none",
+    "sampler": "none"
+  },
+  "augmentation": {
+    "profile": "light"
+  },
+  "cropping": {
+    "strategy": "resize_only",
+    "scale_min": 1.0,
+    "scale_max": 1.0
+  },
+  "metrics": {
+    "decision_threshold": 0.5,
+    "threshold_sweep": true,
+    "threshold_sweep_start": 0.1,
+    "threshold_sweep_end": 0.9,
+    "threshold_sweep_step": 0.1
+  },
+  "paths": {
+    "run_dir": "ml/artifacts/experiments/20260314_053539_v2_no_crop_b",
+    "dataset_dir": "ml/artifacts/experiments/20260314_053539_v2_no_crop_b/dataset/20260314_053540",
+    "train_dir": "ml/artifacts/experiments/20260314_053539_v2_no_crop_b/train",
+    "eval_dir": "ml/artifacts/experiments/20260314_053539_v2_no_crop_b/eval",
+    "train_manifest": "ml/artifacts/experiments/20260314_053539_v2_no_crop_b/dataset/20260314_053540/manifest_train.csv",
+    "val_manifest": "ml/artifacts/experiments/20260314_053539_v2_no_crop_b/dataset/20260314_053540/manifest_val.csv",
+    "test_manifest": "ml/artifacts/experiments/20260314_053539_v2_no_crop_b/dataset/20260314_053540/manifest_test.csv",
+    "checkpoint": "ml/artifacts/experiments/20260314_053539_v2_no_crop_b/train/best.pt",
+    "eval_report": "ml/artifacts/experiments/20260314_053539_v2_no_crop_b/eval/eval_report.json"
+  }
+}

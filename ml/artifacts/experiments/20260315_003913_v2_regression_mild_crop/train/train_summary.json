@@ -1,0 +1,138 @@
+{
+  "target_type": "regression",
+  "model_name": "resnet18",
+  "epochs": 10,
+  "batch_size": 32,
+  "learning_rate": 0.0001,
+  "seed": 20260212,
+  "train_manifest": "ml/artifacts/experiments/20260315_003913_v2_regression_mild_crop/dataset/20260315_003915/manifest_train.csv",
+  "val_manifest": "ml/artifacts/experiments/20260315_003913_v2_regression_mild_crop/dataset/20260315_003915/manifest_val.csv",
+  "class_weighting": "none",
+  "manual_class_weight_neg": null,
+  "manual_class_weight_pos": null,
+  "effective_class_weights": null,
+  "sampler": "none",
+  "augmentation_profile": "light",
+  "crop_strategy": "random_resized",
+  "crop_scale_min": 0.95,
+  "crop_scale_max": 1.0,
+  "num_workers": 0,
+  "pin_memory": false,
+  "prefetch_factor": 2,
+  "persistent_workers": false,
+  "max_train_samples": 0,
+  "max_val_samples": 0,
+  "cache_urls": false,
+  "cache_dir": null,
+  "precache_urls": false,
+  "cache_state_before_train": {
+    "enabled": false,
+    "unique_url_count": 3294,
+    "cached_count": 0,
+    "missing_count": 3294
+  },
+  "cache_state_before_val": {
+    "enabled": false,
+    "unique_url_count": 726,
+    "cached_count": 0,
+    "missing_count": 726
+  },
+  "cache_warmup_train": {
+    "enabled": false
+  },
+  "cache_warmup_val": {
+    "enabled": false
+  },
+  "cache_state_after_train": {
+    "enabled": false,
+    "unique_url_count": 3294,
+    "cached_count": 0,
+    "missing_count": 3294
+  },
+  "cache_state_after_val": {
+    "enabled": false,
+    "unique_url_count": 726,
+    "cached_count": 0,
+    "missing_count": 726
+  },
+  "train_class_counts": {},
+  "train_num_samples": 3294,
+  "val_num_samples": 726,
+  "total_runtime_sec": 4974.089451042004,
+  "epoch_times_sec": [
+    695.5499501249869,
+    560.4429609170184,
+    434.3034934999887,
+    559.595931207994,
+    417.29839141701814,
+    417.7021610829979,
+    417.13931025000056,
+    427.6963383749826,
+    493.9113089579623,
+    550.2100029580179
+  ],
+  "best_metric": 0.6017709918644117,
+  "best_checkpoint": "ml/artifacts/experiments/20260315_003913_v2_regression_mild_crop/train/best.pt",
+  "history": [
+    {
+      "epoch": 1,
+      "train_loss": 1.8692838410729344,
+      "val_loss": 0.6836545091608296,
+      "val_metric": 0.6836545091608296
+    },
+    {
+      "epoch": 2,
+      "train_loss": 0.519070340302384,
+      "val_loss": 0.6630842420070068,
+      "val_metric": 0.6630842420070068
+    },
+    {
+      "epoch": 3,
+      "train_loss": 0.433312286161682,
+      "val_loss": 0.6810417110505311,
+      "val_metric": 0.6810417110505311
+    },
+    {
+      "epoch": 4,
+      "train_loss": 0.4107110529993344,
+      "val_loss": 0.6882506608963013,
+      "val_metric": 0.6882506608963013
+    },
+    {
+      "epoch": 5,
+      "train_loss": 0.3344923999992389,
+      "val_loss": 0.7949848848840465,
+      "val_metric": 0.7949848848840465
+    },
+    {
+      "epoch": 6,
+      "train_loss": 0.29557065535517574,
+      "val_loss": 0.7227455273918484,
+      "val_metric": 0.7227455273918484
+    },
+    {
+      "epoch": 7,
+      "train_loss": 0.23853378959940474,
+      "val_loss": 0.6017709918644117,
+      "val_metric": 0.6017709918644117
+    },
+    {
+      "epoch": 8,
+      "train_loss": 0.24729397162361053,
+      "val_loss": 0.6047953587511311,
+      "val_metric": 0.6047953587511311
+    },
+    {
+      "epoch": 9,
+      "train_loss": 0.2234463021159172,
+      "val_loss": 0.6078939930252407,
+      "val_metric": 0.6078939930252407
+    },
+    {
+      "epoch": 10,
+      "train_loss": 0.19181927463528023,
+      "val_loss": 0.6194631586904111,
+      "val_metric": 0.6194631586904111
+    }
+  ]
+}

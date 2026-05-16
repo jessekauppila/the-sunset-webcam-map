@@ -1,0 +1,20 @@
+{
+  "checkpoint": "ml/artifacts/experiments/20260314_070706_v2_mild_crop_balanced/train/best.pt",
+  "model_name": "resnet18",
+  "target_type": "binary",
+  "output": "ml/artifacts/models/binary_resnet18/20260314_070706_v2_mild_crop_balanced/model.onnx",
+  "sha256": "105c39523d01177af73a46ac091684f405ab91d8b61313056d467f1c9918e04d",
+  "opset": 17,
+  "input_shape": [
+    1,
+    3,
+    224,
+    224
+  ],
+  "smoke_output_shapes": [
+    [
+      1,
+      2
+    ]
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "total_snapshots": 1565,
+  "with_firebase_url": 1565,
+  "with_calculated_rating": 1046,
+  "with_any_rating_rows": 1046,
+  "export_manual_only_min_rating_1_equivalent": 1046,
+  "mismatches": {
+    "rating_rows_but_no_calculated_rating": 0,
+    "calculated_rating_but_no_rating_rows": 0,
+    "rating_rows_but_no_firebase_url": 0
+  },
+  "query": {
+    "sort": "captured_desc",
+    "limit": 0
+  }
+}
