@@ -34,6 +34,13 @@ export const SEARCH_RADIUS_DEG = 9; // Search radius per API call in degrees
 // 0 = main ring, positive values shift the ring westward from the subsolar geometry.
 export const TERMINATOR_RING_OFFSETS_DEG = [0]; //was   0,1.75 * SEARCH_RADIUS_DEG,//was 1,.75
 
+// How recent a custom camera's most-recent snapshot must be for the camera
+// to qualify for terminator visibility. Mirrors Windy's "API returned it
+// this tick" semantics — custom cams without a fresh capture are
+// effectively unobservable and should fall off the map.
+// Default 90 min: covers the protocol's 75-min active window + upload buffer.
+export const CUSTOM_CAM_FRESHNESS_WINDOW_MINUTES = 90;
+
 // Circle rendering precision: how smooth the circle polygon is (number of points)
 // Using SEARCH_RADIUS_DEG ensures the circle detail matches the search area size
 export const CIRCLE_RENDERING_PRECISION_DEG = SEARCH_RADIUS_DEG;
