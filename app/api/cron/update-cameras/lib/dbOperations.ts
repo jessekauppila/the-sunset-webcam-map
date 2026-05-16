@@ -125,18 +125,16 @@ export async function getWebcamIdMap(
 }
 
 /**
- * Upsert terminator state entries (upsert-only, no delete-all)
- * Uses last_seen_at for query-time filtering instead of bulk deletes
+ * Upsert terminator-state rows from pre-resolved DB webcam ids.
+ * Rank is the array index. Caller is responsible for any ordering
+ * decisions (sort, union, dedupe) before passing the array in.
  */
 export async function upsertTerminatorState(
-  webcams: WindyWebcam[],
+  rows: Array<{ webcamId: number }>,
   phase: 'sunrise' | 'sunset',
-  idByExternal: Map<string, number>
 ): Promise<void> {
-  const promises = webcams.map(async (w, rank) => {
-    const webcamId = idByExternal.get(String(w.webcamId));
-    if (!webcamId) return;
-
+  const promises = rows.map(async (row, rank) => {
+    const { webcamId } = row;
     await sql`
       insert into terminator_webcam_state (webcam_id, phase, rank, last_seen_at, updated_at, active)
       values (${webcamId}, ${phase}, ${rank}, now(), now(), true)
