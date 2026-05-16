@@ -68,8 +68,12 @@ function resolveModelVersion(): string {
 
 async function getOrt(): Promise<unknown> {
   if (cachedOrt) return cachedOrt;
-  const moduleName = 'onnxruntime-node';
-  cachedOrt = await import(moduleName);
+  // Static string is required so Vercel's output-file tracer detects the
+  // dependency. A variable-indirection (`await import(varName)`) is opaque
+  // to the tracer and ships a function bundle without the package, causing
+  // MODULE_NOT_FOUND at runtime. `serverExternalPackages` in next.config.ts
+  // is what prevents bundling.
+  cachedOrt = await import('onnxruntime-node');
   return cachedOrt;
 }
 
