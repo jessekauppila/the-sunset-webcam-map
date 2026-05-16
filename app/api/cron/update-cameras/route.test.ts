@@ -153,4 +153,68 @@ describe('GET /api/cron/update-cameras', () => {
     expect(scoreMock).not.toHaveBeenCalled();
     expect(backfillMock).not.toHaveBeenCalled();
   });
+
+  it('unions custom cams into the upsert active set', async () => {
+    classifyMock.mockReturnValue({
+      sunrise: [{ webcamId: 'wA', location: { latitude: 0, longitude: 0 } }],
+      sunset: [],
+    });
+    getIdMapMock.mockResolvedValue(new Map([['wA', 1]]));
+    customClassifyMock.mockResolvedValue({
+      sunrise: [{ webcamId: 999 }],
+      sunset: [],
+    });
+
+    const res = await GET(makeReq());
+    expect(res.status).toBe(200);
+
+    const sunriseUpsertCall = upsertStateMock.mock.calls.find(
+      (c) => c[1] === 'sunrise',
+    );
+    expect(sunriseUpsertCall).toBeDefined();
+    const rows = sunriseUpsertCall![0] as Array<{ webcamId: number }>;
+    expect(rows.map((r) => r.webcamId).sort()).toEqual([1, 999]);
+  });
+
+  it('passes the union of ids to deactivateMissingTerminatorState', async () => {
+    classifyMock.mockReturnValue({
+      sunrise: [{ webcamId: 'wA', location: { latitude: 0, longitude: 0 } }],
+      sunset: [],
+    });
+    getIdMapMock.mockResolvedValue(new Map([['wA', 1]]));
+    customClassifyMock.mockResolvedValue({
+      sunrise: [{ webcamId: 999 }],
+      sunset: [],
+    });
+
+    const res = await GET(makeReq());
+    expect(res.status).toBe(200);
+
+    const sunriseDeactCall = deactivateMock.mock.calls.find(
+      (c) => c[0] === 'sunrise',
+    );
+    expect(sunriseDeactCall).toBeDefined();
+    expect((sunriseDeactCall![1] as number[]).sort()).toEqual([1, 999]);
+  });
+
+  it('skips upsert/deactivate for empty buckets gracefully', async () => {
+    classifyMock.mockReturnValue({ sunrise: [], sunset: [] });
+    getIdMapMock.mockResolvedValue(new Map());
+    customClassifyMock.mockResolvedValue({ sunrise: [], sunset: [] });
+
+    const res = await GET(makeReq());
+    expect(res.status).toBe(200);
+
+    // Empty buckets must still flow through upsert + deactivate — otherwise a
+    // future "optimize away empty arrays" change would silently break the
+    // deactivation contract (rows would never get flipped to active=false
+    // when the active set is empty).
+    const sunriseUpsertCall = upsertStateMock.mock.calls.find((c) => c[1] === 'sunrise');
+    expect(sunriseUpsertCall).toBeDefined();
+    expect(sunriseUpsertCall![0]).toEqual([]);
+
+    const sunriseDeactCall = deactivateMock.mock.calls.find((c) => c[0] === 'sunrise');
+    expect(sunriseDeactCall).toBeDefined();
+    expect(sunriseDeactCall![1]).toEqual([]);
+  });
 });
