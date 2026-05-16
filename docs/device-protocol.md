@@ -179,9 +179,9 @@ The server stores the placement + preferences against the claim code. No `device
 **Either-order semantics.** Pre-register may arrive either before or after the device's own `register` call. If pre-register arrives first, the server creates a `cameras` row with the placement and operator-preferences fields populated; `hardware_id` and `device_token_hash` are filled in atomically when `register` later runs. If `register` arrives first, the server creates a `cameras` row with the device fields populated and no placement; a subsequent `pre-register` call with the same `claim_code` matches that row and fills in placement. The device's next heartbeat returns the now-populated placement (see §6.3's `request_placement` flag).
 
 **Errors:**
-- `400` — invalid payload, malformed coordinates
-- `401` — claim code unknown or expired
-- `409` — claim code already consumed by a device. Recovery: the operator should request a new claim code or use the camera's existing record.
+- `400` — body missing/invalid required fields
+- `404` — claim code not found
+- `410` — claim code expired
 
 Pre-registration is **idempotent for the same claim code**. Calling it twice with different data overwrites — useful if the operator wants to walk back to the portal and update the placement.
 
@@ -238,7 +238,7 @@ Field notes (every one of these is collected by the AR placement portal automati
 
 When the operator uses the AR portal, all of these fields arrive at the server via `pre-register` (§6.2a) before the device ever boots. The device's own `register` call can omit them; the pre-registration is authoritative.
 
-**Response (201):**
+**Response (200 OK):**
 ```json
 {
   "camera_id": 17,
@@ -262,9 +262,11 @@ When the operator uses the AR portal, all of these fields arrive at the server v
 `placement_status` is `"ready"` iff pre-register populated placement for this `claim_code` before this call. Otherwise it is `"pending"` and the `placement` field is omitted — the device should idle, heartbeat with `request_placement: true`, and start its capture loop once a heartbeat response delivers placement.
 
 **Errors:**
-- `400` — invalid payload, malformed coordinates
-- `401` — claim code unknown, expired, or already consumed
-- `409` — `hardware_id` already registered. Recovery is operator-driven; see §11.1.
+- `400` — body missing `claim_code` or `hardware_id`
+- `404` — claim code not found
+- `409` — claim code already consumed
+- `410` — claim code expired
+- `500` — `hardware_id` UNIQUE collision (v1 limitation — re-registration after token loss surfaces as 500; planned upgrade is to translate to `409 { existing_camera_id }` in a follow-up PR)
 
 The server creates two paired rows: a `cameras` row (custom-camera fields) and a `webcams` row (so the camera shows up in the existing query path). They are linked 1:1 via `webcams.custom_camera_id`.
 
