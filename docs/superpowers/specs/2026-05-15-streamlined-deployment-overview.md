@@ -19,7 +19,7 @@ This requires several pieces, each with its own design and implementation cycle.
 | # | Sub-project | Status | Spec |
 |---|---|---|---|
 | **E** | WiFi onboarding + SD-card provisioning | **Draft spec** | `2026-05-15-wifi-onboarding-and-provisioning-design.md` |
-| **F** | Wizard frontend (cloud-hosted, picks up post-WiFi) | Not started | — |
+| **F** | Wizard frontend (cloud-hosted, picks up post-WiFi) | Stub | `2026-05-16-cloud-wizard-frontend-design.md` |
 | **C** | Install-time orientation (roll capture + "which way is up" overlay) | Open questions | — |
 | **D** | AI placement-quality checks + step reduction | Open questions | — |
 | **G** | First-image verification UX | Not started | — |
@@ -50,7 +50,7 @@ These are settled across all sub-projects so each spec doesn't re-litigate:
 2. **Two-wizard split:** a tiny device-local page during captive portal (just collects WiFi credentials), then a cloud-hosted wizard at `sunrisesunset.studio/setup/{claim_code}` for everything else. Detail in spec E.
 3. **Claim code is the binding key end-to-end:** sticker → device firmware → cloud wizard → pre-register call → matched to device on `/register`. No other identifier needs to be human-handled.
 4. **No native app.** Browser only, all platforms.
-5. **The cloud wizard supersedes `docs/ar-placement-portal.md`.** The stub's content moves into spec F when it's written; this overview doc is the new entry point.
+5. **The cloud wizard supersedes the old `docs/ar-placement-portal.md` stub.** That file has been moved into `2026-05-16-cloud-wizard-frontend-design.md` as the sub-project F starting point; this overview is the new entry point for the umbrella.
 
 ## 5. Open architectural questions (defer until E ships)
 

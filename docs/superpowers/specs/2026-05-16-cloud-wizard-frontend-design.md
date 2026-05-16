@@ -1,16 +1,18 @@
-# AR Placement Portal — Design Stub
+# Cloud Wizard Frontend — Design Stub
 
-Status: Stub — 2026-05-03
+Status: Stub — content carried over from the prior `docs/ar-placement-portal.md` draft (2026-05-03). Full design to be written when sub-project F's turn arrives, on top of sub-project E (`2026-05-15-wifi-onboarding-and-provisioning-design.md`).
 Owner: Jesse Kauppila
-Companion to: `docs/device-protocol.md` §4.5.2 and §14
+Sub-project F of the streamlined-deployment umbrella (`2026-05-15-streamlined-deployment-overview.md`).
 
-A browser-based AR tool that runs on the operator's phone. **It is the entire setup flow** — not just the placement decision. The operator opens a URL, taps through ~6 screens, and the device's full registration record (placement, location, operator preferences) is submitted to the server before the device even boots. The operator never types lat/lng, never measures azimuth, never edits a config file, never SSHs into anything.
+---
+
+A browser-based wizard that runs on the operator's phone, picked up after the device has joined WiFi via sub-project E's captive-portal handoff. **It is the entire post-WiFi setup flow** — not just the placement decision. The operator opens `sunrisesunset.studio/setup/{claim_code}`, taps through ~6 screens, and the device's full pre-registration record (placement, location, operator preferences) is submitted to the server. The operator never types lat/lng, never measures azimuth, never edits a config file, never SSHs into anything.
 
 ## What it does
 
-The operator opens a URL on their phone (no app install). After granting camera + location + device-orientation permission, the portal walks through:
+After granting camera + location + device-orientation permission, the wizard walks through:
 
-1. **Pick the camera you're setting up.** Operator enters or scans the claim code from the camera's sticker.
+1. **Confirm the camera you're setting up.** The claim code is already in the URL; the wizard polls `/api/cameras/setup-status/{claim_code}` (defined in spec E) until the device has reported in, then advances.
 
 2. **Pick what you want to capture.** A `phase_preference` toggle: `sunrise` / `sunset` / `both`. This sets which active windows the device participates in.
 
@@ -22,39 +24,40 @@ The operator opens a URL on their phone (no app install). After granting camera 
    - **Equinox midpoint arc** — March 21 / September 21, between the two extremes.
    These three arcs together define the **azimuth-altitude envelope** the sun occupies over the year at this location. A fixed crosshair locked to the phone's current bearing + horizon updates in real time as the operator sweeps the phone around. The operator can see at a glance which window/wall captures the most of the sun's annual path.
 
-5. **Horizon sweep.** Prompted gesture: "Slowly turn around in a circle, keeping the phone aimed at the horizon line." As they sweep, the portal records `{azimuth_deg, altitude_deg}` pairs at the actual visible horizon (where the sky meets buildings, mountains, trees). This becomes `placement.horizon_profile` — the data the server uses to compute when the sun is *actually visible* from this site, not just when it crosses the geometric horizon.
+5. **Horizon sweep.** Prompted gesture: "Slowly turn around in a circle, keeping the phone aimed at the horizon line." As they sweep, the wizard records `{azimuth_deg, altitude_deg}` pairs at the actual visible horizon (where the sky meets buildings, mountains, trees). This becomes `placement.horizon_profile` — the data the server uses to compute when the sun is *actually visible* from this site, not just when it crosses the geometric horizon.
 
-6. **Mount here.** Operator aims the phone at the desired mounting direction and taps "Mount Here." Final `azimuth_deg` + `tilt_deg` snapshot from the DeviceOrientation API at tap time.
+6. **Mount here.** Operator aims the phone at the desired mounting direction and taps "Mount Here." Final `azimuth_deg` + `tilt_deg` snapshot from the DeviceOrientation API at tap time. Sub-project C will add `roll_deg` here plus a "which way is up" overlay on the housing.
 
-The portal then submits the assembled blob to `POST /api/cameras/pre-register` with the claim code. Operator plugs in the device, which on first boot POSTs `register` with the same claim code, gets a `device_token`, and inherits all the pre-registered placement + preferences automatically.
+The wizard then submits the assembled blob to `POST /api/cameras/pre-register` with the claim code. Per spec E's protocol Amendment A, this works whether the device has registered yet or not.
 
 ## Field provenance
 
-Every field the protocol expects at registration is captured by the portal automatically:
+Every field the protocol expects at registration is captured by the wizard automatically:
 
-| Protocol field | Source in the portal |
+| Protocol field | Source in the wizard |
 |---|---|
 | `lat`, `lng` | Geolocation API |
 | `elevation_m` | Geolocation API (`altitude`) |
 | `timezone` | `Intl.DateTimeFormat().resolvedOptions().timeZone` |
 | `placement.azimuth_deg` | DeviceOrientation API at "Mount Here" tap |
 | `placement.tilt_deg` | DeviceOrientation API at "Mount Here" tap |
+| `placement.roll_deg` | DeviceOrientation API at "Mount Here" tap (added by sub-project C) |
 | `placement.horizon_altitude_deg` | Auto-derived from `horizon_profile` at the camera's azimuth |
 | `placement.horizon_profile` | Horizon sweep gesture |
 | `operator_preferences.phase_preference` | Toggle, screen 2 |
 | `operator_preferences.delivery` | Form, screen 3 |
-| `claim_code` | Entered or scanned, screen 1 |
+| `claim_code` | Present in the URL — never typed |
 | `capabilities` | Not collected — the device self-reports these on `register` |
 | `hardware_id` | Not collected — the device generates this from its serial number |
 
-The portal never asks for the device's hardware ID — that's the device's problem. The claim code is the binding key.
+The wizard never asks for the device's hardware ID — that's the device's problem. The claim code is the binding key.
 
 ## Why it matters
 
 - **Best placement is non-obvious.** The sun's path is hard to visualize. People put cameras in spots that capture the sun for one month of the year and miss it for nine. AR makes the year-round trajectory legible at install time.
 - **Horizon profile is the only way to get accurate active windows in real terrain.** Manually building one is tedious; using a global terrain DB is heavy. Sweeping a phone across the horizon takes 30 seconds and is exactly what the operator is already doing while finding placement.
 - **It's a "give-back" feature.** Hosting a sunset camera doesn't currently feel like the operator is doing anything cool. Walking around with an AR sun-path overlay does.
-- **It collapses the entire setup flow into one URL.** Without the portal, you're either flashing config files yourself for every operator (the v1 plan) or asking non-technical operators to edit JSON. With the portal, the protocol's "operator never touches a config file" promise becomes real.
+- **It collapses the entire post-WiFi setup flow into one URL.** Without the wizard, you're either flashing config files yourself for every operator (the v1 manual path in protocol §4.5.1) or asking non-technical operators to edit JSON. With the wizard, the protocol's "operator never touches a config file" promise becomes real.
 
 ## Technology sketch
 
@@ -65,4 +68,4 @@ The portal never asks for the device's hardware ID — that's the device's probl
 
 ## Out of scope for this stub
 
-Everything else. This is a placeholder so `device-protocol.md` §14's reference resolves. Full design when this work starts.
+Everything else. This is a placeholder so `device-protocol.md` §4.5.2 and §14's references resolve, and so the carried-over content survives the deletion of `docs/ar-placement-portal.md`. Full design when sub-project F's turn arrives — after E ships and we have real captive-portal handoff behavior to design against.
