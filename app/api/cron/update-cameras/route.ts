@@ -214,19 +214,21 @@ export async function GET(req: Request) {
     customBackfill: backfillResult,
   });
 
-  // Upsert terminator state for sunrise webcams
-  await upsertTerminatorState(sunriseList, 'sunrise', idByExternal);
+  // Resolve Windy external_id → DB webcam_id once for both upsert + deactivate
+  function toDbRows(list: typeof sunriseList) {
+    return list
+      .map((w) => idByExternal.get(String(w.webcamId)))
+      .filter((id): id is number => id !== undefined)
+      .map((webcamId) => ({ webcamId }));
+  }
+  const sunriseRows = toDbRows(sunriseList);
+  const sunsetRows = toDbRows(sunsetList);
 
-  // Upsert terminator state for sunset webcams
-  await upsertTerminatorState(sunsetList, 'sunset', idByExternal);
+  await upsertTerminatorState(sunriseRows, 'sunrise');
+  await upsertTerminatorState(sunsetRows, 'sunset');
 
-  // Deactivate entries that are no longer in the current ring results
-  const sunriseIds = sunriseList
-    .map((w) => idByExternal.get(String(w.webcamId)))
-    .filter((id): id is number => id !== undefined);
-  const sunsetIds = sunsetList
-    .map((w) => idByExternal.get(String(w.webcamId)))
-    .filter((id): id is number => id !== undefined);
+  const sunriseIds = sunriseRows.map((r) => r.webcamId);
+  const sunsetIds = sunsetRows.map((r) => r.webcamId);
   await deactivateMissingTerminatorState('sunrise', sunriseIds);
   await deactivateMissingTerminatorState('sunset', sunsetIds);
 
