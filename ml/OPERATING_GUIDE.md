@@ -1056,26 +1056,38 @@ must match or the state-dict load will fail with
 `ml/export_onnx.py` directly (skipping the wrapper), pass the same
 `--head-dropout` flag explicitly.
 
+### Training vs export — which artifact ships
+
+- **Training** (`ml/run_training.py`) writes a PyTorch checkpoint
+  `<run_dir>/train/best.pt`. This is the source of truth for the
+  trained weights and stays local (`.pt` files are gitignored —
+  ~43 MB each, large and quick to regenerate from the config + data).
+- **Export** (`ml/export_onnx_versioned.py`) reads that `.pt` and
+  emits `ml/artifacts/models/<type>_<arch>/<version_tag>/model.onnx`
+  + `model.meta.json`. The ONNX is a build artifact: deterministic,
+  ~44 MB, and what production actually runs.
+
+The `.gitignore` is surgical — it excludes `image_cache/` and
+`*.pt`/`*.pth`/`*.ckpt` only, so configs, manifests, eval reports,
+plots, and exported `model.onnx` files all version-control normally.
+
 ### Bundle the ONNX into the Vercel deploy
 
-`ml/artifacts/` is gitignored (training data + experiment checkpoints
-are huge), but `vercel.json`'s `functions.includeFiles` glob can only
-pick up files that are part of the git source tree. So the production
-`model.onnx` + `model.meta.json` need to be force-added past the
-ignore rule:
+`vercel.json`'s `functions.includeFiles` glob picks up any
+`ml/artifacts/models/regression_resnet18/**` file that's part of the
+git source tree. After running `export_onnx_versioned.py`, just
+`git add` the new model directory and commit — no `-f` needed:
 
 ```bash
-git add -f \
-  ml/artifacts/models/regression_resnet18/<version_tag>/model.onnx \
-  ml/artifacts/models/regression_resnet18/<version_tag>/model.meta.json
+git add ml/artifacts/models/regression_resnet18/<version_tag>/
 git commit -m "deploy: add <version_tag> regression ONNX to bundle"
 ```
 
 Each ResNet-18 model.onnx is ~44 MB. Below GitHub's 100 MB per-file
 limit but meaningful — only commit the artifacts you actually plan to
 serve. Leave older versions in `ml/artifacts/models/` locally for
-rollback testing but `git rm --cached` them once they're retired so
-the repo doesn't accumulate dead models.
+rollback testing; `git rm` them once they're retired so the repo
+doesn't accumulate dead models.
 
 ### Production env vars
 

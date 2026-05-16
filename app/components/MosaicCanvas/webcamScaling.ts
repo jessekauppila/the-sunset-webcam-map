@@ -19,14 +19,16 @@ export function getWebcamScale(
   const maxSize = 1.0;
 
   // Prefer AI regression rating first, then legacy AI rating, then manual rating.
+  // All three are on a 1-5 scale (manual stars; AI ratings are mapped via
+  // 1 + rawScore * 4 from the model's [0,1] output — see aiScoring.ts).
   const sourceRating =
     webcam.aiRatingRegression ?? webcam.aiRating ?? webcam.rating;
 
-  // Calculate rating penalty (0-1 scale, where 0 = worst rating, 1 = best rating)
+  // Penalty: 0 = best rating (5), 1 = worst rating (1).
   let ratingPenalty = 0;
   if (sourceRating !== undefined && sourceRating !== null) {
-    const clampedRating = Math.max(0, Math.min(5, sourceRating));
-    ratingPenalty = 1 - clampedRating / 5; // Invert: 0 = best rating, 1 = worst rating
+    const clampedRating = Math.max(1, Math.min(5, sourceRating));
+    ratingPenalty = 1 - (clampedRating - 1) / 4;
   }
 
   // Calculate view penalty (0-1 scale, where 0 = most views, 1 = least views)
