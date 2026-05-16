@@ -46,21 +46,19 @@ describe('deactivateMissingTerminatorState', () => {
     sqlMock.mockResolvedValue([]);
   });
 
-  it('only touches windy-sourced rows when active list is empty', async () => {
+  it('deactivates rows of any source when active list is empty', async () => {
     await deactivateMissingTerminatorState('sunset', []);
 
     expect(sqlMock).toHaveBeenCalledTimes(1);
-    const [strings] = sqlMock.mock.calls[0];
-    const fullQuery = strings.join('?');
-    expect(fullQuery).toMatch(/source\s*=\s*'windy'/);
+    const firstCallStrings = sqlMock.mock.calls[0][0] as readonly string[];
+    expect(firstCallStrings.join(' ')).not.toContain("source = 'windy'");
   });
 
-  it('only touches windy-sourced rows when an active list is provided', async () => {
+  it('deactivates rows of any source not in the active set', async () => {
     await deactivateMissingTerminatorState('sunrise', [42, 99]);
 
     expect(sqlMock).toHaveBeenCalledTimes(1);
-    const [strings] = sqlMock.mock.calls[0];
-    const fullQuery = strings.join('?');
-    expect(fullQuery).toMatch(/source\s*=\s*'windy'/);
+    const firstCallStrings = sqlMock.mock.calls[0][0] as readonly string[];
+    expect(firstCallStrings.join(' ')).not.toContain("source = 'windy'");
   });
 });
