@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { sql } from '@/app/lib/db';
 import { getClaimCode } from '@/app/lib/cameraClaimCode';
-import { derivePlacementStatus } from '@/app/lib/cameraRegistration';
+import { derivePlacementStatus, sentinelForClaimCode } from '@/app/lib/cameraRegistration';
 
 export const dynamic = 'force-dynamic';
 
@@ -36,7 +36,7 @@ export async function GET(_request: Request, context: RouteContext) {
 
   // A pre-register-first row is identifiable by the sentinel placeholder
   // (see Task 4's upsert). Treat such rows as "device hasn't called register yet."
-  const sentinel = `pending-${claim_code}`;
+  const sentinel = sentinelForClaimCode(claim_code);
   if (row.hardware_id === sentinel && row.device_token_hash === sentinel) {
     return NextResponse.json({ status: 'awaiting_wifi' });
   }

@@ -65,12 +65,6 @@ export async function POST(request: Request) {
   const firmwareVersion = asString(body.firmware_version);
   const capabilities = JSON.stringify(body.capabilities ?? {});
 
-  // Known race: two devices booting at the same instant with the same claim
-  // code can both pass the consumed_at null check above. Both will attempt to
-  // INSERT a cameras row; the loser hits the hardware_id UNIQUE constraint
-  // and surfaces as 500. At Tier 0 deployment volume this is acceptable; if
-  // this surfaces in practice, wrap SELECT/INSERT/consume in a single CTE
-  // guarded by ON CONFLICT.
   try {
     const existingRows = (await sql`
       SELECT id, lat, lng, elevation_m, timezone,
@@ -98,8 +92,18 @@ export async function POST(request: Request) {
       cameraId = updated[0].id;
       placementRow = r;
     } else {
-      // Register-first path: insert a row with no placement; pre-register
-      // will fill it in later.
+      // Register-first path: check for a hardware_id collision before inserting.
+      const collision = (await sql`
+        SELECT id FROM cameras WHERE hardware_id = ${hardwareId} LIMIT 1
+      `) as { id: number }[];
+      if (collision[0]) {
+        return NextResponse.json(
+          { error: 'hardware_id already registered', existing_camera_id: collision[0].id },
+          { status: 409 }
+        );
+      }
+
+      // Insert a row with no placement; pre-register will fill it in later.
       const inserted = (await sql`
         INSERT INTO cameras (
           hardware_id, device_token_hash, claim_code,
