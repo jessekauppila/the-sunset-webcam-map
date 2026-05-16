@@ -11,6 +11,7 @@ import {
   mintClaimCode,
   getClaimCode,
   consumeClaimCode,
+  generateClaimCode,
   CLAIM_CODE_PATTERN,
 } from './cameraClaimCode';
 
@@ -18,30 +19,30 @@ beforeEach(() => {
   sqlMock.mockReset();
 });
 
-describe('mintClaimCode', () => {
-  it('generates a code matching SUNSET-XXXX-XXXX and inserts it', async () => {
-    sqlMock.mockResolvedValueOnce([
-      {
-        code: 'SUNSET-7K3M-9XQ2',
-        expires_at: new Date('2026-06-15T00:00:00Z'),
-      },
-    ]);
-
-    const result = await mintClaimCode({ label: 'rooftop-1' });
-
-    expect(result.code).toMatch(CLAIM_CODE_PATTERN);
-    expect(result.expires_at).toBeInstanceOf(Date);
-    expect(sqlMock).toHaveBeenCalledOnce();
+describe('generateClaimCode', () => {
+  it('matches CLAIM_CODE_PATTERN on every call', () => {
+    for (let i = 0; i < 200; i++) {
+      expect(generateClaimCode()).toMatch(CLAIM_CODE_PATTERN);
+    }
   });
 
-  it('uses an unambiguous alphabet (no O/0/I/1/L)', async () => {
-    sqlMock.mockResolvedValue([
-      { code: 'ignored', expires_at: new Date() },
-    ]);
-    for (let i = 0; i < 50; i++) {
-      const r = await mintClaimCode({ label: null });
-      expect(r.code).not.toMatch(/[0O1IL]/);
+  it('never produces ambiguous characters (0/O/1/I/L)', () => {
+    for (let i = 0; i < 200; i++) {
+      expect(generateClaimCode()).not.toMatch(/[0O1IL]/);
     }
+  });
+});
+
+describe('mintClaimCode', () => {
+  it('generates a code matching the pattern and inserts it', async () => {
+    sqlMock.mockResolvedValueOnce([
+      { code: 'SUNSET-7K3M-9XQ2', expires_at: new Date('2026-06-15T00:00:00Z') },
+    ]);
+    const result = await mintClaimCode({ label: 'rooftop-1' });
+    expect(result.expires_at).toBeInstanceOf(Date);
+    expect(sqlMock).toHaveBeenCalledOnce();
+    const generatedCode = sqlMock.mock.calls[0][1] as string;
+    expect(generatedCode).toMatch(CLAIM_CODE_PATTERN);
   });
 });
 

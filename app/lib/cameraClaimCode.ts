@@ -35,7 +35,7 @@ export async function mintClaimCode(opts: {
   const ttl = opts.ttlDays ?? 30;
   const rows = (await sql`
     INSERT INTO camera_claim_codes (code, label, expires_at)
-    VALUES (${code}, ${opts.label}, NOW() + (${ttl} || ' days')::interval)
+    VALUES (${code}, ${opts.label}, NOW() + ${ttl} * interval '1 day')
     RETURNING code, expires_at
   `) as { code: string; expires_at: Date }[];
   return rows[0];
