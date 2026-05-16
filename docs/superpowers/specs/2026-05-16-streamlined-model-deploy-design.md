@@ -78,7 +78,11 @@ For each required env var (`AI_ONNX_REGRESSION_MODEL_PATH`, `AI_REGRESSION_MODEL
 
 1. `vercel env ls production` → check if already set to the right value
 2. If set correctly: skip, print `✓ <VAR> already set`
-3. If wrong or missing: print current value, print new value, prompt to overwrite. On yes: `vercel env rm` then `vercel env add`
+3. If wrong or missing: print current value, print new value, prompt to overwrite. On yes:
+   ```bash
+   vercel env add <NAME> production --value "<new-value>" --force --yes
+   ```
+   `--force` overwrites without a separate `rm` step. `--value` skips the interactive stdin prompt. `--yes` skips the confirmation. Verified against Vercel CLI 39+ on 2026-05-16.
 
 After env vars:
 - If Stage 3 made a commit, the git push already triggered an auto-deploy. Poll `vercel ls --prod` until latest deployment shows `READY`.
