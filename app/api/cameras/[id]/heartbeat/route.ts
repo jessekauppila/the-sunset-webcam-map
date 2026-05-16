@@ -44,36 +44,36 @@ export async function POST(request: Request, context: RouteContext) {
     // Empty body is acceptable for heartbeat — treat as {}.
   }
 
-  await sql`
-    UPDATE cameras SET last_heartbeat_at = NOW() WHERE id = ${cameraId}
-  `;
-
-  if (body.request_placement !== true) {
-    return NextResponse.json({ acknowledged_at: new Date().toISOString() });
-  }
-
   const rows = (await sql`
-    SELECT lat, lng, elevation_m, timezone,
-           azimuth_deg, tilt_deg, horizon_altitude_deg, horizon_profile,
-           phase_preference, delivery_preferences
-    FROM cameras WHERE id = ${cameraId} LIMIT 1
+    UPDATE cameras SET last_heartbeat_at = NOW()
+    WHERE id = ${cameraId}
+    RETURNING lat, lng, elevation_m, timezone,
+              azimuth_deg, tilt_deg, horizon_altitude_deg, horizon_profile,
+              phase_preference, delivery_preferences
   `) as PlacementRow[];
 
   const row = rows[0];
   if (!row) {
+    // Camera was deleted between auth and UPDATE — extreme race, but handle defensively.
     return NextResponse.json({ error: 'camera vanished' }, { status: 404 });
+  }
+
+  const acknowledgedAt = new Date().toISOString();
+
+  if (body.request_placement !== true) {
+    return NextResponse.json({ acknowledged_at: acknowledgedAt });
   }
 
   const status = derivePlacementStatus(row);
   if (status === 'pending') {
     return NextResponse.json({
-      acknowledged_at: new Date().toISOString(),
+      acknowledged_at: acknowledgedAt,
       placement_status: 'pending',
     });
   }
 
   return NextResponse.json({
-    acknowledged_at: new Date().toISOString(),
+    acknowledged_at: acknowledgedAt,
     placement_status: 'ready',
     placement: {
       lat: row.lat,

@@ -49,7 +49,13 @@ describe('POST /api/cameras/[id]/heartbeat', () => {
 
   it('updates last_heartbeat_at and returns 200 with no placement when not requested', async () => {
     verifyDeviceTokenMock.mockResolvedValueOnce({ id: 42, status: 'active' });
-    sqlMock.mockResolvedValueOnce([]); // UPDATE last_heartbeat_at (returns nothing meaningful here)
+    sqlMock.mockResolvedValueOnce([
+      {
+        lat: 47.6, lng: -122.3, elevation_m: 30, timezone: 'UTC',
+        azimuth_deg: 270, tilt_deg: 5, horizon_altitude_deg: 2.5,
+        horizon_profile: null, phase_preference: 'sunset', delivery_preferences: null,
+      },
+    ]); // UPDATE ... RETURNING
     const res = await POST(
       makeRequest({ id: '42', bearer: 'good', body: { uptime_s: 600 } }),
       makeContext('42')
@@ -62,7 +68,6 @@ describe('POST /api/cameras/[id]/heartbeat', () => {
 
   it('returns placement when device requests it and row is ready', async () => {
     verifyDeviceTokenMock.mockResolvedValueOnce({ id: 42, status: 'active' });
-    sqlMock.mockResolvedValueOnce([]); // UPDATE
     sqlMock.mockResolvedValueOnce([
       {
         lat: 47.6,
@@ -76,7 +81,7 @@ describe('POST /api/cameras/[id]/heartbeat', () => {
         phase_preference: 'sunset',
         delivery_preferences: null,
       },
-    ]);
+    ]); // UPDATE ... RETURNING
     derivePlacementStatusMock.mockReturnValueOnce('ready');
 
     const res = await POST(
@@ -95,7 +100,6 @@ describe('POST /api/cameras/[id]/heartbeat', () => {
 
   it('returns placement_status=pending without placement when not yet ready', async () => {
     verifyDeviceTokenMock.mockResolvedValueOnce({ id: 42, status: 'active' });
-    sqlMock.mockResolvedValueOnce([]); // UPDATE
     sqlMock.mockResolvedValueOnce([
       {
         lat: null,
@@ -109,7 +113,7 @@ describe('POST /api/cameras/[id]/heartbeat', () => {
         phase_preference: 'both',
         delivery_preferences: null,
       },
-    ]);
+    ]); // UPDATE ... RETURNING
     derivePlacementStatusMock.mockReturnValueOnce('pending');
 
     const res = await POST(
@@ -124,6 +128,16 @@ describe('POST /api/cameras/[id]/heartbeat', () => {
     const body = await res.json();
     expect(body.placement_status).toBe('pending');
     expect(body.placement).toBeUndefined();
+  });
+
+  it('returns 404 when the camera row vanished between auth and update', async () => {
+    verifyDeviceTokenMock.mockResolvedValueOnce({ id: 42, status: 'active' });
+    sqlMock.mockResolvedValueOnce([]); // UPDATE ... RETURNING — 0 rows
+    const res = await POST(
+      makeRequest({ id: '42', bearer: 'good' }),
+      makeContext('42')
+    );
+    expect(res.status).toBe(404);
   });
 
   it('returns 400 on invalid camera id', async () => {
