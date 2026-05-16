@@ -300,8 +300,8 @@ export async function GET(req: Request) {
 
   return NextResponse.json({
     ok: true,
-    sunrise: sunriseList.length,
-    sunset: sunsetList.length,
+    sunrise: sunriseRows.length,
+    sunset: sunsetRows.length,
     windyScored: windyScores.length,
     cacheHits,
     fallbacks,

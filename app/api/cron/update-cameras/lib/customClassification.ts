@@ -1,4 +1,5 @@
 import { sql } from '@/app/lib/db';
+import { SEARCH_RADIUS_DEG } from '@/app/lib/masterConfig';
 import type { Location, WindyWebcam } from '@/app/lib/types';
 import { classifyWebcamsByPhase } from './webcamClassification';
 
@@ -61,8 +62,30 @@ export async function classifyCustomCamerasForTick(opts: {
     opts.sunsetCoords,
   );
 
+  function minDistToCoords(lat: number, lng: number, coords: Location[]): number {
+    return Math.min(
+      ...coords.map((coord) =>
+        Math.sqrt(
+          Math.pow(lng - coord.lng, 2) + Math.pow(lat - coord.lat, 2),
+        ),
+      ),
+    );
+  }
+
+  const filteredSunrise = sunrise.filter((w) => {
+    const row = rows.find((r) => r.webcam_id === (w.webcamId as number));
+    if (!row) return false;
+    return minDistToCoords(row.lat, row.lng, opts.sunriseCoords) <= SEARCH_RADIUS_DEG;
+  });
+
+  const filteredSunset = sunset.filter((w) => {
+    const row = rows.find((r) => r.webcam_id === (w.webcamId as number));
+    if (!row) return false;
+    return minDistToCoords(row.lat, row.lng, opts.sunsetCoords) <= SEARCH_RADIUS_DEG;
+  });
+
   return {
-    sunrise: sunrise.map((w) => ({ webcamId: w.webcamId as number })),
-    sunset: sunset.map((w) => ({ webcamId: w.webcamId as number })),
+    sunrise: filteredSunrise.map((w) => ({ webcamId: w.webcamId as number })),
+    sunset: filteredSunset.map((w) => ({ webcamId: w.webcamId as number })),
   };
 }
