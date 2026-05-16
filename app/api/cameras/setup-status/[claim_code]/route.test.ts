@@ -101,6 +101,47 @@ describe('GET /api/cameras/setup-status/[claim_code]', () => {
     expect(body.status).toBe('registered');
   });
 
+  it('returns 404 for an expired claim code', async () => {
+    getClaimCodeMock.mockResolvedValueOnce({
+      code: 'SUNSET-AAAA-BBBB',
+      expires_at: new Date('2020-01-01'),
+      consumed_at: null,
+      consumed_by_camera_id: null,
+    });
+    const res = await GET(
+      makeRequest('SUNSET-AAAA-BBBB'),
+      makeContext('SUNSET-AAAA-BBBB')
+    );
+    expect(res.status).toBe(404);
+  });
+
+  it('returns registered (not awaiting_wifi) when only one column matches the sentinel', async () => {
+    // Defensive: if some future code path ever leaves the columns out of sync,
+    // setup-status should NOT silently hide it behind awaiting_wifi.
+    getClaimCodeMock.mockResolvedValueOnce({
+      code: 'SUNSET-AAAA-BBBB',
+      expires_at: new Date('2099-01-01'),
+      consumed_at: new Date(),
+      consumed_by_camera_id: 17,
+    });
+    sqlMock.mockResolvedValueOnce([
+      {
+        id: 17,
+        hardware_id: 'rpi-real-serial',
+        device_token_hash: 'pending-SUNSET-AAAA-BBBB',
+        lat: 47.6, lng: -122.3, azimuth_deg: 270, tilt_deg: 5,
+      },
+    ]);
+    derivePlacementStatusMock.mockReturnValueOnce('ready');
+    const res = await GET(
+      makeRequest('SUNSET-AAAA-BBBB'),
+      makeContext('SUNSET-AAAA-BBBB')
+    );
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.status).toBe('ready');
+  });
+
   it('returns ready when device is registered AND placement is populated', async () => {
     getClaimCodeMock.mockResolvedValueOnce({
       code: 'SUNSET-AAAA-BBBB',

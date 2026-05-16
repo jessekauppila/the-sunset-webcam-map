@@ -20,8 +20,8 @@ type StatusRow = {
 export async function GET(_request: Request, context: RouteContext) {
   const { claim_code } = await context.params;
   const claim = await getClaimCode(claim_code);
-  if (!claim) {
-    return NextResponse.json({ error: 'unknown claim code' }, { status: 404 });
+  if (!claim || claim.expires_at.getTime() < Date.now()) {
+    return NextResponse.json({ error: 'unknown or expired claim code' }, { status: 404 });
   }
 
   const rows = (await sql`
@@ -37,7 +37,7 @@ export async function GET(_request: Request, context: RouteContext) {
   // A pre-register-first row is identifiable by the sentinel placeholder
   // (see Task 4's upsert). Treat such rows as "device hasn't called register yet."
   const sentinel = `pending-${claim_code}`;
-  if (row.hardware_id === sentinel || row.device_token_hash === sentinel) {
+  if (row.hardware_id === sentinel && row.device_token_hash === sentinel) {
     return NextResponse.json({ status: 'awaiting_wifi' });
   }
 
