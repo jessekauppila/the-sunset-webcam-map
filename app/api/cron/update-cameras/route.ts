@@ -25,7 +25,9 @@ import {
   TERMINATOR_SUN_ALTITUDE_DEG,
   WINDY_FETCH_BATCH_SIZE,
   WINDY_FETCH_DELAY_BETWEEN_BATCHES_MS,
+  CUSTOM_CAM_FRESHNESS_WINDOW_MINUTES,
 } from '@/app/lib/masterConfig';
+import { classifyCustomCamerasForTick } from './lib/customClassification';
 import { verifyCronAuth } from './lib/auth';
 import {
   dedupeCoords,
@@ -214,19 +216,53 @@ export async function GET(req: Request) {
     customBackfill: backfillResult,
   });
 
-  // Upsert terminator state for sunrise webcams
-  await upsertTerminatorState(sunriseList, 'sunrise', idByExternal);
+  // Resolve Windy external_id → DB webcam_id rows
+  function toWindyDbRows(list: typeof sunriseList) {
+    return list
+      .map((w) => idByExternal.get(String(w.webcamId)))
+      .filter((id): id is number => id !== undefined)
+      .map((webcamId) => ({ webcamId }));
+  }
+  const sunriseWindyRows = toWindyDbRows(sunriseList);
+  const sunsetWindyRows = toWindyDbRows(sunsetList);
 
-  // Upsert terminator state for sunset webcams
-  await upsertTerminatorState(sunsetList, 'sunset', idByExternal);
+  // Classify custom cams against the same ring coords + freshness window
+  const customClassified = await classifyCustomCamerasForTick({
+    sunriseCoords,
+    sunsetCoords,
+    freshnessWindowMinutes: CUSTOM_CAM_FRESHNESS_WINDOW_MINUTES,
+    now,
+  });
 
-  // Deactivate entries that are no longer in the current ring results
-  const sunriseIds = sunriseList
-    .map((w) => idByExternal.get(String(w.webcamId)))
-    .filter((id): id is number => id !== undefined);
-  const sunsetIds = sunsetList
-    .map((w) => idByExternal.get(String(w.webcamId)))
-    .filter((id): id is number => id !== undefined);
+  // Union Windy + custom by webcamId, Windy first (preserves Windy lat-sorted rank).
+  function unionByWebcamId(
+    primary: Array<{ webcamId: number }>,
+    secondary: Array<{ webcamId: number }>,
+  ): Array<{ webcamId: number }> {
+    const seen = new Set<number>();
+    const out: Array<{ webcamId: number }> = [];
+    for (const r of primary) {
+      if (!seen.has(r.webcamId)) {
+        seen.add(r.webcamId);
+        out.push(r);
+      }
+    }
+    for (const r of secondary) {
+      if (!seen.has(r.webcamId)) {
+        seen.add(r.webcamId);
+        out.push(r);
+      }
+    }
+    return out;
+  }
+  const sunriseRows = unionByWebcamId(sunriseWindyRows, customClassified.sunrise);
+  const sunsetRows = unionByWebcamId(sunsetWindyRows, customClassified.sunset);
+
+  await upsertTerminatorState(sunriseRows, 'sunrise');
+  await upsertTerminatorState(sunsetRows, 'sunset');
+
+  const sunriseIds = sunriseRows.map((r) => r.webcamId);
+  const sunsetIds = sunsetRows.map((r) => r.webcamId);
   await deactivateMissingTerminatorState('sunrise', sunriseIds);
   await deactivateMissingTerminatorState('sunset', sunsetIds);
 
@@ -264,8 +300,8 @@ export async function GET(req: Request) {
 
   return NextResponse.json({
     ok: true,
-    sunrise: sunriseList.length,
-    sunset: sunsetList.length,
+    sunrise: sunriseRows.length,
+    sunset: sunsetRows.length,
     windyScored: windyScores.length,
     cacheHits,
     fallbacks,

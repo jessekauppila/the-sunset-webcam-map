@@ -125,18 +125,16 @@ export async function getWebcamIdMap(
 }
 
 /**
- * Upsert terminator state entries (upsert-only, no delete-all)
- * Uses last_seen_at for query-time filtering instead of bulk deletes
+ * Upsert terminator-state rows from pre-resolved DB webcam ids.
+ * Rank is the array index. Caller is responsible for any ordering
+ * decisions (sort, union, dedupe) before passing the array in.
  */
 export async function upsertTerminatorState(
-  webcams: WindyWebcam[],
+  rows: Array<{ webcamId: number }>,
   phase: 'sunrise' | 'sunset',
-  idByExternal: Map<string, number>
 ): Promise<void> {
-  const promises = webcams.map(async (w, rank) => {
-    const webcamId = idByExternal.get(String(w.webcamId));
-    if (!webcamId) return;
-
+  const promises = rows.map(async (row, rank) => {
+    const { webcamId } = row;
     await sql`
       insert into terminator_webcam_state (webcam_id, phase, rank, last_seen_at, updated_at, active)
       values (${webcamId}, ${phase}, ${rank}, now(), now(), true)
@@ -152,35 +150,36 @@ export async function upsertTerminatorState(
 }
 
 /**
- * Deactivate terminator state entries that are no longer in the current ring results
- * This keeps "active" aligned with the latest ring-based fetch.
+ * Flip rows in this phase to active=false unless their webcam_id is in
+ * activeWebcamIds. Source-agnostic: caller is responsible for unioning
+ * active ids across Windy + custom (or any other source) before calling.
+ *
+ * WARNING: this function previously had a source='windy' guard. After its
+ * removal, passing an incomplete active set will deactivate rows of any
+ * source not in the set. Always pass the FULL union of active ids across
+ * every source the caller knows about — partial sets silently deactivate
+ * other-source rows.
  */
 export async function deactivateMissingTerminatorState(
   phase: 'sunrise' | 'sunset',
-  activeWebcamIds: number[]
+  activeWebcamIds: number[],
 ): Promise<void> {
   if (activeWebcamIds.length === 0) {
     await sql`
-      update terminator_webcam_state s
+      update terminator_webcam_state
       set active = false, updated_at = now()
-      from webcams w
-      where s.webcam_id = w.id
-        and w.source = 'windy'
-        and s.phase = ${phase}
-        and s.active = true
+      where phase = ${phase}
+        and active = true
     `;
     return;
   }
 
   await sql`
-    update terminator_webcam_state s
+    update terminator_webcam_state
     set active = false, updated_at = now()
-    from webcams w
-    where s.webcam_id = w.id
-      and w.source = 'windy'
-      and s.phase = ${phase}
-      and s.active = true
-      and s.webcam_id <> all(${activeWebcamIds})
+    where phase = ${phase}
+      and active = true
+      and webcam_id <> all(${activeWebcamIds})
   `;
 }
 

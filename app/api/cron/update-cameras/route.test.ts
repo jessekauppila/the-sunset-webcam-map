@@ -15,6 +15,7 @@ const scoreMock = vi.fn();
 const getHashMock = vi.fn();
 const setHashMock = vi.fn();
 const backfillMock = vi.fn();
+const customClassifyMock = vi.fn();
 const upsertStatsMock = vi.fn();
 const verifyAuthMock = vi.fn(() => true);
 const computeTickStatsMock = vi.fn();
@@ -56,6 +57,9 @@ vi.mock('./lib/aiScoring', () => ({
 vi.mock('./lib/customBackfill', () => ({
   backfillCustomSnapshotScores: (...a: unknown[]) => backfillMock(...a),
 }));
+vi.mock('./lib/customClassification', () => ({
+  classifyCustomCamerasForTick: (...a: unknown[]) => customClassifyMock(...a),
+}));
 vi.mock('./lib/dailyStats', () => ({
   computeTickStats: (...a: unknown[]) => computeTickStatsMock(...a),
   upsertDailyStats: (...a: unknown[]) => upsertStatsMock(...a),
@@ -89,6 +93,7 @@ beforeEach(() => {
     imageHash: 'newhash', source: 'windy', pathTaken: 'onnx',
   });
   backfillMock.mockReset().mockResolvedValue({ scored: 0, failed: 0, modelVersion: null, scores: [] });
+  customClassifyMock.mockReset().mockResolvedValue({ sunrise: [], sunset: [] });
   upsertStatsMock.mockReset().mockResolvedValue(undefined);
   setCachedMock.mockReset().mockResolvedValue(undefined);
   fetchTerminatorWebcamsMock.mockReset().mockResolvedValue([]);
@@ -147,5 +152,69 @@ describe('GET /api/cron/update-cameras', () => {
     expect(res.status).toBe(401);
     expect(scoreMock).not.toHaveBeenCalled();
     expect(backfillMock).not.toHaveBeenCalled();
+  });
+
+  it('unions custom cams into the upsert active set', async () => {
+    classifyMock.mockReturnValue({
+      sunrise: [{ webcamId: 'wA', location: { latitude: 0, longitude: 0 } }],
+      sunset: [],
+    });
+    getIdMapMock.mockResolvedValue(new Map([['wA', 1]]));
+    customClassifyMock.mockResolvedValue({
+      sunrise: [{ webcamId: 999 }],
+      sunset: [],
+    });
+
+    const res = await GET(makeReq());
+    expect(res.status).toBe(200);
+
+    const sunriseUpsertCall = upsertStateMock.mock.calls.find(
+      (c) => c[1] === 'sunrise',
+    );
+    expect(sunriseUpsertCall).toBeDefined();
+    const rows = sunriseUpsertCall![0] as Array<{ webcamId: number }>;
+    expect(rows.map((r) => r.webcamId).sort()).toEqual([1, 999]);
+  });
+
+  it('passes the union of ids to deactivateMissingTerminatorState', async () => {
+    classifyMock.mockReturnValue({
+      sunrise: [{ webcamId: 'wA', location: { latitude: 0, longitude: 0 } }],
+      sunset: [],
+    });
+    getIdMapMock.mockResolvedValue(new Map([['wA', 1]]));
+    customClassifyMock.mockResolvedValue({
+      sunrise: [{ webcamId: 999 }],
+      sunset: [],
+    });
+
+    const res = await GET(makeReq());
+    expect(res.status).toBe(200);
+
+    const sunriseDeactCall = deactivateMock.mock.calls.find(
+      (c) => c[0] === 'sunrise',
+    );
+    expect(sunriseDeactCall).toBeDefined();
+    expect((sunriseDeactCall![1] as number[]).sort()).toEqual([1, 999]);
+  });
+
+  it('skips upsert/deactivate for empty buckets gracefully', async () => {
+    classifyMock.mockReturnValue({ sunrise: [], sunset: [] });
+    getIdMapMock.mockResolvedValue(new Map());
+    customClassifyMock.mockResolvedValue({ sunrise: [], sunset: [] });
+
+    const res = await GET(makeReq());
+    expect(res.status).toBe(200);
+
+    // Empty buckets must still flow through upsert + deactivate — otherwise a
+    // future "optimize away empty arrays" change would silently break the
+    // deactivation contract (rows would never get flipped to active=false
+    // when the active set is empty).
+    const sunriseUpsertCall = upsertStateMock.mock.calls.find((c) => c[1] === 'sunrise');
+    expect(sunriseUpsertCall).toBeDefined();
+    expect(sunriseUpsertCall![0]).toEqual([]);
+
+    const sunriseDeactCall = deactivateMock.mock.calls.find((c) => c[0] === 'sunrise');
+    expect(sunriseDeactCall).toBeDefined();
+    expect(sunriseDeactCall![1]).toEqual([]);
   });
 });
