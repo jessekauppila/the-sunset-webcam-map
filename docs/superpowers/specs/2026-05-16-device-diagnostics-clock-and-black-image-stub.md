@@ -15,16 +15,18 @@ Two symptoms observed on the field-deployed Pi Zero 2 W test camera (lat 48.7519
 
 Both symptoms originate at the device, not in the cloud. Server-side accepts whatever the device sends.
 
-## Hypothesis: Single Root Cause
+## Hypothesis: Two Decoupled Problems
 
-The two symptoms are likely **the same bug** seen from two angles. The device firmware:
+**Updated 2026-05-16 22:00 PDT after a second sunset of observation.**
 
-- Computes its own local sunrise/sunset windows via an `astral`-style library against its onboard clock (see `pi-webcam-mvp.md` §2 — "Active window = 45 min before sunrise to 30 min after, etc.").
-- If the onboard clock is set ~7 hours ahead of real time, the device's "active window" maps to a real-world time that is fully dark.
-- The shutter opens; the sensor sees nothing; the snapshot is solid black.
-- The same skewed clock then stamps `captured_at` with a future ISO timestamp at upload time.
+The initial hypothesis was that both symptoms shared a root cause: a wrong clock would shift the active window into real-world darkness and produce black images, while also stamping uploads with future timestamps. Both predictions are *consistent* with the clock-drift hypothesis.
 
-**One hypothesis, two predictions, both consistent with what we observe.**
+But the second night of testing showed the camera producing real, well-exposed sunset imagery — *while still uploading future-stamped snapshots*. If clock drift caused the black images, every image should be black. They aren't. So:
+
+- **The clock drift is real and persistent.** Confirmed twice. Likely a `datetime.now()` vs `datetime.utcnow()` confusion in the upload path (the +7h offset matches PDT/UTC arithmetic exactly).
+- **The black image from 2026-05-15 was likely transient.** Probably weather (heavy overcast at golden hour), a startup driver glitch, or a one-off exposure error. Will know once we have several nights of observation under varied conditions.
+
+Treat these as two independent items. The clock fix is small and obvious. The intermittent black-image issue needs more data points before it's worth a real diagnosis — collect another week of snapshots and look for a pattern (does it correlate with weather, time-of-night, reboots, anything?).
 
 A secondary consequence: this also explains why the cam appeared at "wrong" times on the map before the visibility fix landed. The freshness predicate the cloud cron uses (`captured_at >= now - 90min`) is trivially satisfied by future timestamps, so the cam was "always fresh" regardless of when it actually captured. Once a real geometric predicate landed, the geographic gating started working — but freshness is still effectively a no-op for this device until the clock is fixed.
 
