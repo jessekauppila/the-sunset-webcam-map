@@ -129,6 +129,15 @@ export async function GET(req: Request) {
   const windyScores: number[] = [];
   let cacheHits = 0;
   let fallbacks = 0;
+  // Per-tick breakdown of which scoring path each webcam took. Makes
+  // 'is ONNX actually running' inspectable from the cron response —
+  // scoringPaths.onnx > 0 && scoringPaths['baseline-fallback'] === 0 is green.
+  const scoringPaths: Record<'onnx' | 'cache-hit' | 'baseline-fallback' | 'baseline', number> = {
+    onnx: 0,
+    'cache-hit': 0,
+    'baseline-fallback': 0,
+    baseline: 0,
+  };
 
   async function scoreOneWindy(webcam: typeof windyAll[number]): Promise<void> {
     const externalId = String(webcam.webcamId);
@@ -159,9 +168,11 @@ export async function GET(req: Request) {
 
       if (scored.pathTaken === 'cache-hit') {
         cacheHits += 1;
+        scoringPaths['cache-hit'] += 1;
         return;
       }
       if (scored.pathTaken === 'baseline-fallback') fallbacks += 1;
+      scoringPaths[scored.pathTaken] += 1;
       windyScores.push(scored.rawScore);
 
       // Write Neon first: if the DB write fails, Redis hash is not committed
@@ -185,6 +196,9 @@ export async function GET(req: Request) {
         error,
       );
       fallbacks += 1;
+      // Same conflation as `fallbacks`: download/timeout failures count
+      // as a fallback path since no real score was produced.
+      scoringPaths['baseline-fallback'] += 1;
     }
   }
 
@@ -305,6 +319,7 @@ export async function GET(req: Request) {
     windyScored: windyScores.length,
     cacheHits,
     fallbacks,
+    scoringPaths,
     customBackfill: backfillResult,
   });
 }
