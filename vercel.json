@@ -8,6 +8,9 @@
   "functions": {
     "app/api/cron/update-cameras/route.ts": {
       "includeFiles": "ml/artifacts/models/regression_resnet18/**"
+    },
+    "app/api/debug/scoring-smoke/route.ts": {
+      "includeFiles": "ml/artifacts/models/regression_resnet18/**"
     }
   }
 }
