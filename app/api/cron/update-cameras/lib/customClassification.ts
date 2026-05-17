@@ -4,8 +4,11 @@ import { classifyWebcamsByPhase } from './webcamClassification';
 
 interface CustomCamRow {
   webcam_id: number;
-  lat: number;
-  lng: number;
+  // Postgres NUMERIC columns come back from the Neon driver as strings.
+  // We coerce to number when building the shaped WindyWebcam below so
+  // downstream consumers see consistent numeric types.
+  lat: number | string;
+  lng: number | string;
 }
 
 export interface CustomTerminatorRow {
@@ -50,8 +53,8 @@ export async function classifyCustomCamerasForTick(opts: {
     status: 'unknown',
     categories: [],
     location: {
-      latitude: r.lat,
-      longitude: r.lng,
+      latitude: Number(r.lat),
+      longitude: Number(r.lng),
     },
   }));
 
