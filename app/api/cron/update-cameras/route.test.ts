@@ -217,4 +217,29 @@ describe('GET /api/cron/update-cameras', () => {
     expect(sunriseDeactCall).toBeDefined();
     expect(sunriseDeactCall![1]).toEqual([]);
   });
+
+  it('returns a scoringPaths breakdown counted from scored.pathTaken', async () => {
+    // Three webcams: one onnx, one cache-hit, one baseline-fallback.
+    fetchBatchesMock.mockResolvedValueOnce([[
+      { webcamId: 7, location: { latitude: 0, longitude: 0 },
+        images: { current: { preview: 'https://x/a.jpg' } }, viewCount: 1, rating: 3 },
+      { webcamId: 8, location: { latitude: 0, longitude: 0 },
+        images: { current: { preview: 'https://x/b.jpg' } }, viewCount: 1, rating: 3 },
+      { webcamId: 9, location: { latitude: 0, longitude: 0 },
+        images: { current: { preview: 'https://x/c.jpg' } }, viewCount: 1, rating: 3 },
+    ]]);
+    getIdMapMock.mockResolvedValueOnce(new Map([['7', 700], ['8', 800], ['9', 900]]));
+    scoreMock
+      .mockResolvedValueOnce({ rawScore: 0.6, aiRating: 3.4, modelVersion: 'v4', imageHash: 'h1', source: 'windy', pathTaken: 'onnx' })
+      .mockResolvedValueOnce({ rawScore: 0, aiRating: 0, modelVersion: 'v4', imageHash: 'h2', source: 'windy', pathTaken: 'cache-hit' })
+      .mockResolvedValueOnce({ rawScore: 0.4, aiRating: 2.6, modelVersion: 'v4', imageHash: 'h3', source: 'windy', pathTaken: 'baseline-fallback' });
+    const res = await GET(makeReq());
+    const body = await res.json();
+    expect(body.scoringPaths).toEqual({
+      onnx: 1,
+      'cache-hit': 1,
+      'baseline-fallback': 1,
+      baseline: 0,
+    });
+  });
 });
