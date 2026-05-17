@@ -35,7 +35,7 @@ describe('findCustomSnapshotsNeedingScore', () => {
 describe('updateSnapshotAiRegressionScore', () => {
   it('writes ai_regression_score + ai_model_version_regression for a snapshot id', async () => {
     sqlMock.mockResolvedValue([]);
-    await updateSnapshotAiRegressionScore(7, 0.812, 'v4');
+    await updateSnapshotAiRegressionScore(7, 0.812, 'v4', 'onnx');
     const [strings, ...values] = sqlMock.mock.calls[0];
     const q = strings.join('?');
     expect(q).toMatch(/update\s+webcam_snapshots/i);
@@ -44,6 +44,22 @@ describe('updateSnapshotAiRegressionScore', () => {
     expect(values).toContain(7);
     expect(values).toContain(0.812);
     expect(values).toContain('v4');
+  });
+
+  it('also writes scoring_path so contaminated rows are queryable later', async () => {
+    sqlMock.mockResolvedValue([]);
+    await updateSnapshotAiRegressionScore(7, 0.812, 'v4', 'onnx');
+    const [strings, ...values] = sqlMock.mock.calls[0];
+    const q = strings.join('?');
+    expect(q).toMatch(/scoring_path/);
+    expect(values).toContain('onnx');
+  });
+
+  it('persists baseline-fallback when the scoring path was a fallback', async () => {
+    sqlMock.mockResolvedValue([]);
+    await updateSnapshotAiRegressionScore(7, 0.5, 'v4', 'baseline-fallback');
+    const [, ...values] = sqlMock.mock.calls[0];
+    expect(values).toContain('baseline-fallback');
   });
 });
 

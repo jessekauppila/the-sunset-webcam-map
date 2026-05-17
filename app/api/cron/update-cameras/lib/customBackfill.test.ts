@@ -60,8 +60,8 @@ describe('backfillCustomSnapshotScores', () => {
     expect(result.modelVersion).toBe('v4');
     expect(result.scores).toEqual([0.82, 0.82]);
     expect(updateSnapMock).toHaveBeenCalledTimes(2);
-    expect(updateSnapMock).toHaveBeenCalledWith(11, 0.82, 'v4');
-    expect(updateSnapMock).toHaveBeenCalledWith(12, 0.82, 'v4');
+    expect(updateSnapMock).toHaveBeenCalledWith(11, 0.82, 'v4', 'onnx');
+    expect(updateSnapMock).toHaveBeenCalledWith(12, 0.82, 'v4', 'onnx');
     // Webcam sync runs once per unique webcam_id (42 appears twice -> 1 call).
     expect(syncWebcamMock).toHaveBeenCalledTimes(1);
     expect(syncWebcamMock).toHaveBeenCalledWith(42);
