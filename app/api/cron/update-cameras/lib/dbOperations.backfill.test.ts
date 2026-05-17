@@ -48,7 +48,7 @@ describe('updateSnapshotAiRegressionScore', () => {
 });
 
 describe('updateWebcamRegressionScoreFromLatestCustomSnapshot', () => {
-  it('copies the latest snapshot score into webcams.ai_rating_regression', async () => {
+  it('writes the latest snapshot score into webcams.ai_rating_regression', async () => {
     sqlMock.mockResolvedValue([]);
     await updateWebcamRegressionScoreFromLatestCustomSnapshot(42);
     const [strings, ...values] = sqlMock.mock.calls[0];
@@ -57,5 +57,16 @@ describe('updateWebcamRegressionScoreFromLatestCustomSnapshot', () => {
     expect(q).toMatch(/ai_rating_regression/);
     expect(q).toMatch(/order\s+by\s+captured_at\s+desc/i);
     expect(values).toContain(42);
+  });
+
+  it('maps the raw [0,1] snapshot score to the 1-5 display scale (1 + raw*4)', async () => {
+    sqlMock.mockResolvedValue([]);
+    await updateWebcamRegressionScoreFromLatestCustomSnapshot(42);
+    const [strings] = sqlMock.mock.calls[0];
+    const q = strings.join('?');
+    // The display column must be set from the mapping formula, not the
+    // raw score. Catches regressions like the 0.21/5 popup display bug.
+    expect(q).toMatch(/ai_rating_regression\s*=\s*1\s*\+\s*ls\.ai_regression_score\s*\*\s*4/i);
+    expect(q).not.toMatch(/ai_rating_regression\s*=\s*ls\.ai_regression_score\s*,/i);
   });
 });
