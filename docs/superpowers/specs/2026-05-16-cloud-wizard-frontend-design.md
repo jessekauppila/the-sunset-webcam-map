@@ -28,6 +28,8 @@ After granting camera + location + device-orientation permission, the wizard wal
 
 6. **Mount here.** Operator aims the phone at the desired mounting direction and taps "Mount Here." Final `azimuth_deg` + `tilt_deg` snapshot from the DeviceOrientation API at tap time. Sub-project C will add `roll_deg` here plus a "which way is up" overlay on the housing.
 
+**Screen 4 alignment-tool link (sub-project C, v0.2).** Screen 4 renders a single button "Open the alignment tool" that opens `http://<pi-local-ip>:<setup-port>/setup/align` in a new tab. The Pi's local IP + port are surfaced by the same setup-status polling spec E uses for the WiFi-handoff transition. The button is followed by a "Continue" button that advances the wizard with no protocol-payload state from the alignment tool — the alignment step is a one-way side trip.
+
 The wizard then submits the assembled blob to `POST /api/cameras/pre-register` with the claim code. Per spec E's protocol Amendment A, this works whether the device has registered yet or not.
 
 ## Field provenance

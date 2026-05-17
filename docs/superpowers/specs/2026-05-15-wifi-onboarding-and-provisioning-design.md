@@ -198,6 +198,14 @@ The existing heartbeat response (`device-protocol.md` §6.4) already returns a `
 
 The setup service's footprint should be small enough that it can ship in the same image as the capture firmware and add no boot-time cost on already-provisioned units (it doesn't start unless the boot check finds no WiFi creds).
 
+**Alignment-tool integration (sub-project C, v0.2).** The setup web app must register three routes from `sunset_cam.setup_alignment`:
+
+- `GET /setup/align` → response body = `render_align_page(lat, lng)` with the camera's stored coordinates; `Content-Type: text/html; charset=utf-8`.
+- `GET /setup/preview.mjpg` → response body streams from `stream_mjpeg(frame_source=capture.capture_jpeg)`; `Content-Type: multipart/x-mixed-replace; boundary=sunsetcamframe`.
+- `GET /setup/orientation.json` → response body = `render_orientation_json(orientation_sampler)` where `orientation_sampler` is a singleton `OrientationSampler(reader=lambda: read_orientation(smbus2.SMBus(1)))` started at service boot. `Content-Type: application/json`.
+
+The MPU6050 / GY-521 IMU is required hardware for v0.2 (BOM addition). Wired via I2C on the Pi (SDA→GPIO 2, SCL→GPIO 3, VCC→3.3V, GND→GND).
+
 ### 5.6 Cloud-side endpoints touched
 
 Existing endpoints, used as-is:
