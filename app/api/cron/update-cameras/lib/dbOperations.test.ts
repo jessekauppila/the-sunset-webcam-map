@@ -26,6 +26,18 @@ describe('upsertTerminatorState', () => {
 
     // One call per row; rank is the array index
     expect(sqlMock).toHaveBeenCalledTimes(2);
+
+    // First call should carry webcamId=42 + rank=0 + phase='sunrise'.
+    const firstCallValues = sqlMock.mock.calls[0].slice(1);
+    expect(firstCallValues).toContain(42);
+    expect(firstCallValues).toContain('sunrise');
+    expect(firstCallValues).toContain(0);
+
+    // Second call should carry webcamId=7 + rank=1 + phase='sunrise'.
+    const secondCallValues = sqlMock.mock.calls[1].slice(1);
+    expect(secondCallValues).toContain(7);
+    expect(secondCallValues).toContain('sunrise');
+    expect(secondCallValues).toContain(1);
   });
 });
 
