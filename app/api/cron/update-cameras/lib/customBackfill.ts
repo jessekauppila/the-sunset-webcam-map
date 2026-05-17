@@ -45,7 +45,8 @@ export async function backfillCustomSnapshotScores(opts: {
       await updateSnapshotAiRegressionScore(
         row.snapshotId,
         result.rawScore,
-        result.modelVersion
+        result.modelVersion,
+        result.pathTaken
       );
       modelVersion = result.modelVersion;
       touchedWebcamIds.add(row.webcamId);
