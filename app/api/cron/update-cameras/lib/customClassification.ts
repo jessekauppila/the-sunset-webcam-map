@@ -75,16 +75,18 @@ export async function classifyCustomCamerasForTick(opts: {
     );
   }
 
+  // Same Number() coercion as the `shaped` mapping above — row.lat/lng come
+  // off the Neon driver as `number | string` for NUMERIC columns.
   const filteredSunrise = sunrise.filter((w) => {
     const row = rows.find((r) => r.webcam_id === (w.webcamId as number));
     if (!row) return false;
-    return minDistToCoords(row.lat, row.lng, opts.sunriseCoords) <= SEARCH_RADIUS_DEG;
+    return minDistToCoords(Number(row.lat), Number(row.lng), opts.sunriseCoords) <= SEARCH_RADIUS_DEG;
   });
 
   const filteredSunset = sunset.filter((w) => {
     const row = rows.find((r) => r.webcam_id === (w.webcamId as number));
     if (!row) return false;
-    return minDistToCoords(row.lat, row.lng, opts.sunsetCoords) <= SEARCH_RADIUS_DEG;
+    return minDistToCoords(Number(row.lat), Number(row.lng), opts.sunsetCoords) <= SEARCH_RADIUS_DEG;
   });
 
   return {
