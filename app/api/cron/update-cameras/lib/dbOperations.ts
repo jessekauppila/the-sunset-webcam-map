@@ -150,35 +150,30 @@ export async function upsertTerminatorState(
 }
 
 /**
- * Deactivate terminator state entries that are no longer in the current ring results
- * This keeps "active" aligned with the latest ring-based fetch.
+ * Flip rows in this phase to active=false unless their webcam_id is in
+ * activeWebcamIds. Source-agnostic: caller is responsible for unioning
+ * active ids across Windy + custom (or any other source) before calling.
  */
 export async function deactivateMissingTerminatorState(
   phase: 'sunrise' | 'sunset',
-  activeWebcamIds: number[]
+  activeWebcamIds: number[],
 ): Promise<void> {
   if (activeWebcamIds.length === 0) {
     await sql`
-      update terminator_webcam_state s
+      update terminator_webcam_state
       set active = false, updated_at = now()
-      from webcams w
-      where s.webcam_id = w.id
-        and w.source = 'windy'
-        and s.phase = ${phase}
-        and s.active = true
+      where phase = ${phase}
+        and active = true
     `;
     return;
   }
 
   await sql`
-    update terminator_webcam_state s
+    update terminator_webcam_state
     set active = false, updated_at = now()
-    from webcams w
-    where s.webcam_id = w.id
-      and w.source = 'windy'
-      and s.phase = ${phase}
-      and s.active = true
-      and s.webcam_id <> all(${activeWebcamIds})
+    where phase = ${phase}
+      and active = true
+      and webcam_id <> all(${activeWebcamIds})
   `;
 }
 
