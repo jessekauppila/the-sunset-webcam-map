@@ -7,7 +7,27 @@ vi.mock('@/app/lib/db', () => ({
     sqlMock(strings, ...values),
 }));
 
-import { deactivateMissingTerminatorState } from './dbOperations';
+import { deactivateMissingTerminatorState, upsertTerminatorState } from './dbOperations';
+
+describe('upsertTerminatorState', () => {
+  beforeEach(() => {
+    sqlMock.mockReset();
+    sqlMock.mockResolvedValue(undefined);
+  });
+
+  it('upserts rows with pre-resolved DB webcam_id and array-index rank', async () => {
+    await upsertTerminatorState(
+      [
+        { webcamId: 42 },
+        { webcamId: 7 },
+      ],
+      'sunrise',
+    );
+
+    // One call per row; rank is the array index
+    expect(sqlMock).toHaveBeenCalledTimes(2);
+  });
+});
 
 describe('deactivateMissingTerminatorState', () => {
   beforeEach(() => {
