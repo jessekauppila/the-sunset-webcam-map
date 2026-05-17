@@ -55,4 +55,26 @@ describe('deactivateMissingTerminatorState', () => {
     const firstCallStrings = sqlMock.mock.calls[0][0] as readonly string[];
     expect(firstCallStrings.join(' ')).not.toContain("source = 'windy'");
   });
+
+  it('deactivates all rows for the phase when active set is empty', async () => {
+    await deactivateMissingTerminatorState('sunset', []);
+
+    expect(sqlMock).toHaveBeenCalledTimes(1);
+    const strings = sqlMock.mock.calls[0][0] as readonly string[];
+    const fullQuery = strings.join(' ');
+    expect(fullQuery).not.toContain("source = 'windy'");
+    // Empty-array fast path: no `<> all` filter.
+    expect(fullQuery).not.toContain('<> all');
+  });
+
+  it('passes the active ids array into the SQL parameters', async () => {
+    await deactivateMissingTerminatorState('sunrise', [42, 99]);
+
+    expect(sqlMock).toHaveBeenCalledTimes(1);
+    // Index 0 of the call is the TemplateStringsArray; rest are interpolated values.
+    const values = sqlMock.mock.calls[0].slice(1);
+    // The phase string and the active-ids array should both appear in values.
+    expect(values).toContain('sunrise');
+    expect(values.some((v) => Array.isArray(v) && (v as number[]).join(',') === '42,99')).toBe(true);
+  });
 });

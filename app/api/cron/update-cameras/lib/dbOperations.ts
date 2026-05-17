@@ -153,6 +153,12 @@ export async function upsertTerminatorState(
  * Flip rows in this phase to active=false unless their webcam_id is in
  * activeWebcamIds. Source-agnostic: caller is responsible for unioning
  * active ids across Windy + custom (or any other source) before calling.
+ *
+ * WARNING: this function previously had a source='windy' guard. After its
+ * removal, passing an incomplete active set will deactivate rows of any
+ * source not in the set. Always pass the FULL union of active ids across
+ * every source the caller knows about — partial sets silently deactivate
+ * other-source rows.
  */
 export async function deactivateMissingTerminatorState(
   phase: 'sunrise' | 'sunset',
