@@ -77,7 +77,7 @@ The page contains:
   - Two solstice azimuth markers as dashed vertical lines, positioned client-side based on lat/lng + facing.
   - Shaded wedge between the solstice markers labeled "where the sun ever is."
 - **Facing selector**: a 3-state toggle (East / West / Both) below the preview. Default value is suggested by the operator's earlier phase preference from F (sunrise → East, sunset → West, both → Both).
-- **Bottom counter**: "N sunsets/year fall in this azimuth wedge" — astronomy only, recomputed client-side when the facing selector changes.
+- **Bottom counter**: "N sunsets/year fall in this azimuth wedge" — astronomy only, recomputed client-side when the facing selector changes. **v0.2 limitation**: the counter only tracks *sunset* azimuths, so an East-facing camera (which actually captures sunrises) shows "0 sunsets/year." A future spec adds a `count_sunrises_in_fov` companion and routes East to the sunrise count + sunrise-azimuth markers; until then, the East option produces a misleading display and is best treated as a placeholder for future v0.3.
 - **Instructions** (below the preview):
   > Rotate the camera housing until:
   > 1. The roll readout reads close to 0° and the "level" badge is green.
@@ -112,11 +112,13 @@ Only the accelerometer is used for v1 (roll + pitch from the gravity vector). Th
 Roll and pitch derived from the accelerometer's gravity vector:
 
 ```
-roll_rad  = atan2(accel_y, sqrt(accel_x² + accel_z²))
-pitch_rad = atan2(-accel_x, sqrt(accel_y² + accel_z²))
+roll_rad  = atan2(accel_y, accel_z)                  # range [-180°, 180°]
+pitch_rad = atan2(-accel_x, sqrt(accel_y² + accel_z²))   # range [-90°, 90°]
 ```
 
 Convert to degrees. **Yaw (compass direction) is not derivable from accelerometer alone** — requires a magnetometer, which we don't have. Out of scope, explicitly.
+
+Note on roll formula: the simpler `atan2(ay, sqrt(ax² + az²))` form returns the range [-90°, 90°] and cannot distinguish "flat" from "upside-down" (both give roll = 0°). The full `atan2(ay, az)` form returns the full [-180°, 180°] range and correctly returns ±180° when the device is upside-down. We want the full range so the operator can confirm orientation across any mounting position; the test suite asserts this explicitly.
 
 Implementation:
 - Background thread samples at 10 Hz.
