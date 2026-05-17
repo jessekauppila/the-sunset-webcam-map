@@ -355,9 +355,13 @@ export async function updateSnapshotAiRegressionScore(
 export async function updateWebcamRegressionScoreFromLatestCustomSnapshot(
   webcamId: number
 ): Promise<void> {
+  // Map the raw [0,1] score into the 1-5 display scale (inverse of the
+  // (rating-1)/4 normalization applied at training time in ml/export_dataset.py).
+  // Windy path does this in aiScoring.ts/normalizeOnnxOutput; custom path
+  // persists the raw score per-snapshot and maps here at sync time.
   await sql`
     update webcams
-    set ai_rating_regression = ls.ai_regression_score,
+    set ai_rating_regression = 1 + ls.ai_regression_score * 4,
         ai_model_version_regression = ls.ai_model_version_regression,
         updated_at = now()
     from (
