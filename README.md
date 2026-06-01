@@ -490,11 +490,16 @@ This keeps user labels clean for future model training while preserving AI scori
 - `AI_SCORING_MODE`: `baseline` (default) or `onnx`
 - `AI_MODEL_VERSION`: legacy single-model version string (still accepted)
 - `AI_ONNX_MODEL_PATH`: legacy single-model ONNX path (still accepted)
-- `AI_BINARY_MODEL_VERSION`: binary model version string
 - `AI_REGRESSION_MODEL_VERSION`: regression model version string
-- `AI_ONNX_BINARY_MODEL_PATH`: binary ONNX path
 - `AI_ONNX_REGRESSION_MODEL_PATH`: regression ONNX path
-- Threshold and snapshot recency behavior are configured in `app/lib/masterConfig.ts`:
+- `AI_BINARY_SCORING_ENABLED`: `true` to also run the binary classifier
+  (default off — when off, only the regression head runs and the popup
+  uses a regression-threshold proxy for the "is this a sunset?" verdict)
+- `AI_BINARY_MODEL_VERSION`: binary model version string
+- `AI_ONNX_BINARY_MODEL_PATH`: binary ONNX path
+- `AI_BINARY_SUNSET_THRESHOLD`: softmax probability cutoff for the binary
+  classifier's "is sunset" verdict (default `0.5`, override per-deploy)
+- Other thresholds and snapshot recency behavior are configured in `app/lib/masterConfig.ts`:
   - `AI_BINARY_DECISION_THRESHOLD`: default positive/negative decision cutoff (`0.5`)
   - `AI_SNAPSHOT_MIN_RAW_SCORE_THRESHOLD`: minimum raw score for snapshot capture (`0.8`)
   - `AI_SNAPSHOT_MIN_RATING_THRESHOLD`: legacy 0-5 threshold kept for rating-scale logic (`4.0`)
