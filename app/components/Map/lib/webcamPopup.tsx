@@ -1,4 +1,5 @@
 import type { WindyWebcam } from '../../../lib/types';
+import { renderAiRatingBlock } from './aiRatingBlock';
 
 /**
  * Format an ISO timestamp as a short relative-time label for the popup.
@@ -64,34 +65,23 @@ export function createWebcamPopupContent(
     return 'Unknown';
   };
 
+  // The popup currently shows a single rating + verdict. The "Binary" line
+  // we used to render was a duplicate of regression (route.ts still writes
+  // the same value to both columns). When the two-tier classifier ships
+  // (see memory/project_two_tier_sunset_classification.md), the verdict
+  // inside renderAiRatingBlock will swap from regression-threshold to
+  // binary-score without changing the visual structure here.
   const aiRegression =
     typeof webcam.aiRatingRegression === 'number'
       ? webcam.aiRatingRegression
       : typeof webcam.aiRating === 'number'
       ? webcam.aiRating
       : null;
-  const aiBinary =
-    typeof webcam.aiRatingBinary === 'number'
-      ? webcam.aiRatingBinary
-      : null;
-  const aiSection = (() => {
-    if (aiRegression === null && aiBinary === null) return '';
-    const regressionLine =
-      aiRegression !== null
-        ? `<p style="margin: 0 0 2px 0; font-size: 11px; color: #c7d2fe;line-height: 1;">Regression: ${aiRegression.toFixed(2)} / 5</p>`
-        : '';
-    const binaryLine =
-      aiBinary !== null
-        ? `<p style="margin: 0 0 2px 0; font-size: 11px; color: #c7d2fe;line-height: 1;">Binary: ${aiBinary.toFixed(2)} / 5</p>`
-        : '';
-    return `
-      <div style="margin: 8px 0 6px 0; padding: 6px 8px; border-radius: 4px; background: rgba(49, 46, 129, 0.35); border: 1px solid rgba(99, 102, 241, 0.35);">
-        <p style="margin: 0 0 4px 0; font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em; color: #a5b4fc;line-height: 1;">AI ratings</p>
-        ${regressionLine}
-        ${binaryLine}
-      </div>
-    `;
-  })();
+  const aiSection = renderAiRatingBlock({
+    rating: aiRegression,
+    modelVersion: webcam.aiModelVersionRegression ?? webcam.aiModelVersion ?? null,
+    uniqueKey: webcam.webcamId,
+  });
 
   if (hasImage) {
     return `
