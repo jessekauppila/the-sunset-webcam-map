@@ -34,6 +34,13 @@ export async function GET(req: Request): Promise<Response> {
       modelVersion: result.modelVersion,
       imageHash: result.imageHash,
       latencyMs,
+      // Binary-head fields. Undefined when the binary classifier is
+      // disabled (AI_BINARY_SCORING_ENABLED unset) or when its session
+      // failed to load — easy way to verify the new path post-deploy.
+      binaryRawScore: result.binaryRawScore,
+      binaryIsSunset: result.binaryIsSunset,
+      binaryModelVersion: result.binaryModelVersion,
+      binaryPathTaken: result.binaryPathTaken,
     });
   } catch (error) {
     return NextResponse.json(
