@@ -1,0 +1,87 @@
+run:
+  name: v4_binary_llm_with_flickr
+  seed: 20260212
+  notes: >
+    v4 BINARY companion to v4_regression_llm_with_flickr. Identical
+    dataset (35k images with Flickr augmentation, LLM-rated) but
+    target_type=binary so the head predicts is_sunset rather than
+    quality score.
+
+    The dataset is heavily imbalanced — 53% of labels are 0.0 ("definitely
+    not a sunset") and the positive class (rating >= 4 → binary 1) is the
+    minority. class_weighting=balanced is required; without it the model
+    learns the trivial "always predict 0" solution.
+
+    Goal: wire this into the cron so the popup verdict comes from a real
+    "is this a sunset?" signal instead of regression-threshold proxy. See
+    memory/project_two_tier_sunset_classification.md.
+
+    Same patience/epoch tuning as v4 regression. Threshold sweep covers a
+    wider range than the regression run since binary models have a clearer
+    precision/recall curve worth inspecting.
+  tags: [v4, binary, llm_labels, flickr, external_data]
+
+data:
+  label_source: manual_only
+  llm_ratings_csv: ml/artifacts/llm_ratings/initial_ratings.csv
+  label_merge_strategy: llm_only
+  target_type: binary
+  # IMPORTANT: this threshold compares against the NORMALIZED [0,1]
+  # target_label, not the raw 1-5 rating. (rating - 1) / 4 = 0.75
+  # corresponds to "rating >= 4". Setting this to 4.0 produces zero
+  # positives in the dataset (since normalized values cap at 1.0) and
+  # the model trains a trivial "always 0" solution. See
+  # ml/common/labels.py:19 and ml/export_dataset.py merge_label docstring.
+  binary_threshold: 0.75
+  min_rating_count: 1
+  include_external: true
+  external_categories: [sunset]
+  splits:
+    seed: 20260212
+    train_pct: 70
+    val_pct: 15
+    test_pct: 15
+
+model:
+  name: resnet18
+  epochs: 60
+  batch_size: 32
+  learning_rate: 0.0001
+  lr_schedule: cosine
+  early_stopping_patience: 15
+  head_dropout: 0.3
+
+imbalance:
+  class_weighting: balanced
+  sampler: none
+  manual_weights: {}
+
+augmentation:
+  profile: light
+
+cropping:
+  strategy: random_resized
+  scale_min: 0.95
+  scale_max: 1.0
+
+performance:
+  num_workers: 0
+  pin_memory: false
+  prefetch_factor: 2
+  persistent_workers: false
+
+subset:
+  max_train_samples: 0
+  max_val_samples: 0
+
+image_cache:
+  enabled: true
+  cache_dir: ml/artifacts/image_cache
+  precache: true
+
+metrics:
+  decision_threshold: 0.5
+  threshold_sweep: true
+  threshold_sweep_start: 0.1
+  threshold_sweep_end: 0.9
+  threshold_sweep_step: 0.05
