@@ -110,7 +110,10 @@ def parse_args() -> argparse.Namespace:
         default="manual_only",
     )
     parser.add_argument("--target-type", choices=["binary", "regression"], default="binary")
-    parser.add_argument("--binary-threshold", type=float, default=4.0)
+    # Compared against the normalized [0,1] label produced by merge_label,
+    # NOT the raw 1-5 rating. (rating - 1) / 4 = 0.75 corresponds to
+    # "rating >= 4". See ml/common/labels.py docstring.
+    parser.add_argument("--binary-threshold", type=float, default=0.75)
     parser.add_argument("--min-rating-count", type=int, default=2)
     parser.add_argument("--seed", type=int, default=20260212)
     parser.add_argument("--train-pct", type=int, default=70)

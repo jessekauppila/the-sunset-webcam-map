@@ -96,7 +96,9 @@ def main() -> None:
         "--target-type",
         str(cfg_get(data_cfg, "target_type", "binary")),
         "--binary-threshold",
-        str(cfg_get(data_cfg, "binary_threshold", 4.0)),
+        # Normalized [0,1] threshold — see ml/common/labels.py docstring.
+        # 0.75 ≈ rating >= 4 on the original 1-5 scale.
+        str(cfg_get(data_cfg, "binary_threshold", 0.75)),
         "--min-rating-count",
         str(cfg_get(data_cfg, "min_rating_count", 2)),
         "--seed",
