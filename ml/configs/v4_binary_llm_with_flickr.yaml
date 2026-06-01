@@ -26,7 +26,13 @@ data:
   llm_ratings_csv: ml/artifacts/llm_ratings/initial_ratings.csv
   label_merge_strategy: llm_only
   target_type: binary
-  binary_threshold: 4.0
+  # IMPORTANT: this threshold compares against the NORMALIZED [0,1]
+  # target_label, not the raw 1-5 rating. (rating - 1) / 4 = 0.75
+  # corresponds to "rating >= 4". Setting this to 4.0 produces zero
+  # positives in the dataset (since normalized values cap at 1.0) and
+  # the model trains a trivial "always 0" solution. See
+  # ml/common/labels.py:19 and ml/export_dataset.py merge_label docstring.
+  binary_threshold: 0.75
   min_rating_count: 1
   include_external: true
   external_categories: [sunset]
