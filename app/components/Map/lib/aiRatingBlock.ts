@@ -30,6 +30,22 @@ export interface AiRatingBlockInput {
    * don't collide. The webcam id is the natural choice.
    */
   uniqueKey: string | number;
+  /**
+   * OPTIONAL real "is this a sunset?" signal from the binary classifier.
+   * When present, drives the verdict directly — `binaryIsSunset === true`
+   * renders the warm-amber block regardless of regression rating. When
+   * undefined (binary not wired or not yet populated on this row), the
+   * regression-threshold proxy at SUNSET_DETECTION_THRESHOLD kicks in
+   * with today's behaviour.
+   *
+   * Webcam-level field on `webcams`. Populated from cron via the binary
+   * head on aiScoring's `scored.binaryRawScore` mapped onto the 1-5 column
+   * (1 + raw*4). When `binaryRating >= ...` is true on the wire, the
+   * popup should pass `binaryIsSunset: binaryRating >= 3` (= probability
+   * 0.5) — but that maps directly through, so callers can also just pass
+   * the boolean computed wherever.
+   */
+  binaryIsSunset?: boolean | null;
 }
 
 /**
@@ -38,7 +54,10 @@ export interface AiRatingBlockInput {
  */
 export function renderAiRatingBlock(input: AiRatingBlockInput): string {
   if (input.rating == null) return '';
-  const isSunset = input.rating >= SUNSET_DETECTION_THRESHOLD;
+  const isSunset =
+    typeof input.binaryIsSunset === 'boolean'
+      ? input.binaryIsSunset
+      : input.rating >= SUNSET_DETECTION_THRESHOLD;
   return isSunset
     ? renderSunsetBlock(input.rating, input.modelVersion, input.uniqueKey)
     : renderNoSunsetBlock(input.rating, input.modelVersion);

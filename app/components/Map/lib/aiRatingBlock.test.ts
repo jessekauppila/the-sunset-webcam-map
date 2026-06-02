@@ -32,6 +32,39 @@ describe('renderAiRatingBlock', () => {
     expect(html).not.toContain('Sunset detected');
   });
 
+  it('binaryIsSunset=true overrides the regression-threshold proxy (low rating still shows sunset)', () => {
+    const html = renderAiRatingBlock({
+      rating: 1.5,
+      modelVersion: 'v4',
+      uniqueKey: 1,
+      binaryIsSunset: true,
+    });
+    expect(html).toContain('Sunset detected');
+    expect(html).not.toContain('Not a sunset');
+  });
+
+  it('binaryIsSunset=false overrides the regression-threshold proxy (high rating still shows not-a-sunset)', () => {
+    const html = renderAiRatingBlock({
+      rating: 4.5,
+      modelVersion: 'v4',
+      uniqueKey: 1,
+      binaryIsSunset: false,
+    });
+    expect(html).toContain('Not a sunset');
+    expect(html).not.toContain('Sunset detected');
+  });
+
+  it('falls back to the regression proxy when binaryIsSunset is null', () => {
+    const html = renderAiRatingBlock({
+      rating: 3.0,
+      modelVersion: 'v4',
+      uniqueKey: 1,
+      binaryIsSunset: null,
+    });
+    // 3.0 >= 2.6 → sunset detected by proxy.
+    expect(html).toContain('Sunset detected');
+  });
+
   it('shows the rating with two decimals in both states', () => {
     const sunset = renderAiRatingBlock({
       rating: 3.66,

@@ -1093,10 +1093,21 @@ doesn't accumulate dead models.
 
 ```bash
 AI_SCORING_MODE=onnx
-AI_ONNX_BINARY_MODEL_PATH=ml/artifacts/models/binary_resnet18/<version_tag>/model.onnx
+
+# Regression head (required)
 AI_ONNX_REGRESSION_MODEL_PATH=ml/artifacts/models/regression_resnet18/<version_tag>/model.onnx
-AI_BINARY_MODEL_VERSION=<version_tag>
 AI_REGRESSION_MODEL_VERSION=<version_tag>
+
+# Binary head (optional — opt-in via AI_BINARY_SCORING_ENABLED).
+# When enabled, every webcam runs through BOTH models. The result
+# shape adds binaryRawScore + binaryIsSunset + binaryModelVersion +
+# binaryPathTaken. The popup uses binaryIsSunset as the "Sunset
+# detected" verdict when present; falls back to regression-threshold
+# proxy otherwise.
+AI_BINARY_SCORING_ENABLED=true
+AI_ONNX_BINARY_MODEL_PATH=ml/artifacts/models/binary_resnet18/<version_tag>/model.onnx
+AI_BINARY_MODEL_VERSION=<version_tag>
+AI_BINARY_SUNSET_THRESHOLD=0.5
 ```
 
 If ONNX cannot load, the scorer falls back to baseline mode. After a

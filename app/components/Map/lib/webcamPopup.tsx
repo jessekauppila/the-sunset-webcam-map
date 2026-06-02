@@ -65,22 +65,36 @@ export function createWebcamPopupContent(
     return 'Unknown';
   };
 
-  // The popup currently shows a single rating + verdict. The "Binary" line
-  // we used to render was a duplicate of regression (route.ts still writes
-  // the same value to both columns). When the two-tier classifier ships
-  // (see memory/project_two_tier_sunset_classification.md), the verdict
-  // inside renderAiRatingBlock will swap from regression-threshold to
-  // binary-score without changing the visual structure here.
+  // The popup shows the regression rating with a verdict. The verdict comes
+  // from the binary classifier when we have a real binary signal, otherwise
+  // from a regression-threshold proxy inside renderAiRatingBlock.
+  //
+  // "Real binary signal" = ai_model_version_binary is different from
+  // ai_model_version_regression. When binary scoring isn't enabled, the
+  // cron stamps the regression model version on both columns (see
+  // route.ts), so matching versions = no real binary signal yet.
   const aiRegression =
     typeof webcam.aiRatingRegression === 'number'
       ? webcam.aiRatingRegression
       : typeof webcam.aiRating === 'number'
       ? webcam.aiRating
       : null;
+
+  const regressionVersion = webcam.aiModelVersionRegression ?? webcam.aiModelVersion ?? null;
+  const binaryVersion = webcam.aiModelVersionBinary ?? null;
+  const hasRealBinarySignal =
+    typeof webcam.aiRatingBinary === 'number' &&
+    binaryVersion !== null &&
+    binaryVersion !== regressionVersion;
+  const binaryIsSunset = hasRealBinarySignal
+    ? webcam.aiRatingBinary! >= 3.0 // 3/5 == raw probability 0.5
+    : null;
+
   const aiSection = renderAiRatingBlock({
     rating: aiRegression,
-    modelVersion: webcam.aiModelVersionRegression ?? webcam.aiModelVersion ?? null,
+    modelVersion: regressionVersion,
     uniqueKey: webcam.webcamId,
+    binaryIsSunset,
   });
 
   if (hasImage) {

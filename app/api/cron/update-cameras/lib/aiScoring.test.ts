@@ -21,7 +21,11 @@ vi.mock('onnxruntime-node', () => ({
   },
 }));
 
-import { scoreImage, __resetScoreImageCacheForTests } from './aiScoring';
+import {
+  scoreImage,
+  softmaxBinaryClassOne,
+  __resetScoreImageCacheForTests,
+} from './aiScoring';
 
 describe('scoreImage', () => {
   beforeEach(() => {
@@ -136,5 +140,127 @@ describe('scoreImage', () => {
     expect(result.aiRating).toBeLessThanOrEqual(5);
     expect(preprocessMock).not.toHaveBeenCalled();
     expect(runMock).not.toHaveBeenCalled();
+  });
+
+  describe('binary classifier (opt-in via AI_BINARY_SCORING_ENABLED)', () => {
+    beforeEach(() => {
+      // Default off so existing tests above keep their old shape.
+      delete process.env.AI_BINARY_SCORING_ENABLED;
+      delete process.env.AI_BINARY_MODEL_VERSION;
+      delete process.env.AI_BINARY_SUNSET_THRESHOLD;
+    });
+
+    it('does NOT run the binary head when AI_BINARY_SCORING_ENABLED is unset', async () => {
+      const result = await scoreImage({
+        webcamId: 1,
+        imageBytes: Buffer.from('jpeg'),
+        source: 'windy',
+      });
+      expect(result.binaryRawScore).toBeUndefined();
+      expect(result.binaryIsSunset).toBeUndefined();
+      expect(result.binaryModelVersion).toBeUndefined();
+      // One ONNX call (regression only) — runMock was only invoked once.
+      expect(runMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('returns binary fields when enabled — high-confidence sunset', async () => {
+      process.env.AI_BINARY_SCORING_ENABLED = 'true';
+      process.env.AI_BINARY_MODEL_VERSION = 'binary-v4-test';
+      // Regression call returns 0.64, then binary call returns logits where
+      // class 1 (sunset) dominates strongly.
+      runMock
+        .mockResolvedValueOnce({ output: { data: [0.64] } })
+        .mockResolvedValueOnce({ output: { data: [-5.0, 5.0] } });
+
+      const result = await scoreImage({
+        webcamId: 1,
+        imageBytes: Buffer.from('jpeg'),
+        source: 'windy',
+      });
+
+      expect(result.pathTaken).toBe('onnx');
+      // Regression result preserved.
+      expect(result.aiRating).toBeCloseTo(3.56, 2);
+      // Binary softmax(-5, 5) ≈ 0.99995 → sunset.
+      expect(result.binaryRawScore).toBeGreaterThan(0.99);
+      expect(result.binaryIsSunset).toBe(true);
+      expect(result.binaryModelVersion).toBe('binary-v4-test');
+      expect(result.binaryPathTaken).toBe('onnx');
+      // Both heads ran.
+      expect(runMock).toHaveBeenCalledTimes(2);
+    });
+
+    it('returns binaryIsSunset=false when softmax probability is below threshold', async () => {
+      process.env.AI_BINARY_SCORING_ENABLED = 'true';
+      runMock
+        .mockResolvedValueOnce({ output: { data: [0.30] } })
+        .mockResolvedValueOnce({ output: { data: [3.0, -3.0] } }); // class 0 wins
+
+      const result = await scoreImage({
+        webcamId: 1,
+        imageBytes: Buffer.from('jpeg'),
+        source: 'windy',
+      });
+      expect(result.binaryRawScore).toBeLessThan(0.01);
+      expect(result.binaryIsSunset).toBe(false);
+    });
+
+    it('respects a custom AI_BINARY_SUNSET_THRESHOLD env var', async () => {
+      process.env.AI_BINARY_SCORING_ENABLED = 'true';
+      process.env.AI_BINARY_SUNSET_THRESHOLD = '0.9';
+      runMock
+        .mockResolvedValueOnce({ output: { data: [0.5] } })
+        // softmax(0, 1) ≈ 0.731 — above default 0.5, below custom 0.9.
+        .mockResolvedValueOnce({ output: { data: [0.0, 1.0] } });
+
+      const result = await scoreImage({
+        webcamId: 1,
+        imageBytes: Buffer.from('jpeg'),
+        source: 'windy',
+      });
+      expect(result.binaryRawScore).toBeCloseTo(0.731, 3);
+      expect(result.binaryIsSunset).toBe(false);
+    });
+
+    it('leaves regression intact when only the binary head throws', async () => {
+      process.env.AI_BINARY_SCORING_ENABLED = 'true';
+      runMock
+        .mockResolvedValueOnce({ output: { data: [0.64] } })
+        .mockRejectedValueOnce(new Error('binary model missing'));
+
+      const result = await scoreImage({
+        webcamId: 1,
+        imageBytes: Buffer.from('jpeg'),
+        source: 'windy',
+      });
+      expect(result.pathTaken).toBe('onnx');
+      expect(result.aiRating).toBeCloseTo(3.56, 2);
+      expect(result.binaryPathTaken).toBe('baseline-fallback');
+      expect(result.binaryIsSunset).toBe(false);
+    });
+  });
+});
+
+describe('softmaxBinaryClassOne', () => {
+  it('returns ~0.5 when logits are equal', () => {
+    expect(softmaxBinaryClassOne([1, 1])).toBeCloseTo(0.5, 6);
+  });
+
+  it('returns ~1 when class 1 logit dominates', () => {
+    expect(softmaxBinaryClassOne([-10, 10])).toBeCloseTo(1, 6);
+  });
+
+  it('returns ~0 when class 0 logit dominates', () => {
+    expect(softmaxBinaryClassOne([10, -10])).toBeCloseTo(0, 6);
+  });
+
+  it('is numerically stable for very large logits', () => {
+    expect(softmaxBinaryClassOne([1000, 1001])).toBeCloseTo(0.731, 3);
+    expect(softmaxBinaryClassOne([1000, 1000])).toBeCloseTo(0.5, 6);
+  });
+
+  it('handles non-finite inputs by returning 0', () => {
+    expect(softmaxBinaryClassOne([NaN, 1])).toBe(0);
+    expect(softmaxBinaryClassOne([Infinity, 1])).toBe(0);
   });
 });

@@ -178,13 +178,25 @@ export async function GET(req: Request) {
       // Write Neon first: if the DB write fails, Redis hash is not committed
       // and the next tick will re-score. Committing the hash before the DB
       // write would silently starve the row on transient DB failures.
+      //
+      // When the binary classifier is configured (AI_BINARY_SCORING_ENABLED),
+      // scored.binaryRawScore is the softmax probability of class 1 (sunset)
+      // in [0,1]. We map it onto the 1-5 column for popup compatibility via
+      // the same 1 + raw*4 formula the regression head uses. When binary
+      // isn't configured, fall back to the historical "stamp regression value
+      // on both columns" behaviour so the column is never null.
+      const binaryRating =
+        typeof scored.binaryRawScore === 'number'
+          ? Number((1 + scored.binaryRawScore * 4).toFixed(2))
+          : scored.aiRating;
+      const binaryModelVersion = scored.binaryModelVersion ?? scored.modelVersion;
       await updateWebcamAiFields([
         {
           webcamId,
           aiRating: scored.aiRating,
           aiModelVersion: scored.modelVersion,
-          aiRatingBinary: scored.aiRating, // binary scoring not in Phase 1
-          aiModelVersionBinary: scored.modelVersion,
+          aiRatingBinary: binaryRating,
+          aiModelVersionBinary: binaryModelVersion,
           aiRatingRegression: scored.aiRating,
           aiModelVersionRegression: scored.modelVersion,
         },
