@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import StarRating from '@/app/components/console/StarRating';
+import AiRatingDisplay from '@/app/components/Webcam/AiRatingDisplay';
 import type { WindyWebcam } from '@/app/lib/types';
 
 type FeedbackTone = 'positive' | 'negative' | 'neutral';
@@ -163,39 +164,37 @@ export function RatingCard({
         ) : null}
 
         {hasLegacyAi || hasBinary || hasRegression ? (
-          <div className="rounded border border-indigo-200 bg-indigo-50 px-2 py-1">
-            <p className="text-[11px] uppercase tracking-wide text-indigo-500">
-              AI ratings
-            </p>
-            {hasRegression ? (
-              <p className="text-sm font-semibold text-indigo-700">
-                Regression: {webcam.aiRatingRegression!.toFixed(2)} / 5
-              </p>
-            ) : hasLegacyAi ? (
-              <p className="text-sm font-semibold text-indigo-700">
-                Regression: {webcam.aiRating!.toFixed(2)} / 5
-              </p>
-            ) : null}
-            {hasBinary ? (
-              <p className="text-sm font-semibold text-indigo-700">
-                Binary: {webcam.aiRatingBinary!.toFixed(2)} / 5
-              </p>
-            ) : null}
-            {webcam.aiModelVersionRegression ? (
-              <p className="text-[11px] text-indigo-500">
-                Regression model: {webcam.aiModelVersionRegression}
-              </p>
-            ) : webcam.aiModelVersion ? (
-              <p className="text-[11px] text-indigo-500">
-                Model: {webcam.aiModelVersion}
-              </p>
-            ) : null}
-            {webcam.aiModelVersionBinary ? (
-              <p className="text-[11px] text-indigo-500">
-                Binary model: {webcam.aiModelVersionBinary}
-              </p>
-            ) : null}
-          </div>
+          (() => {
+            const aiRating = hasRegression
+              ? webcam.aiRatingRegression!
+              : hasLegacyAi
+              ? webcam.aiRating!
+              : null;
+            const regressionVersion =
+              webcam.aiModelVersionRegression ?? webcam.aiModelVersion ?? null;
+            const binaryVersion = webcam.aiModelVersionBinary ?? null;
+            // Real binary signal = the cron stamped a DIFFERENT model
+            // version on the binary column. When versions match, the
+            // binary value was duplicated from regression (legacy path)
+            // and shouldn't drive the verdict.
+            const hasRealBinarySignal =
+              hasBinary &&
+              binaryVersion !== null &&
+              binaryVersion !== regressionVersion;
+            const binaryIsSunset = hasRealBinarySignal
+              ? webcam.aiRatingBinary! >= 3.0 // 3/5 = probability 0.5
+              : null;
+            return (
+              <AiRatingDisplay
+                rating={aiRating}
+                modelVersion={regressionVersion}
+                binaryIsSunset={binaryIsSunset}
+                binaryModelVersion={
+                  hasRealBinarySignal ? binaryVersion : null
+                }
+              />
+            );
+          })()
         ) : null}
 
         <div className="flex flex-col items-start gap-1">
