@@ -41,6 +41,11 @@ export interface SnapshotRow {
   webcam_ai_model_version_binary: string | null;
   webcam_ai_rating_regression: number | null;
   webcam_ai_model_version_regression: string | null;
+  // Hard-example mining columns — only present in hard-examples mode queries.
+  // Other mode branches (archive/curated) don't SELECT these columns, so the
+  // fields are optional to avoid TypeScript errors on rows that don't include them.
+  model_disagreement_kind?: string | null;
+  human_sunset_majority?: boolean | null;
 }
 
 /**

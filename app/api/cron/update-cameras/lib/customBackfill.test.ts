@@ -15,9 +15,13 @@ vi.mock('./dbOperations', () => ({
 vi.mock('@/app/lib/webcamSnapshot', () => ({
   downloadImage: (...a: unknown[]) => downloadMock(...a),
 }));
-vi.mock('./aiScoring', () => ({
-  scoreImage: (...a: unknown[]) => scoreMock(...a),
-}));
+vi.mock('./aiScoring', async (importOriginal) => {
+  const real = await importOriginal<typeof import('./aiScoring')>();
+  return {
+    scoreImage: (...a: unknown[]) => scoreMock(...a),
+    computeDisagreementKind: real.computeDisagreementKind,
+  };
+});
 
 import { backfillCustomSnapshotScores } from './customBackfill';
 
@@ -60,8 +64,8 @@ describe('backfillCustomSnapshotScores', () => {
     expect(result.modelVersion).toBe('v4');
     expect(result.scores).toEqual([0.82, 0.82]);
     expect(updateSnapMock).toHaveBeenCalledTimes(2);
-    expect(updateSnapMock).toHaveBeenCalledWith(11, 0.82, 'v4', 'onnx');
-    expect(updateSnapMock).toHaveBeenCalledWith(12, 0.82, 'v4', 'onnx');
+    expect(updateSnapMock).toHaveBeenCalledWith(11, 0.82, 'v4', 'onnx', null);
+    expect(updateSnapMock).toHaveBeenCalledWith(12, 0.82, 'v4', 'onnx', null);
     // Webcam sync runs once per unique webcam_id (42 appears twice -> 1 call).
     expect(syncWebcamMock).toHaveBeenCalledTimes(1);
     expect(syncWebcamMock).toHaveBeenCalledWith(42);

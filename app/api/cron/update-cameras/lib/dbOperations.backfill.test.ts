@@ -35,12 +35,13 @@ describe('findCustomSnapshotsNeedingScore', () => {
 describe('updateSnapshotAiRegressionScore', () => {
   it('writes ai_regression_score + ai_model_version_regression for a snapshot id', async () => {
     sqlMock.mockResolvedValue([]);
-    await updateSnapshotAiRegressionScore(7, 0.812, 'v4', 'onnx');
+    await updateSnapshotAiRegressionScore(7, 0.812, 'v4', 'onnx', null);
     const [strings, ...values] = sqlMock.mock.calls[0];
     const q = strings.join('?');
     expect(q).toMatch(/update\s+webcam_snapshots/i);
     expect(q).toMatch(/ai_regression_score/);
     expect(q).toMatch(/ai_model_version_regression/);
+    expect(q).toMatch(/model_disagreement_kind/);
     expect(values).toContain(7);
     expect(values).toContain(0.812);
     expect(values).toContain('v4');
@@ -48,7 +49,7 @@ describe('updateSnapshotAiRegressionScore', () => {
 
   it('also writes scoring_path so contaminated rows are queryable later', async () => {
     sqlMock.mockResolvedValue([]);
-    await updateSnapshotAiRegressionScore(7, 0.812, 'v4', 'onnx');
+    await updateSnapshotAiRegressionScore(7, 0.812, 'v4', 'onnx', null);
     const [strings, ...values] = sqlMock.mock.calls[0];
     const q = strings.join('?');
     expect(q).toMatch(/scoring_path/);
@@ -57,9 +58,22 @@ describe('updateSnapshotAiRegressionScore', () => {
 
   it('persists baseline-fallback when the scoring path was a fallback', async () => {
     sqlMock.mockResolvedValue([]);
-    await updateSnapshotAiRegressionScore(7, 0.5, 'v4', 'baseline-fallback');
+    await updateSnapshotAiRegressionScore(7, 0.5, 'v4', 'baseline-fallback', null);
     const [, ...values] = sqlMock.mock.calls[0];
     expect(values).toContain('baseline-fallback');
+  });
+
+  it('writes the disagreement kind when one is provided', async () => {
+    sqlMock.mockResolvedValue([]);
+    await updateSnapshotAiRegressionScore(
+      7,
+      0.812,
+      'v4',
+      'onnx',
+      'binary_negative_regression_high',
+    );
+    const [, ...values] = sqlMock.mock.calls[0];
+    expect(values).toContain('binary_negative_regression_high');
   });
 });
 

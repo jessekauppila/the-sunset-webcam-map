@@ -30,6 +30,12 @@ type State = {
   unratedArchiveTotal: number;
   unratedRatedTotal: number;
 
+  // Hard examples state (offset-based pagination)
+  hardExamples: Snapshot[];
+  hardExamplesPage: number;
+  hardExamplesPageSize: number;
+  hardExamplesTotal: number;
+
   // Legacy support (deprecated - kept for backward compatibility)
   snapshots: Snapshot[];
   setSnapshots: (snapshots: Snapshot[]) => void;
@@ -41,25 +47,26 @@ type State = {
 
   // Page management
   setPageSize: (
-    mode: 'archive' | 'curated' | 'unrated',
+    mode: 'archive' | 'curated' | 'unrated' | 'hard-examples',
     size: number
   ) => void;
   goToPage: (
-    mode: 'archive' | 'curated' | 'unrated',
+    mode: 'archive' | 'curated' | 'unrated' | 'hard-examples',
     page: number
   ) => void;
-  nextPage: (mode: 'archive' | 'curated' | 'unrated') => void;
-  prevPage: (mode: 'archive' | 'curated' | 'unrated') => void;
+  nextPage: (mode: 'archive' | 'curated' | 'unrated' | 'hard-examples') => void;
+  prevPage: (mode: 'archive' | 'curated' | 'unrated' | 'hard-examples') => void;
 
   // Fetch operations
   fetchMore: (
-    mode: 'archive' | 'curated' | 'unrated'
+    mode: 'archive' | 'curated' | 'unrated' | 'hard-examples'
   ) => Promise<void>;
 
   // Reset operations
   resetArchive: () => void;
   resetCurated: () => void;
   resetUnrated: () => void;
+  resetHardExamples: () => void;
 
   // Unrated queue operations
   removeUnratedSnapshot: (snapshotId: number) => void;
@@ -171,6 +178,12 @@ export const useSnapshotStore = create<State>()((set, get) => ({
   unratedArchiveTotal: 0,
   unratedRatedTotal: 0,
 
+  // Hard examples state
+  hardExamples: [],
+  hardExamplesPage: 1,
+  hardExamplesPageSize: 24,
+  hardExamplesTotal: 0,
+
   // Legacy support
   snapshots: [],
   setSnapshots: (snapshots) => set({ snapshots }),
@@ -186,8 +199,10 @@ export const useSnapshotStore = create<State>()((set, get) => ({
       set({ archivePageSize: size });
     } else if (mode === 'curated') {
       set({ curatedPageSize: size });
-    } else {
+    } else if (mode === 'unrated') {
       set({ unratedPageSize: size });
+    } else {
+      set({ hardExamplesPageSize: size });
     }
   },
 
@@ -216,6 +231,19 @@ export const useSnapshotStore = create<State>()((set, get) => ({
       if (page > bufferEndPage) {
         get().fetchMore('curated');
       }
+    } else if (mode === 'hard-examples') {
+      const { hardExamples, hardExamplesPageSize, hardExamplesTotal } = get();
+      const totalPages = Math.ceil(hardExamplesTotal / hardExamplesPageSize);
+      const targetPage = Math.max(1, Math.min(page, totalPages));
+      set({ hardExamplesPage: targetPage });
+
+      // If page is beyond current buffer, fetch more
+      const bufferEndPage = Math.floor(
+        hardExamples.length / hardExamplesPageSize
+      );
+      if (targetPage > bufferEndPage) {
+        get().fetchMore('hard-examples');
+      }
     } else {
       // Unrated queue uses queue semantics, not page navigation.
       // Keep this a no-op for API parity with shared controls.
@@ -224,16 +252,24 @@ export const useSnapshotStore = create<State>()((set, get) => ({
   },
 
   nextPage: (mode) => {
-    const { goToPage, archivePage, curatedPage } = get();
-    const currentPage =
-      mode === 'archive' ? archivePage : curatedPage;
+    const { goToPage, archivePage, curatedPage, hardExamplesPage } = get();
+    let currentPage = curatedPage;
+    if (mode === 'archive') {
+      currentPage = archivePage;
+    } else if (mode === 'hard-examples') {
+      currentPage = hardExamplesPage;
+    }
     goToPage(mode, currentPage + 1);
   },
 
   prevPage: (mode) => {
-    const { goToPage, archivePage, curatedPage } = get();
-    const currentPage =
-      mode === 'archive' ? archivePage : curatedPage;
+    const { goToPage, archivePage, curatedPage, hardExamplesPage } = get();
+    let currentPage = curatedPage;
+    if (mode === 'archive') {
+      currentPage = archivePage;
+    } else if (mode === 'hard-examples') {
+      currentPage = hardExamplesPage;
+    }
     goToPage(mode, currentPage - 1);
   },
 
@@ -265,6 +301,13 @@ export const useSnapshotStore = create<State>()((set, get) => ({
     });
     saveUnratedSeen(new Set());
   },
+
+  resetHardExamples: () =>
+    set({
+      hardExamples: [],
+      hardExamplesPage: 1,
+      hardExamplesTotal: 0,
+    }),
 
   removeUnratedSnapshot: (snapshotId) => {
     set((state) => ({
@@ -322,6 +365,10 @@ export const useSnapshotStore = create<State>()((set, get) => ({
         url = `/api/snapshots?mode=curated&limit=100&user_session_id=${userSessionId}${
           excludeIds ? `&exclude_ids=${excludeIds}` : ''
         }`;
+      } else if (mode === 'hard-examples') {
+        const { hardExamplesPage, hardExamplesPageSize } = state;
+        const offset = (hardExamplesPage - 1) * hardExamplesPageSize;
+        url = `/api/snapshots?mode=hard-examples&limit=${hardExamplesPageSize}&offset=${offset}&user_session_id=${userSessionId}`;
       } else {
         const { unratedSeen, unratedPageSize } = state;
         const seenIdsArray = [...unratedSeen];
@@ -398,6 +445,26 @@ export const useSnapshotStore = create<State>()((set, get) => ({
           loading: false,
         });
         saveCuratedSeen(trimmedSeen);
+      } else if (mode === 'hard-examples') {
+        // Hard examples mode: replace the current page's snapshots
+        const { hardExamples, hardExamplesPage, hardExamplesPageSize } = get();
+        const startIdx = (hardExamplesPage - 1) * hardExamplesPageSize;
+
+        // Expand hardExamples array if needed
+        const newHardExamples = [...hardExamples];
+        for (
+          let i = startIdx;
+          i < startIdx + data.snapshots.length;
+          i++
+        ) {
+          newHardExamples[i] = data.snapshots[i - startIdx];
+        }
+
+        set({
+          hardExamples: newHardExamples,
+          hardExamplesTotal: data.total,
+          loading: false,
+        });
       } else {
         // Unrated mode: append queue and update seen set
         const { unrated, unratedSeen } = get();
@@ -461,6 +528,7 @@ export const useSnapshotStore = create<State>()((set, get) => ({
       findSnapshotById(state.snapshots) ||
       findSnapshotById(state.archive) ||
       findSnapshotById(state.curated) ||
+      findSnapshotById(state.hardExamples) ||
       findSnapshotById(state.unrated);
 
     const originalUserRating = originalSnapshot?.snapshot.userRating;
@@ -490,6 +558,7 @@ export const useSnapshotStore = create<State>()((set, get) => ({
       snapshots: updateSnapshotInList(state.snapshots),
       archive: updateSnapshotInList(state.archive),
       curated: updateSnapshotInList(state.curated),
+      hardExamples: updateSnapshotInList(state.hardExamples),
       unrated: updateSnapshotInList(state.unrated),
     }));
 
@@ -538,6 +607,7 @@ export const useSnapshotStore = create<State>()((set, get) => ({
         snapshots: updateSnapshotWithServerResult(state.snapshots),
         archive: updateSnapshotWithServerResult(state.archive),
         curated: updateSnapshotWithServerResult(state.curated),
+        hardExamples: updateSnapshotWithServerResult(state.hardExamples),
         unrated: updateSnapshotWithServerResult(state.unrated),
       }));
     } catch (error) {
@@ -563,6 +633,7 @@ export const useSnapshotStore = create<State>()((set, get) => ({
         snapshots: rollbackSnapshot(state.snapshots),
         archive: rollbackSnapshot(state.archive),
         curated: rollbackSnapshot(state.curated),
+        hardExamples: rollbackSnapshot(state.hardExamples),
         unrated: rollbackSnapshot(state.unrated),
       }));
       console.error('Failed to update snapshot rating:', error);

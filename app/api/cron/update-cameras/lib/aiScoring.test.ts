@@ -24,6 +24,7 @@ vi.mock('onnxruntime-node', () => ({
 import {
   scoreImage,
   softmaxBinaryClassOne,
+  computeDisagreementKind,
   __resetScoreImageCacheForTests,
 } from './aiScoring';
 
@@ -262,5 +263,46 @@ describe('softmaxBinaryClassOne', () => {
   it('handles non-finite inputs by returning 0', () => {
     expect(softmaxBinaryClassOne([NaN, 1])).toBe(0);
     expect(softmaxBinaryClassOne([Infinity, 1])).toBe(0);
+  });
+});
+
+describe('computeDisagreementKind', () => {
+  it('returns null when there is no extreme disagreement', () => {
+    // binary says yes + regression mid → agreement-ish
+    expect(computeDisagreementKind({ binaryIsSunset: true, aiRating: 3.5 })).toBeNull();
+    // binary says no + regression mid → not extreme enough
+    expect(computeDisagreementKind({ binaryIsSunset: false, aiRating: 2.5 })).toBeNull();
+  });
+
+  it('returns "binary_negative_regression_high" when binary says no but regression rating crosses the HIGH threshold', () => {
+    expect(
+      computeDisagreementKind({ binaryIsSunset: false, aiRating: 3.21 }),
+    ).toBe('binary_negative_regression_high');
+    // boundary — 3.0 is inclusive
+    expect(
+      computeDisagreementKind({ binaryIsSunset: false, aiRating: 3.0 }),
+    ).toBe('binary_negative_regression_high');
+  });
+
+  it('returns "binary_positive_regression_low" when binary says yes but regression rating crosses the LOW threshold', () => {
+    expect(
+      computeDisagreementKind({ binaryIsSunset: true, aiRating: 1.5 }),
+    ).toBe('binary_positive_regression_low');
+    // boundary — 2.0 is inclusive
+    expect(
+      computeDisagreementKind({ binaryIsSunset: true, aiRating: 2.0 }),
+    ).toBe('binary_positive_regression_low');
+  });
+
+  it('returns null when binaryIsSunset is undefined (binary head did not score)', () => {
+    expect(
+      computeDisagreementKind({ binaryIsSunset: undefined, aiRating: 4.5 }),
+    ).toBeNull();
+  });
+
+  it('returns null when aiRating is undefined', () => {
+    expect(
+      computeDisagreementKind({ binaryIsSunset: true, aiRating: undefined }),
+    ).toBeNull();
   });
 });

@@ -317,9 +317,10 @@ export function useSetWebcamMarkers(
             <RatingCard
               webcam={cam}
               initialRating={entry.latestRating ?? cam.rating ?? null}
-              onRate={async (selected) =>
-                handleRate(cam, entry, selected)
-              }
+              onRate={async () => {
+                /* no-op; map popup is read-only */
+              }}
+              readOnly={true}
             />
           );
         };

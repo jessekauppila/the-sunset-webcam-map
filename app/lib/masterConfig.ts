@@ -78,6 +78,37 @@ export const AI_SNAPSHOT_MIN_RATING_THRESHOLD = 4.0;
 export const AI_SNAPSHOT_RECENT_WINDOW_MINUTES = 30;
 
 // ---------------------------------------------------------------------------
+// Hard-example mining — model-disagreement thresholds
+// ---------------------------------------------------------------------------
+// When the binary classifier and regression head point in opposite directions,
+// the cron flags the snapshot for the Hard Examples drawer tab. These
+// thresholds (on the 1-5 aiRating scale) govern when the disagreement is
+// extreme enough to flag. Tightening them yields a smaller queue; loosening
+// yields more triage signal. See ml/OPERATING_GUIDE.md "Retention rules".
+export const SUNSET_DISAGREEMENT_HIGH = 3.0;
+export const SUNSET_DISAGREEMENT_LOW = 2.0;
+
+// ---------------------------------------------------------------------------
+// Snapshot cleanup gate
+// ---------------------------------------------------------------------------
+// Hard kill-switch for /api/snapshots/cleanup. Default OFF — even though no
+// cron currently schedules cleanup (vercel.json only schedules
+// /api/cron/update-cameras), this flag guarantees that a future schedule or
+// a manual POST cannot delete snapshots without an explicit code change.
+//
+// Even when CLEANUP_ENABLED = true, the endpoint still excludes:
+//   1. Snapshots with any webcam_snapshot_ratings row (rating OR verdict)
+//   2. Snapshots flagged by the cron as model_disagreement_kind != NULL
+//   3. (Future) is_window_winner = true once Phase 2 winner-selection ships
+//
+// History: this flag was added on 2026-06-02 after the audit discovered the
+// cleanup endpoint would delete star-rated snapshots indiscriminately. We
+// had ~33k snapshots in the archive at the time; nothing had been auto-
+// deleted because no cron was scheduled. Flipping CLEANUP_ENABLED = true
+// does NOT make cleanup start happening — it only stops returning early.
+export const CLEANUP_ENABLED = false;
+
+// ---------------------------------------------------------------------------
 // Snapshot queue progress semantics
 // ---------------------------------------------------------------------------
 // "Rated" progress in the Unrated Queue uses a GLOBAL definition:

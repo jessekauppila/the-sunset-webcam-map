@@ -12,7 +12,7 @@ export function SnapshotConsole({
   title,
   hotkeysEnabled = true,
 }: {
-  mode: 'archive' | 'curated' | 'unrated';
+  mode: 'archive' | 'curated' | 'unrated' | 'hard-examples';
   title: string;
   hotkeysEnabled?: boolean;
 }) {
@@ -40,6 +40,14 @@ export function SnapshotConsole({
   const curatedPage = useSnapshotStore((s) => s.curatedPage);
   const curatedPageSize = useSnapshotStore((s) => s.curatedPageSize);
   const curatedTotal = useSnapshotStore((s) => s.curatedTotal);
+
+  const hardExamples = useSnapshotStore((s) => s.hardExamples);
+  const hardExamplesPage = useSnapshotStore((s) => s.hardExamplesPage);
+  const hardExamplesPageSize = useSnapshotStore(
+    (s) => s.hardExamplesPageSize
+  );
+  const hardExamplesTotal = useSnapshotStore((s) => s.hardExamplesTotal);
+
   const unrated = useSnapshotStore((s) => s.unrated);
   const unratedArchiveTotal = useSnapshotStore(
     (s) => s.unratedArchiveTotal
@@ -54,11 +62,33 @@ export function SnapshotConsole({
       ? archive
       : mode === 'curated'
       ? curated
+      : mode === 'hard-examples'
+      ? hardExamples
       : unrated;
-  const currentPage = mode === 'archive' ? archivePage : curatedPage;
+  const currentPage =
+    mode === 'archive'
+      ? archivePage
+      : mode === 'curated'
+      ? curatedPage
+      : mode === 'hard-examples'
+      ? hardExamplesPage
+      : 1;
   const pageSize =
-    mode === 'archive' ? archivePageSize : curatedPageSize;
-  const total = mode === 'archive' ? archiveTotal : curatedTotal;
+    mode === 'archive'
+      ? archivePageSize
+      : mode === 'curated'
+      ? curatedPageSize
+      : mode === 'hard-examples'
+      ? hardExamplesPageSize
+      : 24;
+  const total =
+    mode === 'archive'
+      ? archiveTotal
+      : mode === 'curated'
+      ? curatedTotal
+      : mode === 'hard-examples'
+      ? hardExamplesTotal
+      : 0;
 
   // Get the current page's slice
   const startIdx = (currentPage - 1) * pageSize;
@@ -127,7 +157,7 @@ export function SnapshotConsole({
       : title;
 
   const handleQueueRate = useCallback(
-    async (rating: number) => {
+    async (rating: number, opts?: { isSunsetVerdict?: boolean }) => {
       if (!queueCurrent || isQueueSubmitting) return;
 
       const snapshotId = queueCurrent.snapshot.id;
@@ -135,7 +165,22 @@ export function SnapshotConsole({
       setUpdatingSnapshots((prev) => new Set(prev).add(snapshotId));
 
       try {
-        await setRating(snapshotId, rating);
+        const userSessionId = getUserSessionId();
+        const body: Record<string, unknown> = { userSessionId };
+        if (opts?.isSunsetVerdict !== undefined) {
+          body.isSunsetVerdict = opts.isSunsetVerdict;
+        }
+        if (opts?.isSunsetVerdict !== false) {
+          body.rating = rating;
+        }
+        const res = await fetch(`/api/snapshots/${snapshotId}/rate`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        if (!res.ok) {
+          throw new Error(`Rate request failed: ${res.status}`);
+        }
         setQueueHistory((prev) => [
           ...prev,
           { snapshot: queueCurrent, index: queueIndex },
@@ -157,7 +202,6 @@ export function SnapshotConsole({
       queueCurrent,
       queueIndex,
       isQueueSubmitting,
-      setRating,
       removeUnratedSnapshot,
     ]
   );
