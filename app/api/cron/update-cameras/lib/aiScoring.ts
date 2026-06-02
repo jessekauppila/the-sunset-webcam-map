@@ -29,6 +29,8 @@ import {
   AI_REGRESSION_MODEL_VERSION_DEFAULT,
   AI_ONNX_REGRESSION_MODEL_PATH_DEFAULT,
   AI_SCORING_MODE_DEFAULT,
+  SUNSET_DISAGREEMENT_HIGH,
+  SUNSET_DISAGREEMENT_LOW,
 } from '@/app/lib/masterConfig';
 import { sha256Hex } from './imageHash';
 import { preprocessJpegToImagenetTensor } from './imagePreprocess';
@@ -176,6 +178,31 @@ function normalizeRegressionOutput(value: number): {
     rawScore: Number(rawScore.toFixed(6)),
     aiRating: Number(aiRating.toFixed(2)),
   };
+}
+
+/**
+ * Decide whether the two heads disagree extremely enough to flag the
+ * snapshot for the Hard Examples queue. Pure function — no DB writes here,
+ * the caller persists the return value on the snapshot row.
+ *
+ * Returns a kind string OR null:
+ *   'binary_negative_regression_high' — false negative (the Taltson case)
+ *   'binary_positive_regression_low'  — false positive (model called sunset on something boring)
+ *   null                              — agreement, or one head didn't score
+ */
+export function computeDisagreementKind(input: {
+  binaryIsSunset: boolean | undefined;
+  aiRating: number | undefined;
+}): string | null {
+  if (typeof input.binaryIsSunset !== 'boolean') return null;
+  if (typeof input.aiRating !== 'number') return null;
+  if (!input.binaryIsSunset && input.aiRating >= SUNSET_DISAGREEMENT_HIGH) {
+    return 'binary_negative_regression_high';
+  }
+  if (input.binaryIsSunset && input.aiRating <= SUNSET_DISAGREEMENT_LOW) {
+    return 'binary_positive_regression_low';
+  }
+  return null;
 }
 
 /**
