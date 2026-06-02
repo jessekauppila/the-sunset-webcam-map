@@ -192,6 +192,11 @@ export function RatingCard({
                 binaryModelVersion={
                   hasRealBinarySignal ? binaryVersion : null
                 }
+                phase={
+                  webcam.phase === 'sunrise' || webcam.phase === 'sunset'
+                    ? webcam.phase
+                    : null
+                }
               />
             );
           })()

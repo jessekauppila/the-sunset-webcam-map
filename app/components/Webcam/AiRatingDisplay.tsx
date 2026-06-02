@@ -32,13 +32,43 @@ export type AiRatingDisplayProps = {
    * footer renders two lines.
    */
   binaryModelVersion?: string | null;
+  /**
+   * The webcam's phase ('sunrise' or 'sunset'). Drives the verdict copy
+   * since the model treats both phases identically — calling a sunrise
+   * cam's golden-hour detection a "sunset" reads wrong even when the
+   * binary classifier is right. Unknown phase → fall back to the
+   * compound "Sunrise or sunset" wording.
+   */
+  phase?: 'sunrise' | 'sunset' | null;
 };
+
+/**
+ * Produce the verdict copy strings for a given phase. The model judges
+ * both phases identically — the wording follows the webcam's known
+ * context to avoid reading like a mistake.
+ */
+function verdictCopy(phase: 'sunrise' | 'sunset' | null | undefined): {
+  detected: string;
+  notDetected: string;
+} {
+  if (phase === 'sunrise') {
+    return { detected: 'Sunrise detected', notDetected: 'Not a sunrise right now' };
+  }
+  if (phase === 'sunset') {
+    return { detected: 'Sunset detected', notDetected: 'Not a sunset right now' };
+  }
+  return {
+    detected: 'Sunrise or sunset detected',
+    notDetected: 'Not a sunrise or sunset right now',
+  };
+}
 
 export default function AiRatingDisplay({
   rating,
   modelVersion,
   binaryIsSunset = null,
   binaryModelVersion = null,
+  phase = null,
 }: AiRatingDisplayProps) {
   if (rating == null) return null;
 
@@ -47,16 +77,21 @@ export default function AiRatingDisplay({
     ? binaryIsSunset
     : rating >= SUNSET_DETECTION_THRESHOLD;
 
+  const copy = verdictCopy(phase);
+
   return isSunset ? (
     <SunsetState
       rating={rating}
       modelVersion={modelVersion}
       binaryModelVersion={binaryModelVersion}
+      verdictText={copy.detected}
     />
   ) : (
     <NotSunsetState
+      rating={rating}
       modelVersion={modelVersion}
       binaryModelVersion={binaryModelVersion}
+      verdictText={copy.notDetected}
     />
   );
 }
@@ -69,10 +104,12 @@ function SunsetState({
   rating,
   modelVersion,
   binaryModelVersion,
+  verdictText,
 }: {
   rating: number;
   modelVersion: string | null;
   binaryModelVersion: string | null;
+  verdictText: string;
 }) {
   return (
     <div
@@ -94,11 +131,11 @@ function SunsetState({
           fontFamily: 'var(--font-geist-sans), system-ui, sans-serif',
         }}
       >
-        Sunset detected
+        {verdictText}
       </div>
 
       <div className="flex items-center gap-2 mt-1.5">
-        <Stars rating={rating} />
+        <Stars rating={rating} palette="amber" />
         <span
           className="font-medium"
           style={{
@@ -130,12 +167,22 @@ function SunsetState({
 /* -------------------------------------------------------------------------- */
 
 function NotSunsetState({
+  rating,
   modelVersion,
   binaryModelVersion,
+  verdictText,
 }: {
+  rating: number;
   modelVersion: string | null;
   binaryModelVersion: string | null;
+  verdictText: string;
 }) {
+  // Always render the regression rating + stars even when binary says "no".
+  // The disagreement between a "Not a sunset" verdict and a high regression
+  // value is the most useful diagnostic signal — it surfaces silhouette
+  // sunsets the binary classifier missed (Taltson River 2026-06-01) and
+  // feeds the v5 training conversation. Cool slate palette so the data is
+  // present but doesn't visually contradict the verdict.
   return (
     <div
       className="rounded px-2.5 py-2 border-t border-b"
@@ -155,7 +202,24 @@ function NotSunsetState({
           fontFamily: 'var(--font-geist-sans), system-ui, sans-serif',
         }}
       >
-        Not a sunset right now
+        {verdictText}
+      </div>
+
+      <div className="flex items-center gap-2 mt-1.5">
+        <Stars rating={rating} palette="slate" />
+        <span
+          className="font-medium"
+          style={{
+            color: '#475569',
+            fontSize: '11px',
+            letterSpacing: '-0.02em',
+            lineHeight: 1,
+            fontFamily: 'var(--font-geist-mono), ui-monospace, monospace',
+          }}
+        >
+          {rating.toFixed(2)}
+          <span style={{ opacity: 0.5, fontWeight: 400 }}>/5</span>
+        </span>
       </div>
 
       <Footer
@@ -164,7 +228,6 @@ function NotSunsetState({
         labelColor="rgba(71, 85, 105, 0.7)"
         textColor="rgba(71, 85, 105, 0.55)"
         dividerColor="rgba(100, 116, 139, 0.22)"
-        marginTop="mt-2"
       />
     </div>
   );
@@ -179,9 +242,27 @@ const STAR_PATH =
 const STAR_OFFSETS = [0, 12.75, 25.5, 38.25, 51];
 const STAR_TRACK_WIDTH = 62;
 
-function Stars({ rating }: { rating: number }) {
+const STAR_PALETTES = {
+  amber: {
+    dim: 'rgba(251, 146, 60, 0.30)',
+    fill: '#ea580c',
+  },
+  slate: {
+    dim: 'rgba(148, 163, 184, 0.45)',
+    fill: '#64748b',
+  },
+} as const;
+
+function Stars({
+  rating,
+  palette,
+}: {
+  rating: number;
+  palette: keyof typeof STAR_PALETTES;
+}) {
   const clamped = Math.max(0, Math.min(5, rating));
   const fillWidth = (clamped / 5) * STAR_TRACK_WIDTH;
+  const colors = STAR_PALETTES[palette];
 
   // Each instance gets a unique clipPath id so multiple cards on screen
   // don't shadow each other. React useId is overkill; a random suffix
@@ -201,12 +282,12 @@ function Stars({ rating }: { rating: number }) {
           <rect x="0" y="0" width={fillWidth.toFixed(2)} height="11" />
         </clipPath>
       </defs>
-      <g fill="rgba(251, 146, 60, 0.30)">
+      <g fill={colors.dim}>
         {STAR_OFFSETS.map((x) => (
           <path key={`d-${x}`} transform={`translate(${x}, 0)`} d={STAR_PATH} />
         ))}
       </g>
-      <g fill="#ea580c" clipPath={`url(#${clipId})`}>
+      <g fill={colors.fill} clipPath={`url(#${clipId})`}>
         {STAR_OFFSETS.map((x) => (
           <path key={`f-${x}`} transform={`translate(${x}, 0)`} d={STAR_PATH} />
         ))}
