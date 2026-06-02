@@ -18,6 +18,12 @@ export type RatingCardProps = {
   className?: string;
   heading?: string;
   disabled?: boolean;
+  /**
+   * When true, hides the StarRating widget and the rate-handler entry
+   * point. The AI verdict + rating block stays visible. Used by the
+   * public map popup; drawer surfaces leave this unset.
+   */
+  readOnly?: boolean;
 };
 
 function inferLocation(webcam: WindyWebcam) {
@@ -38,6 +44,7 @@ export function RatingCard({
   className = '',
   heading,
   disabled = false,
+  readOnly = false,
 }: RatingCardProps) {
   const [currentRating, setCurrentRating] = useState<number>(
     initialRating ?? 0
@@ -202,26 +209,28 @@ export function RatingCard({
           })()
         ) : null}
 
-        <div className="flex flex-col items-start gap-1">
-          <p className="text-xs text-gray-500 uppercase tracking-wide">
-            {rateText}
-          </p>
-          <StarRating
-            rating={currentRating}
-            onRate={handleRate}
-            disabled={disabled || submitting}
-            size={28}
-            name={webcam.title}
-            className={submitting ? 'opacity-75' : ''}
-          />
-          {submitting ? (
-            <p className="text-xs text-gray-500">
-              Saving your rating…
+        {!readOnly && (
+          <div className="flex flex-col items-start gap-1">
+            <p className="text-xs text-gray-500 uppercase tracking-wide">
+              {rateText}
             </p>
-          ) : null}
-        </div>
+            <StarRating
+              rating={currentRating}
+              onRate={handleRate}
+              disabled={disabled || submitting}
+              size={28}
+              name={webcam.title}
+              className={submitting ? 'opacity-75' : ''}
+            />
+            {submitting ? (
+              <p className="text-xs text-gray-500">
+                Saving your rating…
+              </p>
+            ) : null}
+          </div>
+        )}
 
-        {feedback ? (
+        {!readOnly && feedback ? (
           <div
             className={`rounded-lg border px-3 py-2 text-xs leading-snug ${feedbackToneClass}`}
           >
@@ -229,7 +238,7 @@ export function RatingCard({
           </div>
         ) : null}
 
-        {error ? (
+        {!readOnly && error ? (
           <div className="rounded-lg border border-red-400 bg-red-100 px-3 py-2 text-xs text-red-700">
             {error}
           </div>
