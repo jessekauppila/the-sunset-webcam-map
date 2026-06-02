@@ -29,6 +29,22 @@ const nextConfig: NextConfig = {
       'node_modules/onnxruntime-node/bin/napi-v6/linux/x64/libnvinfer*',
     ],
   },
+  // Bundle the ONNX model files into the cron + smoke endpoints. The
+  // vercel.json `functions.includeFiles` field appears to silently not
+  // match `ml/artifacts/models/**` (logs show File doesn't exist at
+  // /var/task/ml/artifacts/models/...). Switch to Next's own tracing
+  // includes which DO work consistently. Route keys must NOT have the
+  // `.ts` suffix and must include the leading `app/` prefix.
+  outputFileTracingIncludes: {
+    '/api/cron/update-cameras': [
+      './ml/artifacts/models/regression_resnet18/**/*',
+      './ml/artifacts/models/binary_resnet18/**/*',
+    ],
+    '/api/debug/scoring-smoke': [
+      './ml/artifacts/models/regression_resnet18/**/*',
+      './ml/artifacts/models/binary_resnet18/**/*',
+    ],
+  },
 };
 
 export default nextConfig;
