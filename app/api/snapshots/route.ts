@@ -84,127 +84,74 @@ export async function GET(request: Request) {
     // docs/superpowers/specs/2026-06-02-hard-example-mining-and-private-labeling-design.md.
     if (mode === 'hard-examples') {
       const hardExamplesUserSessionId = searchParams.get('user_session_id');
-      const hardExamplesQuery = hardExamplesUserSessionId
-        ? sql`
-            SELECT
-              s.id as snapshot_id,
-              s.webcam_id,
-              s.phase,
-              s.rank,
-              s.initial_rating,
-              s.calculated_rating,
-              s.ai_rating,
-              s.firebase_url,
-              s.firebase_path,
-              s.captured_at,
-              s.created_at,
-              0::int as rating_count,
-              NULL::numeric as user_rating,
-              w.id as w_id,
-              w.source,
-              w.external_id,
-              w.title,
-              w.status,
-              w.view_count,
-              w.lat,
-              w.lng,
-              w.city,
-              w.region,
-              w.country,
-              w.continent,
-              w.images,
-              w.urls,
-              w.player,
-              w.categories,
-              w.last_fetched_at,
-              w.rating as webcam_rating,
-              w.orientation,
-              w.ai_rating as webcam_ai_rating,
-              w.ai_model_version as webcam_ai_model_version,
-              w.ai_rating_binary as webcam_ai_rating_binary,
-              w.ai_model_version_binary as webcam_ai_model_version_binary,
-              w.ai_rating_regression as webcam_ai_rating_regression,
-              w.ai_model_version_regression as webcam_ai_model_version_regression,
-              s.model_disagreement_kind,
-              s.human_sunset_majority
-            FROM webcam_snapshots s
-            JOIN webcams w ON w.id = s.webcam_id
-            WHERE s.model_disagreement_kind IS NOT NULL
-              AND s.id NOT IN (
-                SELECT snapshot_id FROM webcam_snapshot_ratings
-                WHERE user_session_id = ${hardExamplesUserSessionId}
-                  AND is_sunset_verdict IS NOT NULL
-              )
-            ORDER BY s.captured_at DESC
-            LIMIT ${limit} OFFSET ${offset}
-          `
-        : sql`
-            SELECT
-              s.id as snapshot_id,
-              s.webcam_id,
-              s.phase,
-              s.rank,
-              s.initial_rating,
-              s.calculated_rating,
-              s.ai_rating,
-              s.firebase_url,
-              s.firebase_path,
-              s.captured_at,
-              s.created_at,
-              0::int as rating_count,
-              NULL::numeric as user_rating,
-              w.id as w_id,
-              w.source,
-              w.external_id,
-              w.title,
-              w.status,
-              w.view_count,
-              w.lat,
-              w.lng,
-              w.city,
-              w.region,
-              w.country,
-              w.continent,
-              w.images,
-              w.urls,
-              w.player,
-              w.categories,
-              w.last_fetched_at,
-              w.rating as webcam_rating,
-              w.orientation,
-              w.ai_rating as webcam_ai_rating,
-              w.ai_model_version as webcam_ai_model_version,
-              w.ai_rating_binary as webcam_ai_rating_binary,
-              w.ai_model_version_binary as webcam_ai_model_version_binary,
-              w.ai_rating_regression as webcam_ai_rating_regression,
-              w.ai_model_version_regression as webcam_ai_model_version_regression,
-              s.model_disagreement_kind,
-              s.human_sunset_majority
-            FROM webcam_snapshots s
-            JOIN webcams w ON w.id = s.webcam_id
-            WHERE s.model_disagreement_kind IS NOT NULL
-            ORDER BY s.captured_at DESC
-            LIMIT ${limit} OFFSET ${offset}
-          `;
 
-      const rows = (await hardExamplesQuery) as SnapshotRow[];
+      // Conditional exclusion clause: only exclude already-verdicted snapshots
+      // when the caller supplies a user_session_id. The Neon sql tag supports
+      // nested template fragments, so an empty sql`` evaluates to nothing.
+      const exclusionClause = hardExamplesUserSessionId
+        ? sql`AND s.id NOT IN (
+              SELECT snapshot_id FROM webcam_snapshot_ratings
+              WHERE user_session_id = ${hardExamplesUserSessionId}
+                AND is_sunset_verdict IS NOT NULL
+            )`
+        : sql``;
 
-      const countResult = hardExamplesUserSessionId
-        ? await sql`
-            SELECT COUNT(*)::int AS total
-            FROM webcam_snapshots s
-            WHERE s.model_disagreement_kind IS NOT NULL
-              AND s.id NOT IN (
-                SELECT snapshot_id FROM webcam_snapshot_ratings
-                WHERE user_session_id = ${hardExamplesUserSessionId}
-                  AND is_sunset_verdict IS NOT NULL
-              )
-          `
-        : await sql`
-            SELECT COUNT(*)::int AS total
-            FROM webcam_snapshots s
-            WHERE s.model_disagreement_kind IS NOT NULL
-          `;
+      const rows = (await sql`
+          SELECT
+            s.id as snapshot_id,
+            s.webcam_id,
+            s.phase,
+            s.rank,
+            s.initial_rating,
+            s.calculated_rating,
+            s.ai_rating,
+            s.firebase_url,
+            s.firebase_path,
+            s.captured_at,
+            s.created_at,
+            0::int as rating_count,
+            NULL::numeric as user_rating,
+            w.id as w_id,
+            w.source,
+            w.external_id,
+            w.title,
+            w.status,
+            w.view_count,
+            w.lat,
+            w.lng,
+            w.city,
+            w.region,
+            w.country,
+            w.continent,
+            w.images,
+            w.urls,
+            w.player,
+            w.categories,
+            w.last_fetched_at,
+            w.rating as webcam_rating,
+            w.orientation,
+            w.ai_rating as webcam_ai_rating,
+            w.ai_model_version as webcam_ai_model_version,
+            w.ai_rating_binary as webcam_ai_rating_binary,
+            w.ai_model_version_binary as webcam_ai_model_version_binary,
+            w.ai_rating_regression as webcam_ai_rating_regression,
+            w.ai_model_version_regression as webcam_ai_model_version_regression,
+            s.model_disagreement_kind,
+            s.human_sunset_majority
+          FROM webcam_snapshots s
+          JOIN webcams w ON w.id = s.webcam_id
+          WHERE s.model_disagreement_kind IS NOT NULL
+            ${exclusionClause}
+          ORDER BY s.captured_at DESC
+          LIMIT ${limit} OFFSET ${offset}
+        `) as SnapshotRow[];
+
+      const countResult = await sql`
+          SELECT COUNT(*)::int AS total
+          FROM webcam_snapshots s
+          WHERE s.model_disagreement_kind IS NOT NULL
+            ${exclusionClause}
+        `;
       const total =
         (countResult as Array<{ total: number }>)[0]?.total ?? 0;
 
