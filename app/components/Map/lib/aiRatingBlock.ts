@@ -22,7 +22,7 @@ export interface AiRatingBlockInput {
   rating: number | null;
   /**
    * Model version string from `webcams.ai_model_version_regression`.
-   * Rendered as small footer metadata.
+   * Rendered as the "rating" footer line.
    */
   modelVersion: string | null;
   /**
@@ -32,35 +32,44 @@ export interface AiRatingBlockInput {
   uniqueKey: string | number;
   /**
    * OPTIONAL real "is this a sunset?" signal from the binary classifier.
-   * When present, drives the verdict directly — `binaryIsSunset === true`
-   * renders the warm-amber block regardless of regression rating. When
-   * undefined (binary not wired or not yet populated on this row), the
-   * regression-threshold proxy at SUNSET_DETECTION_THRESHOLD kicks in
-   * with today's behaviour.
-   *
-   * Webcam-level field on `webcams`. Populated from cron via the binary
-   * head on aiScoring's `scored.binaryRawScore` mapped onto the 1-5 column
-   * (1 + raw*4). When `binaryRating >= ...` is true on the wire, the
-   * popup should pass `binaryIsSunset: binaryRating >= 3` (= probability
-   * 0.5) — but that maps directly through, so callers can also just pass
-   * the boolean computed wherever.
+   * When present, drives the verdict directly. When undefined (binary
+   * not wired or not yet populated on this row), the regression-threshold
+   * proxy at SUNSET_DETECTION_THRESHOLD kicks in.
    */
   binaryIsSunset?: boolean | null;
+  /**
+   * OPTIONAL binary classifier's model version string. When present, the
+   * footer renders TWO lines (binary + rating). When absent, the footer
+   * collapses to one line (rating only).
+   */
+  binaryModelVersion?: string | null;
 }
 
 /**
  * Top-level entry. Returns an empty string when there's no signal to show
  * (matches the previous behavior of hiding the whole block on null ratings).
+ *
+ * Display-gate B contract (2026-06-01):
+ *   - When binary says yes → show rating + stars + binary/rating footer lines
+ *   - When binary says no  → SUPPRESS the rating/stars, show only verdict +
+ *     binary footer line (rating value not shown, but still in DB)
+ *   - When binary unavailable → fall back to the regression-threshold proxy
+ *     and show the single-line footer (today's behavior)
  */
 export function renderAiRatingBlock(input: AiRatingBlockInput): string {
   if (input.rating == null) return '';
-  const isSunset =
-    typeof input.binaryIsSunset === 'boolean'
-      ? input.binaryIsSunset
-      : input.rating >= SUNSET_DETECTION_THRESHOLD;
+  const hasBinarySignal = typeof input.binaryIsSunset === 'boolean';
+  const isSunset = hasBinarySignal
+    ? input.binaryIsSunset!
+    : input.rating >= SUNSET_DETECTION_THRESHOLD;
   return isSunset
-    ? renderSunsetBlock(input.rating, input.modelVersion, input.uniqueKey)
-    : renderNoSunsetBlock(input.rating, input.modelVersion);
+    ? renderSunsetBlock(
+        input.rating,
+        input.modelVersion,
+        input.binaryModelVersion ?? null,
+        input.uniqueKey,
+      )
+    : renderNoSunsetBlock(input.modelVersion, input.binaryModelVersion ?? null);
 }
 
 /* -------------------------------------------------------------------------- */
@@ -69,7 +78,8 @@ export function renderAiRatingBlock(input: AiRatingBlockInput): string {
 
 function renderSunsetBlock(
   rating: number,
-  modelVersion: string | null,
+  regressionVersion: string | null,
+  binaryVersion: string | null,
   uniqueKey: string | number,
 ): string {
   const clipId = `ai-rating-fill-${String(uniqueKey).replace(/[^a-zA-Z0-9_-]/g, '')}`;
@@ -108,8 +118,9 @@ function renderSunsetBlock(
           ">${rating.toFixed(2)}<span style="opacity: 0.45; font-weight: 400;">/5</span></span>
       </div>
 
-      ${renderModelFooter(modelVersion, {
+      ${renderModelFooter(regressionVersion, binaryVersion, {
         color: 'rgba(253, 186, 116, 0.42)',
+        labelColor: 'rgba(253, 186, 116, 0.55)',
         dividerColor: 'rgba(251, 146, 60, 0.18)',
       })}
     </div>
@@ -120,7 +131,15 @@ function renderSunsetBlock(
 /* "Not a sunset right now" — cool slate state                                */
 /* -------------------------------------------------------------------------- */
 
-function renderNoSunsetBlock(rating: number, modelVersion: string | null): string {
+function renderNoSunsetBlock(
+  regressionVersion: string | null,
+  binaryVersion: string | null,
+): string {
+  // Display gate B: when binary (or threshold proxy) says "not a sunset",
+  // the regression rating still EXISTS in the DB but is suppressed from
+  // the popup. We surface only the verdict + the model(s) that produced
+  // that verdict — no stars, no number, nothing that suggests this is a
+  // sunset worth rating. The score lives on for diagnostics + v5 training.
   return `
     <div style="
         margin: 10px 0 4px;
@@ -140,22 +159,11 @@ function renderNoSunsetBlock(rating: number, modelVersion: string | null): strin
           line-height: 1;
         ">Not a sunset right now</div>
 
-      <div style="display: flex; align-items: center; gap: 7px; margin-top: 6px;">
-        ${renderEmptyStars('rgba(148, 163, 184, 0.22)')}
-
-        <span style="
-            font-family: var(--font-geist-mono), ui-monospace, monospace;
-            font-size: 10px;
-            font-weight: 500;
-            color: #94a3b8;
-            letter-spacing: -0.02em;
-            line-height: 1;
-          ">${rating.toFixed(2)}<span style="opacity: 0.4; font-weight: 400;">/5</span></span>
-      </div>
-
-      ${renderModelFooter(modelVersion, {
+      ${renderModelFooter(regressionVersion, binaryVersion, {
         color: 'rgba(148, 163, 184, 0.4)',
+        labelColor: 'rgba(148, 163, 184, 0.55)',
         dividerColor: 'rgba(148, 163, 184, 0.14)',
+        marginTopOverride: '8px',
       })}
     </div>
   `;
@@ -203,44 +211,77 @@ function renderStars(opts: {
   `;
 }
 
-function renderEmptyStars(color: string): string {
-  return `
-    <svg width="62" height="11" viewBox="0 0 62 11" style="display: block; flex: none;" aria-hidden="true">
-      ${renderStarRow(color)}
-    </svg>
-  `;
-}
 
 /* -------------------------------------------------------------------------- */
 /* Footer (model version + ONNX badge)                                        */
 /* -------------------------------------------------------------------------- */
 
 function renderModelFooter(
-  modelVersion: string | null,
-  opts: { color: string; dividerColor: string },
+  regressionVersion: string | null,
+  binaryVersion: string | null,
+  opts: {
+    color: string;
+    labelColor: string;
+    dividerColor: string;
+    /** Override default 7px footer margin-top (used by no-sunset state). */
+    marginTopOverride?: string;
+  },
 ): string {
-  // Trim "regression" / "binary" type prefixes if present, then strip leading
-  // version tag and date to leave the readable suffix. Examples:
-  //   "v4_regression_llm_with_flickr" -> "v4 · llm_with_flickr"
-  //   "20260513_113243_v4_regression_llm_with_flickr" -> "v4 · llm_with_flickr"
-  //   null -> "—"
-  const label = formatModelLabel(modelVersion);
+  const regressionLabel = formatModelLabel(regressionVersion);
+  const binaryLabel = formatModelLabel(binaryVersion);
 
+  // Two-line footer when we have a binary classifier signal AND it's
+  // distinguishable from the regression version. When the binary model
+  // version matches regression (legacy behaviour where cron stamps the
+  // regression version on both columns) OR there is no binary version at
+  // all, collapse to a single "rating from" line — no point showing two
+  // identical lines or one with "—".
+  const hasDistinctBinary =
+    binaryVersion != null && binaryVersion !== regressionVersion;
+
+  const marginTop = opts.marginTopOverride ?? '7px';
+
+  if (!hasDistinctBinary) {
+    return `
+      <div style="
+          margin-top: ${marginTop};
+          padding-top: 6px;
+          border-top: 1px dashed ${opts.dividerColor};
+          font-family: var(--font-geist-mono), ui-monospace, monospace;
+          font-size: 7.5px;
+          letter-spacing: 0.06em;
+          color: ${opts.color};
+          line-height: 1;
+          display: flex;
+          justify-content: space-between;
+        ">
+        <span>${escapeHtml(regressionLabel)}</span>
+        <span style="opacity: 0.7;">ONNX</span>
+      </div>
+    `;
+  }
+
+  // Two-line layout: small labels on the left, model versions stacked,
+  // ONNX badge anchored to the right of the binary row only.
   return `
     <div style="
-        margin-top: 7px;
+        margin-top: ${marginTop};
         padding-top: 6px;
         border-top: 1px dashed ${opts.dividerColor};
         font-family: var(--font-geist-mono), ui-monospace, monospace;
         font-size: 7.5px;
         letter-spacing: 0.06em;
         color: ${opts.color};
-        line-height: 1;
-        display: flex;
-        justify-content: space-between;
+        line-height: 1.4;
       ">
-      <span>${escapeHtml(label)}</span>
-      <span style="opacity: 0.7;">ONNX</span>
+      <div style="display: flex; justify-content: space-between; align-items: baseline;">
+        <span><span style="color: ${opts.labelColor};">binary&nbsp;&nbsp;</span>${escapeHtml(binaryLabel)}</span>
+        <span style="opacity: 0.7;">ONNX</span>
+      </div>
+      <div style="display: flex; justify-content: space-between; align-items: baseline; margin-top: 2px;">
+        <span><span style="color: ${opts.labelColor};">rating&nbsp;&nbsp;</span>${escapeHtml(regressionLabel)}</span>
+        <span style="opacity: 0.7;">ONNX</span>
+      </div>
     </div>
   `;
 }

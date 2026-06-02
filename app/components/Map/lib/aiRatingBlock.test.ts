@@ -65,7 +65,7 @@ describe('renderAiRatingBlock', () => {
     expect(html).toContain('Sunset detected');
   });
 
-  it('shows the rating with two decimals in both states', () => {
+  it('shows the rating with two decimals only in the sunset state (display gate B)', () => {
     const sunset = renderAiRatingBlock({
       rating: 3.66,
       modelVersion: 'v4',
@@ -78,7 +78,23 @@ describe('renderAiRatingBlock', () => {
       modelVersion: 'v4',
       uniqueKey: 2,
     });
-    expect(notSunset).toContain('1.84');
+    // Display gate B: when the verdict is "not a sunset", the popup
+    // suppresses the numeric rating entirely. The value still exists
+    // in the DB; the popup just doesn't surface it.
+    expect(notSunset).not.toContain('1.84');
+    expect(notSunset).toContain('Not a sunset');
+  });
+
+  it('does not render any star SVG in the not-a-sunset state', () => {
+    const html = renderAiRatingBlock({
+      rating: 1.5,
+      modelVersion: 'v4',
+      uniqueKey: 1,
+    });
+    expect(html).toContain('Not a sunset');
+    // Sunset state uses a <svg> for the star row; the not-a-sunset state
+    // has no rating UI at all.
+    expect(html).not.toContain('<svg');
   });
 
   it('namespaces the clipPath id with the unique key', () => {
@@ -96,9 +112,61 @@ describe('renderAiRatingBlock', () => {
 
     const under = renderAiRatingBlock({ rating: -2, modelVersion: 'v4', uniqueKey: 'y' });
     // Negative rating renders the "not a sunset" block (below threshold),
-    // which uses the empty-stars helper and has no clipPath at all.
+    // which has no rating UI at all under display gate B.
     expect(under).toContain('Not a sunset');
     expect(under).not.toContain('clipPath');
+  });
+
+  it('renders dual-line footer (binary + rating) when binary version is distinct from regression', () => {
+    const html = renderAiRatingBlock({
+      rating: 3.66,
+      modelVersion: 'v4_regression_llm_with_flickr',
+      uniqueKey: 1,
+      binaryIsSunset: true,
+      binaryModelVersion: '20260601_063518_v4_binary_llm_with_flickr',
+    });
+    expect(html).toContain('binary');
+    expect(html).toContain('rating');
+    // Both versions formatted via formatModelLabel — both render as the
+    // same "v4 · llm_with_flickr" suffix (because the regex strips the
+    // "_regression_" / "_binary_" infix from both). What matters is the
+    // two-line layout exists.
+    expect(html.match(/v4 · llm_with_flickr/g)?.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('collapses to single-line footer when binary version matches regression (legacy stamping)', () => {
+    const html = renderAiRatingBlock({
+      rating: 3.66,
+      modelVersion: 'v4_regression_llm_with_flickr',
+      uniqueKey: 1,
+      binaryIsSunset: true,
+      // Matches modelVersion — no real binary signal.
+      binaryModelVersion: 'v4_regression_llm_with_flickr',
+    });
+    expect(html).not.toContain('binary');
+    expect(html).not.toContain('rating&nbsp;');
+  });
+
+  it('collapses to single-line footer when binaryModelVersion is omitted', () => {
+    const html = renderAiRatingBlock({
+      rating: 3.66,
+      modelVersion: 'v4_regression_llm_with_flickr',
+      uniqueKey: 1,
+    });
+    expect(html).not.toContain('binary');
+  });
+
+  it('two-line footer also renders in the not-a-sunset state', () => {
+    const html = renderAiRatingBlock({
+      rating: 1.5,
+      modelVersion: 'v4_regression_llm_with_flickr',
+      uniqueKey: 1,
+      binaryIsSunset: false,
+      binaryModelVersion: '20260601_063518_v4_binary_llm_with_flickr',
+    });
+    expect(html).toContain('Not a sunset');
+    expect(html).toContain('binary');
+    expect(html).toContain('rating');
   });
 
   it('sanitises HTML-special chars from the model version', () => {
