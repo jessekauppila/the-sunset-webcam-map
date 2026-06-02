@@ -12,7 +12,7 @@ export function SnapshotConsole({
   title,
   hotkeysEnabled = true,
 }: {
-  mode: 'archive' | 'curated' | 'unrated';
+  mode: 'archive' | 'curated' | 'unrated' | 'hard-examples';
   title: string;
   hotkeysEnabled?: boolean;
 }) {
@@ -40,6 +40,14 @@ export function SnapshotConsole({
   const curatedPage = useSnapshotStore((s) => s.curatedPage);
   const curatedPageSize = useSnapshotStore((s) => s.curatedPageSize);
   const curatedTotal = useSnapshotStore((s) => s.curatedTotal);
+
+  const hardExamples = useSnapshotStore((s) => s.hardExamples);
+  const hardExamplesPage = useSnapshotStore((s) => s.hardExamplesPage);
+  const hardExamplesPageSize = useSnapshotStore(
+    (s) => s.hardExamplesPageSize
+  );
+  const hardExamplesTotal = useSnapshotStore((s) => s.hardExamplesTotal);
+
   const unrated = useSnapshotStore((s) => s.unrated);
   const unratedArchiveTotal = useSnapshotStore(
     (s) => s.unratedArchiveTotal
@@ -54,11 +62,33 @@ export function SnapshotConsole({
       ? archive
       : mode === 'curated'
       ? curated
+      : mode === 'hard-examples'
+      ? hardExamples
       : unrated;
-  const currentPage = mode === 'archive' ? archivePage : curatedPage;
+  const currentPage =
+    mode === 'archive'
+      ? archivePage
+      : mode === 'curated'
+      ? curatedPage
+      : mode === 'hard-examples'
+      ? hardExamplesPage
+      : 1;
   const pageSize =
-    mode === 'archive' ? archivePageSize : curatedPageSize;
-  const total = mode === 'archive' ? archiveTotal : curatedTotal;
+    mode === 'archive'
+      ? archivePageSize
+      : mode === 'curated'
+      ? curatedPageSize
+      : mode === 'hard-examples'
+      ? hardExamplesPageSize
+      : 24;
+  const total =
+    mode === 'archive'
+      ? archiveTotal
+      : mode === 'curated'
+      ? curatedTotal
+      : mode === 'hard-examples'
+      ? hardExamplesTotal
+      : 0;
 
   // Get the current page's slice
   const startIdx = (currentPage - 1) * pageSize;
