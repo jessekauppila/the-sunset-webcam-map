@@ -130,6 +130,7 @@ export function HomeClient({ manifestRuns }: Props) {
               }}
             >
               <Tab label="Current Sunrises/Sunsets" />
+              <Tab label="⚠ Hard Examples" />
               <Tab label="Snapshot Archive" />
               <Tab label="Curated" />
               <Tab label="Unrated Queue" />
@@ -161,6 +162,17 @@ export function HomeClient({ manifestRuns }: Props) {
               )}
 
               {tabValue === 1 && (
+                // Hard Examples — model-disagreement queue
+                <Box>
+                  <SnapshotConsole
+                    mode="hard-examples"
+                    title={'⚠ Hard Examples — confirm or correct the model'}
+                    hotkeysEnabled={drawerOpen}
+                  />
+                </Box>
+              )}
+
+              {tabValue === 2 && (
                 // Snapshot Archive Tab
                 <Box>
                   <SnapshotConsole
@@ -170,7 +182,7 @@ export function HomeClient({ manifestRuns }: Props) {
                 </Box>
               )}
 
-              {tabValue === 2 && (
+              {tabValue === 3 && (
                 // Curated Tab
                 <Box>
                   <SnapshotConsole
@@ -180,7 +192,7 @@ export function HomeClient({ manifestRuns }: Props) {
                 </Box>
               )}
 
-              {tabValue === 3 && (
+              {tabValue === 4 && (
                 // Unrated Queue Tab
                 <Box>
                   <SnapshotConsole
@@ -191,7 +203,7 @@ export function HomeClient({ manifestRuns }: Props) {
                 </Box>
               )}
 
-              {tabValue === 4 && (
+              {tabValue === 5 && (
                 // All Webcams Tab
                 <Box>
                   <WebcamConsole
@@ -201,7 +213,7 @@ export function HomeClient({ manifestRuns }: Props) {
                 </Box>
               )}
 
-              {tabValue === 5 && (
+              {tabValue === 6 && (
                 <Box sx={{ height: '100%' }}>
                   <ModelAnalysisTab runs={manifestRuns} />
                 </Box>
