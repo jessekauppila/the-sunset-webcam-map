@@ -1,0 +1,50 @@
+{
+  "label_source": "manual_only",
+  "label_merge_strategy": "llm_only",
+  "llm_ratings_csv": "ml/artifacts/llm_ratings/initial_ratings.csv",
+  "llm_overrides_count": 29605,
+  "target_type": "binary",
+  "binary_threshold": 0.75,
+  "min_rating_count": 1,
+  "include_external": true,
+  "split_config": {
+    "seed": 20260212,
+    "train_pct": 70,
+    "val_pct": 15,
+    "test_pct": 15
+  },
+  "counts": {
+    "total": 35372,
+    "train": 24142,
+    "val": 5651,
+    "test": 5579,
+    "webcam": 29605,
+    "external": 5767
+  },
+  "target_distribution": {
+    "full": {
+      "count": 35372,
+      "negative": 33286,
+      "positive": 2086,
+      "positive_rate": 0.058973199140563155
+    },
+    "train": {
+      "count": 24142,
+      "negative": 22688,
+      "positive": 1454,
+      "positive_rate": 0.06022699030734819
+    },
+    "val": {
+      "count": 5651,
+      "negative": 5326,
+      "positive": 325,
+      "positive_rate": 0.057511944788533005
+    },
+    "test": {
+      "count": 5579,
+      "negative": 5272,
+      "positive": 307,
+      "positive_rate": 0.055027782756766445
+    }
+  }
+}
