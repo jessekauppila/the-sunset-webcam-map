@@ -2,11 +2,16 @@
 
 import Image from 'next/image';
 import StarRating from '@/app/components/console/StarRating';
+import VerdictButtons, {
+  useVerdictState,
+} from '@/app/components/console/VerdictButtons';
 import type { Snapshot } from '@/app/lib/types';
+
+type RateOpts = { isSunsetVerdict?: boolean };
 
 type SnapshotQueueCardProps = {
   snapshot: Snapshot;
-  onRate: (rating: number) => Promise<void>;
+  onRate: (rating: number, opts?: RateOpts) => Promise<void>;
   onSkip: () => void;
   onUndo: () => Promise<void>;
   canUndo: boolean;
@@ -40,6 +45,8 @@ export function SnapshotQueueCard({
   archiveTotal = 0,
   archiveRatedTotal = 0,
 }: SnapshotQueueCardProps) {
+  const { verdict, setVerdict, starsEnabled } = useVerdictState(null);
+
   const progressText =
     archiveTotal > 0
       ? `Unrated Queue: ${archiveRatedTotal} of ${archiveTotal} Snapshots Rated (global)`
@@ -85,31 +92,54 @@ export function SnapshotQueueCard({
             {new Date(snapshot.snapshot.capturedAt).toLocaleString()}
           </p>
 
-          <div className="flex flex-col items-start gap-2">
-            <p className="text-xs text-gray-500 uppercase tracking-wide">
-              Rate this snapshot
-            </p>
-            <StarRating
-              rating={snapshot.snapshot.userRating ?? 0}
-              onRate={onRate}
+          <div className="flex flex-col gap-3">
+            <VerdictButtons
+              value={verdict}
+              onChange={(next) => {
+                setVerdict(next);
+                if (next === false) {
+                  void onRate(0, { isSunsetVerdict: false });
+                }
+              }}
+              phase={
+                snapshot.snapshot.phase === 'sunrise' ||
+                snapshot.snapshot.phase === 'sunset'
+                  ? snapshot.snapshot.phase
+                  : null
+              }
               disabled={disabled}
-              size={30}
-              name={snapshot.title}
             />
-          </div>
-
-          <div className="flex gap-2">
-            {[1, 2, 3, 4, 5].map((rating) => (
-              <button
-                key={rating}
-                type="button"
-                onClick={() => onRate(rating)}
-                disabled={disabled}
-                className="px-3 py-1 rounded border border-gray-400 text-sm font-medium hover:bg-gray-300 disabled:opacity-50"
-              >
-                {rating}
-              </button>
-            ))}
+            {starsEnabled && (
+              <>
+                <div className="flex flex-col items-start gap-2">
+                  <p className="text-xs text-gray-500 uppercase tracking-wide">
+                    Rate this snapshot
+                  </p>
+                  <StarRating
+                    rating={snapshot.snapshot.userRating ?? 0}
+                    onRate={(value) => {
+                      void onRate(value, { isSunsetVerdict: true });
+                    }}
+                    disabled={disabled}
+                    size={30}
+                    name={snapshot.title}
+                  />
+                </div>
+                <div className="flex gap-2">
+                  {[1, 2, 3, 4, 5].map((rating) => (
+                    <button
+                      key={rating}
+                      type="button"
+                      onClick={() => onRate(rating, { isSunsetVerdict: true })}
+                      disabled={disabled}
+                      className="px-3 py-1 rounded border border-gray-400 text-sm font-medium hover:bg-gray-300 disabled:opacity-50"
+                    >
+                      {rating}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
 
           <div className="flex gap-2">

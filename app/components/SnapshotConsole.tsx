@@ -157,7 +157,7 @@ export function SnapshotConsole({
       : title;
 
   const handleQueueRate = useCallback(
-    async (rating: number) => {
+    async (rating: number, opts?: { isSunsetVerdict?: boolean }) => {
       if (!queueCurrent || isQueueSubmitting) return;
 
       const snapshotId = queueCurrent.snapshot.id;
@@ -165,7 +165,22 @@ export function SnapshotConsole({
       setUpdatingSnapshots((prev) => new Set(prev).add(snapshotId));
 
       try {
-        await setRating(snapshotId, rating);
+        const userSessionId = getUserSessionId();
+        const body: Record<string, unknown> = { userSessionId };
+        if (opts?.isSunsetVerdict !== undefined) {
+          body.isSunsetVerdict = opts.isSunsetVerdict;
+        }
+        if (opts?.isSunsetVerdict !== false) {
+          body.rating = rating;
+        }
+        const res = await fetch(`/api/snapshots/${snapshotId}/rate`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        if (!res.ok) {
+          throw new Error(`Rate request failed: ${res.status}`);
+        }
         setQueueHistory((prev) => [
           ...prev,
           { snapshot: queueCurrent, index: queueIndex },
@@ -187,7 +202,6 @@ export function SnapshotConsole({
       queueCurrent,
       queueIndex,
       isQueueSubmitting,
-      setRating,
       removeUnratedSnapshot,
     ]
   );
