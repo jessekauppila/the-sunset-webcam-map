@@ -1,5 +1,5 @@
 import { downloadImage } from '@/app/lib/webcamSnapshot';
-import { scoreImage } from './aiScoring';
+import { computeDisagreementKind, scoreImage } from './aiScoring';
 import {
   findCustomSnapshotsNeedingScore,
   updateSnapshotAiRegressionScore,
@@ -42,11 +42,16 @@ export async function backfillCustomSnapshotScores(opts: {
         imageBytes: bytes,
         source: 'custom',
       });
+      const disagreementKind = computeDisagreementKind({
+        binaryIsSunset: result.binaryIsSunset,
+        aiRating: result.aiRating,
+      });
       await updateSnapshotAiRegressionScore(
         row.snapshotId,
         result.rawScore,
         result.modelVersion,
-        result.pathTaken
+        result.pathTaken,
+        disagreementKind,
       );
       modelVersion = result.modelVersion;
       touchedWebcamIds.add(row.webcamId);

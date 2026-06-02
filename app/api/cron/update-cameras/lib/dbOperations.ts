@@ -338,13 +338,15 @@ export async function updateSnapshotAiRegressionScore(
   snapshotId: number,
   score: number,
   modelVersion: string,
-  scoringPath: string
+  scoringPath: string,
+  disagreementKind: string | null,
 ): Promise<void> {
   await sql`
     update webcam_snapshots
     set ai_regression_score = ${score},
         ai_model_version_regression = ${modelVersion},
-        scoring_path = ${scoringPath}
+        scoring_path = ${scoringPath},
+        model_disagreement_kind = ${disagreementKind}
     where id = ${snapshotId}
   `;
 }
