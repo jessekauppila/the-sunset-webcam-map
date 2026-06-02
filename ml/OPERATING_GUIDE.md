@@ -1672,3 +1672,44 @@ breakdown, single-record spot-check, cost telemetry stub.
 - `--write-to-db` behavior on the v1 schema (without
   `llm_metadata`) will fail loudly; apply migration 20260507 before
   enabling DB writes. Use `apply_migration.py` to do this safely.
+
+---
+
+## Snapshot retention rules (as of 2026-06-02)
+
+The webcam_snapshots table is the v5 training corpus. Three classes of rows
+are **never** auto-deleted by the cleanup endpoint:
+
+1. **Human-touched** — anyone gave the snapshot a star rating OR a
+   binary sunset/sunrise verdict via the Hard Examples drawer tab.
+   Implementation: rows joined to `webcam_snapshot_ratings` where
+   `rating IS NOT NULL OR is_sunset_verdict IS NOT NULL`.
+
+2. **Model disagreement** — the cron flagged the snapshot via
+   `model_disagreement_kind != NULL` because the binary and regression
+   heads pointed in opposite directions. These rows sit in the Hard
+   Examples queue waiting for human triage.
+
+3. **(Future) Phase 2 winners** — once the winner-selection job ships,
+   `is_window_winner = true` becomes the third exclusion class.
+
+### The cleanup endpoint
+
+`/api/snapshots/cleanup` is **not on any cron schedule**. It can only
+run when manually POSTed. Even then, it respects the `CLEANUP_ENABLED`
+flag in `app/lib/masterConfig.ts` (default `false`).
+
+To intentionally prune old non-valuable snapshots:
+
+```typescript
+// 1. Edit app/lib/masterConfig.ts:
+export const CLEANUP_ENABLED = true;
+
+// 2. Deploy, then POST to the endpoint:
+//    curl -X POST -H "Authorization: Bearer $CRON_SECRET" \
+//      https://www.sunrisesunset.studio/api/snapshots/cleanup
+// 3. Flip CLEANUP_ENABLED back to false to prevent accidents.
+```
+
+The endpoint returns the count deleted and a list of any errors per
+snapshot.
