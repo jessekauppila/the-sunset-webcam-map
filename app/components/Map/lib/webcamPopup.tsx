@@ -95,6 +95,9 @@ export function createWebcamPopupContent(
     modelVersion: regressionVersion,
     uniqueKey: webcam.webcamId,
     binaryIsSunset,
+    // Only forward a distinct binary version. When versions match, the
+    // popup footer collapses to a single line — see renderModelFooter.
+    binaryModelVersion: hasRealBinarySignal ? binaryVersion : null,
   });
 
   if (hasImage) {
