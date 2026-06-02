@@ -19,6 +19,12 @@ const customClassifyMock = vi.fn();
 const upsertStatsMock = vi.fn();
 const verifyAuthMock = vi.fn(() => true);
 const computeTickStatsMock = vi.fn();
+const computeDisagreementKindMock = vi.fn(() => null);
+const uploadToFirebaseMock = vi.fn(() => ({
+  url: 'https://stub-firebase/test.jpg',
+  path: 'snapshots/0/test.jpg',
+}));
+const insertWindyDisagreementSnapshotMock = vi.fn(() => 999);
 
 vi.mock('@/app/lib/terminatorPayload', () => ({
   fetchTerminatorWebcams: () => fetchTerminatorWebcamsMock(),
@@ -30,6 +36,7 @@ vi.mock('@/app/lib/cache', () => ({
 }));
 vi.mock('@/app/lib/webcamSnapshot', () => ({
   downloadImage: (...a: unknown[]) => downloadMock(...a),
+  uploadToFirebase: (...a: unknown[]) => uploadToFirebaseMock(...a),
 }));
 vi.mock('./lib/auth', () => ({ verifyCronAuth: () => verifyAuthMock() }));
 vi.mock('./lib/windyApi', () => ({
@@ -50,9 +57,13 @@ vi.mock('./lib/dbOperations', () => ({
   upsertTerminatorState: (...a: unknown[]) => upsertStateMock(...a),
   deactivateMissingTerminatorState: (...a: unknown[]) => deactivateMock(...a),
   updateWebcamAiFields: (...a: unknown[]) => updateAiFieldsMock(...a),
+  insertWindyDisagreementSnapshot: (...a: unknown[]) =>
+    insertWindyDisagreementSnapshotMock(...a),
 }));
 vi.mock('./lib/aiScoring', () => ({
   scoreImage: (...a: unknown[]) => scoreMock(...a),
+  computeDisagreementKind: (...a: unknown[]) =>
+    computeDisagreementKindMock(...a),
 }));
 vi.mock('./lib/customBackfill', () => ({
   backfillCustomSnapshotScores: (...a: unknown[]) => backfillMock(...a),
@@ -99,6 +110,12 @@ beforeEach(() => {
   fetchTerminatorWebcamsMock.mockReset().mockResolvedValue([]);
   computeTickStatsMock.mockReset().mockReturnValue({ modelVersion: 'v4', webcamsScored: 1, cacheHits: 0, fallbacks: 0, scoreAvg: 0.5, scoreP50: 0.5, scoreP90: 0.5, scoreP99: 0.5, aboveMinScoreToWinCount: 0, sourceBreakdown: { windy: { scored: 1, avg: 0.5 }, custom: { scored: 0, avg: null } } });
   verifyAuthMock.mockReset().mockReturnValue(true);
+  computeDisagreementKindMock.mockReset().mockReturnValue(null);
+  uploadToFirebaseMock.mockReset().mockReturnValue({
+    url: 'https://stub-firebase/test.jpg',
+    path: 'snapshots/0/test.jpg',
+  });
+  insertWindyDisagreementSnapshotMock.mockReset().mockReturnValue(999);
 });
 
 function makeReq(): Request {
@@ -241,5 +258,28 @@ describe('GET /api/cron/update-cameras', () => {
       'baseline-fallback': 1,
       baseline: 0,
     });
+  });
+
+  it('persists a Windy snapshot when computeDisagreementKind flags the score', async () => {
+    // Mock the disagreement helper to return a non-null kind for this tick.
+    computeDisagreementKindMock.mockReturnValueOnce(
+      'binary_negative_regression_high',
+    );
+    await GET(makeReq());
+    expect(uploadToFirebaseMock).toHaveBeenCalledTimes(1);
+    expect(insertWindyDisagreementSnapshotMock).toHaveBeenCalledTimes(1);
+    const insertArgs = insertWindyDisagreementSnapshotMock.mock.calls[0][0] as {
+      disagreementKind: string;
+      firebaseUrl: string;
+    };
+    expect(insertArgs.disagreementKind).toBe('binary_negative_regression_high');
+    expect(insertArgs.firebaseUrl).toContain('https://');
+  });
+
+  it('does not persist a Windy snapshot when models agree (disagreementKind=null)', async () => {
+    // Default mock returns null (agreement) — no persist.
+    await GET(makeReq());
+    expect(uploadToFirebaseMock).not.toHaveBeenCalled();
+    expect(insertWindyDisagreementSnapshotMock).not.toHaveBeenCalled();
   });
 });

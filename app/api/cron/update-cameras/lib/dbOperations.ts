@@ -265,6 +265,61 @@ export async function insertSnapshotRecord(
 }
 
 /**
+ * Persist a Windy webcam snapshot specifically when the two model heads
+ * disagreed at score time. Used by `scoreOneWindy` in route.ts to keep
+ * disagreement frames around for the Hard Examples drawer queue and v5
+ * training labels, even though Windy webcams don't otherwise create
+ * `webcam_snapshots` rows under the current SNAPSHOTS_ENABLED=false config.
+ *
+ * Phase is informational here (Windy scoring runs before the sunrise/sunset
+ * classification step in this cron tick); 'sunset' is the conservative
+ * default — the Hard Examples queue doesn't filter by phase.
+ */
+export async function insertWindyDisagreementSnapshot(opts: {
+  webcamId: number;
+  phase: 'sunrise' | 'sunset';
+  firebaseUrl: string;
+  firebasePath: string;
+  aiRating: number;
+  aiRegressionScore: number;
+  aiModelVersionRegression: string;
+  scoringPath: string;
+  disagreementKind: string;
+}): Promise<number> {
+  const [row] = (await sql`
+    insert into webcam_snapshots (
+      webcam_id,
+      phase,
+      initial_rating,
+      firebase_url,
+      firebase_path,
+      ai_rating,
+      ai_regression_score,
+      ai_model_version_regression,
+      scoring_path,
+      model_disagreement_kind,
+      captured_at
+    )
+    values (
+      ${opts.webcamId},
+      ${opts.phase},
+      null,
+      ${opts.firebaseUrl},
+      ${opts.firebasePath},
+      ${opts.aiRating},
+      ${opts.aiRegressionScore},
+      ${opts.aiModelVersionRegression},
+      ${opts.scoringPath},
+      ${opts.disagreementKind},
+      now()
+    )
+    returning id
+  `) as SnapshotRecord[];
+
+  return row.id;
+}
+
+/**
  * Upsert model inference metadata for a snapshot.
  */
 export async function upsertSnapshotAiInference(

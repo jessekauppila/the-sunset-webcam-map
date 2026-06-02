@@ -41,11 +41,12 @@ import {
   upsertTerminatorState,
   deactivateMissingTerminatorState,
   updateWebcamAiFields,
+  insertWindyDisagreementSnapshot,
 } from './lib/dbOperations';
-import { scoreImage } from './lib/aiScoring';
+import { computeDisagreementKind, scoreImage } from './lib/aiScoring';
 import { backfillCustomSnapshotScores } from './lib/customBackfill';
 import { computeTickStats, upsertDailyStats } from './lib/dailyStats';
-import { downloadImage } from '@/app/lib/webcamSnapshot';
+import { downloadImage, uploadToFirebase } from '@/app/lib/webcamSnapshot';
 
 const TICK_DEADLINE_MS = 50_000;
 const PER_IMAGE_TIMEOUT_MS = 3_000;
@@ -201,6 +202,39 @@ export async function GET(req: Request) {
           aiModelVersionRegression: scored.modelVersion,
         },
       ]);
+
+      // Windy webcams don't normally create webcam_snapshots rows
+      // (SNAPSHOTS_ENABLED=false), so disagreement frames would otherwise
+      // be lost on the next tick. Persist them here so they show up in
+      // the Hard Examples drawer queue. Best-effort: a Firebase upload
+      // failure logs but doesn't fail the cron tick.
+      const disagreementKind = computeDisagreementKind({
+        binaryIsSunset: scored.binaryIsSunset,
+        aiRating: scored.aiRating,
+      });
+      if (disagreementKind !== null) {
+        try {
+          const capturedAt = new Date();
+          const upload = await uploadToFirebase(bytes, webcamId, capturedAt);
+          await insertWindyDisagreementSnapshot({
+            webcamId,
+            phase: 'sunset', // informational; queue doesn't filter by phase
+            firebaseUrl: upload.url,
+            firebasePath: upload.path,
+            aiRating: scored.aiRating,
+            aiRegressionScore: scored.rawScore,
+            aiModelVersionRegression: scored.modelVersion,
+            scoringPath: scored.pathTaken,
+            disagreementKind,
+          });
+        } catch (persistError) {
+          console.warn(
+            `[update-cameras] Failed to persist Windy disagreement snapshot for webcam ${webcamId}:`,
+            persistError,
+          );
+        }
+      }
+
       await setCameraImageHash('windy', webcamId, scored.imageHash);
     } catch (error) {
       console.warn(
