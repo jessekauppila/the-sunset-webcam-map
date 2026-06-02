@@ -7,10 +7,10 @@
   ],
   "functions": {
     "app/api/cron/update-cameras/route.ts": {
-      "includeFiles": "ml/artifacts/models/{regression_resnet18,binary_resnet18}/**"
+      "includeFiles": "ml/artifacts/models/**"
     },
     "app/api/debug/scoring-smoke/route.ts": {
-      "includeFiles": "ml/artifacts/models/{regression_resnet18,binary_resnet18}/**"
+      "includeFiles": "ml/artifacts/models/**"
     }
   }
 }
