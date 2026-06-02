@@ -3,13 +3,12 @@
 import {
   formatModelLabel,
   SUNSET_DETECTION_THRESHOLD,
-} from '@/app/components/Map/lib/aiRatingBlock';
+} from './aiRatingHelpers';
 
 /**
- * Light-theme React component sibling to `aiRatingBlock.ts`'s Mapbox-popup
- * HTML generator. Used inside `RatingCard.tsx` and any other React surface
- * that wants to show the same "Sunset detected / Not a sunset right now"
- * verdict treatment.
+ * React component for the AI-rating verdict display. Used inside
+ * `RatingCard.tsx` to show the "Sunset detected / Not a sunset right
+ * now" treatment.
  *
  * Display gate B semantics (mirrors the dark popup):
  *   - Binary says yes → verdict + rating + stars + dual-line footer
