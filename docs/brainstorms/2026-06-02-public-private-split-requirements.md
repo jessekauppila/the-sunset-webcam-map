@@ -42,12 +42,13 @@ scale, single login for now").
 - **Defer public crowd rating; keep the schema ready.** Public rating goes read-only now,
   but `webcam_snapshot_ratings` and the `user_session_id` concept are retained so crowd
   rating can switch on later without rework.
-- **Leaderboard ranks by the human ratings we've applied (`calculated_rating`), not the
-  model score.** The "best sunsets" board reflects real human judgment; `ai_rating` is the
-  model's guess and stays out of the ranking.
-- **Retain high-rated frames so the best-of persists.** Snapshots rated above a threshold
-  are kept beyond the normal cleanup window — otherwise the all-time leaderboard has nothing
-  to show once frames age out.
+- **Leaderboard ranks by each snapshot's stored `ai_rating`** — the score assigned by
+  whichever model was in use when that frame was scored, not the human `calculated_rating`.
+  Cross-version caveat: an all-time board mixes scores from different model versions
+  (older frames carry older models' scores); this comparability is accepted, not normalized.
+- **Retain high-`ai_rating` frames so the best-of persists.** Snapshots scored above a
+  threshold are kept beyond the normal cleanup window — otherwise the all-time leaderboard
+  has nothing to show once frames age out.
 - **The "dummy-check" is a private review use of existing data, not new inference.** Jesse
   reviews live sunrises/sunsets alongside the cron's already-computed scores to confirm the
   pipeline is updating and rating correctly. On-demand / multi-model live inference is a
@@ -101,8 +102,9 @@ scale, single login for now").
 
 **Best-sunset leaderboard**
 
-- R13. The public leaderboard ranks sunrises/sunsets by the human-applied ratings we've
-  used (`calculated_rating`), not by `ai_rating`.
+- R13. The public leaderboard ranks sunrises/sunsets by each snapshot's stored `ai_rating`
+  — the rating assigned by whichever model was in use when that snapshot was scored — not by
+  the human `calculated_rating`.
 - R14. The leaderboard supports multiple groupings and time windows — overall, per-webcam,
   and per-country, across "now", "today", and "all-time".
 - R15. The primary surface is a public drawer tab; shareable deep-link routes (in the style
@@ -114,10 +116,11 @@ scale, single login for now").
   operator.
 - R17. The ratings schema (`webcam_snapshot_ratings`, `user_session_id`) is retained so
   crowd rating can be re-enabled later without redesign.
-- R18. `calculated_rating` (the average of human star ratings) is the leaderboard signal.
-  With public rating disabled it is fed by operator ratings going forward; existing
-  anonymous ratings are retained as historical contributions to it.
-- R19. Snapshots whose rating exceeds a configurable threshold are retained beyond the
+- R18. `ai_rating` is the leaderboard signal. `calculated_rating` (the human star-rating
+  average) is retained and still used for review/labeling — fed by operator ratings going
+  forward, with legacy anonymous ratings kept as historical data — but it does not drive the
+  leaderboard.
+- R19. Snapshots whose `ai_rating` exceeds a configurable threshold are retained beyond the
   standard cleanup window, so the best-sunset archive and the all-time leaderboard persist.
   (Verify against current cleanup behavior — see Dependencies.)
 
@@ -154,11 +157,11 @@ scale, single login for now").
   those controls and writes succeed.
 - AE3. **Covers R9.** **Given** a logged-out visitor, **then** the Unrated Queue is not
   accessible.
-- AE4. **Covers R13.** **Given** a set of rated snapshots, **then** leaderboard ordering
-  reflects `calculated_rating` (the human ratings), not `ai_rating`.
-- AE5. **Covers R14, R19.** **Given** a snapshot rated above the retention threshold,
-  **then** it survives the standard cleanup window and remains available to the all-time
-  leaderboard.
+- AE4. **Covers R13.** **Given** a set of scored snapshots, **then** leaderboard ordering
+  reflects each snapshot's stored `ai_rating`, not the human `calculated_rating`.
+- AE5. **Covers R14, R19.** **Given** a snapshot whose `ai_rating` exceeds the retention
+  threshold, **then** it survives the standard cleanup window and remains available to the
+  all-time leaderboard.
 
 ## Scope Boundaries
 
@@ -189,21 +192,23 @@ scale, single login for now").
 - A verdict / hard-example labeling UI may or may not exist in the drawer yet (recon found
   ML-side `ml/report_disagreements.py` but no dedicated drawer tab) — confirm during
   planning what, if anything, needs gating for R10.
-- The all-time leaderboard (R14) depends on retaining high-rated snapshots beyond the
+- The all-time leaderboard (R14) depends on retaining high-`ai_rating` snapshots beyond the
   standard ~7-day cleanup (`app/api/snapshots/cleanup`). Current retention keeps rated /
-  disagreement / future-winner rows — verify whether that already covers high-rated frames
-  and extend it with the rating-threshold rule (R19) if not.
+  disagreement / future-winner rows — verify whether that already covers high-scored frames
+  and extend it with the `ai_rating`-threshold rule (R19) if not.
+- `ai_rating` is stored per snapshot as produced by whichever model scored it; the
+  leaderboard compares scores across model versions without normalization (accepted).
 
 ## Outstanding Questions
 
 **Resolve before planning**
 
-- The retention rule for R19: the threshold value and whether it keys off the human
-  `calculated_rating`, `ai_rating`, or either — it shapes the cleanup change and what the
-  all-time leaderboard can show.
+- None blocking — both the leaderboard ranking (R13) and the retention rule (R19) key off
+  the stored `ai_rating`.
 
 **Deferred to planning**
 
+- The R19 `ai_rating` retention threshold value.
 - The exact per-route session-check mechanism and where the sign-in UI lives.
 - Whether to leave legacy anonymous ratings untouched or archive them.
 - The source for per-webcam country derivation.
