@@ -3,6 +3,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sql } from '@/app/lib/db';
 import type { Orientation } from '@/app/lib/types';
+import { requireOwner } from '@/app/lib/owner';
 
 const validOrientations: Orientation[] = [
   'N',
@@ -19,6 +20,8 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const denied = await requireOwner();
+  if (denied) return denied;
   try {
     const { orientation } = await request.json();
     const { id } = await params;

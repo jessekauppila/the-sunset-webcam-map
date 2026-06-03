@@ -2,11 +2,14 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { sql } from '@/app/lib/db';
+import { requireOwner } from '@/app/lib/owner';
 
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const denied = await requireOwner();
+  if (denied) return denied;
   try {
     const { rating } = await request.json();
     const { id } = await params;
