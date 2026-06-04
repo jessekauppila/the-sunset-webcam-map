@@ -11,11 +11,7 @@
  */
 
 import { fetchTerminatorWebcams } from '@/app/lib/terminatorPayload';
-import {
-  setCachedTerminatorPayload,
-  getCameraImageHash,
-  setCameraImageHash,
-} from '@/app/lib/cache';
+import { setCachedTerminatorPayload } from '@/app/lib/cache';
 import { NextResponse } from 'next/server';
 import { subsolarPoint } from '@/app/components/Map/lib/subsolarLocation';
 import { createTerminatorQueryRing } from '@/app/components/Map/lib/terminatorRing';
@@ -38,6 +34,7 @@ import { classifyWebcamsByPhase } from './lib/webcamClassification';
 import {
   upsertWebcams,
   getWebcamIdMap,
+  getWebcamImageHashMap,
   upsertTerminatorState,
   deactivateMissingTerminatorState,
   updateWebcamAiFields,
@@ -125,6 +122,10 @@ export async function GET(req: Request) {
   const externalIds = windyAll.map((w) => String(w.webcamId));
   const idByExternal = await getWebcamIdMap(externalIds);
 
+  // Prior image hashes, batched in a single query (replaces per-webcam Redis
+  // GETs). Used to skip re-scoring frames whose image hasn't changed.
+  const hashByWebcamId = await getWebcamImageHashMap([...idByExternal.values()]);
+
   // AI scoring via real image pipeline — per-tick counters.
   const tickStartedAt = Date.now();
   const windyScores: number[] = [];
@@ -155,7 +156,7 @@ export async function GET(req: Request) {
           setTimeout(() => rej(new Error('image fetch timeout')), PER_IMAGE_TIMEOUT_MS)
         ),
       ]);
-      const lastHash = await getCameraImageHash('windy', webcamId);
+      const lastHash = hashByWebcamId.get(webcamId);
       const scored = await scoreImage({
         webcamId,
         imageBytes: bytes,
@@ -191,6 +192,10 @@ export async function GET(req: Request) {
           ? Number((1 + scored.binaryRawScore * 4).toFixed(2))
           : scored.aiRating;
       const binaryModelVersion = scored.binaryModelVersion ?? scored.modelVersion;
+      // Persist the new image hash in the same UPDATE as the AI fields. The
+      // hash commits atomically with the score, so a failed write leaves the
+      // row un-hashed and the next tick re-scores it (the invariant the old
+      // "Neon write before Redis hash write" ordering preserved).
       await updateWebcamAiFields([
         {
           webcamId,
@@ -200,6 +205,7 @@ export async function GET(req: Request) {
           aiModelVersionBinary: binaryModelVersion,
           aiRatingRegression: scored.aiRating,
           aiModelVersionRegression: scored.modelVersion,
+          lastImageHash: scored.imageHash,
         },
       ]);
 
@@ -234,8 +240,6 @@ export async function GET(req: Request) {
           );
         }
       }
-
-      await setCameraImageHash('windy', webcamId, scored.imageHash);
     } catch (error) {
       console.warn(
         `[update-cameras] windy webcam ${webcam.webcamId} scoring failed:`,
