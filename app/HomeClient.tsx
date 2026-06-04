@@ -21,6 +21,7 @@ import type { ManifestEntry } from '@/app/lib/modelRuns.types';
 import { ModelAnalysisTab } from './components/ModelAnalysis/ModelAnalysisTab';
 import { AuthControl } from './components/auth/AuthControl';
 import { useIsOperator } from './components/auth/useIsOperator';
+import { LeaderboardTab } from './components/Leaderboard/LeaderboardTab';
 
 interface Props {
   manifestRuns: ManifestEntry[];
@@ -39,6 +40,7 @@ export function HomeClient({ manifestRuns }: Props) {
   // is presentation.
   const ALL_TABS = [
     { key: 'current', label: 'Current Sunrises/Sunsets', operatorOnly: false },
+    { key: 'best', label: '🌅 Best Sunsets', operatorOnly: false },
     { key: 'hard', label: '⚠ Hard Examples', operatorOnly: true },
     { key: 'archive', label: 'Snapshot Archive', operatorOnly: false },
     { key: 'curated', label: 'Curated', operatorOnly: false },
@@ -183,6 +185,13 @@ export function HomeClient({ manifestRuns }: Props) {
                       title={'Current Sunrises'}
                     />
                   </Box>
+                </Box>
+              )}
+
+              {tabKey === 'best' && (
+                // Best Sunsets leaderboard (public)
+                <Box>
+                  <LeaderboardTab />
                 </Box>
               )}
 
