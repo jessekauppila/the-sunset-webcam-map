@@ -22,6 +22,9 @@ import {
   WINDY_FETCH_BATCH_SIZE,
   WINDY_FETCH_DELAY_BETWEEN_BATCHES_MS,
   CUSTOM_CAM_FRESHNESS_WINDOW_MINUTES,
+  SAVE_HIGH_RATED_SNAPSHOTS,
+  SAVE_ALL_RATED_SNAPSHOTS,
+  AI_SNAPSHOT_MIN_RATING_THRESHOLD,
 } from '@/app/lib/masterConfig';
 import { classifyCustomCamerasForTick } from './lib/customClassification';
 import { verifyCronAuth } from './lib/auth';
@@ -210,15 +213,24 @@ export async function GET(req: Request) {
       ]);
 
       // Windy webcams don't normally create webcam_snapshots rows
-      // (SNAPSHOTS_ENABLED=false), so disagreement frames would otherwise
-      // be lost on the next tick. Persist them here so they show up in
-      // the Hard Examples drawer queue. Best-effort: a Firebase upload
-      // failure logs but doesn't fail the cron tick.
+      // (SNAPSHOTS_ENABLED=false). We persist a row here when ANY of:
+      //   - the two heads disagree (Hard Examples queue), OR
+      //   - SAVE_HIGH_RATED_SNAPSHOTS && this frame scored highly (best-of /
+      //     leaderboard archive), OR
+      //   - SAVE_ALL_RATED_SNAPSHOTS (bring in every scored frame).
+      // Persisted rows carry ai_rating, so they feed the Best Sunsets
+      // leaderboard. Best-effort: a Firebase upload failure logs but doesn't
+      // fail the cron tick.
       const disagreementKind = computeDisagreementKind({
         binaryIsSunset: scored.binaryIsSunset,
         aiRating: scored.aiRating,
       });
-      if (disagreementKind !== null) {
+      const isHighRated =
+        SAVE_HIGH_RATED_SNAPSHOTS &&
+        scored.aiRating >= AI_SNAPSHOT_MIN_RATING_THRESHOLD;
+      const shouldPersist =
+        disagreementKind !== null || isHighRated || SAVE_ALL_RATED_SNAPSHOTS;
+      if (shouldPersist) {
         try {
           const capturedAt = new Date();
           const upload = await uploadToFirebase(bytes, webcamId, capturedAt);

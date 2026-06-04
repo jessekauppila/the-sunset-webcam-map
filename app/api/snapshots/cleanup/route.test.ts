@@ -15,6 +15,7 @@ vi.mock('@/app/lib/masterConfig', () => ({
   get CLEANUP_ENABLED() {
     return cleanupEnabledMock.value;
   },
+  AI_SNAPSHOT_MIN_RATING_THRESHOLD: 4.0,
 }));
 
 import { GET } from './route';
@@ -68,5 +69,14 @@ describe('GET /api/snapshots/cleanup', () => {
     const q = strings.join('?');
     expect(q).toMatch(/webcam_snapshot_ratings/i);
     expect(q).toMatch(/rating\s+is\s+not\s+null\s+or\s+is_sunset_verdict\s+is\s+not\s+null/i);
+  });
+
+  it('excludes high-ai_rating snapshots (best-of frames the leaderboard ranks)', async () => {
+    cleanupEnabledMock.value = true;
+    sqlMock.mockResolvedValueOnce([]);
+    await GET(makeReq());
+    const [strings] = sqlMock.mock.calls[0];
+    const q = strings.join('?');
+    expect(q).toMatch(/ai_rating\s+is\s+null\s+or\s+ai_rating\s*</i);
   });
 });

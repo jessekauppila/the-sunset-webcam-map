@@ -80,6 +80,23 @@ vi.mock('@/app/components/Map/lib/terminatorRing', () => ({
   createTerminatorQueryRing: () => ({ sunriseCoords: [], sunsetCoords: [] }),
 }));
 
+// Mutable capture toggles — keep the real masterConfig values, override only
+// the two flags so each test can flip them (getters re-read per access).
+const toggles = vi.hoisted(() => ({ high: false, all: false }));
+vi.mock('@/app/lib/masterConfig', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('@/app/lib/masterConfig')>();
+  return {
+    ...actual,
+    get SAVE_HIGH_RATED_SNAPSHOTS() {
+      return toggles.high;
+    },
+    get SAVE_ALL_RATED_SNAPSHOTS() {
+      return toggles.all;
+    },
+  };
+});
+
 import { GET } from './route';
 
 beforeEach(() => {
@@ -113,6 +130,8 @@ beforeEach(() => {
     path: 'snapshots/0/test.jpg',
   });
   insertWindyDisagreementSnapshotMock.mockReset().mockReturnValue(999);
+  toggles.high = false;
+  toggles.all = false;
 });
 
 function makeReq(): Request {
@@ -286,5 +305,38 @@ describe('GET /api/cron/update-cameras', () => {
     await GET(makeReq());
     expect(uploadToFirebaseMock).not.toHaveBeenCalled();
     expect(insertWindyDisagreementSnapshotMock).not.toHaveBeenCalled();
+  });
+
+  it('persists a high-scoring frame when SAVE_HIGH_RATED_SNAPSHOTS is on (no disagreement)', async () => {
+    toggles.high = true;
+    scoreMock.mockResolvedValue({
+      rawScore: 0.95, aiRating: 4.8, modelVersion: 'v4',
+      imageHash: 'h', source: 'windy', pathTaken: 'onnx',
+    });
+    await GET(makeReq());
+    expect(insertWindyDisagreementSnapshotMock).toHaveBeenCalledTimes(1);
+    expect(insertWindyDisagreementSnapshotMock.mock.calls[0][0]).toMatchObject({
+      disagreementKind: null,
+      aiRating: 4.8,
+    });
+  });
+
+  it('does NOT persist a high-scoring frame when the toggle is off', async () => {
+    scoreMock.mockResolvedValue({
+      rawScore: 0.95, aiRating: 4.8, modelVersion: 'v4',
+      imageHash: 'h', source: 'windy', pathTaken: 'onnx',
+    });
+    await GET(makeReq());
+    expect(insertWindyDisagreementSnapshotMock).not.toHaveBeenCalled();
+  });
+
+  it('persists every scored frame when SAVE_ALL_RATED_SNAPSHOTS is on, even a low score', async () => {
+    toggles.all = true;
+    scoreMock.mockResolvedValue({
+      rawScore: 0.1, aiRating: 1.4, modelVersion: 'v4',
+      imageHash: 'h', source: 'windy', pathTaken: 'onnx',
+    });
+    await GET(makeReq());
+    expect(insertWindyDisagreementSnapshotMock).toHaveBeenCalledTimes(1);
   });
 });
