@@ -15,15 +15,16 @@ beforeEach(() => {
 const req = (qs = '') => new Request(`http://test/api/leaderboards${qs}`);
 
 describe('GET /api/leaderboards', () => {
-  it('defaults to overall / all-time, ranks by ai_rating, excludes NULL', async () => {
+  it('defaults to overall / all-time, ranks by llm_quality, filters to sunsets', async () => {
     const res = await GET(req());
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.grouping).toBe('overall');
     expect(body.window).toBe('all-time');
     const [text, params] = sqlQueryMock.mock.calls[0];
-    expect(text).toMatch(/ORDER BY s\.ai_rating DESC/i);
-    expect(text).toMatch(/ai_rating IS NOT NULL/i);
+    expect(text).toMatch(/ORDER BY s\.llm_quality DESC/i);
+    expect(text).toMatch(/llm_quality IS NOT NULL/i);
+    expect(text).toMatch(/llm_is_sunset = true/i);
     expect(params).toEqual([60]);
   });
 

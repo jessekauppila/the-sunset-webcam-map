@@ -19,7 +19,13 @@ type Win = 'now' | 'today' | 'all-time';
 
 interface Entry {
   id: number;
-  aiRating: number | string;
+  llmQuality: number | string;
+  llmIsSunset: boolean;
+  llmIsSunrise: boolean | null;
+  llmExplanation: string | null;
+  llmModel: string | null;
+  llmProvider: string | null;
+  aiRating: number | string | null; // legacy, for comparison
   firebaseUrl: string | null;
   capturedAt: string;
   webcamId: number;
@@ -78,8 +84,10 @@ export function LeaderboardTab() {
         variant="caption"
         sx={{ color: '#9ca3af', display: 'block', mb: 1.5 }}
       >
-        Best sunrises &amp; sunsets, ranked by AI score. Shows AI-scored frames
-        only — sparse until snapshot capture has run a while.
+        Best sunrises &amp; sunsets, ranked by Claude&apos;s quality analysis
+        (claude-sonnet-4-5) — only frames Claude judged a real sunrise/sunset.
+        The small &ldquo;legacy ai&rdquo; value is the old model score, shown so
+        you can see where it disagrees.
       </Typography>
 
       <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', mb: 2 }}>
@@ -161,12 +169,30 @@ export function LeaderboardTab() {
                 </Box>
               )}
               <Box sx={{ p: 1 }}>
-                <Typography
-                  variant="body2"
-                  sx={{ color: 'white', fontWeight: 600 }}
+                <Box
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                  }}
                 >
-                  #{i + 1} · ★ {Number(e.aiRating).toFixed(1)}
-                </Typography>
+                  <Typography
+                    variant="caption"
+                    sx={{
+                      color: '#fb923c',
+                      fontWeight: 700,
+                      letterSpacing: '0.08em',
+                    }}
+                  >
+                    #{i + 1} · {e.llmIsSunrise ? 'SUNRISE' : 'SUNSET'} ✓
+                  </Typography>
+                  <Typography
+                    variant="caption"
+                    sx={{ color: '#fbbf24', fontFamily: 'monospace' }}
+                  >
+                    {(Number(e.llmQuality) * 100).toFixed(0)}%
+                  </Typography>
+                </Box>
                 <Typography
                   variant="caption"
                   sx={{
@@ -175,12 +201,40 @@ export function LeaderboardTab() {
                     whiteSpace: 'nowrap',
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
+                    mt: 0.5,
                   }}
                 >
-                  {e.webcamTitle ?? `Webcam ${e.webcamId}`}
+                  {e.webcamTitle ?? `Webcam ${e.webcamId}`} · {e.country}
                 </Typography>
-                <Typography variant="caption" sx={{ color: '#6b7280' }}>
-                  {e.country}
+                {e.llmExplanation && (
+                  <Typography
+                    variant="caption"
+                    sx={{
+                      color: '#cbd5e1',
+                      mt: 0.5,
+                      fontSize: '10px',
+                      lineHeight: 1.3,
+                      display: '-webkit-box',
+                      WebkitLineClamp: 3,
+                      WebkitBoxOrient: 'vertical',
+                      overflow: 'hidden',
+                    }}
+                  >
+                    {e.llmExplanation}
+                  </Typography>
+                )}
+                <Typography
+                  variant="caption"
+                  sx={{
+                    color: '#6b7280',
+                    display: 'block',
+                    mt: 0.5,
+                    fontSize: '9px',
+                  }}
+                >
+                  {e.llmProvider ?? 'anthropic'} · {e.llmModel ?? 'claude'} ·
+                  legacy ai{' '}
+                  {e.aiRating != null ? Number(e.aiRating).toFixed(1) : '—'}
                 </Typography>
               </Box>
             </Box>

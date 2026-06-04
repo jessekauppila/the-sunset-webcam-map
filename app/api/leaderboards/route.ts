@@ -3,13 +3,12 @@ import { sql } from '@/app/lib/db';
 
 export const dynamic = 'force-dynamic';
 
-// Public, read-only "Best Sunsets" leaderboard. Ranks webcam_snapshots by the
-// per-snapshot ai_rating the cron stamps (NOT the human calculated_rating).
-// No auth — it's a public surface; cached at the CDN.
-//
-// Coverage caveat (surfaced in the UI): ai_rating is only populated for frames
-// the cron persisted (disagreement queue + the SAVE_HIGH_RATED / SAVE_ALL_RATED
-// capture toggles), so the board is sparse until those toggles have run a while.
+// Public, read-only "Best Sunsets" leaderboard. Ranks by the anthropic LLM
+// analysis (llm_quality from claude-sonnet-4-5), filtered to frames the LLM
+// judged to be a sunrise/sunset (llm_is_sunset = true). This is the meaningful
+// signal — the legacy ai_rating column has no model provenance. We also return
+// ai_rating so the UI can show the model-vs-LLM mismatch. No auth (public),
+// CDN-cached.
 
 type Grouping = 'overall' | 'webcam' | 'country';
 type Window = 'now' | 'today' | 'all-time';
@@ -26,7 +25,13 @@ const WINDOW_SQL: Record<Window, string> = {
 
 export interface LeaderboardEntry {
   id: number;
-  aiRating: number;
+  llmQuality: number | string;
+  llmIsSunset: boolean;
+  llmIsSunrise: boolean | null;
+  llmExplanation: string | null;
+  llmModel: string | null;
+  llmProvider: string | null;
+  aiRating: number | string | null; // legacy, shown for comparison
   firebaseUrl: string | null;
   capturedAt: string;
   webcamId: number;
@@ -53,6 +58,12 @@ export async function GET(request: Request) {
     // Explicit column allow-list — never expose user_session_id / device_token_hash.
     const cols = `
       s.id,
+      s.llm_quality AS "llmQuality",
+      s.llm_is_sunset AS "llmIsSunset",
+      s.llm_is_sunrise AS "llmIsSunrise",
+      s.llm_rating_explanation AS "llmExplanation",
+      s.llm_model AS "llmModel",
+      s.llm_provider AS "llmProvider",
       s.ai_rating AS "aiRating",
       s.firebase_url AS "firebaseUrl",
       s.captured_at AS "capturedAt",
@@ -60,17 +71,18 @@ export async function GET(request: Request) {
       w.title AS "webcamTitle",
       COALESCE(w.country, 'Unknown') AS country
     `;
+    // Rank by the anthropic analysis; only frames the LLM judged a sunrise/sunset.
     const base = `
       FROM webcam_snapshots s
       JOIN webcams w ON w.id = s.webcam_id
-      WHERE s.ai_rating IS NOT NULL
+      WHERE s.llm_quality IS NOT NULL AND s.llm_is_sunset = true
       ${windowSql}
     `;
 
     let queryText: string;
     if (grouping === 'overall') {
       // Top frames overall.
-      queryText = `SELECT ${cols} ${base} ORDER BY s.ai_rating DESC, s.captured_at DESC LIMIT $1`;
+      queryText = `SELECT ${cols} ${base} ORDER BY s.llm_quality DESC, s.captured_at DESC LIMIT $1`;
     } else {
       // Best single frame per webcam / per country, then ranked.
       const distinctCol = grouping === 'webcam' ? 's.webcam_id' : 'w.country';
@@ -78,9 +90,9 @@ export async function GET(request: Request) {
         SELECT * FROM (
           SELECT DISTINCT ON (${distinctCol}) ${cols}
           ${base}
-          ORDER BY ${distinctCol}, s.ai_rating DESC, s.captured_at DESC
+          ORDER BY ${distinctCol}, s.llm_quality DESC, s.captured_at DESC
         ) best
-        ORDER BY best."aiRating" DESC
+        ORDER BY best."llmQuality" DESC
         LIMIT $1
       `;
     }
