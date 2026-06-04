@@ -90,7 +90,7 @@ export const AI_SNAPSHOT_RECENT_WINDOW_MINUTES = 30;
 //                               (cheap: only the good ones; feeds "best sunsets").
 //   SAVE_ALL_RATED_SNAPSHOTS  — persist EVERY scored frame (expensive: every tick,
 //                               every active webcam — the "bring in everything" switch).
-export const SAVE_HIGH_RATED_SNAPSHOTS = false;
+export const SAVE_HIGH_RATED_SNAPSHOTS = true;
 export const SAVE_ALL_RATED_SNAPSHOTS = false;
 
 // ---------------------------------------------------------------------------
