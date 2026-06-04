@@ -17,6 +17,13 @@ type WebcamAiUpdate = {
   aiModelVersionBinary: string;
   aiRatingRegression: number;
   aiModelVersionRegression: string;
+  /**
+   * sha256 of the scored image. Persisted so the next tick can skip
+   * re-scoring an unchanged frame — replaces the former Redis image-hash
+   * cache (which was the dominant Upstash command consumer). Optional:
+   * when omitted, the existing stored hash is preserved (COALESCE).
+   */
+  lastImageHash?: string;
 };
 
 type SnapshotRecord = {
@@ -125,6 +132,29 @@ export async function getWebcamIdMap(
 }
 
 /**
+ * Batch-fetch the last scored image hash for the given webcam ids.
+ *
+ * One query per tick replaces the former per-webcam Redis GETs — the
+ * Upstash command count no longer scales with webcam volume. Rows whose
+ * last_image_hash is null are simply absent from the map (treated as
+ * "no prior hash" by the caller).
+ */
+export async function getWebcamImageHashMap(
+  webcamIds: number[]
+): Promise<Map<number, string>> {
+  if (webcamIds.length === 0) {
+    return new Map();
+  }
+
+  const rows = (await sql`
+    select id, last_image_hash from webcams
+    where id = any(${webcamIds}) and last_image_hash is not null
+  `) as { id: number; last_image_hash: string }[];
+
+  return new Map(rows.map((r) => [r.id, r.last_image_hash]));
+}
+
+/**
  * Upsert terminator-state rows from pre-resolved DB webcam ids.
  * Rank is the array index. Caller is responsible for any ordering
  * decisions (sort, union, dedupe) before passing the array in.
@@ -198,6 +228,7 @@ export async function updateWebcamAiFields(
           ai_model_version_binary = ${item.aiModelVersionBinary},
           ai_rating_regression = ${item.aiRatingRegression},
           ai_model_version_regression = ${item.aiModelVersionRegression},
+          last_image_hash = coalesce(${item.lastImageHash ?? null}, last_image_hash),
           updated_at = now()
       where id = ${item.webcamId}
     `

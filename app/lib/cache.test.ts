@@ -18,41 +18,50 @@ beforeEach(() => {
   delMock.mockReset();
 });
 
-describe('camera image hash helpers', () => {
-  it('getCameraImageHash reads from camera:hash:<source>:<webcamId>', async () => {
-    const { getCameraImageHash } = await import('./cache');
-    getMock.mockResolvedValue('abc123');
+describe('terminator payload cache', () => {
+  it('getCachedTerminatorPayload reads the terminator:current key', async () => {
+    const { getCachedTerminatorPayload } = await import('./cache');
+    getMock.mockResolvedValue([{ id: 1 }]);
 
-    const result = await getCameraImageHash('windy', 4242);
+    const result = await getCachedTerminatorPayload();
 
-    expect(getMock).toHaveBeenCalledWith('camera:hash:windy:4242');
-    expect(result).toBe('abc123');
+    expect(getMock).toHaveBeenCalledWith('terminator:current');
+    expect(result).toEqual([{ id: 1 }]);
   });
 
-  it('setCameraImageHash writes with a 24h TTL', async () => {
-    const { setCameraImageHash } = await import('./cache');
+  it('setCachedTerminatorPayload writes with a 300s TTL', async () => {
+    const { setCachedTerminatorPayload } = await import('./cache');
+    const payload = [{ id: 7 }];
 
-    await setCameraImageHash('custom', 99, 'sha256hex');
+    await setCachedTerminatorPayload(payload);
 
-    expect(setMock).toHaveBeenCalledWith(
-      'camera:hash:custom:99',
-      'sha256hex',
-      { ex: 60 * 60 * 24 }
-    );
+    expect(setMock).toHaveBeenCalledWith('terminator:current', payload, {
+      ex: 300,
+    });
   });
 
-  it('getCameraImageHash returns null when Redis is unavailable', async () => {
+  it('invalidateTerminatorPayload deletes the terminator:current key', async () => {
+    const { invalidateTerminatorPayload } = await import('./cache');
+
+    await invalidateTerminatorPayload();
+
+    expect(delMock).toHaveBeenCalledWith('terminator:current');
+  });
+
+  it('getCachedTerminatorPayload returns null when Redis is unavailable', async () => {
     delete process.env.KV_REST_API_URL;
     // Force re-import so the cached client is rebuilt without env vars.
     vi.resetModules();
-    const { getCameraImageHash } = await import('./cache');
-    const result = await getCameraImageHash('windy', 1);
+    const { getCachedTerminatorPayload } = await import('./cache');
+    const result = await getCachedTerminatorPayload();
     expect(result).toBeNull();
   });
 
-  it('setCameraImageHash swallows Redis errors (cache is non-fatal)', async () => {
+  it('setCachedTerminatorPayload swallows Redis errors (cache is non-fatal)', async () => {
     setMock.mockRejectedValueOnce(new Error('upstash down'));
-    const { setCameraImageHash } = await import('./cache');
-    await expect(setCameraImageHash('windy', 1, 'h')).resolves.toBeUndefined();
+    const { setCachedTerminatorPayload } = await import('./cache');
+    await expect(
+      setCachedTerminatorPayload([{ id: 1 }]),
+    ).resolves.toBeUndefined();
   });
 });

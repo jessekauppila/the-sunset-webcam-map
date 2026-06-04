@@ -10,10 +10,9 @@ const getIdMapMock = vi.fn();
 const upsertStateMock = vi.fn();
 const deactivateMock = vi.fn();
 const updateAiFieldsMock = vi.fn();
+const getImageHashMapMock = vi.fn();
 const downloadMock = vi.fn();
 const scoreMock = vi.fn();
-const getHashMock = vi.fn();
-const setHashMock = vi.fn();
 const backfillMock = vi.fn();
 const customClassifyMock = vi.fn();
 const upsertStatsMock = vi.fn();
@@ -31,8 +30,6 @@ vi.mock('@/app/lib/terminatorPayload', () => ({
 }));
 vi.mock('@/app/lib/cache', () => ({
   setCachedTerminatorPayload: (...a: unknown[]) => setCachedMock(...a),
-  getCameraImageHash: (...a: unknown[]) => getHashMock(...a),
-  setCameraImageHash: (...a: unknown[]) => setHashMock(...a),
 }));
 vi.mock('@/app/lib/webcamSnapshot', () => ({
   downloadImage: (...a: unknown[]) => downloadMock(...a),
@@ -54,6 +51,7 @@ vi.mock('./lib/webcamClassification', () => ({
 vi.mock('./lib/dbOperations', () => ({
   upsertWebcams: (...a: unknown[]) => upsertWebcamsMock(...a),
   getWebcamIdMap: (...a: unknown[]) => getIdMapMock(...a),
+  getWebcamImageHashMap: (...a: unknown[]) => getImageHashMapMock(...a),
   upsertTerminatorState: (...a: unknown[]) => upsertStateMock(...a),
   deactivateMissingTerminatorState: (...a: unknown[]) => deactivateMock(...a),
   updateWebcamAiFields: (...a: unknown[]) => updateAiFieldsMock(...a),
@@ -97,8 +95,7 @@ beforeEach(() => {
   deactivateMock.mockReset().mockResolvedValue(undefined);
   updateAiFieldsMock.mockReset().mockResolvedValue(undefined);
   downloadMock.mockReset().mockResolvedValue(Buffer.from('jpg'));
-  getHashMock.mockReset().mockResolvedValue(null);
-  setHashMock.mockReset().mockResolvedValue(undefined);
+  getImageHashMapMock.mockReset().mockResolvedValue(new Map());
   scoreMock.mockReset().mockResolvedValue({
     rawScore: 0.6, aiRating: 3.0, modelVersion: 'v4',
     imageHash: 'newhash', source: 'windy', pathTaken: 'onnx',
@@ -123,23 +120,32 @@ function makeReq(): Request {
 }
 
 describe('GET /api/cron/update-cameras', () => {
-  it('scores a Windy webcam via scoreImage and writes the new hash', async () => {
+  it('scores a Windy webcam via scoreImage and writes the new hash to Neon', async () => {
     const res = await GET(makeReq());
     expect(res.status).toBe(200);
     expect(scoreMock).toHaveBeenCalledTimes(1);
-    expect(setHashMock).toHaveBeenCalledWith('windy', 700, 'newhash');
     expect(updateAiFieldsMock).toHaveBeenCalledTimes(1);
+    // The new image hash is persisted via the same webcam AI-fields UPDATE
+    // (no separate Redis write).
+    const [updates] = updateAiFieldsMock.mock.calls[0];
+    expect(updates[0]).toMatchObject({ webcamId: 700, lastImageHash: 'newhash' });
   });
 
-  it('skips Neon writes when the image hash matches Redis', async () => {
-    getHashMock.mockResolvedValueOnce('newhash');
+  it('passes the prior image hash from Neon into scoreImage', async () => {
+    getImageHashMapMock.mockResolvedValueOnce(new Map([[700, 'priorhash']]));
+    await GET(makeReq());
+    expect(scoreMock).toHaveBeenCalledTimes(1);
+    expect(scoreMock.mock.calls[0][0]).toMatchObject({ lastImageHash: 'priorhash' });
+  });
+
+  it('skips Neon writes when the image hash is unchanged (cache-hit)', async () => {
+    getImageHashMapMock.mockResolvedValueOnce(new Map([[700, 'newhash']]));
     scoreMock.mockResolvedValueOnce({
       rawScore: 0, aiRating: 0, modelVersion: 'v4',
       imageHash: 'newhash', source: 'windy', pathTaken: 'cache-hit',
     });
     await GET(makeReq());
     expect(updateAiFieldsMock).not.toHaveBeenCalled();
-    expect(setHashMock).not.toHaveBeenCalled();
   });
 
   it('calls the custom-snapshot backfill once per tick', async () => {
@@ -152,7 +158,7 @@ describe('GET /api/cron/update-cameras', () => {
     expect(upsertStatsMock).toHaveBeenCalledTimes(1);
   });
 
-  it('handles download failure gracefully and skips Neon + Redis writes', async () => {
+  it('handles download failure gracefully and skips Neon writes', async () => {
     downloadMock.mockRejectedValueOnce(new Error('network'));
     const res = await GET(makeReq());
     expect(res.status).toBe(200);
@@ -160,7 +166,6 @@ describe('GET /api/cron/update-cameras', () => {
     expect(body.cacheHits).toBe(0);
     expect(scoreMock).not.toHaveBeenCalled();
     expect(updateAiFieldsMock).not.toHaveBeenCalled();
-    expect(setHashMock).not.toHaveBeenCalled();
   });
 
   it('returns 401 when auth fails', async () => {

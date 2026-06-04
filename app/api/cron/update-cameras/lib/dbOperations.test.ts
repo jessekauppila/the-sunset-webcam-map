@@ -7,7 +7,77 @@ vi.mock('@/app/lib/db', () => ({
     sqlMock(strings, ...values),
 }));
 
-import { deactivateMissingTerminatorState, upsertTerminatorState } from './dbOperations';
+import {
+  deactivateMissingTerminatorState,
+  upsertTerminatorState,
+  getWebcamImageHashMap,
+  updateWebcamAiFields,
+} from './dbOperations';
+
+describe('getWebcamImageHashMap', () => {
+  beforeEach(() => {
+    sqlMock.mockReset();
+  });
+
+  it('returns a webcamId → last_image_hash map from the rows', async () => {
+    sqlMock.mockResolvedValue([
+      { id: 700, last_image_hash: 'hash-a' },
+      { id: 800, last_image_hash: 'hash-b' },
+    ]);
+
+    const result = await getWebcamImageHashMap([700, 800]);
+
+    expect(result.get(700)).toBe('hash-a');
+    expect(result.get(800)).toBe('hash-b');
+  });
+
+  it('passes the webcam ids array into the SQL parameters', async () => {
+    sqlMock.mockResolvedValue([]);
+
+    await getWebcamImageHashMap([700, 800]);
+
+    expect(sqlMock).toHaveBeenCalledTimes(1);
+    const values = sqlMock.mock.calls[0].slice(1);
+    expect(
+      values.some(
+        (v) => Array.isArray(v) && (v as number[]).join(',') === '700,800',
+      ),
+    ).toBe(true);
+  });
+
+  it('returns an empty map without querying when given no ids', async () => {
+    const result = await getWebcamImageHashMap([]);
+
+    expect(result.size).toBe(0);
+    expect(sqlMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('updateWebcamAiFields', () => {
+  beforeEach(() => {
+    sqlMock.mockReset();
+    sqlMock.mockResolvedValue(undefined);
+  });
+
+  it('writes the last_image_hash value into the UPDATE parameters', async () => {
+    await updateWebcamAiFields([
+      {
+        webcamId: 700,
+        aiRating: 3,
+        aiModelVersion: 'v4',
+        aiRatingBinary: 3,
+        aiModelVersionBinary: 'v4',
+        aiRatingRegression: 3,
+        aiModelVersionRegression: 'v4',
+        lastImageHash: 'fresh-hash',
+      },
+    ]);
+
+    expect(sqlMock).toHaveBeenCalledTimes(1);
+    const values = sqlMock.mock.calls[0].slice(1);
+    expect(values).toContain('fresh-hash');
+  });
+});
 
 describe('upsertTerminatorState', () => {
   beforeEach(() => {
