@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { sql } from '@/app/lib/db';
 import { captureWebcamSnapshot } from '@/app/lib/webcamSnapshot';
 import { SNAPSHOTS_ENABLED_ON_RATING } from '@/app/lib/masterConfig';
+import { requireOwner } from '@/app/lib/owner';
 import type { WindyWebcam } from '@/app/lib/types';
 
 export const dynamic = 'force-dynamic';
@@ -166,6 +167,8 @@ async function upsertRating(
 }
 
 export async function POST(request: Request) {
+  const denied = await requireOwner();
+  if (denied) return denied;
   try {
     const body = (await request.json()) as CaptureAndRatePayload;
 

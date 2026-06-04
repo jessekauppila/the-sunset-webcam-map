@@ -1,16 +1,25 @@
 // @vitest-environment node
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
+import { NextResponse } from 'next/server';
+
 const sqlMock = vi.fn();
+const requireOwnerMock = vi.fn();
 
 vi.mock('@/app/lib/db', () => ({
   sql: (...a: unknown[]) => sqlMock(...a),
+}));
+// Mock the owner guard so the test doesn't pull in real Auth.js/Google at import.
+vi.mock('@/app/lib/owner', () => ({
+  requireOwner: (...a: unknown[]) => requireOwnerMock(...a),
 }));
 
 import { POST } from './route';
 
 beforeEach(() => {
   sqlMock.mockReset();
+  requireOwnerMock.mockReset();
+  requireOwnerMock.mockResolvedValue(null); // default: authorized owner
 });
 
 function makeReq(body: Record<string, unknown>): Request {
@@ -104,5 +113,17 @@ describe('POST /api/snapshots/[id]/rate', () => {
   it('rejects missing userSessionId', async () => {
     const res = await POST(makeReq({ rating: 5 }), makeContext('1'));
     expect(res.status).toBe(400);
+  });
+
+  it('returns 401 when the caller is not the owner (gated, before any write)', async () => {
+    requireOwnerMock.mockResolvedValue(
+      NextResponse.json({ error: 'Not authenticated' }, { status: 401 }),
+    );
+    const res = await POST(
+      makeReq({ userSessionId: 's1', rating: 5 }),
+      makeContext('1'),
+    );
+    expect(res.status).toBe(401);
+    expect(sqlMock).not.toHaveBeenCalled();
   });
 });

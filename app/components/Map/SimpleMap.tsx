@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import {} from '@mui/icons-material';
 import { useMap } from './hooks/useMap';
 import { useSetWebcamMarkers } from './hooks/useSetWebcamMarkers';
 import { useUpdateTerminatorRing } from './hooks/useUpdateTerminatorRing';

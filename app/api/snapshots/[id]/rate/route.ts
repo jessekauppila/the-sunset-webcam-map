@@ -2,6 +2,7 @@
 
 import { NextResponse } from 'next/server';
 import { sql } from '@/app/lib/db';
+import { requireOwner } from '@/app/lib/owner';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,6 +20,8 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const denied = await requireOwner();
+  if (denied) return denied;
   try {
     const { id } = await params;
     const snapshotId = parseInt(id, 10);
@@ -171,6 +174,8 @@ export async function DELETE(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const denied = await requireOwner();
+  if (denied) return denied;
   try {
     const { id } = await params;
     const snapshotId = parseInt(id, 10);

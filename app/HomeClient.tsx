@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import MainViewContainer from './components/MainViewContainer';
 import { useLoadTerminatorWebcams } from '@/app/store/useLoadTerminatorWebcams';
 import { useLoadAllWebcams } from '@/app/store/useLoadAllWebcams';
@@ -19,6 +19,8 @@ import { MapMosaicModeToggle } from '@/app/components/MapMosaicModeToggle';
 import type { ViewMode } from './components/MainViewContainer';
 import type { ManifestEntry } from '@/app/lib/modelRuns.types';
 import { ModelAnalysisTab } from './components/ModelAnalysis/ModelAnalysisTab';
+import { AuthControl } from './components/auth/AuthControl';
+import { useIsOperator } from './components/auth/useIsOperator';
 
 interface Props {
   manifestRuns: ManifestEntry[];
@@ -26,8 +28,33 @@ interface Props {
 
 export function HomeClient({ manifestRuns }: Props) {
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [tabValue, setTabValue] = useState(0); // Add tab state
+  const [tabKey, setTabKey] = useState<string>('current');
   const [mode, setMode] = useState<ViewMode>('globe');
+
+  const { isOperator } = useIsOperator();
+
+  // Stable-keyed tabs so hiding operator-only tabs for the public doesn't shift
+  // indices. Operator-only tabs (labeling + management) are removed entirely for
+  // the public, not disabled. The server (requireOwner) is the real gate; this
+  // is presentation.
+  const ALL_TABS = [
+    { key: 'current', label: 'Current Sunrises/Sunsets', operatorOnly: false },
+    { key: 'hard', label: '⚠ Hard Examples', operatorOnly: true },
+    { key: 'archive', label: 'Snapshot Archive', operatorOnly: false },
+    { key: 'curated', label: 'Curated', operatorOnly: false },
+    { key: 'unrated', label: 'Unrated Queue', operatorOnly: true },
+    { key: 'all', label: 'All Webcams', operatorOnly: true },
+    { key: 'models', label: 'Model Analysis', operatorOnly: false },
+  ] as const;
+  const visibleTabs = ALL_TABS.filter((t) => isOperator || !t.operatorOnly);
+
+  // If the active tab becomes hidden (e.g. operator signs out while on the
+  // Unrated Queue), fall back to the first public tab.
+  useEffect(() => {
+    if (!visibleTabs.some((t) => t.key === tabKey)) {
+      setTabKey('current');
+    }
+  }, [visibleTabs, tabKey]);
 
   // Bellingham, Washington location need to put in user's location eventually
   const userLocation = useMemo(
@@ -112,8 +139,10 @@ export function HomeClient({ manifestRuns }: Props) {
           >
             {/* Tabs Header */}
             <Tabs
-              value={tabValue}
-              onChange={(_, newValue) => setTabValue(newValue)}
+              value={tabKey}
+              onChange={(_, newValue) => setTabKey(newValue)}
+              variant="scrollable"
+              scrollButtons="auto"
               sx={{
                 borderBottom: 1,
                 borderColor: 'divider',
@@ -129,18 +158,14 @@ export function HomeClient({ manifestRuns }: Props) {
                 },
               }}
             >
-              <Tab label="Current Sunrises/Sunsets" />
-              <Tab label="⚠ Hard Examples" />
-              <Tab label="Snapshot Archive" />
-              <Tab label="Curated" />
-              <Tab label="Unrated Queue" />
-              <Tab label="All Webcams" />
-              <Tab label="Model Analysis" />
+              {visibleTabs.map((t) => (
+                <Tab key={t.key} value={t.key} label={t.label} />
+              ))}
             </Tabs>
 
             {/* Tab Content */}
             <Box sx={{ flex: 1, overflow: 'auto', p: 3 }}>
-              {tabValue === 0 && (
+              {tabKey === 'current' && (
                 // Current Terminator Tab
                 <Box
                   sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}
@@ -161,7 +186,7 @@ export function HomeClient({ manifestRuns }: Props) {
                 </Box>
               )}
 
-              {tabValue === 1 && (
+              {tabKey === 'hard' && (
                 // Hard Examples — model-disagreement queue
                 <Box>
                   <SnapshotConsole
@@ -172,7 +197,7 @@ export function HomeClient({ manifestRuns }: Props) {
                 </Box>
               )}
 
-              {tabValue === 2 && (
+              {tabKey === 'archive' && (
                 // Snapshot Archive Tab
                 <Box>
                   <SnapshotConsole
@@ -182,7 +207,7 @@ export function HomeClient({ manifestRuns }: Props) {
                 </Box>
               )}
 
-              {tabValue === 3 && (
+              {tabKey === 'curated' && (
                 // Curated Tab
                 <Box>
                   <SnapshotConsole
@@ -192,7 +217,7 @@ export function HomeClient({ manifestRuns }: Props) {
                 </Box>
               )}
 
-              {tabValue === 4 && (
+              {tabKey === 'unrated' && (
                 // Unrated Queue Tab
                 <Box>
                   <SnapshotConsole
@@ -203,7 +228,7 @@ export function HomeClient({ manifestRuns }: Props) {
                 </Box>
               )}
 
-              {tabValue === 5 && (
+              {tabKey === 'all' && (
                 // All Webcams Tab
                 <Box>
                   <WebcamConsole
@@ -213,11 +238,27 @@ export function HomeClient({ manifestRuns }: Props) {
                 </Box>
               )}
 
-              {tabValue === 6 && (
+              {tabKey === 'models' && (
                 <Box sx={{ height: '100%' }}>
                   <ModelAnalysisTab runs={manifestRuns} />
                 </Box>
               )}
+            </Box>
+
+            {/* Auth affordance — pinned at the drawer bottom, always visible */}
+            <Box
+              sx={{
+                borderTop: 1,
+                borderColor: 'divider',
+                backgroundColor: '#374151', // gray-700
+                px: 2,
+                py: 1,
+                display: 'flex',
+                justifyContent: 'flex-end',
+                alignItems: 'center',
+              }}
+            >
+              <AuthControl />
             </Box>
           </Box>
         </Drawer>
