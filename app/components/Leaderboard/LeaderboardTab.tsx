@@ -10,6 +10,8 @@ import {
   ToggleButtonGroup,
   CircularProgress,
 } from '@mui/material';
+import RatingCard from '@/app/components/Webcam/RatingCard';
+import type { WindyWebcam } from '@/app/lib/types';
 
 const PAGE = 60;
 const MAX = 500;
@@ -60,12 +62,39 @@ const toggleSx = {
   },
 };
 
+const noop = async () => {};
+
+/**
+ * Map a leaderboard snapshot onto the WindyWebcam shape RatingCard renders,
+ * feeding Claude's analysis into the AI-display fields so the popup's verdict
+ * block shows Claude's call: llm_quality -> a 1-5 rating, llm_is_sunset -> the
+ * "Sunset/Sunrise detected" verdict. A distinct binary "model version" makes
+ * AiRatingDisplay treat it as a real binary signal (not the legacy proxy).
+ */
+function entryToWebcam(e: Entry): WindyWebcam {
+  const quality = Number(e.llmQuality);
+  const model = e.llmModel ?? 'claude';
+  return {
+    webcamId: e.webcamId,
+    title: e.webcamTitle ?? `Webcam ${e.webcamId}`,
+    viewCount: 0,
+    status: 'active',
+    images: { current: { preview: e.firebaseUrl ?? '' } },
+    location: { country: e.country, longitude: 0, latitude: 0 },
+    categories: [],
+    phase: e.llmIsSunrise ? 'sunrise' : 'sunset',
+    aiRatingRegression: Number((1 + quality * 4).toFixed(2)),
+    aiModelVersionRegression: model,
+    aiRatingBinary: e.llmIsSunset ? 5 : 0,
+    aiModelVersionBinary: `${model}·is_sunset`,
+  } as unknown as WindyWebcam;
+}
+
 export function LeaderboardTab() {
   const [grouping, setGrouping] = useState<Grouping>('overall');
   const [win, setWin] = useState<Win>('all-time');
   const [count, setCount] = useState(PAGE);
 
-  // Reset paging when the view changes.
   useEffect(() => {
     setCount(PAGE);
   }, [grouping, win]);
@@ -86,8 +115,6 @@ export function LeaderboardTab() {
       >
         Best sunrises &amp; sunsets, ranked by Claude&apos;s quality analysis
         (claude-sonnet-4-5) — only frames Claude judged a real sunrise/sunset.
-        The small &ldquo;legacy ai&rdquo; value is the old model score, shown so
-        you can see where it disagrees.
       </Typography>
 
       <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', mb: 2 }}>
@@ -127,129 +154,56 @@ export function LeaderboardTab() {
         </Typography>
       ) : (
         <>
-        <Box
-          sx={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
-            gap: 2,
-          }}
-        >
-          {entries.map((e, i) => (
-            <Box
-              key={e.id}
-              sx={{
-                backgroundColor: '#111827',
-                borderRadius: 2,
-                overflow: 'hidden',
-              }}
-            >
-              {e.firebaseUrl ? (
-                <Box
-                  component="img"
-                  src={e.firebaseUrl}
-                  alt={e.webcamTitle ?? 'snapshot'}
-                  sx={{
-                    width: '100%',
-                    height: 120,
-                    objectFit: 'cover',
-                    display: 'block',
-                  }}
-                />
-              ) : (
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+            {entries.map((e, i) => (
+              <Box key={e.id} sx={{ position: 'relative', width: 256 }}>
                 <Box
                   sx={{
-                    height: 120,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: '#6b7280',
+                    position: 'absolute',
+                    top: 18,
+                    left: 18,
+                    zIndex: 2,
+                    backgroundColor: 'rgba(0,0,0,0.72)',
+                    color: 'white',
+                    px: 1,
+                    py: 0.25,
+                    borderRadius: 1,
+                    fontSize: 12,
+                    fontWeight: 700,
+                    fontFamily: 'monospace',
                   }}
                 >
-                  no image
+                  #{i + 1} · {(Number(e.llmQuality) * 100).toFixed(0)}%
                 </Box>
-              )}
-              <Box sx={{ p: 1 }}>
-                <Box
-                  sx={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                  }}
-                >
-                  <Typography
-                    variant="caption"
-                    sx={{
-                      color: '#fb923c',
-                      fontWeight: 700,
-                      letterSpacing: '0.08em',
-                    }}
-                  >
-                    #{i + 1} · {e.llmIsSunrise ? 'SUNRISE' : 'SUNSET'} ✓
-                  </Typography>
-                  <Typography
-                    variant="caption"
-                    sx={{ color: '#fbbf24', fontFamily: 'monospace' }}
-                  >
-                    {(Number(e.llmQuality) * 100).toFixed(0)}%
-                  </Typography>
-                </Box>
-                <Typography
-                  variant="caption"
-                  sx={{
-                    color: '#9ca3af',
-                    display: 'block',
-                    whiteSpace: 'nowrap',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    mt: 0.5,
-                  }}
-                >
-                  {e.webcamTitle ?? `Webcam ${e.webcamId}`} · {e.country}
-                </Typography>
+                <RatingCard webcam={entryToWebcam(e)} readOnly onRate={noop} />
                 {e.llmExplanation && (
                   <Typography
                     variant="caption"
                     sx={{
-                      color: '#cbd5e1',
+                      color: '#9ca3af',
+                      display: 'block',
                       mt: 0.5,
+                      width: 256,
                       fontSize: '10px',
-                      lineHeight: 1.3,
-                      display: '-webkit-box',
-                      WebkitLineClamp: 3,
-                      WebkitBoxOrient: 'vertical',
-                      overflow: 'hidden',
+                      lineHeight: 1.35,
                     }}
                   >
                     {e.llmExplanation}
                   </Typography>
                 )}
-                <Typography
-                  variant="caption"
-                  sx={{
-                    color: '#6b7280',
-                    display: 'block',
-                    mt: 0.5,
-                    fontSize: '9px',
-                  }}
-                >
-                  {e.llmProvider ?? 'anthropic'} · {e.llmModel ?? 'claude'} ·
-                  legacy ai{' '}
-                  {e.aiRating != null ? Number(e.aiRating).toFixed(1) : '—'}
-                </Typography>
               </Box>
-            </Box>
-          ))}
-        </Box>
-        {maybeMore && (
-          <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
-            <Button
-              onClick={() => setCount((c) => Math.min(c + PAGE, MAX))}
-              sx={{ color: '#60a5fa', textTransform: 'none' }}
-            >
-              Load more
-            </Button>
+            ))}
           </Box>
-        )}
+          {maybeMore && (
+            <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
+              <Button
+                onClick={() => setCount((c) => Math.min(c + PAGE, MAX))}
+                sx={{ color: '#60a5fa', textTransform: 'none' }}
+              >
+                Load more
+              </Button>
+            </Box>
+          )}
         </>
       )}
     </Box>
