@@ -24,7 +24,7 @@ describe('GET /api/leaderboards', () => {
     const [text, params] = sqlQueryMock.mock.calls[0];
     expect(text).toMatch(/ORDER BY s\.ai_rating DESC/i);
     expect(text).toMatch(/ai_rating IS NOT NULL/i);
-    expect(params).toEqual([50]);
+    expect(params).toEqual([60]);
   });
 
   it('never selects sensitive columns (allow-list is structural)', async () => {
@@ -54,13 +54,13 @@ describe('GET /api/leaderboards', () => {
     expect(text).toMatch(/date_trunc\('day', NOW\(\)\)/i);
   });
 
-  it('ignores invalid grouping/window and clamps limit to 100', async () => {
+  it('ignores invalid grouping/window and clamps limit to 500', async () => {
     const res = await GET(req('?grouping=bogus&window=bogus&limit=9999'));
     const body = await res.json();
     expect(body.grouping).toBe('overall');
     expect(body.window).toBe('all-time');
     const [, params] = sqlQueryMock.mock.calls[0];
-    expect(params).toEqual([100]);
+    expect(params).toEqual([500]);
   });
 
   it('sets a CDN cache header', async () => {

@@ -1,14 +1,18 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import useSWR from 'swr';
 import {
   Box,
+  Button,
   Typography,
   ToggleButton,
   ToggleButtonGroup,
   CircularProgress,
 } from '@mui/material';
+
+const PAGE = 60;
+const MAX = 500;
 
 type Grouping = 'overall' | 'webcam' | 'country';
 type Win = 'now' | 'today' | 'all-time';
@@ -53,13 +57,20 @@ const toggleSx = {
 export function LeaderboardTab() {
   const [grouping, setGrouping] = useState<Grouping>('overall');
   const [win, setWin] = useState<Win>('all-time');
+  const [count, setCount] = useState(PAGE);
+
+  // Reset paging when the view changes.
+  useEffect(() => {
+    setCount(PAGE);
+  }, [grouping, win]);
 
   const { data, isLoading } = useSWR(
-    `/api/leaderboards?grouping=${grouping}&window=${win}`,
+    `/api/leaderboards?grouping=${grouping}&window=${win}&limit=${count}`,
     fetcher,
-    { revalidateOnFocus: false },
+    { revalidateOnFocus: false, keepPreviousData: true },
   );
   const entries: Entry[] = data?.entries ?? [];
+  const maybeMore = entries.length >= count && count < MAX;
 
   return (
     <Box>
@@ -107,6 +118,7 @@ export function LeaderboardTab() {
           No sunsets scored yet for this window — try All-time.
         </Typography>
       ) : (
+        <>
         <Box
           sx={{
             display: 'grid',
@@ -174,6 +186,17 @@ export function LeaderboardTab() {
             </Box>
           ))}
         </Box>
+        {maybeMore && (
+          <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
+            <Button
+              onClick={() => setCount((c) => Math.min(c + PAGE, MAX))}
+              sx={{ color: '#60a5fa', textTransform: 'none' }}
+            >
+              Load more
+            </Button>
+          </Box>
+        )}
+        </>
       )}
     </Box>
   );

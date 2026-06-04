@@ -44,8 +44,8 @@ export async function GET(request: Request) {
     const grouping = pick(searchParams.get('grouping'), GROUPINGS, 'overall');
     const window = pick(searchParams.get('window'), WINDOWS, 'all-time');
     const limit = Math.min(
-      Math.max(parseInt(searchParams.get('limit') ?? '50', 10) || 50, 1),
-      100,
+      Math.max(parseInt(searchParams.get('limit') ?? '60', 10) || 60, 1),
+      500,
     );
 
     const windowSql = WINDOW_SQL[window];
