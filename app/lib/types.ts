@@ -92,6 +92,15 @@ export interface WindyWebcam {
   aiRatingRegression?: number; // 1-5 normalized regression score
   aiModelVersionRegression?: string; // Model version for regression score
 
+  // Claude (LLM) judge — the third opinion, distinct from the two model
+  // heads above. Do NOT proxy these into the aiRating* slots: that hides
+  // which judge actually spoke (the leaderboard used to fake llm_quality
+  // into aiRatingRegression). llmQuality is the model's raw [0,1] quality
+  // and is rendered as a percentage, never as 1-5 stars.
+  llmQuality?: number | null; // [0,1] Claude quality score
+  llmIsSunset?: boolean | null; // Claude's "is this a sunset?" verdict
+  llmModel?: string | null; // e.g. "claude-sonnet-4-5"
+
   // Live-asset format discriminator. Tells the popup/renderer what KIND of
   // asset is on screen. Omitted when no asset is available (no snapshot, no
   // Windy images).

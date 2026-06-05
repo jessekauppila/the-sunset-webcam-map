@@ -97,6 +97,137 @@ export default function AiRatingDisplay({
 }
 
 /* -------------------------------------------------------------------------- */
+/* Claude (LLM) verdict — the third judge (indigo)                            */
+/* -------------------------------------------------------------------------- */
+
+export type ClaudeVerdictDisplayProps = {
+  /** Claude's raw [0,1] quality score. Rendered as a percentage, NOT stars. */
+  quality: number | null;
+  /** Claude's "is this a sunset?" verdict. null → quality shown without a claim. */
+  isSunset?: boolean | null;
+  /** Claude model id, e.g. "claude-sonnet-4-5". */
+  model?: string | null;
+  phase?: 'sunrise' | 'sunset' | null;
+};
+
+const CLAUDE_PALETTE = {
+  detected: {
+    background:
+      'linear-gradient(180deg, rgba(129, 140, 248, 0.20), rgba(165, 180, 252, 0.05))',
+    borderTopColor: 'rgba(79, 70, 229, 0.45)',
+    borderBottomColor: 'rgba(67, 56, 202, 0.25)',
+    verdict: '#4338ca',
+    value: '#3730a3',
+    footerText: 'rgba(55, 48, 163, 0.55)',
+    footerDivider: 'rgba(79, 70, 229, 0.22)',
+  },
+  muted: {
+    background: 'rgba(148, 163, 184, 0.10)',
+    borderTopColor: 'rgba(100, 116, 139, 0.30)',
+    borderBottomColor: 'rgba(100, 116, 139, 0.18)',
+    verdict: '#475569',
+    value: '#475569',
+    footerText: 'rgba(71, 85, 105, 0.55)',
+    footerDivider: 'rgba(100, 116, 139, 0.22)',
+  },
+} as const;
+
+/**
+ * The Claude judge block. Rendered alongside (not inside) the model
+ * `AiRatingDisplay` so it shows even when the v4 model hasn't scored the
+ * frame — the common case on the Claude-ranked leaderboard pre-backfill.
+ * Quality is a normalized [0,1] value shown as a percentage; proxying it
+ * through the 1-5 `Stars` widget is exactly the faking this surface removes.
+ */
+export function ClaudeVerdictDisplay({
+  quality,
+  isSunset = null,
+  model = null,
+  phase = null,
+}: ClaudeVerdictDisplayProps) {
+  if (quality == null) return null;
+
+  const copy = verdictCopy(phase);
+  const verdictText =
+    isSunset === true
+      ? copy.detected
+      : isSunset === false
+      ? copy.notDetected
+      : 'Claude quality';
+  const tone = isSunset === false ? CLAUDE_PALETTE.muted : CLAUDE_PALETTE.detected;
+  const pct = `${Math.round(Math.max(0, Math.min(1, quality)) * 100)}%`;
+  const modelLabel = formatModelLabel(model);
+
+  return (
+    <div
+      className="rounded px-2.5 py-2 border-t border-b"
+      style={{
+        background: tone.background,
+        borderTopColor: tone.borderTopColor,
+        borderBottomColor: tone.borderBottomColor,
+      }}
+    >
+      <div
+        className="font-semibold uppercase"
+        style={{
+          color: tone.verdict,
+          fontSize: '9.5px',
+          letterSpacing: '0.18em',
+          lineHeight: 1,
+          fontFamily: 'var(--font-geist-sans), system-ui, sans-serif',
+        }}
+      >
+        {verdictText}
+      </div>
+
+      <div className="flex items-center gap-2 mt-1.5">
+        <span
+          className="font-semibold uppercase"
+          style={{
+            color: tone.verdict,
+            fontSize: '9px',
+            letterSpacing: '0.12em',
+            lineHeight: 1,
+            fontFamily: 'var(--font-geist-sans), system-ui, sans-serif',
+            opacity: 0.75,
+          }}
+        >
+          Claude
+        </span>
+        <span
+          className="font-medium"
+          style={{
+            color: tone.value,
+            fontSize: '11px',
+            letterSpacing: '-0.02em',
+            lineHeight: 1,
+            fontFamily: 'var(--font-geist-mono), ui-monospace, monospace',
+          }}
+        >
+          {pct}
+          <span style={{ opacity: 0.5, fontWeight: 400 }}> quality</span>
+        </span>
+      </div>
+
+      <div
+        className="mt-2 pt-1.5 flex items-baseline justify-between"
+        style={{
+          color: tone.footerText,
+          fontSize: '9px',
+          letterSpacing: '0.05em',
+          fontFamily: 'var(--font-geist-mono), ui-monospace, monospace',
+          borderTop: `1px dashed ${tone.footerDivider}`,
+          lineHeight: 1,
+        }}
+      >
+        <span>{modelLabel}</span>
+        <span style={{ opacity: 0.7 }}>LLM</span>
+      </div>
+    </div>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
 /* Sunset (warm amber)                                                        */
 /* -------------------------------------------------------------------------- */
 

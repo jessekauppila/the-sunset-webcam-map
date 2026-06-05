@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import StarRating from '@/app/components/console/StarRating';
-import AiRatingDisplay from '@/app/components/Webcam/AiRatingDisplay';
+import AiRatingDisplay, {
+  ClaudeVerdictDisplay,
+} from '@/app/components/Webcam/AiRatingDisplay';
 import type { WindyWebcam } from '@/app/lib/types';
 
 type FeedbackTone = 'positive' | 'negative' | 'neutral';
@@ -208,6 +210,20 @@ export function RatingCard({
             );
           })()
         ) : null}
+
+        {/* Claude (third judge) — renders independently of the model block,
+            since the leaderboard ranks by Claude and most archive frames
+            have no model score until the v4 backfill (U3) runs. */}
+        <ClaudeVerdictDisplay
+          quality={webcam.llmQuality ?? null}
+          isSunset={webcam.llmIsSunset ?? null}
+          model={webcam.llmModel ?? null}
+          phase={
+            webcam.phase === 'sunrise' || webcam.phase === 'sunset'
+              ? webcam.phase
+              : null
+          }
+        />
 
         {!readOnly && (
           <div className="flex flex-col items-start gap-1">
