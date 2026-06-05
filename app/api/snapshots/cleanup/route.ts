@@ -1,7 +1,10 @@
 import { NextResponse } from 'next/server';
 import { sql } from '@/app/lib/db';
 import { deleteFromFirebase } from '@/app/lib/webcamSnapshot';
-import { CLEANUP_ENABLED } from '@/app/lib/masterConfig';
+import {
+  CLEANUP_ENABLED,
+  AI_SNAPSHOT_MIN_RATING_THRESHOLD,
+} from '@/app/lib/masterConfig';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300; // 5 minutes
@@ -16,6 +19,8 @@ export const maxDuration = 300; // 5 minutes
 //      survive forever — they're training data
 //   3. Snapshots with model_disagreement_kind != NULL survive — they're on
 //      the Hard Examples queue waiting for a verdict
+//   4. Snapshots with a high ai_rating (>= AI_SNAPSHOT_MIN_RATING_THRESHOLD)
+//      survive — they're the best-of frames the leaderboard ranks
 //
 // Before adding this endpoint to vercel.json's crons or POSTing to it
 // manually, re-read the retention rules above. The archive contained
@@ -55,16 +60,19 @@ async function cleanup(request: Request) {
 
     console.log('Starting snapshot cleanup...');
 
-    // Three classes of snapshots are NEVER cleaned up:
-    //   1. Anything older than 7 days that has no human signal and no
-    //      model-disagreement signal — that's the only thing we drop.
-    //   2. Anything with model_disagreement_kind set (queued for triage).
-    //   3. Anything that any user ever rated or verdicted (training data).
+    // Four classes of snapshots are NEVER cleaned up — we only drop a frame
+    // older than 7 days that has none of these signals:
+    //   1. model_disagreement_kind set (queued for Hard Examples triage).
+    //   2. Any user ever rated or verdicted it (training data).
+    //   3. A high AI score (ai_rating >= AI_SNAPSHOT_MIN_RATING_THRESHOLD) —
+    //      the best-of frames the Best Sunsets leaderboard ranks. NULL ai_rating
+    //      counts as "not high" and is eligible for deletion.
     const oldSnapshots = await sql`
       SELECT id, firebase_path, captured_at
       FROM webcam_snapshots
       WHERE captured_at < NOW() - INTERVAL '7 days'
         AND model_disagreement_kind IS NULL
+        AND (ai_rating IS NULL OR ai_rating < ${AI_SNAPSHOT_MIN_RATING_THRESHOLD})
         AND id NOT IN (
           SELECT DISTINCT snapshot_id FROM webcam_snapshot_ratings
           WHERE rating IS NOT NULL OR is_sunset_verdict IS NOT NULL

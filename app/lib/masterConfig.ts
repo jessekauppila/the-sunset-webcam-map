@@ -78,6 +78,22 @@ export const AI_SNAPSHOT_MIN_RATING_THRESHOLD = 4.0;
 export const AI_SNAPSHOT_RECENT_WINDOW_MINUTES = 30;
 
 // ---------------------------------------------------------------------------
+// Windy snapshot capture beyond the disagreement queue
+// ---------------------------------------------------------------------------
+// The cron normally only persists a webcam_snapshots row for Windy frames when
+// the two model heads disagree (Hard Examples queue). These toggles widen that
+// so the best-of archive + the Best Sunsets leaderboard get real data. Both
+// default OFF — each adds a Firebase upload + Neon insert per matching frame
+// (cost), so opt in deliberately (cf. the reduce-db-cost work).
+//
+//   SAVE_HIGH_RATED_SNAPSHOTS — persist frames scoring >= AI_SNAPSHOT_MIN_RATING_THRESHOLD
+//                               (cheap: only the good ones; feeds "best sunsets").
+//   SAVE_ALL_RATED_SNAPSHOTS  — persist EVERY scored frame (expensive: every tick,
+//                               every active webcam — the "bring in everything" switch).
+export const SAVE_HIGH_RATED_SNAPSHOTS = true;
+export const SAVE_ALL_RATED_SNAPSHOTS = false;
+
+// ---------------------------------------------------------------------------
 // Hard-example mining — model-disagreement thresholds
 // ---------------------------------------------------------------------------
 // When the binary classifier and regression head point in opposite directions,

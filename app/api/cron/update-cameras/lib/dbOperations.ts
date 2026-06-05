@@ -315,7 +315,9 @@ export async function insertWindyDisagreementSnapshot(opts: {
   aiRegressionScore: number;
   aiModelVersionRegression: string;
   scoringPath: string;
-  disagreementKind: string;
+  // null when the frame is persisted for a non-disagreement reason
+  // (high-rated or all-rated capture toggles), not the Hard Examples queue.
+  disagreementKind: string | null;
 }): Promise<number> {
   const [row] = (await sql`
     insert into webcam_snapshots (
