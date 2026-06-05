@@ -20,6 +20,7 @@ export function SnapshotConsole({
   const removeUnratedSnapshot = useSnapshotStore(
     (s) => s.removeUnratedSnapshot
   );
+  const removeHardExample = useSnapshotStore((s) => s.removeHardExample);
   const insertUnratedSnapshot = useSnapshotStore(
     (s) => s.insertUnratedSnapshot
   );
@@ -104,7 +105,11 @@ export function SnapshotConsole({
   const [queueHistory, setQueueHistory] = useState<
     Array<{ snapshot: (typeof unrated)[number]; index: number }>
   >([]);
-  const isQueueMode = mode === 'unrated';
+  // Both the unrated queue and the hard-examples queue use the one-card verdict
+  // flow (image + Yes/No + stars). Hard examples writes is_sunset_verdict as the
+  // gold label; the verdict is given blind (no model/Claude scores shown) to
+  // avoid anchoring — the three-judge comparison lives in the verification view.
+  const isQueueMode = mode === 'unrated' || mode === 'hard-examples';
 
   // Initial fetch on mount
   useEffect(() => {
@@ -118,9 +123,17 @@ export function SnapshotConsole({
     if (!isQueueMode || !hotkeysEnabled) return;
     const remainingInBuffer = snapshots.length - queueIndex;
     if (remainingInBuffer <= 10 && !loading) {
-      fetchMore('unrated');
+      fetchMore(mode);
     }
-  }, [isQueueMode, snapshots.length, queueIndex, loading, fetchMore]);
+  }, [
+    isQueueMode,
+    hotkeysEnabled,
+    mode,
+    snapshots.length,
+    queueIndex,
+    loading,
+    fetchMore,
+  ]);
 
   // Keep queue index valid after removals/refills
   useEffect(() => {
@@ -185,7 +198,11 @@ export function SnapshotConsole({
           ...prev,
           { snapshot: queueCurrent, index: queueIndex },
         ]);
-        removeUnratedSnapshot(snapshotId);
+        if (mode === 'hard-examples') {
+          removeHardExample(snapshotId);
+        } else {
+          removeUnratedSnapshot(snapshotId);
+        }
         setQueueRatedCount((prev) => prev + 1);
       } catch (error) {
         console.error('Failed to update rating:', error);
@@ -202,7 +219,9 @@ export function SnapshotConsole({
       queueCurrent,
       queueIndex,
       isQueueSubmitting,
+      mode,
       removeUnratedSnapshot,
+      removeHardExample,
     ]
   );
 
@@ -315,7 +334,11 @@ export function SnapshotConsole({
         {loading && snapshots.length === 0 ? (
           <p className="text-green-700">Loading snapshots...</p>
         ) : !queueCurrent ? (
-          <p className="text-green-700">No unrated snapshots found.</p>
+          <p className="text-green-700">
+            {mode === 'hard-examples'
+              ? 'No disagreements to verdict — backfill still running or all verdicted.'
+              : 'No unrated snapshots found.'}
+          </p>
         ) : (
           <SnapshotQueueCard
             snapshot={queueCurrent}

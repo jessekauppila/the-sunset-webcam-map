@@ -72,6 +72,9 @@ type State = {
   removeUnratedSnapshot: (snapshotId: number) => void;
   insertUnratedSnapshot: (snapshot: Snapshot, index?: number) => void;
 
+  // Hard-examples queue: drop a frame once the operator verdicts it.
+  removeHardExample: (snapshotId: number) => void;
+
   // Rate a snapshot
   setRating: (snapshotId: number, rating: number) => Promise<void>;
 };
@@ -315,6 +318,15 @@ export const useSnapshotStore = create<State>()((set, get) => ({
         (entry) => entry?.snapshot?.id !== snapshotId
       ),
       unratedTotal: Math.max(0, state.unratedTotal - 1),
+    }));
+  },
+
+  removeHardExample: (snapshotId) => {
+    set((state) => ({
+      hardExamples: state.hardExamples.filter(
+        (entry) => entry?.snapshot?.id !== snapshotId
+      ),
+      hardExamplesTotal: Math.max(0, state.hardExamplesTotal - 1),
     }));
   },
 
