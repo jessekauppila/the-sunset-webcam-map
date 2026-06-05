@@ -12,6 +12,8 @@ import {
   countArchiveSnapshotsNeedingScore,
   updateSnapshotModelScores,
   markSnapshotDeadUrl,
+  findSnapshotsNeedingDisagreementRecompute,
+  updateSnapshotDisagreement,
   updateWebcamRegressionScoreFromLatestCustomSnapshot,
 } from './dbOperations';
 
@@ -131,6 +133,49 @@ describe('markSnapshotDeadUrl', () => {
     expect(q).toMatch(/update\s+webcam_snapshots/i);
     expect(q).toMatch(/scoring_state\s*=\s*'dead-url'/i);
     expect(values).toContain(99);
+  });
+});
+
+describe('findSnapshotsNeedingDisagreementRecompute', () => {
+  it('selects rows where disagreement predates the Claude score (or is unset)', async () => {
+    sqlMock.mockResolvedValue([
+      {
+        snapshot_id: 5,
+        ai_regression_score: '0.200',
+        ai_binary_is_sunset: null,
+        llm_quality: '0.850',
+        llm_is_sunset: true,
+      },
+    ]);
+    const rows = await findSnapshotsNeedingDisagreementRecompute(100);
+    expect(rows[0]).toEqual({
+      snapshotId: 5,
+      aiRegressionScore: 0.2,
+      binaryIsSunset: null,
+      llmQuality: 0.85,
+      llmIsSunset: true,
+    });
+    const [strings] = sqlMock.mock.calls[0];
+    const q = strings.join('?');
+    expect(q).toMatch(/ai_regression_score\s+is\s+not\s+null/i);
+    expect(q).toMatch(/llm_quality\s+is\s+not\s+null/i);
+    expect(q).toMatch(/disagreement_computed_at\s+is\s+null/i);
+    expect(q).toMatch(/disagreement_computed_at\s*<\s*s\.llm_rated_at/i);
+  });
+});
+
+describe('updateSnapshotDisagreement', () => {
+  it('writes only the kind + disagreement_computed_at, not the score columns', async () => {
+    sqlMock.mockResolvedValue([]);
+    await updateSnapshotDisagreement(5, 'model_low_claude_sunset');
+    const [strings, ...values] = sqlMock.mock.calls[0];
+    const q = strings.join('?');
+    expect(q).toMatch(/model_disagreement_kind/);
+    expect(q).toMatch(/disagreement_computed_at\s*=\s*now\(\)/i);
+    expect(q).not.toMatch(/ai_regression_score\s*=/);
+    expect(q).not.toMatch(/ai_binary_score\s*=/);
+    expect(values).toContain(5);
+    expect(values).toContain('model_low_claude_sunset');
   });
 });
 

@@ -122,6 +122,11 @@ export const MODEL_VS_CLAUDE_MODEL_LOW = 2.0; // 1-5: model thinks it's poor
 export const MODEL_VS_CLAUDE_MODEL_HIGH = 3.5; // 1-5: model thinks it's good
 export const MODEL_VS_CLAUDE_CLAUDE_HIGH = 0.6; // [0,1]: Claude confident it's a good sunset
 
+// Max snapshots the disagreement-recompute cron re-derives per run (plan U3b).
+// Pure SQL recompute (no image download / ONNX), so this can be generous — it
+// runs on its own schedule, isolated from the live-scoring tick budget.
+export const DISAGREEMENT_RECOMPUTE_LIMIT = 500;
+
 // Widens the per-tick cron backfill from custom-cam-only to the FULL webcam
 // archive (~33k historical Windy frames). Default false: the cron keeps doing
 // only the cheap custom-cam top-up it always has. The one-time 33k drain runs
