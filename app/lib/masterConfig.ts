@@ -105,6 +105,24 @@ export const SUNSET_DISAGREEMENT_HIGH = 3.0;
 export const SUNSET_DISAGREEMENT_LOW = 2.0;
 
 // ---------------------------------------------------------------------------
+// Model-vs-Claude disagreement (Claude trusted as the reference)
+// ---------------------------------------------------------------------------
+// The highest-value Hard Examples signal: where the v4 regression head and
+// Claude's verdict diverge. Compared against the regression rating (1-5 scale)
+// and Claude's NORMALIZED [0,1] llm_quality — NOT the raw 1-5 rating. Per the
+// normalized-vs-raw-thresholds learning, 0.75 normalized == "rating >= 4"; a
+// raw 4.0 here would be a bug.
+//
+// CLAUDE_HIGH is also the deadband mechanism: it sits ABOVE the borderline-
+// quality band (~0.35-0.55, the ~4.7k frames Claude calls sunsets but rates
+// mediocre), so a "miss" only fires when Claude is confident the frame is a
+// genuinely good sunset. That keeps borderline-vs-borderline noise out of the
+// queue (plan KTD2 deadband).
+export const MODEL_VS_CLAUDE_MODEL_LOW = 2.0; // 1-5: model thinks it's poor
+export const MODEL_VS_CLAUDE_MODEL_HIGH = 3.5; // 1-5: model thinks it's good
+export const MODEL_VS_CLAUDE_CLAUDE_HIGH = 0.6; // [0,1]: Claude confident it's a good sunset
+
+// ---------------------------------------------------------------------------
 // Snapshot cleanup gate
 // ---------------------------------------------------------------------------
 // Hard kill-switch for /api/snapshots/cleanup. Default OFF — even though no
