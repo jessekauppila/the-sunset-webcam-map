@@ -3,12 +3,28 @@ import { sql } from '@/app/lib/db';
 
 export const dynamic = 'force-dynamic';
 
-// Public, read-only "Best Sunsets" leaderboard. Ranks by the anthropic LLM
-// analysis (llm_quality from claude-sonnet-4-5), filtered to frames the LLM
-// judged to be a sunrise/sunset (llm_is_sunset = true). This is the meaningful
-// signal — the legacy ai_rating column has no model provenance. We also return
-// ai_rating so the UI can show the model-vs-LLM mismatch. No auth (public),
-// CDN-cached.
+// Public, read-only "Best Sunsets" leaderboard.
+//
+// Ranking is Claude-primary with a real-model fallback (plan U1/KTD4):
+//   - Frames Claude judged a sunset (llm_is_sunset = true) rank by llm_quality.
+//   - Claude-null frames with a REAL v4 regression score rank by it, gated to
+//     ai_regression_score >= MODEL_SUNSET_MIN so only model-confident sunsets
+//     appear. We NEVER fall back to the junk legacy ai_rating column (no model
+//     provenance). The fallback clause is inert until the v4 archive backfill
+//     (U3) populates ai_regression_score.
+//
+// Both llm_quality and ai_regression_score are NUMERIC(4,3) on [0,1], so
+// COALESCE(llm_quality, ai_regression_score) is a valid unified sort key with
+// no scale discontinuity at the Claude/model boundary.
+//
+// Flickr is excluded structurally, not by a filter: this query only reads
+// webcam_snapshots JOIN webcams; the Flickr corpus lives in external_images
+// and is never joined here (plan KTD8). No auth (public), CDN-cached.
+
+// Minimum real v4 regression score ([0,1]) for a Claude-null frame to qualify
+// as a "sunset" on the public board. Tunable (plan Open Questions:
+// MODEL_SUNSET_MIN); 0.6 ≈ a 3.4/5 rating. Fixed literal — safe to inline.
+const MODEL_SUNSET_MIN = 0.6;
 
 type Grouping = 'overall' | 'webcam' | 'country';
 type Window = 'now' | 'today' | 'all-time';
@@ -31,7 +47,10 @@ export interface LeaderboardEntry {
   llmExplanation: string | null;
   llmModel: string | null;
   llmProvider: string | null;
-  aiRating: number | string | null; // legacy, shown for comparison
+  aiRating: number | string | null; // legacy junk column — comparison only, never ranked
+  aiRegressionScore: number | string | null; // real v4 score [0,1], drives the fallback
+  aiModelVersionRegression: string | null;
+  sortScore: number | string | null; // COALESCE(llm_quality, ai_regression_score) — the rank key
   firebaseUrl: string | null;
   capturedAt: string;
   webcamId: number;
@@ -65,24 +84,33 @@ export async function GET(request: Request) {
       s.llm_model AS "llmModel",
       s.llm_provider AS "llmProvider",
       s.ai_rating AS "aiRating",
+      s.ai_regression_score AS "aiRegressionScore",
+      s.ai_model_version_regression AS "aiModelVersionRegression",
+      COALESCE(s.llm_quality, s.ai_regression_score) AS "sortScore",
       s.firebase_url AS "firebaseUrl",
       s.captured_at AS "capturedAt",
       s.webcam_id AS "webcamId",
       w.title AS "webcamTitle",
       COALESCE(w.country, 'Unknown') AS country
     `;
-    // Rank by the anthropic analysis; only frames the LLM judged a sunrise/sunset.
+    // Claude-primary with a real-model fallback. The fallback clause is inert
+    // until ai_regression_score is backfilled (U3). Never reads junk ai_rating.
     const base = `
       FROM webcam_snapshots s
       JOIN webcams w ON w.id = s.webcam_id
-      WHERE s.llm_quality IS NOT NULL AND s.llm_is_sunset = true
+      WHERE (
+        (s.llm_quality IS NOT NULL AND s.llm_is_sunset = true)
+        OR (s.llm_quality IS NULL AND s.ai_regression_score IS NOT NULL AND s.ai_regression_score >= ${MODEL_SUNSET_MIN})
+      )
       ${windowSql}
     `;
+    // Unified [0,1] rank key: Claude when present, else the real model score.
+    const rankKey = 'COALESCE(s.llm_quality, s.ai_regression_score)';
 
     let queryText: string;
     if (grouping === 'overall') {
       // Top frames overall.
-      queryText = `SELECT ${cols} ${base} ORDER BY s.llm_quality DESC, s.captured_at DESC LIMIT $1`;
+      queryText = `SELECT ${cols} ${base} ORDER BY ${rankKey} DESC, s.captured_at DESC LIMIT $1`;
     } else {
       // Best single frame per webcam / per country, then ranked.
       const distinctCol = grouping === 'webcam' ? 's.webcam_id' : 'w.country';
@@ -90,9 +118,9 @@ export async function GET(request: Request) {
         SELECT * FROM (
           SELECT DISTINCT ON (${distinctCol}) ${cols}
           ${base}
-          ORDER BY ${distinctCol}, s.llm_quality DESC, s.captured_at DESC
+          ORDER BY ${distinctCol}, ${rankKey} DESC, s.captured_at DESC
         ) best
-        ORDER BY best."llmQuality" DESC
+        ORDER BY best."sortScore" DESC
         LIMIT $1
       `;
     }
