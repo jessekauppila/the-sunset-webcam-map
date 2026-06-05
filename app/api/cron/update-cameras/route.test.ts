@@ -63,8 +63,8 @@ vi.mock('./lib/aiScoring', () => ({
   computeDisagreementKind: (...a: unknown[]) =>
     computeDisagreementKindMock(...a),
 }));
-vi.mock('./lib/customBackfill', () => ({
-  backfillCustomSnapshotScores: (...a: unknown[]) => backfillMock(...a),
+vi.mock('./lib/archiveBackfill', () => ({
+  backfillArchiveSnapshotScores: (...a: unknown[]) => backfillMock(...a),
 }));
 vi.mock('./lib/customClassification', () => ({
   classifyCustomCamerasForTick: (...a: unknown[]) => customClassifyMock(...a),
@@ -117,7 +117,7 @@ beforeEach(() => {
     rawScore: 0.6, aiRating: 3.0, modelVersion: 'v4',
     imageHash: 'newhash', source: 'windy', pathTaken: 'onnx',
   });
-  backfillMock.mockReset().mockResolvedValue({ scored: 0, failed: 0, modelVersion: null, scores: [] });
+  backfillMock.mockReset().mockResolvedValue({ scored: 0, failed: 0, deadUrls: 0, fallbacks: 0, abortedOnFallback: false, modelVersion: null, scores: [] });
   customClassifyMock.mockReset().mockResolvedValue({ sunrise: [], sunset: [] });
   upsertStatsMock.mockReset().mockResolvedValue(undefined);
   setCachedMock.mockReset().mockResolvedValue(undefined);

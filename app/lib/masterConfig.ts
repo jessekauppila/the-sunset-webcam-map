@@ -122,6 +122,14 @@ export const MODEL_VS_CLAUDE_MODEL_LOW = 2.0; // 1-5: model thinks it's poor
 export const MODEL_VS_CLAUDE_MODEL_HIGH = 3.5; // 1-5: model thinks it's good
 export const MODEL_VS_CLAUDE_CLAUDE_HIGH = 0.6; // [0,1]: Claude confident it's a good sunset
 
+// Widens the per-tick cron backfill from custom-cam-only to the FULL webcam
+// archive (~33k historical Windy frames). Default false: the cron keeps doing
+// only the cheap custom-cam top-up it always has. The one-time 33k drain runs
+// via the standalone runner (scripts/backfill-archive-scores.ts), which scores
+// all sources regardless of this flag. Flip true to let the cron also chip at
+// the archive between runner passes / for steady-state once drained.
+export const ARCHIVE_BACKFILL_ENABLED = false;
+
 // ---------------------------------------------------------------------------
 // Snapshot cleanup gate
 // ---------------------------------------------------------------------------
