@@ -24,6 +24,7 @@ export function SnapshotConsole({
   const insertUnratedSnapshot = useSnapshotStore(
     (s) => s.insertUnratedSnapshot
   );
+  const insertHardExample = useSnapshotStore((s) => s.insertHardExample);
   const setPageSize = useSnapshotStore((s) => s.setPageSize);
   const goToPage = useSnapshotStore((s) => s.goToPage);
   const nextPage = useSnapshotStore((s) => s.nextPage);
@@ -252,7 +253,14 @@ export function SnapshotConsole({
         throw new Error('Failed to undo rating');
       }
 
-      insertUnratedSnapshot(last.snapshot, last.index);
+      // Put the frame back into the queue it came from. Hard examples live in
+      // the hardExamples buffer; routing undo to insertUnratedSnapshot would
+      // drop it from the operator queue and pollute the unrated labeling queue.
+      if (mode === 'hard-examples') {
+        insertHardExample(last.snapshot, last.index);
+      } else {
+        insertUnratedSnapshot(last.snapshot, last.index);
+      }
       setQueueHistory((prev) => prev.slice(0, -1));
       setQueueRatedCount((prev) => Math.max(0, prev - 1));
       setQueueIndex(last.index);
@@ -261,7 +269,13 @@ export function SnapshotConsole({
     } finally {
       setIsQueueSubmitting(false);
     }
-  }, [isQueueSubmitting, queueHistory, insertUnratedSnapshot]);
+  }, [
+    isQueueSubmitting,
+    queueHistory,
+    mode,
+    insertUnratedSnapshot,
+    insertHardExample,
+  ]);
 
   // Scoped keyboard shortcuts for queue mode
   useEffect(() => {

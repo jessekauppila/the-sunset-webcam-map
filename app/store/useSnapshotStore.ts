@@ -74,6 +74,8 @@ type State = {
 
   // Hard-examples queue: drop a frame once the operator verdicts it.
   removeHardExample: (snapshotId: number) => void;
+  // Hard-examples queue: put a frame back when the operator undoes a verdict.
+  insertHardExample: (snapshot: Snapshot, index?: number) => void;
 
   // Rate a snapshot
   setRating: (snapshotId: number, rating: number) => Promise<void>;
@@ -348,6 +350,28 @@ export const useSnapshotStore = create<State>()((set, get) => ({
       return {
         unrated: next,
         unratedTotal: state.unratedTotal + 1,
+      };
+    });
+  },
+
+  insertHardExample: (snapshot, index) => {
+    set((state) => {
+      const existingIndex = state.hardExamples.findIndex(
+        (entry) => entry?.snapshot?.id === snapshot.snapshot.id
+      );
+      if (existingIndex !== -1) {
+        return state;
+      }
+
+      const targetIndex =
+        typeof index === 'number'
+          ? Math.max(0, Math.min(index, state.hardExamples.length))
+          : 0;
+      const next = [...state.hardExamples];
+      next.splice(targetIndex, 0, snapshot);
+      return {
+        hardExamples: next,
+        hardExamplesTotal: state.hardExamplesTotal + 1,
       };
     });
   },
