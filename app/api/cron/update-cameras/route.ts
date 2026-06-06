@@ -136,12 +136,11 @@ export async function GET(req: Request) {
   let fallbacks = 0;
   // Per-tick breakdown of which scoring path each webcam took. Makes
   // 'is ONNX actually running' inspectable from the cron response —
-  // scoringPaths.onnx > 0 && scoringPaths['baseline-fallback'] === 0 is green.
-  const scoringPaths: Record<'onnx' | 'cache-hit' | 'baseline-fallback' | 'baseline', number> = {
+  // scoringPaths.onnx > 0 && scoringPaths.unscored === 0 is green.
+  const scoringPaths: Record<'onnx' | 'cache-hit' | 'unscored', number> = {
     onnx: 0,
     'cache-hit': 0,
-    'baseline-fallback': 0,
-    baseline: 0,
+    unscored: 0,
   };
 
   async function scoreOneWindy(webcam: typeof windyAll[number]): Promise<void> {
@@ -165,10 +164,6 @@ export async function GET(req: Request) {
         imageBytes: bytes,
         source: 'windy',
         lastImageHash: lastHash ?? undefined,
-        fallbackMeta: {
-          viewCount: webcam.viewCount,
-          manualRating: webcam.rating ?? undefined,
-        },
       });
 
       if (scored.pathTaken === 'cache-hit') {
@@ -176,8 +171,15 @@ export async function GET(req: Request) {
         scoringPaths['cache-hit'] += 1;
         return;
       }
-      if (scored.pathTaken === 'baseline-fallback') fallbacks += 1;
-      scoringPaths[scored.pathTaken] += 1;
+      if (scored.rawScore === null || scored.aiRating === null) {
+        // 'unscored' — ONNX produced no real score. Write nothing; leave the
+        // columns NULL so the backfill (WHERE ai_regression_score IS NULL)
+        // reclaims this row once the model is loading again. Never fabricate.
+        fallbacks += 1;
+        scoringPaths.unscored += 1;
+        return;
+      }
+      scoringPaths.onnx += 1;
       windyScores.push(scored.rawScore);
 
       // Write Neon first: if the DB write fails, Redis hash is not committed
@@ -259,8 +261,8 @@ export async function GET(req: Request) {
       );
       fallbacks += 1;
       // Same conflation as `fallbacks`: download/timeout failures count
-      // as a fallback path since no real score was produced.
-      scoringPaths['baseline-fallback'] += 1;
+      // as unscored since no real score was produced.
+      scoringPaths.unscored += 1;
     }
   }
 
