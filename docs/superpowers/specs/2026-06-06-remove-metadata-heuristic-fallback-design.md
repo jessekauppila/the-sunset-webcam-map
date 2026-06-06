@@ -93,18 +93,33 @@ on it, so the leaderboard ranks guesses as if they were real.
   var but default it to `'onnx'` and make non-onnx return `'unscored'` rather
   than baseline. Lean is full delete.)*
 
-### 3. Live cron writes nothing on `'unscored'`
+### 3. Every score-writer writes nothing on `'unscored'`
 
-In `route.ts`, mirror the backfill's discipline:
+On `main` there are **three** `scoreImage` consumers, and two of them write fake
+scores today (the third is read-only):
 
-- On `pathTaken === 'unscored'`: **skip** the score write. The snapshot row is
-  still inserted (the image exists) but with `ai_regression_score` / `ai_rating`
-  / binary columns left `NULL`. Do not call `updateWebcamAiFields` with a faked
-  score.
-- Increment the `fallbacks` / unscored counter and log loudly (keep the existing
-  `scoringPaths` telemetry; rename the `baseline-fallback` bucket to `unscored`).
-- The row re-enters the scoring queue automatically — the finder is
-  `WHERE ai_regression_score IS NULL` — so the real model reclaims it next tick.
+**(a) `route.ts` `scoreOneWindy` (live Windy cron).**
+- On `'unscored'`: **skip** the write — do not call `updateWebcamAiFields`, do
+  not push to `windyScores`, do not persist a snapshot. The image exists but
+  carries no score.
+- Increment an `unscored` counter and log. Rename the `baseline-fallback`
+  telemetry bucket to `unscored`.
+
+**(b) `customBackfill.ts` (custom-camera backfill).** This is the second leak —
+it currently writes `result.rawScore` with no gate (lines 49–58).
+- On `'unscored'`: `continue` without calling `updateSnapshotAiRegressionScore`,
+  without pushing to `scores`, and without adding the webcam to
+  `touchedWebcamIds` (so no `updateWebcamRegressionScoreFromLatestCustomSnapshot`
+  sync from a non-score). Count it as `failed` (or a new `unscored` field).
+- The finder is `WHERE ai_regression_score IS NULL`, so the row is retried.
+
+**(c) `app/api/debug/scoring-smoke/route.ts` (diagnostic, read-only).** Does not
+write — just needs to tolerate a null `rawScore` in its JSON response (a null
+`rawScore` + `pathTaken: 'unscored'` is itself the useful "model isn't loading"
+signal).
+
+In all cases the row re-enters the scoring queue automatically — the finders are
+`WHERE ai_regression_score IS NULL` — so the real model reclaims it next tick.
 
 ### 4. Cleanup migration (null the existing junk)
 
