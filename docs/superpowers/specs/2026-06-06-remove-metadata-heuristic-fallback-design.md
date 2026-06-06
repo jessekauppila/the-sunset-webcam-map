@@ -191,6 +191,19 @@ Write `docs/solutions/<date>-fallbacks-must-not-impersonate-real-signal.md`:
   (`computeDisagreementKind`). A small merge resolution is expected when both
   land. The two changes are logically disjoint (this removes the baseline path;
   Phase 2 extends the disagreement function), so resolution is mechanical.
+- **Cleanup-retention coupling (from PR #44 review, finding #2):** the cleanup
+  cron deletes old frames where `ai_rating IS NULL OR ai_rating < threshold` and
+  does not protect `llm_quality` — but the leaderboard ranks by `llm_quality`.
+  Nulling `ai_rating` on baseline rows (above) turns more leaderboard-eligible
+  frames into deletion candidates, so this plan **also** adds an
+  `AND llm_quality IS NULL` retention guard (gated behind `CLEANUP_ENABLED`,
+  default false). See the plan's Task 7.
+- **`ratingFromRaw` removal:** this plan deletes `ratingFromRaw` (baseline-only
+  on `main`). The #44 review's suggestion to centralize rating math on it is
+  therefore redirected — Phase 2 should centralize on `normalizeRegressionOutput`.
+- **Other #44 findings** (#1 undo, #3–#7 recompute/backfill cost+correctness,
+  #9 priority duplication, #10 central auth) are Phase-2 code, fixed on
+  `feat/three-judge-p2` — see the plan's disposition table.
 
 ## Verification
 

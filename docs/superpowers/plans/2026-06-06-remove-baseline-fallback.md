@@ -519,7 +519,92 @@ git commit -m "feat(db): migration to null fabricated baseline scores (manual ra
 
 ---
 
-## Task 7: Compound-engineering learning
+## Task 7: Cleanup retention must protect Claude-scored frames
+
+**Why this is here (from the #44 review, finding #2):** the cleanup cron deletes
+old snapshots where `ai_rating IS NULL OR ai_rating < threshold` and does **not**
+protect `llm_quality`. The Best Sunsets leaderboard ranks by `llm_quality`
+(`app/api/leaderboards/route.ts`), so a high-`llm_quality` frame with a low/NULL
+`ai_rating` is already deletion-eligible. **Task 6 nulls `ai_rating` on every
+baseline row**, which turns more leaderboard-eligible frames into deletion
+candidates — so this fix ships *with* our change. It is latent only because
+`CLEANUP_ENABLED` defaults false; fix it before that flag is ever flipped.
+
+**Files:**
+- Modify: `app/api/snapshots/cleanup/route.ts:63-81`
+- Test: `app/api/snapshots/cleanup/route.test.ts`
+
+- [ ] **Step 1: Add a failing test**
+
+In `cleanup/route.test.ts`, add (mirroring the file's existing pattern — set
+`cleanupEnabledMock.value = true`, `sqlMock.mockResolvedValueOnce([])`, invoke
+the route the same way the surrounding `it(...)` blocks do, then read the tagged
+SQL from `sqlMock.mock.calls[0]`):
+
+```ts
+  it('excludes Claude-scored frames (llm_quality set) — they may be on the leaderboard', async () => {
+    cleanupEnabledMock.value = true;
+    sqlMock.mockResolvedValueOnce([]); // SELECT returns nothing
+    await GET(new Request('http://localhost/api/snapshots/cleanup'));
+    const [strings] = sqlMock.mock.calls[0];
+    const q = strings.join('?').toLowerCase();
+    expect(q).toMatch(/llm_quality\s+is\s+null/i);
+  });
+```
+
+> Match the exact route invocation the other tests in this file use (the same
+> `GET(...)` argument shape). If they use a shared `makeReq()`, use that.
+
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `npx vitest run app/api/snapshots/cleanup/route.test.ts`
+Expected: FAIL — the current query has no `llm_quality` clause.
+
+- [ ] **Step 3: Implement the retention guard**
+
+In `cleanup/route.ts`, update the retention comment (lines 63–69) to add the
+Claude-scored class, and add `AND llm_quality IS NULL` to the SELECT:
+
+```ts
+    // Snapshots with ANY of these signals are NEVER cleaned up — we only drop a
+    // frame older than 7 days that has none of them:
+    //   1. model_disagreement_kind set (queued for Hard Examples triage).
+    //   2. Any user ever rated or verdicted it (training data).
+    //   3. A high AI score (ai_rating >= AI_SNAPSHOT_MIN_RATING_THRESHOLD).
+    //   4. Claude scored it (llm_quality set) — the Best Sunsets leaderboard
+    //      ranks by llm_quality, so these are the real best-of frames. This also
+    //      guards the window where the ONNX backfill has nulled ai_rating but
+    //      Claude's quality is the live ranking signal.
+    const oldSnapshots = await sql`
+      SELECT id, firebase_path, captured_at
+      FROM webcam_snapshots
+      WHERE captured_at < NOW() - INTERVAL '7 days'
+        AND model_disagreement_kind IS NULL
+        AND llm_quality IS NULL
+        AND (ai_rating IS NULL OR ai_rating < ${AI_SNAPSHOT_MIN_RATING_THRESHOLD})
+        AND id NOT IN (
+          SELECT DISTINCT snapshot_id FROM webcam_snapshot_ratings
+          WHERE rating IS NOT NULL OR is_sunset_verdict IS NOT NULL
+        )
+      ORDER BY captured_at ASC
+    `;
+```
+
+- [ ] **Step 4: Run test to verify it passes**
+
+Run: `npx vitest run app/api/snapshots/cleanup/route.test.ts`
+Expected: PASS.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add app/api/snapshots/cleanup/route.ts app/api/snapshots/cleanup/route.test.ts
+git commit -m "fix(cleanup): never delete Claude-scored frames (llm_quality) — guards leaderboard + null-ai_rating window"
+```
+
+---
+
+## Task 8: Compound-engineering learning
 
 **Files:**
 - Create: `docs/solutions/2026-06-06-fallbacks-must-not-impersonate-real-signal.md`
@@ -583,11 +668,30 @@ git commit -m "docs(solutions): learning — fallbacks must not impersonate the 
 - Spec §3a/b/c (three writers) → Task 3 (Windy), Task 4 (customBackfill), Task 5 (smoke null-tolerance). ✅
 - Spec §4 (cleanup migration) → Task 6. ✅
 - Spec §5 (tests) → TDD steps in Tasks 1, 3, 4. ✅
-- Spec "compound-engineering learning" → Task 7. ✅
+- #44 review finding #2 (cleanup deletes leaderboard frames; worsened by our nulling) → Task 7. ✅
+- Spec "compound-engineering learning" → Task 8. ✅
 - Scope boundary (manual ratings off-limits) → enforced in Task 6 SQL + verified in its Step 2. ✅
 
 **Placeholder scan:** No "TBD"/"handle edge cases"/"add validation" steps; every code step shows complete code. The one soft spot — exact mock variable names in `route.test.ts` / `customBackfill.test.ts` — is called out explicitly with the file's visible names and an instruction to match. Acceptable: the implementer reads the test file's top-of-file mock declarations.
 
 **Type consistency:** `ScorePath`, `rawScore: number | null`, `aiRating: number | null`, the `rawScore === null || aiRating === null` guard, and `scoringPaths: Record<'onnx' | 'cache-hit' | 'unscored', number>` are used identically across Tasks 1, 3, 4. `scoreBinary` → `undefined` on failure matches the Task 1 test assertions (`binaryPathTaken` undefined). ✅
 
-**Integration note:** Phase 2 (`feat/three-judge-p2`) also edits `aiScoring.ts` (`computeDisagreementKind`) and adds `archiveBackfill.ts` (which already has the `pathTaken !== 'onnx'` gate). When Phase 2 lands, reconcile: Phase 2's `archiveBackfill` gate should adopt the `'unscored'` path name, and the `ScorePath`/nullable-`rawScore` changes here must be merged into Phase 2's copy of `aiScoring.ts`. The `/code-review ultra 44` findings may overlap here — fold them in at merge.
+**Integration note:** Phase 2 (`feat/three-judge-p2`) also edits `aiScoring.ts` (`computeDisagreementKind`) and adds `archiveBackfill.ts` (which already has the `pathTaken !== 'onnx'` gate). When Phase 2 lands, reconcile: Phase 2's `archiveBackfill` gate should adopt the `'unscored'` path name, and the `ScorePath`/nullable-`rawScore` changes here must be merged into Phase 2's copy of `aiScoring.ts`.
+
+**Disposition of the PR #44 review findings (2026-06-06 local high-effort review):**
+
+| # | Finding | Where it's fixed |
+|---|---------|------------------|
+| 2 | Cleanup deletes high-`llm_quality` frames; our nulling widens the net | **This plan, Task 7** |
+| 9 (sub) | Rating mapping re-inlined; "centralize on `ratingFromRaw`" | This plan **deletes** `ratingFromRaw` (baseline-only on main) — Phase 2 must centralize on `normalizeRegressionOutput` instead |
+| 1 | Undo pushes hard-example into unrated queue (`SnapshotConsole`/`useSnapshotStore`) | **`feat/three-judge-p2`** — Phase 2 code, not on this branch |
+| 3 | Recompute finder has no supporting index | `feat/three-judge-p2` |
+| 4 | Recompute does ≤500 sequential single-row UPDATEs | `feat/three-judge-p2` |
+| 5 | Archive backfill scores strictly sequentially | `feat/three-judge-p2` |
+| 6 | Recompute skips rows with NULL `llm_rated_at` | `feat/three-judge-p2` |
+| 7 | `isPermanentDownloadError` regex false-positives | `feat/three-judge-p2` |
+| 9 (main) | Priority map vs SQL `CASE` duplicated; constant is dead | `feat/three-judge-p2` |
+| 10 | Owner auth gated per-mode, not centrally | `feat/three-judge-p2` / Phase 3 U7 (secure-by-default before adding a new private mode) |
+| 8 | Migrations manual/forward-only | Our Task 6 is data-only (no columns) → no deploy-order 500 risk; the runner concern is repo-wide and tracked on Phase 2 |
+
+The must-fix-before-#44-merge set (#1, and #3/#4 for cost) lives on the Phase 2 branch — out of scope for this plan but recorded here so nothing is dropped.
