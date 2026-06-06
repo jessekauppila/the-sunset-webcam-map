@@ -36,3 +36,16 @@ CREATE INDEX IF NOT EXISTS webcam_snapshots_needs_score_idx
   WHERE ai_regression_score IS NULL
     AND firebase_url IS NOT NULL
     AND scoring_state IS DISTINCT FROM 'dead-url';
+
+-- Recompute finder hot path (findSnapshotsNeedingDisagreementRecompute): the
+-- COMPLEMENT of the backfill set — rows that already have both a model score and
+-- a Claude score — ordered by llm_rated_at DESC. The backfill index above
+-- (ai_regression_score IS NULL) gives this query zero help and empties out as
+-- the archive fills, so without this the hourly recompute cron seq-scans the
+-- whole (growing) table. Partial index on the candidate set provides both the
+-- filter narrowing and the sort order; the disagreement_computed_at < llm_rated_at
+-- comparison stays a cheap residual filter over the already-narrowed rows.
+CREATE INDEX IF NOT EXISTS webcam_snapshots_needs_recompute_idx
+  ON webcam_snapshots (llm_rated_at DESC)
+  WHERE ai_regression_score IS NOT NULL
+    AND llm_quality IS NOT NULL;
