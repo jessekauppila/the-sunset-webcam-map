@@ -79,4 +79,13 @@ describe('GET /api/snapshots/cleanup', () => {
     const q = strings.join('?');
     expect(q).toMatch(/ai_rating\s+is\s+null\s+or\s+ai_rating\s*</i);
   });
+
+  it('excludes Claude-scored frames (llm_quality set) — they may be on the leaderboard', async () => {
+    cleanupEnabledMock.value = true;
+    sqlMock.mockResolvedValueOnce([]); // SELECT returns nothing
+    await GET(makeReq());
+    const [strings] = sqlMock.mock.calls[0];
+    const q = strings.join('?').toLowerCase();
+    expect(q).toMatch(/llm_quality\s+is\s+null/i);
+  });
 });
