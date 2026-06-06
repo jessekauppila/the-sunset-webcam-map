@@ -585,19 +585,25 @@ export async function findSnapshotsNeedingDisagreementRecompute(
 }
 
 /**
- * Write ONLY the disagreement verdict + its computed-at stamp. Used by the
- * recompute pass, which re-derives the kind without re-scoring the image, so it
- * must not touch ai_regression_score / binary columns.
+ * Write ONLY the disagreement verdict + its computed-at stamp for many rows in a
+ * single round-trip. Used by the recompute pass, which re-derives the kind
+ * without re-scoring the image, so it must not touch ai_regression_score /
+ * binary columns. unnest pairs the id/kind arrays into a values relation, so a
+ * full page (up to DISAGREEMENT_RECOMPUTE_LIMIT rows) is one UPDATE instead of
+ * one round-trip per row.
  */
-export async function updateSnapshotDisagreement(
-  snapshotId: number,
-  disagreementKind: string | null,
+export async function updateSnapshotDisagreementsBatch(
+  updates: { snapshotId: number; kind: string | null }[],
 ): Promise<void> {
+  if (updates.length === 0) return;
+  const ids = updates.map((u) => u.snapshotId);
+  const kinds = updates.map((u) => u.kind);
   await sql`
-    update webcam_snapshots
-    set model_disagreement_kind = ${disagreementKind},
+    update webcam_snapshots s
+    set model_disagreement_kind = v.kind,
         disagreement_computed_at = now()
-    where id = ${snapshotId}
+    from unnest(${ids}::int[], ${kinds}::text[]) as v(id, kind)
+    where s.id = v.id
   `;
 }
 

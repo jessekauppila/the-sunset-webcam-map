@@ -1,7 +1,7 @@
 import { computeDisagreementKind } from './aiScoring';
 import {
   findSnapshotsNeedingDisagreementRecompute,
-  updateSnapshotDisagreement,
+  updateSnapshotDisagreementsBatch,
 } from './dbOperations';
 
 export interface RecomputeResult {
@@ -21,10 +21,8 @@ export async function recomputeDisagreements(opts: {
   limit: number;
 }): Promise<RecomputeResult> {
   const rows = await findSnapshotsNeedingDisagreementRecompute(opts.limit);
-  let recomputed = 0;
-  let flagged = 0;
 
-  for (const row of rows) {
+  const updates = rows.map((row) => {
     // Stored regression score is raw [0,1]; computeDisagreementKind reasons in
     // the 1-5 rating space (same mapping as scoreImage / ratingFromRaw).
     const aiRating = 1 + row.aiRegressionScore * 4;
@@ -34,10 +32,15 @@ export async function recomputeDisagreements(opts: {
       llmQuality: row.llmQuality,
       llmIsSunset: row.llmIsSunset,
     });
-    await updateSnapshotDisagreement(row.snapshotId, kind);
-    recomputed += 1;
-    if (kind) flagged += 1;
-  }
+    return { snapshotId: row.snapshotId, kind };
+  });
 
-  return { recomputed, flagged };
+  // One batched UPDATE for the whole page instead of one round-trip per row —
+  // the recompute predicate can match hundreds of rows on the hourly cron.
+  await updateSnapshotDisagreementsBatch(updates);
+
+  return {
+    recomputed: updates.length,
+    flagged: updates.filter((u) => u.kind).length,
+  };
 }

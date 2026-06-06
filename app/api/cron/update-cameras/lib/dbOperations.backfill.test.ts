@@ -13,7 +13,7 @@ import {
   updateSnapshotModelScores,
   markSnapshotDeadUrl,
   findSnapshotsNeedingDisagreementRecompute,
-  updateSnapshotDisagreement,
+  updateSnapshotDisagreementsBatch,
   updateWebcamRegressionScoreFromLatestCustomSnapshot,
 } from './dbOperations';
 
@@ -164,18 +164,33 @@ describe('findSnapshotsNeedingDisagreementRecompute', () => {
   });
 });
 
-describe('updateSnapshotDisagreement', () => {
-  it('writes only the kind + disagreement_computed_at, not the score columns', async () => {
+describe('updateSnapshotDisagreementsBatch', () => {
+  it('writes every row in a SINGLE unnest UPDATE, not one query per row', async () => {
     sqlMock.mockResolvedValue([]);
-    await updateSnapshotDisagreement(5, 'model_low_claude_sunset');
+    await updateSnapshotDisagreementsBatch([
+      { snapshotId: 5, kind: 'model_low_claude_sunset' },
+      { snapshotId: 6, kind: null },
+    ]);
+    // One round-trip for the whole page — this is the N+1 fix.
+    expect(sqlMock).toHaveBeenCalledTimes(1);
     const [strings, ...values] = sqlMock.mock.calls[0];
     const q = strings.join('?');
+    expect(q).toMatch(/update\s+webcam_snapshots/i);
+    expect(q).toMatch(/unnest/i);
     expect(q).toMatch(/model_disagreement_kind/);
     expect(q).toMatch(/disagreement_computed_at\s*=\s*now\(\)/i);
+    // Must not touch the score columns (recompute is score-preserving).
     expect(q).not.toMatch(/ai_regression_score\s*=/);
     expect(q).not.toMatch(/ai_binary_score\s*=/);
-    expect(values).toContain(5);
-    expect(values).toContain('model_low_claude_sunset');
+    // ids and kinds are passed as arrays for unnest.
+    expect(values).toContainEqual([5, 6]);
+    expect(values).toContainEqual(['model_low_claude_sunset', null]);
+  });
+
+  it('issues no query for an empty batch', async () => {
+    sqlMock.mockResolvedValue([]);
+    await updateSnapshotDisagreementsBatch([]);
+    expect(sqlMock).not.toHaveBeenCalled();
   });
 });
 
