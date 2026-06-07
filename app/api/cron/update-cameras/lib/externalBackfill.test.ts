@@ -24,9 +24,13 @@ vi.mock('./dbOperations', () => ({
 
 import { backfillExternalImageScores } from './externalBackfill';
 
+// Real Flickr rows are mirrored into the project's Firebase/GCS bucket.
+const GCS_URL =
+  'https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/external_images/flickr/1.jpg';
+
 const row = (over: Partial<Record<string, unknown>> = {}) => ({
   externalImageId: 1,
-  imageUrl: 'https://live.staticflickr.com/x/1.jpg',
+  imageUrl: GCS_URL,
   llmQuality: null,
   llmIsSunset: null,
   ...over,
@@ -60,9 +64,7 @@ describe('backfillExternalImageScores', () => {
     ]);
     const res = await backfillExternalImageScores({ limit: 50 });
 
-    expect(downloadImageMock).toHaveBeenCalledWith(
-      'https://live.staticflickr.com/x/1.jpg',
-    );
+    expect(downloadImageMock).toHaveBeenCalledWith(GCS_URL);
     // scoreImage is told the source is flickr.
     expect(scoreImageMock).toHaveBeenCalledWith(
       expect.objectContaining({ source: 'flickr' }),

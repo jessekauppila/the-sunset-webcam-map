@@ -20,14 +20,20 @@ export interface ExternalBackfillResult {
   scores: number[];
 }
 
-// SSRF guard: the backfill fetches an arbitrary URL stored in external_images,
-// so only allow https Flickr CDN hosts before handing it to downloadImage().
-// Matches `staticflickr.com` and any subdomain (live./farmN./…).
-function isAllowedFlickrHost(rawUrl: string): boolean {
+// SSRF guard: the backfill fetches a URL stored in external_images. In practice
+// ingestion mirrors every Flickr image into the project's own Firebase/GCS bucket
+// (storage.googleapis.com — the SAME host the webcam archive's firebase_url uses),
+// so allow that bucket; also accept raw Flickr CDN URLs for any non-mirrored rows.
+// https only.
+function isAllowedImageHost(rawUrl: string): boolean {
   try {
     const u = new URL(rawUrl);
+    if (u.protocol !== 'https:') return false;
+    const h = u.hostname.toLowerCase();
     return (
-      u.protocol === 'https:' && /(^|\.)staticflickr\.com$/i.test(u.hostname)
+      h === 'storage.googleapis.com' ||
+      h.endsWith('.firebasestorage.app') ||
+      /(^|\.)staticflickr\.com$/.test(h)
     );
   } catch {
     return false;
@@ -67,9 +73,9 @@ export async function backfillExternalImageScores(opts: {
   if (rows.length === 0) return result;
 
   for (const row of rows) {
-    if (!isAllowedFlickrHost(row.imageUrl)) {
+    if (!isAllowedImageHost(row.imageUrl)) {
       console.warn(
-        `[externalBackfill] external_image ${row.externalImageId} rejected non-Flickr/non-https URL — skipping.`,
+        `[externalBackfill] external_image ${row.externalImageId} rejected disallowed/non-https image URL — skipping.`,
       );
       result.failed += 1;
       continue;
