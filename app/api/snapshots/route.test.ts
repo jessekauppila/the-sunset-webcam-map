@@ -63,3 +63,31 @@ describe('GET /api/snapshots?mode=hard-examples', () => {
     expect(q).not.toMatch(/user_session_id/i);
   });
 });
+
+describe('central owner-auth (review #10)', () => {
+  it('gates the verification mode (private by default) before any query', async () => {
+    requireOwnerMock.mockResolvedValue(
+      NextResponse.json({ error: 'Not authenticated' }, { status: 401 }),
+    );
+    const res = await GET(req('?mode=verification'));
+    expect(res.status).toBe(401);
+    expect(sqlMock).not.toHaveBeenCalled();
+  });
+
+  it('does NOT gate public modes (archive) even if the caller is not the owner', async () => {
+    requireOwnerMock.mockResolvedValue(
+      NextResponse.json({ error: 'Not authenticated' }, { status: 401 }),
+    );
+    const res = await GET(req('?mode=archive'));
+    expect(res.status).not.toBe(401);
+    expect(sqlMock).toHaveBeenCalled();
+  });
+
+  it('does NOT gate the default (no mode) public archive read', async () => {
+    requireOwnerMock.mockResolvedValue(
+      NextResponse.json({ error: 'Forbidden' }, { status: 403 }),
+    );
+    const res = await GET(req(''));
+    expect(res.status).not.toBe(403);
+  });
+});

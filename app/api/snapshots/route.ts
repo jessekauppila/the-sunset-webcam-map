@@ -32,12 +32,25 @@ export async function GET(request: Request) {
     const limit = parseInt(searchParams.get('limit') || '100', 10);
     const offset = parseInt(searchParams.get('offset') || '0', 10);
     const modeParam = searchParams.get('mode');
-    const mode: 'archive' | 'curated' | 'hard-examples' =
+    const mode: 'archive' | 'curated' | 'hard-examples' | 'verification' =
       modeParam === 'curated'
         ? 'curated'
         : modeParam === 'hard-examples'
         ? 'hard-examples'
+        : modeParam === 'verification'
+        ? 'verification'
         : 'archive';
+
+    // Central owner-auth (review #10): modes are PRIVATE BY DEFAULT. Only the
+    // explicitly public modes skip the owner gate; every other mode
+    // (hard-examples, verification, and any future private mode) is gated here,
+    // before any query runs — so a new private mode is secure by default rather
+    // than relying on each branch to remember to call requireOwner().
+    const PUBLIC_MODES = new Set(['archive', 'curated']);
+    if (!PUBLIC_MODES.has(mode)) {
+      const denied = await requireOwner();
+      if (denied) return denied;
+    }
     const excludeIdsParam = searchParams.get('exclude_ids');
     const excludeIds = excludeIdsParam
       ? excludeIdsParam
@@ -84,10 +97,8 @@ export async function GET(request: Request) {
     // verdicted (so submitted snapshots leave the queue). See
     // docs/superpowers/specs/2026-06-02-hard-example-mining-and-private-labeling-design.md.
     if (mode === 'hard-examples') {
-      // Operator-only read: this is the private labeling queue. UI hiding is
-      // cosmetic — this server gate is the real boundary (plan KTD8/U4).
-      const denied = await requireOwner();
-      if (denied) return denied;
+      // Operator-only read: this is the private labeling queue. The owner gate
+      // is enforced centrally above (review #10); UI hiding is cosmetic.
 
       // Membership invariant (plan U4): queue = flagged MINUS verdicted,
       // applied UNCONDITIONALLY — not gated on user_session_id. Single operator,
