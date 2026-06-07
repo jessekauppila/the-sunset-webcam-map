@@ -35,19 +35,22 @@ one env flip.
 > `'unscored'` discipline (skip write on non-ONNX, no fabrication, no `webcams`
 > sync). And the deferred **review finding #10 (central owner-auth)** lands in U7.
 
-## Open question (gates U5)
+## Open question (gates U5) — RESOLVED 2026-06-07
 
-Is `external_images.llm_*` **still populated in production**, or has it been lost
-since the 2026-05-13 export? Treat **CSV re-import as the safe default** until
-confirmed. Decision gate (run against prod):
+Verified against prod: `external_images.llm_*` **is fully populated** — no re-import
+needed.
 
-```sql
-SELECT count(*) FROM external_images
-WHERE source = 'flickr' AND llm_quality IS NOT NULL;
+```
+flickr_total                    5872
+flickr_llm_quality_not_null     5767   ← matches the v4 export exactly
+flickr_llm_is_sunset_not_null   5767
+external_total_all_sources      5872   (all external_images are flickr)
 ```
 
-- `~5,767` → DB intact; no re-import needed.
-- materially lower / `0` → re-import `llm_*` from `ratings_20260512_204416.csv`.
+→ **U5 drops the re-import path entirely**; it's now just the mirror migration.
+Note: 105 Flickr rows (5872 − 5767) have no Claude score — those can only produce
+binary-vs-regression disagreements (Claude absent), same as Claude-absent archive
+frames. Not a blocker.
 
 ## Implementation units (corrected)
 
