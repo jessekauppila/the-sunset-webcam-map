@@ -101,6 +101,10 @@ export interface WindyWebcam {
   llmIsSunset?: boolean | null; // Claude's "is this a sunset?" verdict
   llmModel?: string | null; // e.g. "claude-sonnet-4-5"
 
+  // Source label for external_images (Flickr) rows in the verification view —
+  // these have no webcam title/location, so the card shows source + title + owner.
+  owner?: string | null; // e.g. Flickr photo owner
+
   // Live-asset format discriminator. Tells the popup/renderer what KIND of
   // asset is on screen. Omitted when no asset is available (no snapshot, no
   // Windy images).

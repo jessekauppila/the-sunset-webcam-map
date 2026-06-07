@@ -91,3 +91,37 @@ describe('central owner-auth (review #10)', () => {
     expect(res.status).not.toBe(403);
   });
 });
+
+describe('GET /api/snapshots?mode=verification', () => {
+  const allText = () =>
+    sqlMock.mock.calls.map(([s]) => (s as TemplateStringsArray).join('?'));
+
+  it('reads BOTH the webcam archive and the Flickr set (external_images)', async () => {
+    await GET(req('?mode=verification'));
+    const text = allText();
+    expect(text.some((q) => /from\s+webcam_snapshots\s+s/i.test(q))).toBe(true);
+    expect(text.some((q) => /from\s+external_images\s+e/i.test(q))).toBe(true);
+  });
+
+  it('disagreements_only=true filters to flagged frames (both legs)', async () => {
+    await GET(req('?mode=verification&disagreements_only=true'));
+    const text = allText();
+    // The flagged filter fragment runs for both legs.
+    const flagged = text.filter((q) =>
+      /model_disagreement_kind\s+is\s+not\s+null/i.test(q),
+    );
+    expect(flagged.length).toBeGreaterThanOrEqual(2);
+    // And it excludes already-verdicted webcam frames.
+    expect(text.some((q) => /is_sunset_verdict\s+is\s+not\s+null/i.test(q))).toBe(
+      true,
+    );
+  });
+
+  it('browse (no toggle) does NOT filter on disagreement kind', async () => {
+    await GET(req('?mode=verification'));
+    const text = allText();
+    expect(
+      text.some((q) => /model_disagreement_kind\s+is\s+not\s+null/i.test(q)),
+    ).toBe(false);
+  });
+});

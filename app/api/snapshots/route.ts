@@ -189,6 +189,116 @@ export async function GET(request: Request) {
       });
     }
 
+    // VERIFICATION MODE (plan U7): owner-only triage view that unions the webcam
+    // archive with the Flickr set (external_images). Two queries merged in JS —
+    // the tables have different shapes, so this avoids a fragile column-matched
+    // SQL UNION; transformSnapshot defaults the webcam-only fields the Flickr
+    // rows omit. Toggle: disagreements_only=true ranks the model-vs-Claude queue;
+    // off = browse all frames (eyeball judge coverage). Owner gate enforced above.
+    if (mode === 'verification') {
+      const disagreementsOnly =
+        searchParams.get('disagreements_only') === 'true';
+      // Over-fetch so the merged result can be paged in JS.
+      const fetchN = limit + offset;
+
+      // One sort key for both tables so the merge is a single global order:
+      // disagreements → priority tier + [0,1] gap magnitude; browse → recency.
+      const webcamSortKey = disagreementsOnly
+        ? sql`(CASE s.model_disagreement_kind
+                 WHEN 'model_low_claude_sunset' THEN 100
+                 WHEN 'model_high_claude_not_sunset' THEN 100
+                 WHEN 'binary_negative_regression_high' THEN 50
+                 WHEN 'binary_positive_regression_low' THEN 50
+                 ELSE 0 END
+               + ABS(COALESCE(s.ai_regression_score, 0) - COALESCE(s.llm_quality, 0)))`
+        : sql`EXTRACT(EPOCH FROM s.captured_at)`;
+      const externalSortKey = disagreementsOnly
+        ? sql`(CASE e.model_disagreement_kind
+                 WHEN 'model_low_claude_sunset' THEN 100
+                 WHEN 'model_high_claude_not_sunset' THEN 100
+                 WHEN 'binary_negative_regression_high' THEN 50
+                 WHEN 'binary_positive_regression_low' THEN 50
+                 ELSE 0 END
+               + ABS(COALESCE(e.ai_regression_score, 0) - COALESCE(e.llm_quality, 0)))`
+        : sql`EXTRACT(EPOCH FROM e.scraped_at)`;
+
+      const webcamFilter = disagreementsOnly
+        ? sql`AND s.model_disagreement_kind IS NOT NULL
+              AND s.id NOT IN (
+                SELECT snapshot_id FROM webcam_snapshot_ratings
+                WHERE is_sunset_verdict IS NOT NULL
+              )`
+        : sql``;
+      const externalFilter = disagreementsOnly
+        ? sql`AND e.model_disagreement_kind IS NOT NULL`
+        : sql``;
+
+      const webcamRows = (await sql`
+          SELECT
+            s.id as snapshot_id, s.webcam_id, s.phase, s.rank,
+            s.initial_rating, s.calculated_rating, s.ai_rating,
+            s.firebase_url, s.firebase_path, s.captured_at, s.created_at,
+            0::int as rating_count, NULL::numeric as user_rating,
+            w.id as w_id, w.source, w.external_id, w.title, w.status,
+            w.view_count, w.lat, w.lng, w.city, w.region, w.country, w.continent,
+            w.images, w.urls, w.player, w.categories, w.last_fetched_at,
+            w.rating as webcam_rating, w.orientation,
+            w.ai_rating as webcam_ai_rating,
+            w.ai_model_version as webcam_ai_model_version,
+            w.ai_rating_binary as webcam_ai_rating_binary,
+            w.ai_model_version_binary as webcam_ai_model_version_binary,
+            w.ai_rating_regression as webcam_ai_rating_regression,
+            w.ai_model_version_regression as webcam_ai_model_version_regression,
+            s.model_disagreement_kind, s.human_sunset_majority,
+            s.llm_quality, s.llm_is_sunset, s.llm_model, NULL::text as owner,
+            ${webcamSortKey} as sort_key
+          FROM webcam_snapshots s
+          JOIN webcams w ON w.id = s.webcam_id
+          WHERE 1=1 ${webcamFilter}
+          ORDER BY sort_key DESC
+          LIMIT ${fetchN}
+        `) as (SnapshotRow & { sort_key: number | string })[];
+
+      const externalRows = (await sql`
+          SELECT
+            e.id as snapshot_id,
+            e.image_url as firebase_url, e.firebase_path,
+            e.scraped_at as captured_at, e.scraped_at as created_at,
+            0::int as rating_count,
+            e.source, e.source_id as external_id, e.title, e.owner,
+            e.model_disagreement_kind,
+            e.llm_quality, e.llm_is_sunset, e.llm_model,
+            ${externalSortKey} as sort_key
+          FROM external_images e
+          WHERE e.source = 'flickr' ${externalFilter}
+          ORDER BY sort_key DESC
+          LIMIT ${fetchN}
+        `) as (SnapshotRow & { sort_key: number | string })[];
+
+      const merged = [...webcamRows, ...externalRows]
+        .sort((a, b) => Number(b.sort_key) - Number(a.sort_key))
+        .slice(offset, offset + limit)
+        .map(transformSnapshot);
+
+      const webcamCountResult = await sql`
+          SELECT COUNT(*)::int AS total FROM webcam_snapshots s WHERE 1=1 ${webcamFilter}
+        `;
+      const externalCountResult = await sql`
+          SELECT COUNT(*)::int AS total FROM external_images e
+          WHERE e.source = 'flickr' ${externalFilter}
+        `;
+      const total =
+        ((webcamCountResult as Array<{ total: number }>)[0]?.total ?? 0) +
+        ((externalCountResult as Array<{ total: number }>)[0]?.total ?? 0);
+
+      return NextResponse.json({
+        snapshots: merged,
+        total,
+        limit,
+        offset,
+      });
+    }
+
     // CURATED MIX MODE: Fetch mix of highly rated, unrated recent, and random snapshots
     if (mode === 'curated') {
       // Fall back to archive mode if no user session
