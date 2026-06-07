@@ -384,61 +384,6 @@ export async function upsertSnapshotAiInference(
   `;
 }
 
-export interface CustomSnapshotNeedingScore {
-  snapshotId: number;
-  webcamId: number;
-  firebaseUrl: string;
-}
-
-/**
- * Snapshot rows for source='custom' webcams that still need a server-side
- * regression score. Bounded by `limit` so a backlog can't blow the tick
- * deadline.
- */
-export async function findCustomSnapshotsNeedingScore(
-  limit: number
-): Promise<CustomSnapshotNeedingScore[]> {
-  const rows = (await sql`
-    select s.id        as snapshot_id,
-           s.webcam_id as webcam_id,
-           s.firebase_url
-    from webcam_snapshots s
-    join webcams w on w.id = s.webcam_id
-    where w.source = 'custom'
-      and s.ai_regression_score is null
-      and s.firebase_url is not null
-    order by s.captured_at desc
-    limit ${limit}
-  `) as {
-    snapshot_id: number;
-    webcam_id: number;
-    firebase_url: string;
-  }[];
-
-  return rows.map((r) => ({
-    snapshotId: r.snapshot_id,
-    webcamId: r.webcam_id,
-    firebaseUrl: r.firebase_url,
-  }));
-}
-
-export async function updateSnapshotAiRegressionScore(
-  snapshotId: number,
-  score: number,
-  modelVersion: string,
-  scoringPath: string,
-  disagreementKind: string | null,
-): Promise<void> {
-  await sql`
-    update webcam_snapshots
-    set ai_regression_score = ${score},
-        ai_model_version_regression = ${modelVersion},
-        scoring_path = ${scoringPath},
-        model_disagreement_kind = ${disagreementKind}
-    where id = ${snapshotId}
-  `;
-}
-
 /**
  * After scoring custom snapshots, sync the webcam-level score to the latest
  * snapshot's regression score so mosaic tile sizing reflects the most recent
@@ -465,6 +410,200 @@ export async function updateWebcamRegressionScoreFromLatestCustomSnapshot(
       limit 1
     ) ls
     where id = ${webcamId}
+  `;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Archive model backfill (plan U3)                                            */
+/* -------------------------------------------------------------------------- */
+
+export interface ArchiveSnapshotNeedingScore {
+  snapshotId: number;
+  webcamId: number;
+  firebaseUrl: string;
+  source: string;
+  /** Claude's scores, when present — fed into the model-vs-Claude disagreement. */
+  llmQuality: number | null;
+  llmIsSunset: boolean | null;
+}
+
+/**
+ * Snapshot rows that still need a real v4 regression score, ordered by recency,
+ * excluding rows permanently marked `scoring_state='dead-url'` so the drain
+ * terminates. Reads `w.source` (to decide the custom webcam-sync) and Claude's
+ * `llm_*` (to compute model-vs-Claude during the backfill) — but does NOT
+ * filter by source unless `includeAllSources` is false, the default that
+ * preserves the prior custom-only cron behavior. The standalone runner and the
+ * gated full-archive cron pass set `includeAllSources: true`.
+ */
+export async function findArchiveSnapshotsNeedingScore(
+  limit: number,
+  opts: { includeAllSources?: boolean } = {},
+): Promise<ArchiveSnapshotNeedingScore[]> {
+  const includeAllSources = opts.includeAllSources ?? false;
+  const rows = (await sql`
+    select s.id           as snapshot_id,
+           s.webcam_id    as webcam_id,
+           s.firebase_url,
+           w.source       as source,
+           s.llm_quality  as llm_quality,
+           s.llm_is_sunset as llm_is_sunset
+    from webcam_snapshots s
+    join webcams w on w.id = s.webcam_id
+    where s.ai_regression_score is null
+      and s.firebase_url is not null
+      and s.scoring_state is distinct from 'dead-url'
+      and (${includeAllSources} or w.source = 'custom')
+    order by s.captured_at desc
+    limit ${limit}
+  `) as {
+    snapshot_id: number;
+    webcam_id: number;
+    firebase_url: string;
+    source: string;
+    llm_quality: number | string | null;
+    llm_is_sunset: boolean | null;
+  }[];
+
+  return rows.map((r) => ({
+    snapshotId: r.snapshot_id,
+    webcamId: r.webcam_id,
+    firebaseUrl: r.firebase_url,
+    source: r.source,
+    llmQuality: r.llm_quality == null ? null : Number(r.llm_quality),
+    llmIsSunset: r.llm_is_sunset,
+  }));
+}
+
+/** Count of snapshots still needing a score — for the backfill dry-run. */
+export async function countArchiveSnapshotsNeedingScore(
+  opts: { includeAllSources?: boolean } = {},
+): Promise<number> {
+  const includeAllSources = opts.includeAllSources ?? false;
+  const rows = (await sql`
+    select count(*)::int as n
+    from webcam_snapshots s
+    join webcams w on w.id = s.webcam_id
+    where s.ai_regression_score is null
+      and s.firebase_url is not null
+      and s.scoring_state is distinct from 'dead-url'
+      and (${includeAllSources} or w.source = 'custom')
+  `) as { n: number }[];
+  return rows[0]?.n ?? 0;
+}
+
+/**
+ * Persist all three judge columns + the disagreement verdict for a backfilled
+ * snapshot, stamping `disagreement_computed_at` so the U3b recompute pass knows
+ * the kind was computed against whatever Claude data existed at write time.
+ * Deliberately leaves the junk legacy `ai_rating` column untouched.
+ */
+export async function updateSnapshotModelScores(opts: {
+  snapshotId: number;
+  regressionScore: number;
+  regressionModelVersion: string;
+  binaryScore: number | null;
+  binaryIsSunset: boolean | null;
+  binaryModelVersion: string | null;
+  scoringPath: string;
+  disagreementKind: string | null;
+}): Promise<void> {
+  await sql`
+    update webcam_snapshots
+    set ai_regression_score = ${opts.regressionScore},
+        ai_model_version_regression = ${opts.regressionModelVersion},
+        ai_binary_score = ${opts.binaryScore},
+        ai_binary_is_sunset = ${opts.binaryIsSunset},
+        ai_model_version_binary = ${opts.binaryModelVersion},
+        scoring_path = ${opts.scoringPath},
+        model_disagreement_kind = ${opts.disagreementKind},
+        disagreement_computed_at = now()
+    where id = ${opts.snapshotId}
+  `;
+}
+
+/** Mark a snapshot whose image is permanently unreachable (404 / dead URL). */
+export async function markSnapshotDeadUrl(snapshotId: number): Promise<void> {
+  await sql`
+    update webcam_snapshots
+    set scoring_state = 'dead-url'
+    where id = ${snapshotId}
+  `;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Disagreement recompute (plan U3b)                                           */
+/* -------------------------------------------------------------------------- */
+
+export interface SnapshotNeedingRecompute {
+  snapshotId: number;
+  aiRegressionScore: number;
+  binaryIsSunset: boolean | null;
+  llmQuality: number | null;
+  llmIsSunset: boolean | null;
+}
+
+/**
+ * Rows whose model_disagreement_kind was computed BEFORE Claude's score landed
+ * (or never computed) — the ~3.4k frames Claude scores after the model backfill,
+ * plus legacy rows. Pure recompute: no image download or ONNX, just re-derive
+ * the verdict from the already-stored model + Claude scores. `llm_rated_at`
+ * exists on webcam_snapshots (20260417); a NULL disagreement_computed_at always
+ * qualifies so legacy rows get a first computation.
+ */
+export async function findSnapshotsNeedingDisagreementRecompute(
+  limit: number,
+): Promise<SnapshotNeedingRecompute[]> {
+  const rows = (await sql`
+    select s.id                 as snapshot_id,
+           s.ai_regression_score as ai_regression_score,
+           s.ai_binary_is_sunset as ai_binary_is_sunset,
+           s.llm_quality        as llm_quality,
+           s.llm_is_sunset      as llm_is_sunset
+    from webcam_snapshots s
+    where s.ai_regression_score is not null
+      and s.llm_quality is not null
+      and (s.disagreement_computed_at is null
+           or s.disagreement_computed_at < s.llm_rated_at)
+    order by s.llm_rated_at desc nulls last
+    limit ${limit}
+  `) as {
+    snapshot_id: number;
+    ai_regression_score: number | string;
+    ai_binary_is_sunset: boolean | null;
+    llm_quality: number | string | null;
+    llm_is_sunset: boolean | null;
+  }[];
+
+  return rows.map((r) => ({
+    snapshotId: r.snapshot_id,
+    aiRegressionScore: Number(r.ai_regression_score),
+    binaryIsSunset: r.ai_binary_is_sunset,
+    llmQuality: r.llm_quality == null ? null : Number(r.llm_quality),
+    llmIsSunset: r.llm_is_sunset,
+  }));
+}
+
+/**
+ * Write ONLY the disagreement verdict + its computed-at stamp for many rows in a
+ * single round-trip. Used by the recompute pass, which re-derives the kind
+ * without re-scoring the image, so it must not touch ai_regression_score /
+ * binary columns. unnest pairs the id/kind arrays into a values relation, so a
+ * full page (up to DISAGREEMENT_RECOMPUTE_LIMIT rows) is one UPDATE instead of
+ * one round-trip per row.
+ */
+export async function updateSnapshotDisagreementsBatch(
+  updates: { snapshotId: number; kind: string | null }[],
+): Promise<void> {
+  if (updates.length === 0) return;
+  const ids = updates.map((u) => u.snapshotId);
+  const kinds = updates.map((u) => u.kind);
+  await sql`
+    update webcam_snapshots s
+    set model_disagreement_kind = v.kind,
+        disagreement_computed_at = now()
+    from unnest(${ids}::int[], ${kinds}::text[]) as v(id, kind)
+    where s.id = v.id
   `;
 }
 

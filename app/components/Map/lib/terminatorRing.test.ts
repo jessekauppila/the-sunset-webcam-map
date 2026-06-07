@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { splitTerminatorSunriseSunset } from './terminatorRing';
+import { createTerminatorRing } from './terminatorRing';
 
 describe('Terminator ring', () => {
   it('creates a list of sunset and sunrise points', () => {
@@ -9,11 +9,7 @@ describe('Terminator ring', () => {
     const gmstHours = 22;
 
     //act
-    const result = splitTerminatorSunriseSunset(
-      testDate,
-      raHours,
-      gmstHours
-    );
+    const result = createTerminatorRing(testDate, raHours, gmstHours);
 
     //assert
     expect(result).toHaveProperty('sunrise.geometry.coordinates');

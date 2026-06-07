@@ -25,6 +25,7 @@ import {
   SAVE_HIGH_RATED_SNAPSHOTS,
   SAVE_ALL_RATED_SNAPSHOTS,
   AI_SNAPSHOT_MIN_RATING_THRESHOLD,
+  ARCHIVE_BACKFILL_ENABLED,
 } from '@/app/lib/masterConfig';
 import { classifyCustomCamerasForTick } from './lib/customClassification';
 import { verifyCronAuth } from './lib/auth';
@@ -44,7 +45,7 @@ import {
   insertWindyDisagreementSnapshot,
 } from './lib/dbOperations';
 import { computeDisagreementKind, scoreImage } from './lib/aiScoring';
-import { backfillCustomSnapshotScores } from './lib/customBackfill';
+import { backfillArchiveSnapshotScores } from './lib/archiveBackfill';
 import { computeTickStats, upsertDailyStats } from './lib/dailyStats';
 import { downloadImage, uploadToFirebase } from '@/app/lib/webcamSnapshot';
 
@@ -278,20 +279,29 @@ export async function GET(req: Request) {
     await Promise.all(batch.map(scoreOneWindy));
   }
 
-  // Custom-camera score backfill — bounded by the same tick deadline.
+  // Model-score backfill top-up — bounded by the same tick deadline. Custom-cam
+  // only by default; widens to the full archive when ARCHIVE_BACKFILL_ENABLED
+  // (the bulk 33k drain runs via scripts/backfill-archive-scores.ts). Subsumes
+  // the former custom-only pass, so there's a single finder (no double-select).
   const remainingBudget = Math.max(
     10,
     TICK_DEADLINE_MS - (Date.now() - tickStartedAt),
   );
-  const backfillResult = await backfillCustomSnapshotScores({
+  const backfillResult = await backfillArchiveSnapshotScores({
     limit: Math.min(50, Math.floor(remainingBudget / 100)),
+    includeAllSources: ARCHIVE_BACKFILL_ENABLED,
   });
+  if (backfillResult.abortedOnFallback) {
+    console.error(
+      '[update-cameras] archive backfill aborted on non-ONNX path — model not loading',
+    );
+  }
 
   console.log('🤖 AI scoring summary:', {
     windyScored: windyScores.length,
     cacheHits,
     fallbacks,
-    customBackfill: backfillResult,
+    archiveBackfill: backfillResult,
   });
 
   // Resolve Windy external_id → DB webcam_id rows
@@ -384,6 +394,6 @@ export async function GET(req: Request) {
     cacheHits,
     fallbacks,
     scoringPaths,
-    customBackfill: backfillResult,
+    archiveBackfill: backfillResult,
   });
 }

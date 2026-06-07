@@ -3,6 +3,7 @@
 //
 import { NextResponse } from 'next/server';
 import { sql } from '@/app/lib/db';
+import { requireOwner } from '@/app/lib/owner';
 import {
   transformSnapshot,
   type SnapshotRow,
@@ -83,18 +84,20 @@ export async function GET(request: Request) {
     // verdicted (so submitted snapshots leave the queue). See
     // docs/superpowers/specs/2026-06-02-hard-example-mining-and-private-labeling-design.md.
     if (mode === 'hard-examples') {
-      const hardExamplesUserSessionId = searchParams.get('user_session_id');
+      // Operator-only read: this is the private labeling queue. UI hiding is
+      // cosmetic — this server gate is the real boundary (plan KTD8/U4).
+      const denied = await requireOwner();
+      if (denied) return denied;
 
-      // Conditional exclusion clause: only exclude already-verdicted snapshots
-      // when the caller supplies a user_session_id. The Neon sql tag supports
-      // nested template fragments, so an empty sql`` evaluates to nothing.
-      const exclusionClause = hardExamplesUserSessionId
-        ? sql`AND s.id NOT IN (
-              SELECT snapshot_id FROM webcam_snapshot_ratings
-              WHERE user_session_id = ${hardExamplesUserSessionId}
-                AND is_sunset_verdict IS NOT NULL
-            )`
-        : sql``;
+      // Membership invariant (plan U4): queue = flagged MINUS verdicted,
+      // applied UNCONDITIONALLY — not gated on user_session_id. Single operator,
+      // so a verdict permanently removes the frame regardless of who/which
+      // session asks. A later recompute (U3b) must not resurrect a verdicted
+      // frame, which this exclusion guarantees.
+      const exclusionClause = sql`AND s.id NOT IN (
+            SELECT snapshot_id FROM webcam_snapshot_ratings
+            WHERE is_sunset_verdict IS NOT NULL
+          )`;
 
       const rows = (await sql`
           SELECT
@@ -142,7 +145,19 @@ export async function GET(request: Request) {
           JOIN webcams w ON w.id = s.webcam_id
           WHERE s.model_disagreement_kind IS NOT NULL
             ${exclusionClause}
-          ORDER BY s.captured_at DESC
+          ORDER BY
+            -- Priority mirrors DISAGREEMENT_KIND_PRIORITY (aiScoring.ts):
+            -- model-vs-Claude (Claude trusted) ranks above the binary split.
+            CASE s.model_disagreement_kind
+              WHEN 'model_low_claude_sunset' THEN 100
+              WHEN 'model_high_claude_not_sunset' THEN 100
+              WHEN 'binary_negative_regression_high' THEN 50
+              WHEN 'binary_positive_regression_low' THEN 50
+              ELSE 0
+            END DESC,
+            -- Then the gap magnitude (both [0,1]); biggest confident misses first.
+            ABS(COALESCE(s.ai_regression_score, 0) - COALESCE(s.llm_quality, 0)) DESC,
+            s.captured_at DESC
           LIMIT ${limit} OFFSET ${offset}
         `) as SnapshotRow[];
 

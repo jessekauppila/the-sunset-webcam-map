@@ -9,7 +9,9 @@
     "start": "next start",
     "lint": "next lint",
     "test": "vitest",
-    "test:ui": "vitest --ui"
+    "test:ui": "vitest --ui",
+    "backfill:archive": "npx --yes tsx scripts/backfill-archive-scores.ts",
+    "backfill:archive:dry": "npx --yes tsx scripts/backfill-archive-scores.ts --dry-run"
   },
   "dependencies": {
     "@deck.gl/core": "^9.1.14",

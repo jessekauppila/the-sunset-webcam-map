@@ -20,9 +20,11 @@ export function SnapshotConsole({
   const removeUnratedSnapshot = useSnapshotStore(
     (s) => s.removeUnratedSnapshot
   );
+  const removeHardExample = useSnapshotStore((s) => s.removeHardExample);
   const insertUnratedSnapshot = useSnapshotStore(
     (s) => s.insertUnratedSnapshot
   );
+  const insertHardExample = useSnapshotStore((s) => s.insertHardExample);
   const setPageSize = useSnapshotStore((s) => s.setPageSize);
   const goToPage = useSnapshotStore((s) => s.goToPage);
   const nextPage = useSnapshotStore((s) => s.nextPage);
@@ -104,7 +106,11 @@ export function SnapshotConsole({
   const [queueHistory, setQueueHistory] = useState<
     Array<{ snapshot: (typeof unrated)[number]; index: number }>
   >([]);
-  const isQueueMode = mode === 'unrated';
+  // Both the unrated queue and the hard-examples queue use the one-card verdict
+  // flow (image + Yes/No + stars). Hard examples writes is_sunset_verdict as the
+  // gold label; the verdict is given blind (no model/Claude scores shown) to
+  // avoid anchoring — the three-judge comparison lives in the verification view.
+  const isQueueMode = mode === 'unrated' || mode === 'hard-examples';
 
   // Initial fetch on mount
   useEffect(() => {
@@ -118,9 +124,17 @@ export function SnapshotConsole({
     if (!isQueueMode || !hotkeysEnabled) return;
     const remainingInBuffer = snapshots.length - queueIndex;
     if (remainingInBuffer <= 10 && !loading) {
-      fetchMore('unrated');
+      fetchMore(mode);
     }
-  }, [isQueueMode, snapshots.length, queueIndex, loading, fetchMore]);
+  }, [
+    isQueueMode,
+    hotkeysEnabled,
+    mode,
+    snapshots.length,
+    queueIndex,
+    loading,
+    fetchMore,
+  ]);
 
   // Keep queue index valid after removals/refills
   useEffect(() => {
@@ -185,7 +199,11 @@ export function SnapshotConsole({
           ...prev,
           { snapshot: queueCurrent, index: queueIndex },
         ]);
-        removeUnratedSnapshot(snapshotId);
+        if (mode === 'hard-examples') {
+          removeHardExample(snapshotId);
+        } else {
+          removeUnratedSnapshot(snapshotId);
+        }
         setQueueRatedCount((prev) => prev + 1);
       } catch (error) {
         console.error('Failed to update rating:', error);
@@ -202,7 +220,9 @@ export function SnapshotConsole({
       queueCurrent,
       queueIndex,
       isQueueSubmitting,
+      mode,
       removeUnratedSnapshot,
+      removeHardExample,
     ]
   );
 
@@ -233,7 +253,14 @@ export function SnapshotConsole({
         throw new Error('Failed to undo rating');
       }
 
-      insertUnratedSnapshot(last.snapshot, last.index);
+      // Put the frame back into the queue it came from. Hard examples live in
+      // the hardExamples buffer; routing undo to insertUnratedSnapshot would
+      // drop it from the operator queue and pollute the unrated labeling queue.
+      if (mode === 'hard-examples') {
+        insertHardExample(last.snapshot, last.index);
+      } else {
+        insertUnratedSnapshot(last.snapshot, last.index);
+      }
       setQueueHistory((prev) => prev.slice(0, -1));
       setQueueRatedCount((prev) => Math.max(0, prev - 1));
       setQueueIndex(last.index);
@@ -242,7 +269,13 @@ export function SnapshotConsole({
     } finally {
       setIsQueueSubmitting(false);
     }
-  }, [isQueueSubmitting, queueHistory, insertUnratedSnapshot]);
+  }, [
+    isQueueSubmitting,
+    queueHistory,
+    mode,
+    insertUnratedSnapshot,
+    insertHardExample,
+  ]);
 
   // Scoped keyboard shortcuts for queue mode
   useEffect(() => {
@@ -315,7 +348,11 @@ export function SnapshotConsole({
         {loading && snapshots.length === 0 ? (
           <p className="text-green-700">Loading snapshots...</p>
         ) : !queueCurrent ? (
-          <p className="text-green-700">No unrated snapshots found.</p>
+          <p className="text-green-700">
+            {mode === 'hard-examples'
+              ? 'No disagreements to verdict — backfill still running or all verdicted.'
+              : 'No unrated snapshots found.'}
+          </p>
         ) : (
           <SnapshotQueueCard
             snapshot={queueCurrent}

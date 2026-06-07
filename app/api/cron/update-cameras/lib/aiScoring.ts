@@ -32,6 +32,9 @@ import {
   AI_ONNX_REGRESSION_MODEL_PATH_DEFAULT,
   SUNSET_DISAGREEMENT_HIGH,
   SUNSET_DISAGREEMENT_LOW,
+  MODEL_VS_CLAUDE_MODEL_LOW,
+  MODEL_VS_CLAUDE_MODEL_HIGH,
+  MODEL_VS_CLAUDE_CLAUDE_HIGH,
 } from '@/app/lib/masterConfig';
 import { sha256Hex } from './imageHash';
 import { preprocessJpegToImagenetTensor } from './imagePreprocess';
@@ -166,27 +169,90 @@ function normalizeRegressionOutput(value: number): {
 }
 
 /**
- * Decide whether the two heads disagree extremely enough to flag the
- * snapshot for the Hard Examples queue. Pure function — no DB writes here,
- * the caller persists the return value on the snapshot row.
+ * The canonical disagreement kinds, highest-priority first. Two families:
  *
- * Returns a kind string OR null:
- *   'binary_negative_regression_high' — false negative (the Taltson case)
- *   'binary_positive_regression_low'  — false positive (model called sunset on something boring)
- *   null                              — agreement, or one head didn't score
+ *   model-vs-Claude (Claude is the trusted reference — the v5 signal):
+ *     'model_low_claude_sunset'       — miss: model rated it low, Claude is
+ *                                       confident it's a good sunset
+ *     'model_high_claude_not_sunset'  — false positive: model rated it high,
+ *                                       Claude says it isn't a sunset at all
+ *
+ *   binary-vs-regression (the model's own two heads disagree):
+ *     'binary_negative_regression_high' — false negative (the Taltson case)
+ *     'binary_positive_regression_low'  — false positive
+ */
+export type DisagreementKind =
+  | 'model_low_claude_sunset'
+  | 'model_high_claude_not_sunset'
+  | 'binary_negative_regression_high'
+  | 'binary_positive_regression_low';
+
+/**
+ * Hard Examples queue priority — higher surfaces first. Model-vs-Claude
+ * outranks the model's internal binary-vs-regression split because Claude is
+ * the trusted reference (plan KTD2/R4). U4's queue ORDER BY mirrors this via a
+ * CASE on model_disagreement_kind; keep the two in sync.
+ */
+export const DISAGREEMENT_KIND_PRIORITY: Record<DisagreementKind, number> = {
+  model_low_claude_sunset: 100,
+  model_high_claude_not_sunset: 100,
+  binary_negative_regression_high: 50,
+  binary_positive_regression_low: 50,
+};
+
+/**
+ * Decide whether the judges disagree extremely enough to flag the snapshot for
+ * the Hard Examples queue. Pure function — no DB writes; the caller persists
+ * the return value on the snapshot row.
+ *
+ * Returns the HIGHEST-priority applicable kind, or null. Model-vs-Claude is
+ * evaluated first and does NOT require the binary head — the archive backfill
+ * (U3) runs this offline before the binary head is enabled in prod (U8), so an
+ * undefined `binaryIsSunset` must not short-circuit the model-vs-Claude check.
+ *
+ * Claude's quality is the NORMALIZED [0,1] llm_quality, not the raw 1-5 rating
+ * (see masterConfig). The CLAUDE_HIGH gate sits above the borderline-quality
+ * band, which is the deadband that keeps borderline frames out of the queue.
  */
 export function computeDisagreementKind(input: {
-  binaryIsSunset: boolean | undefined;
-  aiRating: number | undefined;
-}): string | null {
-  if (typeof input.binaryIsSunset !== 'boolean') return null;
-  if (typeof input.aiRating !== 'number') return null;
-  if (!input.binaryIsSunset && input.aiRating >= SUNSET_DISAGREEMENT_HIGH) {
-    return 'binary_negative_regression_high';
+  binaryIsSunset?: boolean;
+  aiRating?: number;
+  llmQuality?: number | null;
+  llmIsSunset?: boolean | null;
+}): DisagreementKind | null {
+  const { aiRating } = input;
+
+  // 1) Model-vs-Claude (Claude trusted). Needs the regression rating + Claude's
+  //    verdict; independent of the binary head.
+  if (
+    typeof aiRating === 'number' &&
+    typeof input.llmIsSunset === 'boolean' &&
+    typeof input.llmQuality === 'number'
+  ) {
+    // miss: Claude confident it's a good sunset, model rated it low.
+    if (
+      input.llmIsSunset &&
+      input.llmQuality >= MODEL_VS_CLAUDE_CLAUDE_HIGH &&
+      aiRating <= MODEL_VS_CLAUDE_MODEL_LOW
+    ) {
+      return 'model_low_claude_sunset';
+    }
+    // false positive: model rated it high, Claude says it isn't a sunset.
+    if (!input.llmIsSunset && aiRating >= MODEL_VS_CLAUDE_MODEL_HIGH) {
+      return 'model_high_claude_not_sunset';
+    }
   }
-  if (input.binaryIsSunset && input.aiRating <= SUNSET_DISAGREEMENT_LOW) {
-    return 'binary_positive_regression_low';
+
+  // 2) Binary-vs-regression (the model's internal split). Needs both heads.
+  if (typeof input.binaryIsSunset === 'boolean' && typeof aiRating === 'number') {
+    if (!input.binaryIsSunset && aiRating >= SUNSET_DISAGREEMENT_HIGH) {
+      return 'binary_negative_regression_high';
+    }
+    if (input.binaryIsSunset && aiRating <= SUNSET_DISAGREEMENT_LOW) {
+      return 'binary_positive_regression_low';
+    }
   }
+
   return null;
 }
 

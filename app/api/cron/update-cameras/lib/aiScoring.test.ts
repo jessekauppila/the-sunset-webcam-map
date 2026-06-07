@@ -25,6 +25,7 @@ import {
   scoreImage,
   softmaxBinaryClassOne,
   computeDisagreementKind,
+  DISAGREEMENT_KIND_PRIORITY,
   __resetScoreImageCacheForTests,
 } from './aiScoring';
 
@@ -298,5 +299,77 @@ describe('computeDisagreementKind', () => {
     expect(
       computeDisagreementKind({ binaryIsSunset: true, aiRating: undefined }),
     ).toBeNull();
+  });
+});
+
+describe('computeDisagreementKind — model-vs-Claude (Claude trusted)', () => {
+  it('flags a miss: Claude confident it is a good sunset, model rated it low', () => {
+    expect(
+      computeDisagreementKind({
+        aiRating: 2.0, // <= MODEL_VS_CLAUDE_MODEL_LOW
+        llmIsSunset: true,
+        llmQuality: 0.8, // >= MODEL_VS_CLAUDE_CLAUDE_HIGH
+      }),
+    ).toBe('model_low_claude_sunset');
+  });
+
+  it('flags a false positive: model rated it high, Claude says not a sunset', () => {
+    expect(
+      computeDisagreementKind({
+        aiRating: 4.0, // >= MODEL_VS_CLAUDE_MODEL_HIGH
+        llmIsSunset: false,
+        llmQuality: 0.2,
+      }),
+    ).toBe('model_high_claude_not_sunset');
+  });
+
+  it('does NOT flag a borderline-quality frame (deadband): Claude calls it a sunset but rates it mediocre', () => {
+    expect(
+      computeDisagreementKind({
+        aiRating: 2.0, // model low
+        llmIsSunset: true,
+        llmQuality: 0.5, // below CLAUDE_HIGH — in the borderline band
+      }),
+    ).toBeNull();
+  });
+
+  it('computes model-vs-Claude even when the binary head did not score (offline backfill)', () => {
+    expect(
+      computeDisagreementKind({
+        binaryIsSunset: undefined, // binary disabled in prod
+        aiRating: 2.0,
+        llmIsSunset: true,
+        llmQuality: 0.9,
+      }),
+    ).toBe('model_low_claude_sunset');
+  });
+
+  it('falls back to binary-vs-regression when Claude is absent', () => {
+    expect(
+      computeDisagreementKind({ binaryIsSunset: false, aiRating: 3.5 }),
+    ).toBe('binary_negative_regression_high');
+  });
+
+  it('prefers the model-vs-Claude kind when both families apply', () => {
+    // binary says no + aiRating 4.0 would be binary_negative_regression_high,
+    // but Claude also says not-a-sunset at a high model rating → false positive
+    // (model-vs-Claude) must win on priority.
+    expect(
+      computeDisagreementKind({
+        binaryIsSunset: false,
+        aiRating: 4.0,
+        llmIsSunset: false,
+        llmQuality: 0.1,
+      }),
+    ).toBe('model_high_claude_not_sunset');
+  });
+
+  it('ranks model-vs-Claude kinds above binary-vs-regression kinds', () => {
+    expect(DISAGREEMENT_KIND_PRIORITY.model_low_claude_sunset).toBeGreaterThan(
+      DISAGREEMENT_KIND_PRIORITY.binary_negative_regression_high,
+    );
+    expect(
+      DISAGREEMENT_KIND_PRIORITY.model_high_claude_not_sunset,
+    ).toBeGreaterThan(DISAGREEMENT_KIND_PRIORITY.binary_positive_regression_low);
   });
 });
