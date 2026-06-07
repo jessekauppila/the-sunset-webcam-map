@@ -108,7 +108,18 @@ export async function backfillArchiveSnapshotScores(opts: {
       result.fallbacks += 1;
       result.abortedOnFallback = true;
       console.error(
-        `[archiveBackfill] non-ONNX scoring path "${scoreResult.pathTaken}" — aborting run to avoid writing baseline junk. Check AI_SCORING_MODE + model paths.`,
+        `[archiveBackfill] non-ONNX scoring path "${scoreResult.pathTaken}" — aborting run to avoid writing junk. Check model paths.`,
+      );
+      break;
+    }
+
+    // The 'onnx' path always carries real scores (null iff 'unscored'); narrow
+    // the now-nullable rawScore/aiRating so we never write a null model score.
+    if (scoreResult.rawScore === null || scoreResult.aiRating === null) {
+      result.fallbacks += 1;
+      result.abortedOnFallback = true;
+      console.error(
+        `[archiveBackfill] onnx path returned null scores for snapshot ${row.snapshotId} — aborting run to avoid writing junk.`,
       );
       break;
     }
