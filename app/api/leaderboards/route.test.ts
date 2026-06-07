@@ -15,17 +15,41 @@ beforeEach(() => {
 const req = (qs = '') => new Request(`http://test/api/leaderboards${qs}`);
 
 describe('GET /api/leaderboards', () => {
-  it('defaults to overall / all-time, ranks by llm_quality, filters to sunsets', async () => {
+  it('defaults to overall / all-time, ranks Claude-primary with a real-model fallback', async () => {
     const res = await GET(req());
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.grouping).toBe('overall');
     expect(body.window).toBe('all-time');
     const [text, params] = sqlQueryMock.mock.calls[0];
-    expect(text).toMatch(/ORDER BY s\.llm_quality DESC/i);
-    expect(text).toMatch(/llm_quality IS NOT NULL/i);
-    expect(text).toMatch(/llm_is_sunset = true/i);
+    // Unified [0,1] rank key: Claude when present, else the real model score.
+    expect(text).toMatch(/ORDER BY COALESCE\(s\.llm_quality, s\.ai_regression_score\) DESC/i);
+    // Claude-judged sunsets still qualify.
+    expect(text).toMatch(/llm_quality IS NOT NULL AND s\.llm_is_sunset = true/i);
     expect(params).toEqual([60]);
+  });
+
+  it('admits Claude-null frames only with a real regression score above the model floor', async () => {
+    await GET(req());
+    const [text] = sqlQueryMock.mock.calls[0];
+    // Fallback clause: Claude-null + real model score >= MODEL_SUNSET_MIN.
+    expect(text).toMatch(
+      /s\.llm_quality IS NULL AND s\.ai_regression_score IS NOT NULL AND s\.ai_regression_score >= 0\.6/i,
+    );
+  });
+
+  it('never ranks by the junk legacy ai_rating column', async () => {
+    await GET(req());
+    const [text] = sqlQueryMock.mock.calls[0];
+    // ai_rating may be SELECTed for comparison, but must not drive ordering.
+    const orderByClause = text.slice(text.search(/ORDER BY/i));
+    expect(orderByClause).not.toMatch(/ai_rating\b/i);
+  });
+
+  it('excludes Flickr structurally — never joins external_images', async () => {
+    await GET(req());
+    const [text] = sqlQueryMock.mock.calls[0];
+    expect(text).not.toMatch(/external_images/i);
   });
 
   it('never selects sensitive columns (allow-list is structural)', async () => {
