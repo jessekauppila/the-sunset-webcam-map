@@ -52,7 +52,7 @@ Skip this part if you're working with the existing `sunset-cam-0.local` Pi. This
 >
 > Save the printed **`camera_id`** and **`device_token`** (64 hex chars).
 >
-> **2. Flash the SD card** (§1.1), boot (§1.2), SSH in (§1.3).
+> **2. Flash the SD card** (§1.1), boot (§1.2), SSH in (§1.3), then **install your SSH key** (§1.3b — `ssh-copy-id pi@sunset-cam-N.local`) so the rest is passwordless and AI/script-drivable.
 >
 > **3. Physically connect the MPU + camera** (the Arducam CSI ribbon and the MPU wiring).
 >
@@ -134,6 +134,20 @@ ssh pi@sunset-cam-1.local
 If it says "host not found": wait another 30 seconds and try again, mDNS sometimes takes a moment.
 
 You should see a prompt like `pi@sunset-cam-1:~ $`. You're in.
+
+### 1.3b. Install your SSH key — makes the unit AI/script-drivable (do this every unit)
+
+Commissioning is dozens of small commands run over SSH. Typing the password for each one is the single biggest source of friction — and it blocks an AI assistant (or any script) from driving the checks for you. Install your Mac's public key on the Pi **once**, and every later `ssh`/`scp` is passwordless.
+
+From your **Mac** terminal (not inside the SSH session):
+
+```bash
+ssh-copy-id pi@sunset-cam-1.local
+```
+
+Type the Pi password one last time. You should see `Number of key(s) added: 1`. (If it says "No identities found," you have no key yet — run `ssh-keygen -t ed25519` first, accept the defaults, then re-run `ssh-copy-id`.)
+
+After this, capture/gyro/log verification can be run non-interactively — by you in a script, or by an AI assistant driving the bench checks directly. This is what turns "dozens of typed, logged-in commands" into an automatable commissioning pass.
 
 ### 1.4. Update system packages
 
