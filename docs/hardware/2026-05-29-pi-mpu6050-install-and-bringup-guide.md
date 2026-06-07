@@ -140,6 +140,20 @@ sudo raspi-config nonint do_camera 0
 
 `0` is "yes/enable." Confirms I2C and camera interfaces are turned on.
 
+> ### ⚠️ Arducam cameras: force the overlay explicitly — don't rely on auto-detect
+>
+> The default `camera_auto_detect=1` in `/boot/firmware/config.txt` **does not work with Arducam IMX708 boards.** Arducam modules ship with a blank/non-standard camera EEPROM (the kernel reports `camera module ID 0x0000`), so auto-detect can't identify the sensor and loads **nothing** — you get `No cameras available!` with a completely silent `dmesg`. Set the overlay explicitly instead:
+>
+> ```bash
+> sudo sed -i 's/camera_auto_detect=1/camera_auto_detect=0/' /boot/firmware/config.txt
+> ```
+>
+> ```bash
+> echo "dtoverlay=imx708" | sudo tee -a /boot/firmware/config.txt
+> ```
+>
+> This is required on **every** Arducam unit. The stock `imx708` driver works fine — only auto-detection is broken. After a reboot, `dmesg | grep imx708` should show `imx708 10-001a: camera module ID ...` with no chip-id error. Full write-up: `docs/solutions/integration-issues/arducam-imx708-not-detected-on-pi-zero.md`.
+
 ### 1.7. Clone the firmware repo
 
 ```bash
@@ -570,11 +584,20 @@ Possibilities:
 - **Frozen at 0:** sensor not initialized. The first read should auto-wake it; if not, may need to call `gyro_driver.init_sensor()` first (check `gyro_driver.py` for the right call).
 - **Random / wildly changing:** bad ground connection. Re-check the GND wire to Pi pin 9.
 
-### `snap-now.sh` errors with "no camera"
+### `snap-now.sh` errors with "no camera" / `rpicam-hello --list-cameras` says "No cameras available!"
+
+**First, check `dmesg | grep -iE 'imx708|csi|unicam'` — the output tells you which way to go:**
+
+- **Total silence (no imx708 line at all):** this is almost always the **Arducam auto-detect problem**, not wiring. `camera_auto_detect` can't identify the Arducam's blank EEPROM. Apply the explicit `dtoverlay=imx708` fix from step 1.6 and reboot. (See `docs/solutions/integration-issues/arducam-imx708-not-detected-on-pi-zero.md`.) **Don't start swapping cables — that wastes time.**
+- **`imx708 ...: failed to read chip id` / `-EIO` / i2c timeout:** *now* it's physical. The driver is loaded but the sensor isn't answering — reseat/flip the ribbon or suspect a dead module.
+
+Other causes, once the overlay is correctly set:
 
 - Camera not enabled: `sudo raspi-config nonint do_camera 0` then reboot
-- Ribbon cable inserted backward — the blue side should face away from the SoC on the Pi end
+- Wrong cable for the connector: Pi Zero 2 W + Arducam IMX708 are both **22-pin (0.5 mm)** → use the **22-to-22** cable; a 15-pin cable won't mate. Full-size Pi 3/4 is 15-pin → use the **15-to-22** cable.
+- Ribbon orientation: contacts (gold) face the board at **both** ends; blue stiffener faces the latch.
 - Camera not seated properly — open the latch, reinsert ribbon, close latch firmly
+- **Note:** runtime `sudo dtoverlay imx708` failing with `Failed to apply overlay (kernel)` is **expected** — camera overlays only apply at boot. It is not a hardware signal.
 
 ### Firmware service won't start
 
