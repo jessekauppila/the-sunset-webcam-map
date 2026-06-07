@@ -34,29 +34,56 @@ Confirm you have all of these before starting:
 
 Skip this part if you're working with the existing `sunset-cam-0.local` Pi. This is for setting up a new Pi from scratch.
 
-> ### Streamlined path (recommended for unit #2 and onward)
+> ### ✅ Streamlined path — USE THIS (proven end-to-end 2026-06-07 on sunset-cam-1)
 >
-> The firmware repo already has `scripts/install.sh` that collapses steps 1.4–1.8 + 1.10 into one command. As of `sunset-cam-firmware` PR #3 it also enables I2C and installs `i2c-tools` automatically. Per-unit workflow becomes:
+> This is the real, verified per-unit flow (~5 min active work). The manual steps 1.4–1.11 below are **reference only** — they show what `install.sh` does, and an earlier draft of them was wrong (see the ⚠️ box at the end of this callout). Trust this path.
 >
-> 1. **On Mac:** mint a claim code via `/api/admin/claim-codes` (per step 1.9 below — save the returned code).
-> 2. **Flash SD card** with Pi Imager (per step 1.1 — set hostname, WiFi, SSH credentials in advanced settings).
-> 3. **Boot the Pi, SSH in** (per steps 1.2–1.3).
-> 4. **Clone the repo and run install.sh:**
->    ```bash
->    sudo git clone https://github.com/jessekauppila/sunset-cam-firmware.git /opt/sunset-cam
->    ```
->    ```bash
->    sudo bash /opt/sunset-cam/scripts/install.sh
->    ```
-> 5. **Create `config.json`** at `/opt/sunset-cam/config/config.json` with your minted claim code (per step 1.9 below).
-> 6. **Physically connect the MPU + camera.**
-> 7. **Enable + start the service:**
->    ```bash
->    sudo systemctl enable --now sunset-cam
->    ```
-> 8. **Reboot once:** `sudo reboot`
+> **1. On the Mac — create the camera record + device token** (writes to prod DB; the token prints ONCE):
 >
-> Per-unit time drops from ~30 minutes to ~5 minutes of active work. The manual steps below (1.4–1.10) document what `install.sh` does, useful for debugging if the script ever fails.
+> ```bash
+> cd ~/GitHub/the-sunset-webcam-map
+> export DATABASE_URL="$(grep '^DATABASE_URL=' .env.production.local | cut -d= -f2- | tr -d '"')"
+> ./scripts/tier0-create-camera.sh \
+>   --hardware-id pi-zero-2w-sunset-cam-N \
+>   --lat 48.7519 --lng -122.4787 \
+>   --timezone America/Los_Angeles \
+>   --title "sunset-cam-N" --phase sunset
+> ```
+>
+> Save the printed **`camera_id`** and **`device_token`** (64 hex chars).
+>
+> **2. Flash the SD card** (§1.1), boot (§1.2), SSH in (§1.3).
+>
+> **3. Physically connect the MPU + camera** (the Arducam CSI ribbon and the MPU wiring).
+>
+> **4. On the Pi — install firmware to `/opt/sunset-cam`:**
+>
+> ```bash
+> sudo git clone https://github.com/jessekauppila/sunset-cam-firmware.git /opt/sunset-cam
+> sudo bash /opt/sunset-cam/scripts/install.sh
+> ```
+>
+> `install.sh` apt-installs deps, enables I2C, builds the venv at `/opt/sunset-cam/.venv` (which the systemd unit requires), and registers the service. It stops with a note that `config.json` doesn't exist yet — expected.
+>
+> **5. Apply the Arducam camera-overlay fix** (the ⚠️ box in §1.6 — **required on every Arducam unit**, then `sudo reboot`).
+>
+> **6. Write the config + start the service:**
+>
+> ```bash
+> sudo bash /opt/sunset-cam/scripts/configure.sh \
+>   --camera-id <ID> --device-token <TOKEN> \
+>   --phase sunset --api-base https://www.sunrisesunset.studio \
+>   --window-id setup --window-from-now-min 0 --window-duration-min 30
+> sudo systemctl enable --now sunset-cam
+> ```
+>
+> Watch `journalctl -u sunset-cam -f` for `uploaded snapshot_id=…` (server-assigned IDs = frames landing in prod). **Then stop it** so a bench unit doesn't spam ~1 frame/sec to prod: `sudo systemctl stop sunset-cam`. Set a real sunset capture window only when the unit is actually deployed.
+>
+> > ### ⚠️ Two things the old manual steps got WRONG (don't trust 1.7–1.11 blindly)
+> >
+> > - **Config uses `device_token`, NOT a `claim_code`.** The `/api/admin/claim-codes` endpoint is a *different* (cloud-wizard) flow this firmware does not use. The real config schema is `camera_id`, `device_token`, `api_base`, `phase`, `window_id`, `capture_window_start_utc`, `capture_window_end_utc`, `capture_interval_s` — no `lat`/`lng`/`placement`. Always write it with `configure.sh`, never by hand.
+> > - **Install to `/opt/sunset-cam`, not `~/sunset-cam-firmware`.** The systemd unit hard-codes `/opt/sunset-cam/.venv/bin/python`; a `~`-based manual install won't start.
+> > - Use **`https://www.sunrisesunset.studio`** for `--api-base`. The apex `sunrisesunset.studio` issues a 307 redirect that strips the auth header → uploads fail.
 
 ### Manual install (steps 1.4-1.11 below)
 
@@ -154,117 +181,56 @@ sudo raspi-config nonint do_camera 0
 >
 > This is required on **every** Arducam unit. The stock `imx708` driver works fine — only auto-detection is broken. After a reboot, `dmesg | grep imx708` should show `imx708 10-001a: camera module ID ...` with no chip-id error. Full write-up: `docs/solutions/integration-issues/arducam-imx708-not-detected-on-pi-zero.md`.
 
-### 1.7. Clone the firmware repo
+> **The streamlined callout at the top of Part 1 is the path to follow.** Steps 1.7–1.10 below are kept only as an explanation of what `install.sh` + `configure.sh` do under the hood — for debugging when something fails. They install to `/opt/sunset-cam` to match the systemd unit; do **not** install to `~/sunset-cam-firmware`.
+
+### 1.7. Clone the firmware repo to `/opt/sunset-cam`
 
 ```bash
-git clone https://github.com/jessekauppila/sunset-cam-firmware.git ~/sunset-cam-firmware
+sudo git clone https://github.com/jessekauppila/sunset-cam-firmware.git /opt/sunset-cam
 ```
 
-### 1.8. Install firmware as a Python package
+The systemd unit runs `/opt/sunset-cam/.venv/bin/python -m sunset_cam.main /opt/sunset-cam/config/config.json` — the path is hard-coded, so the firmware must live at `/opt/sunset-cam`.
+
+### 1.8. Run `install.sh` (builds the venv, registers the service)
 
 ```bash
-cd ~/sunset-cam-firmware
+sudo bash /opt/sunset-cam/scripts/install.sh
 ```
+
+This is what `install.sh` does, and why a hand-rolled `pip install` isn't enough: it creates a venv at `/opt/sunset-cam/.venv` **with `--system-site-packages`** (so the apt-installed `python3-picamera2` is importable), installs `requirements.txt` + the package editable, copies the systemd unit, and `daemon-reload`s. It enables+starts the service **only if `config.json` already exists** — on a fresh unit it doesn't, so it prints a note and stops. That's expected; the config comes next.
+
+### 1.9. Create the device config with `configure.sh`
+
+First, on the **Mac**, create the camera record and device token (see the streamlined callout, step 1 — `scripts/tier0-create-camera.sh`). It prints a `camera_id` and a 64-hex `device_token`.
+
+> **The config uses `device_token`, not a claim code.** Do not hand-edit JSON and do not use `/api/admin/claim-codes` — that's a separate cloud-wizard mechanism this firmware does not read. `configure.sh` writes the correct schema for you and validates it.
+
+Back on the **Pi**, write the config (substitute your `camera_id` and `device_token`):
 
 ```bash
-python3 -m pip install -e ".[dev]"
+sudo bash /opt/sunset-cam/scripts/configure.sh \
+  --camera-id <ID> --device-token <TOKEN> \
+  --phase sunset --api-base https://www.sunrisesunset.studio \
+  --window-id setup --window-from-now-min 0 --window-duration-min 30
 ```
 
-Installs the firmware (and its dependencies including `smbus2` for the MPU6050) in editable mode. Wait ~2 minutes.
+`--window-from-now-min 0 --window-duration-min 30` makes the capture window active immediately for 30 minutes — handy for a bench test (don't wait for actual sunset). For a deployed unit, pass the real sunset window with `--window-start`/`--window-end` (ISO8601 UTC, `Z` suffix) instead. The written config has these keys and no others: `camera_id`, `device_token`, `api_base`, `phase`, `window_id`, `capture_window_start_utc`, `capture_window_end_utc`, `capture_interval_s`, `log_level`.
 
-If you get `error: externally-managed-environment`, run instead:
+### 1.10. Enable + start the service
 
 ```bash
-python3 -m pip install -e ".[dev]" --break-system-packages
+sudo systemctl enable --now sunset-cam
 ```
 
-(Pi OS Bookworm restricts pip by default; the `--break-system-packages` flag is the workaround for system-wide installs.)
-
-### 1.9. Create the device config
-
-Mint a claim code first (from your Mac, not the Pi — needs `CRON_SECRET`):
+Check it and watch the logs:
 
 ```bash
-export CRON_SECRET="$(grep '^CRON_SECRET=' .env.production.local | cut -d= -f2- | tr -d '"')"
+journalctl -u sunset-cam -f
 ```
 
-```bash
-curl -sS -X POST https://sunsetsunset.studio/api/admin/claim-codes -H "authorization: Bearer $CRON_SECRET" -H "content-type: application/json" -d '{"label":"sunset-cam-N-install"}'
-```
+You want `starting; camera_id=… api_base=…` followed by `uploaded snapshot_id=… bytes=…` roughly once per second. Those `snapshot_id`s are returned by the server — proof the frames are landing in prod.
 
-(Replace `N`. Adjust hostname `sunsetsunset.studio` if your deploy URL differs.)
-
-You'll get `{"code":"SUNSET-XXXX-YYYY","expires_at":"..."}`. Save the code.
-
-Back on the Pi (SSH session), create the config file:
-
-```bash
-mkdir -p ~/sunset-cam-firmware/config
-```
-
-```bash
-nano ~/sunset-cam-firmware/config/config.json
-```
-
-Paste this content (substituting your claim code + your install location):
-
-```json
-{
-  "claim_code": "SUNSET-XXXX-YYYY",
-  "lat": 48.7519,
-  "lng": -122.4787,
-  "elevation_m": 30,
-  "timezone": "America/Los_Angeles",
-  "placement": {
-    "azimuth_deg": 270,
-    "tilt_deg": 5,
-    "horizon_altitude_deg": 2.5
-  },
-  "phase_preference": "sunset"
-}
-```
-
-(`Ctrl-O` then `Enter` to save in nano, `Ctrl-X` to exit. The lat/lng above is for Bellingham — change to your actual install spot.)
-
-### 1.10. Install the systemd service
-
-> **Doing this before the MPU or camera is physically connected?** Run only the first two commands (the `cp` + `daemon-reload`) — they just register the unit file with systemd. **Skip** `enable` and `start` until the hardware is in; without a camera the firmware will fail-loop on missing devices. When the camera arrives, come back and run:
->
-> ```bash
-> sudo systemctl enable sunset-cam.service
-> ```
->
-> ```bash
-> sudo systemctl start sunset-cam.service
-> ```
->
-> Then verify with `systemctl status sunset-cam.service`. Otherwise, run all four commands below in order.
-
-```bash
-sudo cp ~/sunset-cam-firmware/systemd/sunset-cam.service /etc/systemd/system/
-```
-
-```bash
-sudo systemctl daemon-reload
-```
-
-```bash
-sudo systemctl enable sunset-cam.service
-```
-
-```bash
-sudo systemctl start sunset-cam.service
-```
-
-Check it's running:
-
-```bash
-systemctl status sunset-cam.service
-```
-
-You should see "active (running)" in green. Press `q` to exit.
-
-If it failed: check logs with `journalctl -u sunset-cam.service -n 50`.
+> **Stop a bench unit after verifying.** At ~1 frame/sec each ~300 KB, a 30-min window is ~1,800 frames / ~0.5 GB to prod — needless storage/bandwidth cost for a test. Once you've seen `uploaded snapshot_id=…`, run `sudo systemctl stop sunset-cam`. (Planned: validate framing/orientation with a live MJPEG preview that saves nothing, instead of uploading at all — the `setup_alignment.py` building blocks exist but the HTTP server to run them is not wired up yet.)
 
 ### 1.11. Reboot once
 
@@ -272,7 +238,7 @@ If it failed: check logs with `journalctl -u sunset-cam.service -n 50`.
 sudo reboot
 ```
 
-Wait ~30 seconds. SSH back in. Firmware should now be running.
+Wait ~30 seconds. SSH back in. If you left the service enabled, the firmware comes back up on boot.
 
 You're done with Part 1.
 
