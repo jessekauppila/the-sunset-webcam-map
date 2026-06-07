@@ -42,6 +42,13 @@ export async function backfillCustomSnapshotScores(opts: {
         imageBytes: bytes,
         source: 'custom',
       });
+      if (result.rawScore === null || result.aiRating === null) {
+        // 'unscored' — ONNX produced no real score. Skip the write entirely so
+        // we don't fabricate, and don't sync the parent webcam from a non-score.
+        // The finder (WHERE ai_regression_score IS NULL) re-queues this row.
+        failed += 1;
+        continue;
+      }
       const disagreementKind = computeDisagreementKind({
         binaryIsSunset: result.binaryIsSunset,
         aiRating: result.aiRating,

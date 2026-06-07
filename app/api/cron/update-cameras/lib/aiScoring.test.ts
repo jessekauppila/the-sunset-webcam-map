@@ -33,7 +33,6 @@ describe('scoreImage', () => {
     preprocessMock.mockReset().mockResolvedValue(new Float32Array(3 * 224 * 224));
     sha256Mock.mockReset().mockReturnValue('hash-abc');
     runMock.mockReset().mockResolvedValue({ output: { data: [0.64] } });
-    process.env.AI_SCORING_MODE = 'onnx';
     process.env.AI_REGRESSION_MODEL_VERSION = 'test-v4';
     __resetScoreImageCacheForTests();
   });
@@ -102,19 +101,30 @@ describe('scoreImage', () => {
     expect(result.aiRating).toBe(3);
   });
 
-  it('falls back to baseline when ONNX inference throws', async () => {
+  it('returns "unscored" with null scores when ONNX inference throws', async () => {
     runMock.mockRejectedValueOnce(new Error('boom'));
     const result = await scoreImage({
       webcamId: 1,
       imageBytes: Buffer.from('jpeg'),
       source: 'windy',
-      fallbackMeta: { viewCount: 1000, manualRating: 4 },
     });
-    expect(result.pathTaken).toBe('baseline-fallback');
-    expect(result.rawScore).toBeGreaterThanOrEqual(0);
-    expect(result.rawScore).toBeLessThanOrEqual(1);
-    expect(result.aiRating).toBeGreaterThanOrEqual(1);
-    expect(result.aiRating).toBeLessThanOrEqual(5);
+    expect(result.pathTaken).toBe('unscored');
+    expect(result.rawScore).toBeNull();
+    expect(result.aiRating).toBeNull();
+    expect(result.modelVersion).toBe('test-v4');
+    expect(result.imageHash).toBe('hash-abc');
+  });
+
+  it('returns "unscored" when ONNX setup (preprocess) throws', async () => {
+    preprocessMock.mockRejectedValueOnce(new Error('no model'));
+    const result = await scoreImage({
+      webcamId: 1,
+      imageBytes: Buffer.from('jpeg'),
+      source: 'windy',
+    });
+    expect(result.pathTaken).toBe('unscored');
+    expect(result.rawScore).toBeNull();
+    expect(result.aiRating).toBeNull();
   });
 
   it('preserves the source field on the return value', async () => {
@@ -124,23 +134,6 @@ describe('scoreImage', () => {
       source: 'custom',
     });
     expect(result.source).toBe('custom');
-  });
-
-  it('returns pathTaken=baseline when AI_SCORING_MODE is not onnx', async () => {
-    process.env.AI_SCORING_MODE = 'baseline';
-    const result = await scoreImage({
-      webcamId: 1,
-      imageBytes: Buffer.from('jpeg'),
-      source: 'windy',
-      fallbackMeta: { viewCount: 1000, manualRating: 4 },
-    });
-    expect(result.pathTaken).toBe('baseline');
-    expect(result.rawScore).toBeGreaterThanOrEqual(0);
-    expect(result.rawScore).toBeLessThanOrEqual(1);
-    expect(result.aiRating).toBeGreaterThanOrEqual(1);
-    expect(result.aiRating).toBeLessThanOrEqual(5);
-    expect(preprocessMock).not.toHaveBeenCalled();
-    expect(runMock).not.toHaveBeenCalled();
   });
 
   describe('binary classifier (opt-in via AI_BINARY_SCORING_ENABLED)', () => {
@@ -236,8 +229,9 @@ describe('scoreImage', () => {
       });
       expect(result.pathTaken).toBe('onnx');
       expect(result.aiRating).toBeCloseTo(3.56, 2);
-      expect(result.binaryPathTaken).toBe('baseline-fallback');
-      expect(result.binaryIsSunset).toBe(false);
+      expect(result.binaryPathTaken).toBeUndefined();
+      expect(result.binaryRawScore).toBeUndefined();
+      expect(result.binaryIsSunset).toBeUndefined();
     });
   });
 });

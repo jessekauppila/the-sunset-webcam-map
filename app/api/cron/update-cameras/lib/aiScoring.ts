@@ -16,9 +16,11 @@
  *      `memory/project_two_tier_sunset_classification.md`.
  *
  * A SHA-256 of the bytes lets callers short-circuit re-scoring identical
- * frames (Redis-backed at call site). On any regression-ONNX failure,
- * falls back to the metadata-only baseline so the cron never crashes;
- * binary failures degrade silently (binary fields left undefined).
+ * frames (Redis-backed at call site). On any ONNX failure (setup or the
+ * regression head), returns pathTaken:'unscored' with null scores — callers
+ * must NOT write a score for these. Binary failures degrade silently (binary
+ * fields left undefined). There is no metadata fallback: the model is the only
+ * thing that may produce a score.
  */
 
 import path from 'node:path';
@@ -28,7 +30,6 @@ import {
   AI_ONNX_BINARY_MODEL_PATH_DEFAULT,
   AI_REGRESSION_MODEL_VERSION_DEFAULT,
   AI_ONNX_REGRESSION_MODEL_PATH_DEFAULT,
-  AI_SCORING_MODE_DEFAULT,
   SUNSET_DISAGREEMENT_HIGH,
   SUNSET_DISAGREEMENT_LOW,
 } from '@/app/lib/masterConfig';
@@ -43,16 +44,14 @@ export interface ScoreImageInput {
   source: WebcamSource;
   /** From Redis. When equal to the new hash, returns cache-hit without scoring. */
   lastImageHash?: string;
-  /** Used only when ONNX fails. Optional. */
-  fallbackMeta?: { viewCount?: number; manualRating?: number };
 }
 
-export type ScorePath = 'onnx' | 'cache-hit' | 'baseline' | 'baseline-fallback';
+export type ScorePath = 'onnx' | 'cache-hit' | 'unscored';
 
 export interface ScoreImageResult {
-  // Regression (required — always present except cache-hit).
-  rawScore: number;   // 0..1 (normalized; matches training label scale)
-  aiRating: number;   // 1..5 (display; inverse of (rating-1)/4 used at train time)
+  // Regression (null iff pathTaken === 'unscored').
+  rawScore: number | null;   // 0..1 (normalized; matches training label scale)
+  aiRating: number | null;   // 1..5 (display; inverse of (rating-1)/4 used at train time)
   modelVersion: string;
   imageHash: string;
   source: WebcamSource;
@@ -63,7 +62,7 @@ export interface ScoreImageResult {
   binaryRawScore?: number;       // softmax probability of class 1 (sunset), 0..1
   binaryIsSunset?: boolean;      // binaryRawScore >= AI_BINARY_DECISION_THRESHOLD
   binaryModelVersion?: string;
-  binaryPathTaken?: ScorePath;   // 'onnx' | 'baseline-fallback'
+  binaryPathTaken?: 'onnx';      // 'onnx'
 }
 
 const cachedSessions = new Map<string, unknown>();
@@ -154,20 +153,6 @@ async function getSession(modelPath: string): Promise<unknown> {
 /* Output mappings                                                             */
 /* -------------------------------------------------------------------------- */
 
-function baselineRaw(input: ScoreImageInput): number {
-  const views = input.fallbackMeta?.viewCount ?? 0;
-  const manual = input.fallbackMeta?.manualRating ?? 3;
-  const normViews = clamp(Math.log10(views + 1) / 6, 0, 1);
-  const normManual = clamp(manual / 5, 0, 1);
-  return clamp(normViews * 0.65 + normManual * 0.35, 0, 1);
-}
-
-function ratingFromRaw(raw: number): number {
-  // Inverse of the (rating-1)/4 label normalization in ml/export_dataset.py:
-  // rawScore=0 -> 1 star, rawScore=1 -> 5 stars, rawScore=0.5 -> 3 stars.
-  return Number((1 + clamp(raw, 0, 1) * 4).toFixed(2));
-}
-
 function normalizeRegressionOutput(value: number): {
   rawScore: number;
   aiRating: number;
@@ -255,7 +240,7 @@ async function scoreBinary(
   rawScore: number;
   isSunset: boolean;
   modelVersion: string;
-  pathTaken: ScorePath;
+  pathTaken: 'onnx';
 } | undefined> {
   if (!binaryEnabled()) return undefined;
   const modelVersion = resolveBinaryModelVersion();
@@ -274,13 +259,23 @@ async function scoreBinary(
       `[scoreImage] binary ONNX failed for webcam ${webcamId}, leaving binary fields unset:`,
       error,
     );
-    return {
-      rawScore: 0,
-      isSunset: false,
-      modelVersion,
-      pathTaken: 'baseline-fallback',
-    };
+    return undefined;
   }
+}
+
+function unscored(
+  input: ScoreImageInput,
+  imageHash: string,
+  modelVersion: string,
+): ScoreImageResult {
+  return {
+    rawScore: null,
+    aiRating: null,
+    modelVersion,
+    imageHash,
+    source: input.source,
+    pathTaken: 'unscored',
+  };
 }
 
 /**
@@ -305,75 +300,43 @@ export async function scoreImage(
     };
   }
 
-  const mode =
-    process.env.AI_SCORING_MODE?.trim() || AI_SCORING_MODE_DEFAULT;
-
-  if (mode !== 'onnx') {
-    const raw = baselineRaw(input);
-    return {
-      rawScore: raw,
-      aiRating: ratingFromRaw(raw),
-      modelVersion,
-      imageHash,
-      source: input.source,
-      pathTaken: 'baseline',
-    };
-  }
-
-  // ONNX mode — preprocess once, run both heads against the same tensor.
+  // ONNX is the only real scorer. If it can't run, return 'unscored' (null
+  // scores) — never a fabricated number.
   let ort: unknown;
   let tensorData: Float32Array;
   try {
     ort = await getOrt();
     tensorData = await preprocessJpegToImagenetTensor(input.imageBytes);
   } catch (error) {
-    console.warn(
-      `[scoreImage] ONNX setup failed for webcam ${input.webcamId}, falling back:`,
+    console.error(
+      `[scoreImage] ONNX setup failed for webcam ${input.webcamId}, leaving unscored:`,
       error,
     );
-    const raw = baselineRaw(input);
-    return {
-      rawScore: raw,
-      aiRating: ratingFromRaw(raw),
-      modelVersion,
-      imageHash,
-      source: input.source,
-      pathTaken: 'baseline-fallback',
-    };
+    return unscored(input, imageHash, modelVersion);
   }
 
-  // Regression head — required.
-  let regression: { rawScore: number; aiRating: number; pathTaken: ScorePath };
+  let regression: { rawScore: number; aiRating: number };
   try {
     const data = await runOnnxSession(ort, resolveRegressionModelPath(), tensorData);
     const value = Number(data[0] ?? 0.5);
-    const normalized = normalizeRegressionOutput(value);
-    regression = {
-      rawScore: normalized.rawScore,
-      aiRating: normalized.aiRating,
-      pathTaken: 'onnx',
-    };
+    regression = normalizeRegressionOutput(value);
   } catch (error) {
-    console.warn(
-      `[scoreImage] regression ONNX failed for webcam ${input.webcamId}, falling back:`,
+    console.error(
+      `[scoreImage] regression ONNX failed for webcam ${input.webcamId}, leaving unscored:`,
       error,
     );
-    const raw = baselineRaw(input);
-    regression = {
-      rawScore: raw,
-      aiRating: ratingFromRaw(raw),
-      pathTaken: 'baseline-fallback',
-    };
+    return unscored(input, imageHash, modelVersion);
   }
 
-  // Binary head — optional. Don't fail the result if it errors.
   const binary = await scoreBinary(ort, input.webcamId, tensorData);
 
   return {
-    ...regression,
+    rawScore: regression.rawScore,
+    aiRating: regression.aiRating,
     modelVersion,
     imageHash,
     source: input.source,
+    pathTaken: 'onnx',
     binaryRawScore: binary?.rawScore,
     binaryIsSunset: binary?.isSunset,
     binaryModelVersion: binary?.modelVersion,

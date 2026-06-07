@@ -21,6 +21,8 @@ export const maxDuration = 300; // 5 minutes
 //      the Hard Examples queue waiting for a verdict
 //   4. Snapshots with a high ai_rating (>= AI_SNAPSHOT_MIN_RATING_THRESHOLD)
 //      survive — they're the best-of frames the leaderboard ranks
+//   5. Snapshots with llm_quality set survive — the Best Sunsets leaderboard
+//      ranks by llm_quality; these are Claude-scored frames
 //
 // Before adding this endpoint to vercel.json's crons or POSTing to it
 // manually, re-read the retention rules above. The archive contained
@@ -60,18 +62,21 @@ async function cleanup(request: Request) {
 
     console.log('Starting snapshot cleanup...');
 
-    // Four classes of snapshots are NEVER cleaned up — we only drop a frame
-    // older than 7 days that has none of these signals:
+    // Snapshots with ANY of these signals are NEVER cleaned up — we only drop a
+    // frame older than 7 days that has none of them:
     //   1. model_disagreement_kind set (queued for Hard Examples triage).
     //   2. Any user ever rated or verdicted it (training data).
-    //   3. A high AI score (ai_rating >= AI_SNAPSHOT_MIN_RATING_THRESHOLD) —
-    //      the best-of frames the Best Sunsets leaderboard ranks. NULL ai_rating
-    //      counts as "not high" and is eligible for deletion.
+    //   3. A high AI score (ai_rating >= AI_SNAPSHOT_MIN_RATING_THRESHOLD).
+    //   4. Claude scored it (llm_quality set) — the Best Sunsets leaderboard
+    //      ranks by llm_quality, so these are the real best-of frames. This also
+    //      guards the window where the ONNX backfill has nulled ai_rating but
+    //      Claude's quality is the live ranking signal.
     const oldSnapshots = await sql`
       SELECT id, firebase_path, captured_at
       FROM webcam_snapshots
       WHERE captured_at < NOW() - INTERVAL '7 days'
         AND model_disagreement_kind IS NULL
+        AND llm_quality IS NULL
         AND (ai_rating IS NULL OR ai_rating < ${AI_SNAPSHOT_MIN_RATING_THRESHOLD})
         AND id NOT IN (
           SELECT DISTINCT snapshot_id FROM webcam_snapshot_ratings

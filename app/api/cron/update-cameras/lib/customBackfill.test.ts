@@ -71,6 +71,28 @@ describe('backfillCustomSnapshotScores', () => {
     expect(syncWebcamMock).toHaveBeenCalledWith(42);
   });
 
+  it('does NOT write a score for an unscored snapshot and does not sync the webcam', async () => {
+    findMock.mockResolvedValue([
+      { snapshotId: 11, webcamId: 42, firebaseUrl: 'https://x/1.jpg' },
+    ]);
+    downloadMock.mockResolvedValue(Buffer.from('jpg'));
+    scoreMock.mockResolvedValue({
+      rawScore: null,
+      aiRating: null,
+      modelVersion: 'v4',
+      imageHash: 'h',
+      source: 'custom',
+      pathTaken: 'unscored',
+    });
+
+    const result = await backfillCustomSnapshotScores({ limit: 10 });
+
+    expect(updateSnapMock).not.toHaveBeenCalled();
+    expect(syncWebcamMock).not.toHaveBeenCalled();
+    expect(result.scored).toBe(0);
+    expect(result.scores).toEqual([]);
+  });
+
   it('counts a download failure as `failed` and continues with other rows', async () => {
     findMock.mockResolvedValue([
       { snapshotId: 11, webcamId: 42, firebaseUrl: 'https://x/1.jpg' },

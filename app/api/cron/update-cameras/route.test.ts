@@ -260,7 +260,7 @@ describe('GET /api/cron/update-cameras', () => {
   });
 
   it('returns a scoringPaths breakdown counted from scored.pathTaken', async () => {
-    // Three webcams: one onnx, one cache-hit, one baseline-fallback.
+    // Three webcams: one onnx, one cache-hit, one unscored.
     fetchBatchesMock.mockResolvedValueOnce([[
       { webcamId: 7, location: { latitude: 0, longitude: 0 },
         images: { current: { preview: 'https://x/a.jpg' } }, viewCount: 1, rating: 3 },
@@ -273,15 +273,29 @@ describe('GET /api/cron/update-cameras', () => {
     scoreMock
       .mockResolvedValueOnce({ rawScore: 0.6, aiRating: 3.4, modelVersion: 'v4', imageHash: 'h1', source: 'windy', pathTaken: 'onnx' })
       .mockResolvedValueOnce({ rawScore: 0, aiRating: 0, modelVersion: 'v4', imageHash: 'h2', source: 'windy', pathTaken: 'cache-hit' })
-      .mockResolvedValueOnce({ rawScore: 0.4, aiRating: 2.6, modelVersion: 'v4', imageHash: 'h3', source: 'windy', pathTaken: 'baseline-fallback' });
+      .mockResolvedValueOnce({ rawScore: null, aiRating: null, modelVersion: 'v4', imageHash: 'h3', source: 'windy', pathTaken: 'unscored' });
     const res = await GET(makeReq());
     const body = await res.json();
     expect(body.scoringPaths).toEqual({
       onnx: 1,
       'cache-hit': 1,
-      'baseline-fallback': 1,
-      baseline: 0,
+      unscored: 1,
     });
+  });
+
+  it('does NOT write AI fields for an unscored webcam (leaves columns null)', async () => {
+    scoreMock.mockReset().mockResolvedValue({
+      rawScore: null, aiRating: null, modelVersion: 'v4',
+      imageHash: 'h', source: 'windy', pathTaken: 'unscored',
+    });
+    updateAiFieldsMock.mockClear();
+
+    const res = await GET(makeReq());
+    const body = await res.json();
+
+    expect(updateAiFieldsMock).not.toHaveBeenCalled();
+    expect(body.scoringPaths.unscored).toBeGreaterThan(0);
+    expect(body.scoringPaths.onnx).toBe(0);
   });
 
   it('persists a Windy snapshot when computeDisagreementKind flags the score', async () => {
