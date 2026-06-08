@@ -84,3 +84,13 @@ Reverses v0.3's call. **v0.3** (`docs/superpowers/specs/2026-05-17-pi-alignment-
 - Onboarding: `tier0-create-camera.sh` (Mac, DATABASE_URL) → `camera_id` + `device_token` → `/opt/sunset-cam` `install.sh` → `configure.sh`. Config schema has NO lat/lng. Stop bench units after verifying (frame-spam cost).
 - Pi Zero 2 W + Arducam IMX708 both use the **22-pin (0.5mm)** connector → 22-to-22 cable. The cable was never the problem on cam1; the camera issue was the `dtoverlay`.
 - Passwordless SSH (`ssh-copy-id`) per unit is what makes commissioning AI/script-drivable.
+
+---
+
+## Progress update — 2026-06-07 (later that day)
+
+**v0.4 sun-tap aiming sub-project 1 is BUILT.** Spec + plan written (`docs/superpowers/specs/2026-06-07-pi-alignment-v0.4-sun-tap-aiming-design.md`, `docs/superpowers/plans/2026-06-07-pi-alignment-v0.4-sun-tap-aiming.md`). Implemented on firmware branch `feat/v0.4-sun-tap-aiming` (pushed, 7 commits, 62 tests green): `compute_sun_azimuth`/`solstice_sunset_azimuths`/`fov_fit`, `heading.py` (pixel→angle, heading_from_tap, `HeadingState` confidence model), `setup_server.py` (`ThreadingHTTPServer` + `AimingService`), phase-parameterized confidence-gated overlay, and `scripts/run-setup-server.py`.
+
+**Pending: Task 7 hardware validation on cam1** — needs the sun visible. Commands in `docs/superpowers/plans/2026-06-07-pi-alignment-v0.4-sun-tap-aiming.md` Task 7 (ssh + checkout the branch, stop capture, run `run-setup-server.py`, aim from a phone, then open the firmware PR).
+
+**NOW IN PROGRESS: the "setting it all up" spec** — the deferred commissioning↔field-setup workflow (sub-project 2). This is the no-typed-commands deployment experience: commissioning self-test (bench) + the device setup-mode↔capture-mode state machine (auto-runs the v0.4 aiming tool) + WiFi/AP-mode onboarding + relocation/recommission. Being decomposed and spec'd next; doesn't need the sun.
