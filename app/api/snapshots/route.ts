@@ -13,7 +13,9 @@ import type { Snapshot } from '@/app/lib/types';
 import {
   SNAPSHOT_QUEUE_PROGRESS_RATED_SCOPE,
   SNAPSHOT_QUEUE_UNRATED_SCOPE,
+  V4_TRAINING_CUTOFF,
 } from '@/app/lib/masterConfig';
+import { deriveProvenance } from '@/app/lib/provenance';
 
 export const dynamic = 'force-dynamic';
 const MAX_EXCLUDE_IDS = 1000;
@@ -198,6 +200,7 @@ export async function GET(request: Request) {
     if (mode === 'verification') {
       const disagreementsOnly =
         searchParams.get('disagreements_only') === 'true';
+      const sourceFilter = searchParams.get('source'); // 'webcam' | 'flickr' | null
       // Over-fetch so the merged result can be paged in JS.
       const fetchN = limit + offset;
 
@@ -224,16 +227,14 @@ export async function GET(request: Request) {
 
       const webcamFilter = disagreementsOnly
         ? sql`AND s.model_disagreement_kind IS NOT NULL
-              AND s.id NOT IN (
-                SELECT snapshot_id FROM webcam_snapshot_ratings
-                WHERE is_sunset_verdict IS NOT NULL
-              )`
-        : sql``;
+              AND s.id NOT IN (SELECT image_id FROM manual_labels WHERE source = 'webcam')`
+        : sql`AND s.id NOT IN (SELECT image_id FROM manual_labels WHERE source = 'webcam')`;
       const externalFilter = disagreementsOnly
-        ? sql`AND e.model_disagreement_kind IS NOT NULL`
-        : sql``;
+        ? sql`AND e.model_disagreement_kind IS NOT NULL
+              AND e.id NOT IN (SELECT image_id FROM manual_labels WHERE source = 'flickr')`
+        : sql`AND e.id NOT IN (SELECT image_id FROM manual_labels WHERE source = 'flickr')`;
 
-      const webcamRows = (await sql`
+      const webcamRows = sourceFilter === 'flickr' ? [] : (await sql`
           SELECT
             s.id as snapshot_id, s.webcam_id, s.phase, s.rank,
             s.initial_rating, s.calculated_rating, s.ai_rating,
@@ -250,6 +251,7 @@ export async function GET(request: Request) {
             w.ai_rating_regression as webcam_ai_rating_regression,
             w.ai_model_version_regression as webcam_ai_model_version_regression,
             s.model_disagreement_kind, s.human_sunset_majority,
+            s.ai_regression_score,
             s.llm_quality, s.llm_is_sunset, s.llm_model, NULL::text as owner,
             ${webcamSortKey} as sort_key
           FROM webcam_snapshots s
@@ -257,9 +259,12 @@ export async function GET(request: Request) {
           WHERE 1=1 ${webcamFilter}
           ORDER BY sort_key DESC
           LIMIT ${fetchN}
-        `) as (SnapshotRow & { sort_key: number | string })[];
+        `) as (SnapshotRow & {
+          sort_key: number | string;
+          ai_regression_score: number | string | null;
+        })[];
 
-      const externalRows = (await sql`
+      const externalRows = sourceFilter === 'webcam' ? [] : (await sql`
           SELECT
             e.id as snapshot_id,
             e.image_url as firebase_url, e.firebase_path,
@@ -267,23 +272,37 @@ export async function GET(request: Request) {
             0::int as rating_count,
             e.source, e.source_id as external_id, e.title, e.owner,
             e.model_disagreement_kind,
+            e.ai_regression_score,
             e.llm_quality, e.llm_is_sunset, e.llm_model,
             ${externalSortKey} as sort_key
           FROM external_images e
           WHERE e.source = 'flickr' ${externalFilter}
           ORDER BY sort_key DESC
           LIMIT ${fetchN}
-        `) as (SnapshotRow & { sort_key: number | string })[];
+        `) as (SnapshotRow & {
+          sort_key: number | string;
+          ai_regression_score: number | string | null;
+        })[];
 
       const merged = [...webcamRows, ...externalRows]
         .sort((a, b) => Number(b.sort_key) - Number(a.sort_key))
         .slice(offset, offset + limit)
-        .map(transformSnapshot);
+        .map((row) => ({
+          ...transformSnapshot(row),
+          provenance: deriveProvenance(row.source ?? 'webcam', row.captured_at ?? null),
+          modelDisagreementKind: row.model_disagreement_kind ?? null,
+          aiRegressionScore:
+            row.ai_regression_score == null ? null : Number(row.ai_regression_score),
+        }));
 
-      const webcamCountResult = await sql`
+      const webcamCountResult = sourceFilter === 'flickr'
+        ? [{ total: 0 }]
+        : await sql`
           SELECT COUNT(*)::int AS total FROM webcam_snapshots s WHERE 1=1 ${webcamFilter}
         `;
-      const externalCountResult = await sql`
+      const externalCountResult = sourceFilter === 'webcam'
+        ? [{ total: 0 }]
+        : await sql`
           SELECT COUNT(*)::int AS total FROM external_images e
           WHERE e.source = 'flickr' ${externalFilter}
         `;
@@ -291,9 +310,40 @@ export async function GET(request: Request) {
         ((webcamCountResult as Array<{ total: number }>)[0]?.total ?? 0) +
         ((externalCountResult as Array<{ total: number }>)[0]?.total ?? 0);
 
+      // Remaining flagged-and-unlabeled, split by provenance, for the queue's
+      // bottom-bar breakdown (Archive·trained / Archive·new / Flickr). Only
+      // meaningful for the disagreement queue, so compute it only then (keeps
+      // the browse/source-filter read paths untouched).
+      let counts = { flickr: 0, archiveTrained: 0, archiveNew: 0 };
+      if (disagreementsOnly) {
+        const provRows = (await sql`
+          SELECT
+            count(*) FILTER (WHERE src = 'flickr')::int AS flickr,
+            count(*) FILTER (WHERE src = 'webcam' AND cap <= ${V4_TRAINING_CUTOFF}::timestamptz)::int AS archive_trained,
+            count(*) FILTER (WHERE src = 'webcam' AND cap >  ${V4_TRAINING_CUTOFF}::timestamptz)::int AS archive_new
+          FROM (
+            SELECT 'flickr' AS src, e.scraped_at AS cap
+            FROM external_images e
+            WHERE e.source = 'flickr' AND e.model_disagreement_kind IS NOT NULL
+              AND e.id NOT IN (SELECT image_id FROM manual_labels WHERE source = 'flickr')
+            UNION ALL
+            SELECT 'webcam' AS src, s.captured_at AS cap
+            FROM webcam_snapshots s
+            WHERE s.model_disagreement_kind IS NOT NULL
+              AND s.id NOT IN (SELECT image_id FROM manual_labels WHERE source = 'webcam')
+          ) q
+        `) as { flickr: number; archive_trained: number; archive_new: number }[];
+        counts = {
+          flickr: provRows[0]?.flickr ?? 0,
+          archiveTrained: provRows[0]?.archive_trained ?? 0,
+          archiveNew: provRows[0]?.archive_new ?? 0,
+        };
+      }
+
       return NextResponse.json({
         snapshots: merged,
         total,
+        counts,
         limit,
         offset,
       });

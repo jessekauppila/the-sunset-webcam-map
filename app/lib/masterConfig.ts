@@ -51,6 +51,10 @@ export const CIRCLE_RENDERING_PRECISION_DEG = SEARCH_RADIUS_DEG;
 // ---------------------------------------------------------------------------
 // AI scoring + snapshot capture behavior
 // ---------------------------------------------------------------------------
+// v4 training data export date. Webcam frames captured after this were NOT in
+// v4 training (highest-value new labels); before is the trained-era archive.
+// Approximate: exact membership would require the v4 manifest (deferred).
+export const V4_TRAINING_CUTOFF = '2026-05-13';
 // Kill-switch for AUTOMATIC snapshot capture (cron jobs, manual capture
 // endpoint). Set to false to stop bulk saving images to Firebase (saves
 // storage costs). AI scoring still runs; only the image-download +
