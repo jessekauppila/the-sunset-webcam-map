@@ -56,6 +56,14 @@ const claudeText = (s: QueuedSnapshot): string => {
 const modelText = (s: QueuedSnapshot): string =>
   s.aiRegressionScore == null ? 'Model —' : `Model ${(1 + s.aiRegressionScore * 4).toFixed(1)}★`;
 
+// Standardized rating button — neutral with one blue accent on hover.
+const stdBtn = {
+  color: '#e5e7eb',
+  borderColor: 'rgba(255,255,255,0.28)',
+  fontWeight: 700,
+  '&:hover': { borderColor: '#60a5fa', background: 'rgba(96,165,250,0.15)' },
+};
+
 const toggleSx = {
   '& .MuiToggleButton-root': {
     color: '#cbd5e1',
@@ -311,33 +319,54 @@ export function HardExamplesQueue({
             <Thumb key={`L${k}`} s={at(idx - (SIDE - k))} rated />
           ))}
 
-          {/* active — clean dark card (image) + one-click rating: Not-a-sunset
-              OR a 1-5 star (rating implies sunset). Text lives OUTSIDE the card. */}
-          <Box sx={{ width: 360, flexShrink: 0 }}>
+          {/* active — small DARK card holding the image + one-click rating;
+              title/why text lives OUTSIDE the card below it. */}
+          <Box sx={{ width: 300, flexShrink: 0 }}>
             <Box
               sx={{
-                position: 'relative',
+                background: '#0f172a',
+                border: '1px solid rgba(255,255,255,0.12)',
                 borderRadius: 2,
+                boxShadow: '0 10px 30px rgba(0,0,0,0.5)',
                 overflow: 'hidden',
-                border: '1px solid rgba(96,165,250,0.5)',
-                boxShadow: '0 12px 40px rgba(0,0,0,0.55)',
               }}
             >
-              <Badge p={current.provenance} />
-              <Box
-                component="img"
-                src={current.snapshot.firebaseUrl}
-                alt=""
-                sx={{ display: 'block', width: '100%', maxHeight: '34vh', objectFit: 'cover', background: '#111827' }}
-              />
+              <Box sx={{ position: 'relative' }}>
+                <Badge p={current.provenance} />
+                <Box
+                  component="img"
+                  src={current.snapshot.firebaseUrl}
+                  alt=""
+                  sx={{ display: 'block', width: '100%', height: '22vh', objectFit: 'cover', background: '#111827' }}
+                />
+              </Box>
+              {/* rating on the card — standardized palette (neutral + blue accent) */}
+              <Box sx={{ p: 1.25, display: 'flex', flexDirection: 'column', gap: 1 }}>
+                <Button
+                  variant="outlined"
+                  size="small"
+                  fullWidth
+                  onClick={() => void rate(0, false)}
+                  sx={{ ...stdBtn, textTransform: 'none' }}
+                >
+                  Not a sunset (N)
+                </Button>
+                <Box sx={{ display: 'flex', gap: 0.75, justifyContent: 'center' }}>
+                  {[1, 2, 3, 4, 5].map((n) => (
+                    <Button key={n} variant="outlined" size="small" onClick={() => void rate(n, true)} sx={{ ...stdBtn, minWidth: 40 }}>
+                      {n}
+                    </Button>
+                  ))}
+                </Box>
+              </Box>
             </Box>
 
-            {/* text outside the card */}
-            <Typography sx={{ textAlign: 'center', mt: 1, fontSize: 15, fontWeight: 600, color: '#f3f4f6' }}>
+            {/* text OUTSIDE the card */}
+            <Typography sx={{ textAlign: 'center', mt: 1, fontSize: 14, fontWeight: 600, color: '#f3f4f6' }}>
               {current.title || 'Untitled'}
               {current.owner ? ` · ${current.owner}` : ''}
             </Typography>
-            <Typography sx={{ textAlign: 'center', fontSize: 13, color: '#cbd5e1', minHeight: 18 }}>
+            <Typography sx={{ textAlign: 'center', fontSize: 12.5, color: '#cbd5e1', minHeight: 16 }}>
               {current.modelDisagreementKind
                 ? WHY[current.modelDisagreementKind] ?? 'Judges disagree on this frame.'
                 : 'Judges disagree on this frame.'}
@@ -347,46 +376,9 @@ export function HardExamplesQueue({
                 {modelText(current)} · {claudeText(current)} (inspect)
               </Typography>
             )}
-
-            {/* one-click rating buttons (older colors) */}
-            <Box sx={{ display: 'flex', gap: 1, justifyContent: 'center', alignItems: 'center', mt: 1.5, flexWrap: 'wrap' }}>
-              <Button
-                variant="outlined"
-                onClick={() => void rate(0, false)}
-                sx={{
-                  color: '#fca5a5',
-                  borderColor: 'rgba(248,113,113,0.6)',
-                  textTransform: 'none',
-                  '&:hover': { borderColor: '#f87171', background: 'rgba(248,113,113,0.12)' },
-                }}
-              >
-                Not a sunset (N)
-              </Button>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, ml: 1 }}>
-                <Typography variant="caption" sx={{ color: '#86efac', fontWeight: 700 }}>
-                  Sunset
-                </Typography>
-                {[1, 2, 3, 4, 5].map((n) => (
-                  <Button
-                    key={n}
-                    variant="outlined"
-                    onClick={() => void rate(n, true)}
-                    sx={{
-                      minWidth: 40,
-                      color: '#fde68a',
-                      borderColor: 'rgba(253,230,138,0.6)',
-                      fontWeight: 700,
-                      '&:hover': { borderColor: '#fcd34d', background: 'rgba(253,230,138,0.12)' },
-                    }}
-                  >
-                    {n}
-                  </Button>
-                ))}
-              </Box>
-            </Box>
-            <Box sx={{ display: 'flex', gap: 1, justifyContent: 'center', mt: 1 }}>
-              <Button size="small" onClick={skip} sx={{ color: '#9ca3af' }}>Skip (␣)</Button>
-              <Button size="small" onClick={() => void undo()} disabled={idx === 0} sx={{ color: '#9ca3af' }}>Undo (z)</Button>
+            <Box sx={{ display: 'flex', gap: 1, justifyContent: 'center', mt: 0.5 }}>
+              <Button size="small" onClick={skip} sx={{ color: '#9ca3af', fontSize: 11 }}>Skip (␣)</Button>
+              <Button size="small" onClick={() => void undo()} disabled={idx === 0} sx={{ color: '#9ca3af', fontSize: 11 }}>Undo (z)</Button>
             </Box>
           </Box>
 
