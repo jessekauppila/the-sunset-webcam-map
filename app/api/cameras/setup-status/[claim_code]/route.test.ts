@@ -167,4 +167,29 @@ describe('GET /api/cameras/setup-status/[claim_code]', () => {
     const body = await res.json();
     expect(body.status).toBe('ready');
   });
+
+  it('reports awaiting_aim when located but not yet aimed', async () => {
+    getClaimCodeMock.mockResolvedValueOnce({
+      code: 'SUNSET-AAAA-BBBB',
+      expires_at: new Date('2099-01-01'),
+      consumed_at: new Date(),
+      consumed_by_camera_id: 17,
+    });
+    sqlMock.mockResolvedValueOnce([
+      {
+        id: 17,
+        hardware_id: 'rpi-real-serial',
+        device_token_hash: 'real-hash-abc',
+        lat: 47.6,
+        lng: -122.3,
+        azimuth_deg: null,
+        tilt_deg: null,
+      },
+    ]);
+    derivePlacementStatusMock.mockReturnValueOnce('awaiting_aim');
+    const res = await GET(makeRequest('SUNSET-AAAA-BBBB'), makeContext('SUNSET-AAAA-BBBB'));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.status).toBe('awaiting_aim');
+  });
 });
