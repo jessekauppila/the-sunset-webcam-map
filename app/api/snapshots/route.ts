@@ -250,6 +250,7 @@ export async function GET(request: Request) {
             w.ai_rating_regression as webcam_ai_rating_regression,
             w.ai_model_version_regression as webcam_ai_model_version_regression,
             s.model_disagreement_kind, s.human_sunset_majority,
+            s.ai_regression_score,
             s.llm_quality, s.llm_is_sunset, s.llm_model, NULL::text as owner,
             ${webcamSortKey} as sort_key
           FROM webcam_snapshots s
@@ -257,7 +258,10 @@ export async function GET(request: Request) {
           WHERE 1=1 ${webcamFilter}
           ORDER BY sort_key DESC
           LIMIT ${fetchN}
-        `) as (SnapshotRow & { sort_key: number | string })[];
+        `) as (SnapshotRow & {
+          sort_key: number | string;
+          ai_regression_score: number | string | null;
+        })[];
 
       const externalRows = sourceFilter === 'webcam' ? [] : (await sql`
           SELECT
@@ -267,18 +271,28 @@ export async function GET(request: Request) {
             0::int as rating_count,
             e.source, e.source_id as external_id, e.title, e.owner,
             e.model_disagreement_kind,
+            e.ai_regression_score,
             e.llm_quality, e.llm_is_sunset, e.llm_model,
             ${externalSortKey} as sort_key
           FROM external_images e
           WHERE e.source = 'flickr' ${externalFilter}
           ORDER BY sort_key DESC
           LIMIT ${fetchN}
-        `) as (SnapshotRow & { sort_key: number | string })[];
+        `) as (SnapshotRow & {
+          sort_key: number | string;
+          ai_regression_score: number | string | null;
+        })[];
 
       const merged = [...webcamRows, ...externalRows]
         .sort((a, b) => Number(b.sort_key) - Number(a.sort_key))
         .slice(offset, offset + limit)
-        .map((row) => ({ ...transformSnapshot(row), provenance: deriveProvenance(row.source ?? 'webcam', row.captured_at ?? null) }));
+        .map((row) => ({
+          ...transformSnapshot(row),
+          provenance: deriveProvenance(row.source ?? 'webcam', row.captured_at ?? null),
+          modelDisagreementKind: row.model_disagreement_kind ?? null,
+          aiRegressionScore:
+            row.ai_regression_score == null ? null : Number(row.ai_regression_score),
+        }));
 
       const webcamCountResult = sourceFilter === 'flickr'
         ? [{ total: 0 }]
