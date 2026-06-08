@@ -21,9 +21,6 @@ type SnapshotQueueCardProps = {
   nextSnapshot?: Snapshot | null;
   archiveTotal?: number;
   archiveRatedTotal?: number;
-  /** Shorter image + trimmed metadata so the card fits dense layouts (e.g. the
-   *  Hard Examples drawer). Default false keeps the full Unrated-Queue card. */
-  compact?: boolean;
 };
 
 function formatLocation(snapshot: Snapshot): string {
@@ -47,7 +44,6 @@ export function SnapshotQueueCard({
   nextSnapshot,
   archiveTotal = 0,
   archiveRatedTotal = 0,
-  compact = false,
 }: SnapshotQueueCardProps) {
   const { verdict, setVerdict, starsEnabled } = useVerdictState(null);
 
@@ -60,7 +56,7 @@ export function SnapshotQueueCard({
     <div className="w-full flex justify-center">
       <div className="w-full max-w-md rounded-md bg-gray-200 text-gray-800 shadow-xl border border-gray-300 overflow-hidden">
         <div className="px-3 pt-3">
-          <div className={`relative ${compact ? 'h-44' : 'h-60'} w-full rounded overflow-hidden`}>
+          <div className="relative h-60 w-full rounded overflow-hidden">
             <Image
               src={snapshot.snapshot.firebaseUrl}
               alt={snapshot.title}
@@ -73,31 +69,28 @@ export function SnapshotQueueCard({
           </div>
         </div>
 
-        <div className={compact ? 'space-y-2 px-4 pt-3 pb-3' : 'space-y-3 px-4 pt-5 pb-4'}>
-          {!compact && (
-            <div className="flex items-center justify-between">
-              <p className="text-xs uppercase tracking-wide text-gray-500">
-                Unrated queue
-              </p>
-              <p className="text-xs text-gray-500">{progressText}</p>
-            </div>
-          )}
+        <div className="space-y-3 px-4 pt-5 pb-4">
+          <div className="flex items-center justify-between">
+            <p className="text-xs uppercase tracking-wide text-gray-500">
+              Unrated queue
+            </p>
+            <p className="text-xs text-gray-500">
+              {progressText}
+            </p>
+          </div>
 
-          <h3 className={compact ? 'text-sm font-semibold text-gray-800 truncate' : 'text-lg font-semibold text-gray-800'}>
+          <h3 className="text-lg font-semibold text-gray-800">
             {snapshot.title}
           </h3>
 
-          {!compact && (
-            <>
-              <p className="text-sm text-gray-600 leading-tight">
-                {formatLocation(snapshot)}
-              </p>
-              <p className="text-xs text-gray-500">
-                {snapshot.snapshot.phase.toUpperCase()} · Captured{' '}
-                {new Date(snapshot.snapshot.capturedAt).toLocaleString()}
-              </p>
-            </>
-          )}
+          <p className="text-sm text-gray-600 leading-tight">
+            {formatLocation(snapshot)}
+          </p>
+
+          <p className="text-xs text-gray-500">
+            {snapshot.snapshot.phase.toUpperCase()} · Captured{' '}
+            {new Date(snapshot.snapshot.capturedAt).toLocaleString()}
+          </p>
 
           <div className="flex flex-col gap-3">
             <VerdictButtons
@@ -168,13 +161,11 @@ export function SnapshotQueueCard({
             </button>
           </div>
 
-          {!compact && (
-            <p className="text-xs text-gray-500">
-              Hotkeys: 1-5 rate · Space skip · Z undo
-            </p>
-          )}
+          <p className="text-xs text-gray-500">
+            Hotkeys: 1-5 rate · Space skip · Z undo
+          </p>
 
-          {!compact && nextSnapshot ? (
+          {nextSnapshot ? (
             <p className="text-xs text-gray-500">
               Next: {nextSnapshot.title}
             </p>
