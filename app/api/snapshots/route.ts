@@ -13,6 +13,7 @@ import type { Snapshot } from '@/app/lib/types';
 import {
   SNAPSHOT_QUEUE_PROGRESS_RATED_SCOPE,
   SNAPSHOT_QUEUE_UNRATED_SCOPE,
+  V4_TRAINING_CUTOFF,
 } from '@/app/lib/masterConfig';
 import { deriveProvenance } from '@/app/lib/provenance';
 
@@ -309,9 +310,40 @@ export async function GET(request: Request) {
         ((webcamCountResult as Array<{ total: number }>)[0]?.total ?? 0) +
         ((externalCountResult as Array<{ total: number }>)[0]?.total ?? 0);
 
+      // Remaining flagged-and-unlabeled, split by provenance, for the queue's
+      // bottom-bar breakdown (Archive·trained / Archive·new / Flickr). Only
+      // meaningful for the disagreement queue, so compute it only then (keeps
+      // the browse/source-filter read paths untouched).
+      let counts = { flickr: 0, archiveTrained: 0, archiveNew: 0 };
+      if (disagreementsOnly) {
+        const provRows = (await sql`
+          SELECT
+            count(*) FILTER (WHERE src = 'flickr')::int AS flickr,
+            count(*) FILTER (WHERE src = 'webcam' AND cap <= ${V4_TRAINING_CUTOFF}::timestamptz)::int AS archive_trained,
+            count(*) FILTER (WHERE src = 'webcam' AND cap >  ${V4_TRAINING_CUTOFF}::timestamptz)::int AS archive_new
+          FROM (
+            SELECT 'flickr' AS src, e.scraped_at AS cap
+            FROM external_images e
+            WHERE e.source = 'flickr' AND e.model_disagreement_kind IS NOT NULL
+              AND e.id NOT IN (SELECT image_id FROM manual_labels WHERE source = 'flickr')
+            UNION ALL
+            SELECT 'webcam' AS src, s.captured_at AS cap
+            FROM webcam_snapshots s
+            WHERE s.model_disagreement_kind IS NOT NULL
+              AND s.id NOT IN (SELECT image_id FROM manual_labels WHERE source = 'webcam')
+          ) q
+        `) as { flickr: number; archive_trained: number; archive_new: number }[];
+        counts = {
+          flickr: provRows[0]?.flickr ?? 0,
+          archiveTrained: provRows[0]?.archive_trained ?? 0,
+          archiveNew: provRows[0]?.archive_new ?? 0,
+        };
+      }
+
       return NextResponse.json({
         snapshots: merged,
         total,
+        counts,
         limit,
         offset,
       });
