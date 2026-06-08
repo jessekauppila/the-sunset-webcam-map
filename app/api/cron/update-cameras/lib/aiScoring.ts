@@ -39,7 +39,7 @@ import {
 import { sha256Hex } from './imageHash';
 import { preprocessJpegToImagenetTensor } from './imagePreprocess';
 
-export type WebcamSource = 'windy' | 'custom';
+export type WebcamSource = 'windy' | 'custom' | 'flickr';
 
 export interface ScoreImageInput {
   webcamId: number;

@@ -607,3 +607,169 @@ export async function updateSnapshotDisagreementsBatch(
   `;
 }
 
+/* -------------------------------------------------------------------------- */
+/* external_images (Flickr) — model-only backfill + recompute (plan U6)        */
+/*                                                                            */
+/* Parallel to the webcam_snapshots functions above, targeting external_images.*/
+/* Deliberately distinct (NOT generalized) because the writers must never sync */
+/* a webcams row — a Flickr image has no webcam. The Claude judge already lives */
+/* in external_images.llm_*; U6 only fills the model columns + disagreement.    */
+/* -------------------------------------------------------------------------- */
+
+export interface ExternalImageNeedingScore {
+  externalImageId: number;
+  imageUrl: string;
+  llmQuality: number | null;
+  llmIsSunset: boolean | null;
+}
+
+/**
+ * Flickr rows that still need a real v4 regression score, ordered by recency,
+ * excluding rows permanently marked `scoring_state='dead-url'`. Reads Claude's
+ * `llm_*` to compute model-vs-Claude during the backfill.
+ */
+export async function findExternalImagesNeedingScore(
+  limit: number,
+): Promise<ExternalImageNeedingScore[]> {
+  const rows = (await sql`
+    select e.id            as external_image_id,
+           e.image_url     as image_url,
+           e.llm_quality   as llm_quality,
+           e.llm_is_sunset as llm_is_sunset
+    from external_images e
+    where e.source = 'flickr'
+      and e.ai_regression_score is null
+      and e.image_url is not null
+      and e.scoring_state is distinct from 'dead-url'
+    order by e.scraped_at desc
+    limit ${limit}
+  `) as {
+    external_image_id: number;
+    image_url: string;
+    llm_quality: number | string | null;
+    llm_is_sunset: boolean | null;
+  }[];
+
+  return rows.map((r) => ({
+    externalImageId: r.external_image_id,
+    imageUrl: r.image_url,
+    llmQuality: r.llm_quality == null ? null : Number(r.llm_quality),
+    llmIsSunset: r.llm_is_sunset,
+  }));
+}
+
+/** Count of Flickr rows still needing a score — for the backfill dry-run. */
+export async function countExternalImagesNeedingScore(): Promise<number> {
+  const rows = (await sql`
+    select count(*)::int as n
+    from external_images e
+    where e.source = 'flickr'
+      and e.ai_regression_score is null
+      and e.image_url is not null
+      and e.scoring_state is distinct from 'dead-url'
+  `) as { n: number }[];
+  return rows[0]?.n ?? 0;
+}
+
+/**
+ * Persist all three judge columns + the disagreement verdict for a backfilled
+ * Flickr image. Mirrors updateSnapshotModelScores but targets external_images
+ * and never syncs a webcams row (none exists for a Flickr image).
+ */
+export async function updateExternalImageModelScores(opts: {
+  externalImageId: number;
+  regressionScore: number;
+  regressionModelVersion: string;
+  binaryScore: number | null;
+  binaryIsSunset: boolean | null;
+  binaryModelVersion: string | null;
+  scoringPath: string;
+  disagreementKind: string | null;
+}): Promise<void> {
+  await sql`
+    update external_images
+    set ai_regression_score = ${opts.regressionScore},
+        ai_model_version_regression = ${opts.regressionModelVersion},
+        ai_binary_score = ${opts.binaryScore},
+        ai_binary_is_sunset = ${opts.binaryIsSunset},
+        ai_model_version_binary = ${opts.binaryModelVersion},
+        scoring_path = ${opts.scoringPath},
+        model_disagreement_kind = ${opts.disagreementKind},
+        disagreement_computed_at = now()
+    where id = ${opts.externalImageId}
+  `;
+}
+
+/** Mark a Flickr image whose URL is permanently unreachable (404 / dead URL). */
+export async function markExternalImageDeadUrl(
+  externalImageId: number,
+): Promise<void> {
+  await sql`
+    update external_images
+    set scoring_state = 'dead-url'
+    where id = ${externalImageId}
+  `;
+}
+
+export interface ExternalImageNeedingRecompute {
+  externalImageId: number;
+  aiRegressionScore: number;
+  binaryIsSunset: boolean | null;
+  llmQuality: number | null;
+  llmIsSunset: boolean | null;
+}
+
+/**
+ * Flickr rows whose model_disagreement_kind was computed before Claude's score
+ * landed (or never computed). Pure recompute — no download/ONNX. external_images
+ * has llm_rated_at, so the predicate mirrors the webcam_snapshots recompute.
+ */
+export async function findExternalImagesNeedingDisagreementRecompute(
+  limit: number,
+): Promise<ExternalImageNeedingRecompute[]> {
+  const rows = (await sql`
+    select e.id                  as external_image_id,
+           e.ai_regression_score as ai_regression_score,
+           e.ai_binary_is_sunset as ai_binary_is_sunset,
+           e.llm_quality         as llm_quality,
+           e.llm_is_sunset       as llm_is_sunset
+    from external_images e
+    where e.ai_regression_score is not null
+      and e.llm_quality is not null
+      and (e.disagreement_computed_at is null
+           or e.disagreement_computed_at < e.llm_rated_at)
+    order by e.llm_rated_at desc nulls last
+    limit ${limit}
+  `) as {
+    external_image_id: number;
+    ai_regression_score: number | string;
+    ai_binary_is_sunset: boolean | null;
+    llm_quality: number | string | null;
+    llm_is_sunset: boolean | null;
+  }[];
+
+  return rows.map((r) => ({
+    externalImageId: r.external_image_id,
+    aiRegressionScore: Number(r.ai_regression_score),
+    binaryIsSunset: r.ai_binary_is_sunset,
+    llmQuality: r.llm_quality == null ? null : Number(r.llm_quality),
+    llmIsSunset: r.llm_is_sunset,
+  }));
+}
+
+/** Batched disagreement write for external_images (one round-trip per page). */
+export async function updateExternalImageDisagreementsBatch(
+  updates: { externalImageId: number; kind: string | null }[],
+): Promise<void> {
+  if (updates.length === 0) return;
+  const ids = updates.map((u) => u.externalImageId);
+  const kinds = updates.map((u) => u.kind);
+  await sql`
+    update external_images e
+    set model_disagreement_kind = v.kind,
+        disagreement_computed_at = now()
+    from unnest(${ids}::int[], ${kinds}::text[]) as v(id, kind)
+    where e.id = v.id
+  `;
+}
+
