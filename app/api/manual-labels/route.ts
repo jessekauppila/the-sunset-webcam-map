@@ -18,7 +18,10 @@ export async function POST(request: Request) {
     if (!SOURCES.includes(source)) {
       return NextResponse.json({ error: 'bad source' }, { status: 400 });
     }
-    if (typeof imageId !== 'number' || !Number.isInteger(imageId)) {
+    // external_images.id is BIGINT → arrives as a string from the driver/client;
+    // coerce so a numeric-string id (Flickr frames) isn't rejected.
+    const imageIdNum = Number(imageId);
+    if (!Number.isInteger(imageIdNum)) {
       return NextResponse.json({ error: 'bad imageId' }, { status: 400 });
     }
     if (typeof isSunset !== 'boolean') {
@@ -27,7 +30,7 @@ export async function POST(request: Request) {
     if (rating != null && (typeof rating !== 'number' || rating < 1 || rating > 5)) {
       return NextResponse.json({ error: 'bad rating' }, { status: 400 });
     }
-    await upsertManualLabel({ source, imageId, isSunset, rating: rating ?? null });
+    await upsertManualLabel({ source, imageId: imageIdNum, isSunset, rating: rating ?? null });
     return NextResponse.json({ ok: true });
   } catch (error) {
     return NextResponse.json(
@@ -42,10 +45,11 @@ export async function DELETE(request: Request) {
   if (denied) return denied;
   try {
     const { source, imageId } = await request.json();
-    if (!SOURCES.includes(source) || typeof imageId !== 'number') {
+    const imageIdNum = Number(imageId);
+    if (!SOURCES.includes(source) || !Number.isInteger(imageIdNum)) {
       return NextResponse.json({ error: 'bad request' }, { status: 400 });
     }
-    await deleteManualLabel(source, imageId);
+    await deleteManualLabel(source, imageIdNum);
     return NextResponse.json({ ok: true });
   } catch (error) {
     return NextResponse.json(

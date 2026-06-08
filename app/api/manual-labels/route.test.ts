@@ -49,6 +49,11 @@ describe('POST /api/manual-labels', () => {
     const res = await POST(post({ source: 'webcam', imageId: 1, isSunset: true, rating: 9 }));
     expect(res.status).toBe(400);
   });
+  it('coerces a numeric-string imageId (Flickr BIGINT arrives as a string)', async () => {
+    const res = await POST(post({ source: 'flickr', imageId: '5709', isSunset: true, rating: 3 }));
+    expect(res.status).toBe(200);
+    expect(upsertMock).toHaveBeenCalledWith({ source: 'flickr', imageId: 5709, isSunset: true, rating: 3 });
+  });
 });
 
 describe('DELETE /api/manual-labels', () => {
