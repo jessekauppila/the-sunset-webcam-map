@@ -14,6 +14,7 @@ import {
   SNAPSHOT_QUEUE_PROGRESS_RATED_SCOPE,
   SNAPSHOT_QUEUE_UNRATED_SCOPE,
 } from '@/app/lib/masterConfig';
+import { deriveProvenance } from '@/app/lib/provenance';
 
 export const dynamic = 'force-dynamic';
 const MAX_EXCLUDE_IDS = 1000;
@@ -198,6 +199,7 @@ export async function GET(request: Request) {
     if (mode === 'verification') {
       const disagreementsOnly =
         searchParams.get('disagreements_only') === 'true';
+      const sourceFilter = searchParams.get('source'); // 'webcam' | 'flickr' | null
       // Over-fetch so the merged result can be paged in JS.
       const fetchN = limit + offset;
 
@@ -224,16 +226,14 @@ export async function GET(request: Request) {
 
       const webcamFilter = disagreementsOnly
         ? sql`AND s.model_disagreement_kind IS NOT NULL
-              AND s.id NOT IN (
-                SELECT snapshot_id FROM webcam_snapshot_ratings
-                WHERE is_sunset_verdict IS NOT NULL
-              )`
-        : sql``;
+              AND s.id NOT IN (SELECT image_id FROM manual_labels WHERE source = 'webcam')`
+        : sql`AND s.id NOT IN (SELECT image_id FROM manual_labels WHERE source = 'webcam')`;
       const externalFilter = disagreementsOnly
-        ? sql`AND e.model_disagreement_kind IS NOT NULL`
-        : sql``;
+        ? sql`AND e.model_disagreement_kind IS NOT NULL
+              AND e.id NOT IN (SELECT image_id FROM manual_labels WHERE source = 'flickr')`
+        : sql`AND e.id NOT IN (SELECT image_id FROM manual_labels WHERE source = 'flickr')`;
 
-      const webcamRows = (await sql`
+      const webcamRows = sourceFilter === 'flickr' ? [] : (await sql`
           SELECT
             s.id as snapshot_id, s.webcam_id, s.phase, s.rank,
             s.initial_rating, s.calculated_rating, s.ai_rating,
@@ -259,7 +259,7 @@ export async function GET(request: Request) {
           LIMIT ${fetchN}
         `) as (SnapshotRow & { sort_key: number | string })[];
 
-      const externalRows = (await sql`
+      const externalRows = sourceFilter === 'webcam' ? [] : (await sql`
           SELECT
             e.id as snapshot_id,
             e.image_url as firebase_url, e.firebase_path,
@@ -278,12 +278,16 @@ export async function GET(request: Request) {
       const merged = [...webcamRows, ...externalRows]
         .sort((a, b) => Number(b.sort_key) - Number(a.sort_key))
         .slice(offset, offset + limit)
-        .map(transformSnapshot);
+        .map((row) => ({ ...transformSnapshot(row), provenance: deriveProvenance(row.source ?? 'webcam', row.captured_at ?? null) }));
 
-      const webcamCountResult = await sql`
+      const webcamCountResult = sourceFilter === 'flickr'
+        ? [{ total: 0 }]
+        : await sql`
           SELECT COUNT(*)::int AS total FROM webcam_snapshots s WHERE 1=1 ${webcamFilter}
         `;
-      const externalCountResult = await sql`
+      const externalCountResult = sourceFilter === 'webcam'
+        ? [{ total: 0 }]
+        : await sql`
           SELECT COUNT(*)::int AS total FROM external_images e
           WHERE e.source = 'flickr' ${externalFilter}
         `;

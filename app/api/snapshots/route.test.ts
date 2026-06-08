@@ -111,10 +111,6 @@ describe('GET /api/snapshots?mode=verification', () => {
       /model_disagreement_kind\s+is\s+not\s+null/i.test(q),
     );
     expect(flagged.length).toBeGreaterThanOrEqual(2);
-    // And it excludes already-verdicted webcam frames.
-    expect(text.some((q) => /is_sunset_verdict\s+is\s+not\s+null/i.test(q))).toBe(
-      true,
-    );
   });
 
   it('browse (no toggle) does NOT filter on disagreement kind', async () => {
@@ -123,5 +119,26 @@ describe('GET /api/snapshots?mode=verification', () => {
     expect(
       text.some((q) => /model_disagreement_kind\s+is\s+not\s+null/i.test(q)),
     ).toBe(false);
+  });
+
+  it('excludes frames already in manual_labels (per leg)', async () => {
+    await GET(req('?mode=verification&disagreements_only=true'));
+    const text = allText();
+    expect(text.some((q) => /not in\s*\(\s*select image_id from manual_labels where source\s*=\s*'webcam'/i.test(q))).toBe(true);
+    expect(text.some((q) => /not in\s*\(\s*select image_id from manual_labels where source\s*=\s*'flickr'/i.test(q))).toBe(true);
+  });
+  it('source=flickr filter queries only the external leg', async () => {
+    await GET(req('?mode=verification&source=flickr'));
+    const text = allText();
+    expect(text.some((q) => /from\s+external_images\s+e/i.test(q))).toBe(true);
+    expect(text.some((q) => /from\s+webcam_snapshots\s+s\b/i.test(q))).toBe(false);
+  });
+  it('attaches a provenance field to each returned snapshot', async () => {
+    sqlMock.mockResolvedValue([
+      { snapshot_id: 1, source: 'flickr', firebase_url: 'x', captured_at: '2026-04-01', snapshot: {} },
+    ]);
+    const res = await GET(req('?mode=verification'));
+    const body = await res.json();
+    expect(body.snapshots[0]).toHaveProperty('provenance');
   });
 });
