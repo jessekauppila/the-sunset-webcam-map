@@ -126,7 +126,7 @@ export function HomeClient({ manifestRuns }: Props) {
           onClose={() => setDrawerOpen(false)}
           PaperProps={{
             sx: {
-              height: '60vh',
+              height: '85vh',
               borderTopLeftRadius: 16,
               borderTopRightRadius: 16,
               backgroundColor: '#1f2937', // gray-800
