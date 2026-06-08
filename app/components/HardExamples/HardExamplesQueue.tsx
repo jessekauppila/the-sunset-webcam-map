@@ -21,10 +21,10 @@ type QueuedSnapshot = Snapshot & {
 };
 
 const BATCH = 120;
-const STEP = 200; // px between filmstrip frames
-const ACTIVE_W = 360; // active frame width
-const SIDE_SCALE = 0.62;
-const WINDOW = 3; // frames rendered each side of the active one
+const STEP = 250; // px between filmstrip frames (> scaled side width → no overlap)
+const ACTIVE_W = 340; // active frame width
+const SIDE_SCALE = 0.5;
+const WINDOW = 2; // frames rendered each side of the active one
 
 const PROVENANCE: Record<Provenance, { label: string; bg: string }> = {
   flickr: { label: 'Flickr', bg: 'rgba(124,58,237,0.9)' },
@@ -216,7 +216,7 @@ export function HardExamplesQueue({
     const rated = offset < 0; // already labeled → reveal the judges
     const showJudges = rated || (!blind && isActive);
     const scale = isActive ? 1 : SIDE_SCALE;
-    const opacity = isActive ? 1 : rated ? 0.4 : 0.7;
+    const opacity = isActive ? 1 : rated ? 0.35 : 0.5;
     const prov = PROVENANCE[s.provenance];
     return (
       <Box
@@ -253,7 +253,7 @@ export function HardExamplesQueue({
             sx={{
               display: 'block',
               width: '100%',
-              maxHeight: '34vh',
+              maxHeight: '24vh',
               objectFit: 'cover',
               background: '#111827',
             }}
@@ -370,7 +370,7 @@ export function HardExamplesQueue({
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '46vh' }}>
-      <Box sx={{ position: 'relative', height: '36vh', overflow: 'hidden', mt: 1 }}>
+      <Box sx={{ position: 'relative', height: '27vh', overflow: 'hidden', mt: 1 }}>
         {loading && snapshots.length === 0 ? (
           <Box sx={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center' }}>
             <CircularProgress size={22} sx={{ color: 'white' }} />
@@ -397,18 +397,23 @@ export function HardExamplesQueue({
               {current.owner ? ` · ${current.owner}` : ''}
             </Typography>
           )}
-          <Box sx={{ display: 'flex', gap: 1, justifyContent: 'center', mt: 1, flexWrap: 'wrap' }}>
+          <Box sx={{ display: 'flex', gap: 1, justifyContent: 'center', alignItems: 'center', mt: 1, flexWrap: 'wrap' }}>
             <Button size="small" variant="outlined" onClick={() => void rate(0, false)}
               sx={{ color: '#fca5a5', borderColor: 'rgba(248,113,113,0.5)' }}>
-              Not sunset (N)
+              Not a sunset (N)
             </Button>
-            {[1, 2, 3, 4, 5].map((n) => (
-              <Button key={n} size="small" variant="outlined" onClick={() => void rate(n, true)}
-                sx={{ minWidth: 36, color: '#fde68a', borderColor: 'rgba(253,230,138,0.5)' }}>
-                {n}
-              </Button>
-            ))}
-            <Button size="small" onClick={skip} sx={{ color: '#9ca3af' }}>Skip (␣)</Button>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, ml: 1 }}>
+              <Typography variant="caption" sx={{ color: '#86efac', fontWeight: 700 }}>
+                Sunset — rate&nbsp;1–5
+              </Typography>
+              {[1, 2, 3, 4, 5].map((n) => (
+                <Button key={n} size="small" variant="outlined" onClick={() => void rate(n, true)}
+                  sx={{ minWidth: 34, color: '#fde68a', borderColor: 'rgba(253,230,138,0.5)' }}>
+                  {n}
+                </Button>
+              ))}
+            </Box>
+            <Button size="small" onClick={skip} sx={{ color: '#9ca3af', ml: 1 }}>Skip (␣)</Button>
             <Button size="small" onClick={() => void undo()} disabled={idx === 0} sx={{ color: '#9ca3af' }}>Undo (z)</Button>
           </Box>
         </Box>
