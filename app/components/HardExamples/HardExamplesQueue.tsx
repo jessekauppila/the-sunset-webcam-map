@@ -10,6 +10,7 @@ import {
   ToggleButtonGroup,
   ToggleButton,
   Button,
+  Alert,
 } from '@mui/material';
 import type { Snapshot } from '@/app/lib/types';
 import type { Provenance } from '@/app/lib/provenance';
@@ -116,6 +117,7 @@ export function HardExamplesQueue({
   const [idx, setIdx] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const loadingRef = useRef(false);
 
   const fetchBatch = useCallback(
@@ -171,17 +173,26 @@ export function HardExamplesQueue({
     async (rating: number, isSunset: boolean) => {
       const s = snapshots[idx];
       if (!s) return;
-      setIdx((i) => i + 1);
-      await fetch('/api/manual-labels', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          source: labelSource(s),
-          imageId: s.snapshot.id,
-          isSunset,
-          rating: isSunset ? rating : null,
-        }),
-      }).catch(() => {});
+      setSaveError(null);
+      setIdx((i) => i + 1); // optimistic advance for fast rating
+      try {
+        const r = await fetch('/api/manual-labels', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            source: labelSource(s),
+            imageId: s.snapshot.id,
+            isSunset,
+            rating: isSunset ? rating : null,
+          }),
+        });
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      } catch (e) {
+        // Never fail silently: the frame wasn't saved, so it stays in the queue.
+        setSaveError(
+          `Couldn't save "${s.title || 'frame'}" (${e instanceof Error ? e.message : 'error'}). It's still in the queue — refresh to revisit it.`,
+        );
+      }
     },
     [snapshots, idx],
   );
@@ -191,12 +202,18 @@ export function HardExamplesQueue({
   const undo = useCallback(async () => {
     const prev = snapshots[idx - 1];
     if (!prev) return;
+    setSaveError(null);
     setIdx((i) => Math.max(0, i - 1));
-    await fetch('/api/manual-labels', {
-      method: 'DELETE',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ source: labelSource(prev), imageId: prev.snapshot.id }),
-    }).catch(() => {});
+    try {
+      const r = await fetch('/api/manual-labels', {
+        method: 'DELETE',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ source: labelSource(prev), imageId: prev.snapshot.id }),
+      });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    } catch (e) {
+      setSaveError(`Undo failed (${e instanceof Error ? e.message : 'error'}).`);
+    }
   }, [snapshots, idx]);
 
   // Hotkeys: 1-5 = sunset + quality, N/0 = not a sunset, space = skip, z = undo.
@@ -304,6 +321,11 @@ export function HardExamplesQueue({
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '46vh' }}>
+      {saveError && (
+        <Alert severity="error" onClose={() => setSaveError(null)} sx={{ mb: 1 }}>
+          {saveError}
+        </Alert>
+      )}
       {loading && snapshots.length === 0 ? (
         <Box sx={{ flex: 1, display: 'grid', placeItems: 'center', minHeight: '36vh' }}>
           <CircularProgress size={22} sx={{ color: 'white' }} />
