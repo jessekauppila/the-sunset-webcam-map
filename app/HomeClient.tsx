@@ -22,7 +22,7 @@ import { ModelAnalysisTab } from './components/ModelAnalysis/ModelAnalysisTab';
 import { AuthControl } from './components/auth/AuthControl';
 import { useIsOperator } from './components/auth/useIsOperator';
 import { LeaderboardTab } from './components/Leaderboard/LeaderboardTab';
-import { VerificationTab } from './components/Verification/VerificationTab';
+import { HardExamplesQueue } from './components/HardExamples/HardExamplesQueue';
 
 interface Props {
   manifestRuns: ManifestEntry[];
@@ -43,7 +43,6 @@ export function HomeClient({ manifestRuns }: Props) {
     { key: 'current', label: 'Current Sunrises/Sunsets', operatorOnly: false },
     { key: 'best', label: '🌅 Best Sunsets', operatorOnly: false },
     { key: 'hard', label: '⚠ Hard Examples', operatorOnly: true },
-    { key: 'verify', label: '🔎 Verification', operatorOnly: true },
     { key: 'archive', label: 'Snapshot Archive', operatorOnly: false },
     { key: 'curated', label: 'Curated', operatorOnly: false },
     { key: 'unrated', label: 'Unrated Queue', operatorOnly: true },
@@ -198,20 +197,8 @@ export function HomeClient({ manifestRuns }: Props) {
               )}
 
               {tabKey === 'hard' && (
-                // Hard Examples — model-disagreement queue
                 <Box>
-                  <SnapshotConsole
-                    mode="hard-examples"
-                    title={'⚠ Hard Examples — confirm or correct the model'}
-                    hotkeysEnabled={drawerOpen}
-                  />
-                </Box>
-              )}
-
-              {tabKey === 'verify' && (
-                // Verification — webcam + Flickr union, disagreements toggle
-                <Box>
-                  <VerificationTab />
+                  <HardExamplesQueue hotkeysEnabled={drawerOpen} />
                 </Box>
               )}
 
