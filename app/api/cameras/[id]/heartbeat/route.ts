@@ -65,13 +65,20 @@ export async function POST(request: Request, context: RouteContext) {
   }
 
   const status = derivePlacementStatus(row);
-  if (status === 'pending') {
+  if (status === 'awaiting_location') {
     return NextResponse.json({
       acknowledged_at: acknowledgedAt,
-      placement_status: 'pending',
+      placement_status: 'awaiting_location',
     });
   }
-
+  if (status === 'awaiting_aim') {
+    return NextResponse.json({
+      acknowledged_at: acknowledgedAt,
+      placement_status: 'awaiting_aim',
+      lat: row.lat,
+      lng: row.lng,
+    });
+  }
   return NextResponse.json({
     acknowledged_at: acknowledgedAt,
     placement_status: 'ready',
