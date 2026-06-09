@@ -5,7 +5,7 @@ import { hashDeviceToken } from '@/app/lib/cameraAuth';
 export const PHASE_VALUES = ['sunrise', 'sunset', 'both'] as const;
 export type PhasePreference = typeof PHASE_VALUES[number];
 
-export type PlacementStatus = 'pending' | 'ready';
+export type PlacementStatus = 'awaiting_location' | 'awaiting_aim' | 'ready';
 
 export type PlacementShape = {
   lat: number | null;
@@ -19,10 +19,8 @@ export function sentinelForClaimCode(claimCode: string): string {
 }
 
 export function derivePlacementStatus(row: PlacementShape): PlacementStatus {
-  if (row.lat == null) return 'pending';
-  if (row.lng == null) return 'pending';
-  if (row.azimuth_deg == null) return 'pending';
-  if (row.tilt_deg == null) return 'pending';
+  if (row.lat == null || row.lng == null) return 'awaiting_location';
+  if (row.azimuth_deg == null || row.tilt_deg == null) return 'awaiting_aim';
   return 'ready';
 }
 

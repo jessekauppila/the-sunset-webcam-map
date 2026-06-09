@@ -42,7 +42,9 @@ export async function GET(_request: Request, context: RouteContext) {
   }
 
   const placement = derivePlacementStatus(row);
-  return NextResponse.json({
-    status: placement === 'ready' ? 'ready' : 'registered',
-  });
+  const status =
+    placement === 'ready' ? 'ready'
+    : placement === 'awaiting_aim' ? 'awaiting_aim'
+    : 'registered'; // awaiting_location: device is up but has no coords yet
+  return NextResponse.json({ status });
 }

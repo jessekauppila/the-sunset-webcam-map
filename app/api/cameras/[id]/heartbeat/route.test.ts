@@ -98,7 +98,7 @@ describe('POST /api/cameras/[id]/heartbeat', () => {
     expect(body.placement).toMatchObject({ azimuth_deg: 270, tilt_deg: 5 });
   });
 
-  it('returns placement_status=pending without placement when not yet ready', async () => {
+  it('returns placement_status=awaiting_location without placement when no lat/lng yet', async () => {
     verifyDeviceTokenMock.mockResolvedValueOnce({ id: 42, status: 'active' });
     sqlMock.mockResolvedValueOnce([
       {
@@ -114,7 +114,7 @@ describe('POST /api/cameras/[id]/heartbeat', () => {
         delivery_preferences: null,
       },
     ]); // UPDATE ... RETURNING
-    derivePlacementStatusMock.mockReturnValueOnce('pending');
+    derivePlacementStatusMock.mockReturnValueOnce('awaiting_location');
 
     const res = await POST(
       makeRequest({
@@ -126,8 +126,27 @@ describe('POST /api/cameras/[id]/heartbeat', () => {
     );
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.placement_status).toBe('pending');
+    expect(body.placement_status).toBe('awaiting_location');
     expect(body.placement).toBeUndefined();
+  });
+
+  it('returns lat/lng with awaiting_aim so the device can aim', async () => {
+    verifyDeviceTokenMock.mockResolvedValueOnce({ id: 42 });
+    sqlMock.mockResolvedValueOnce([
+      { lat: 48.7519, lng: -122.4787, elevation_m: null, timezone: 'America/Los_Angeles',
+        azimuth_deg: null, tilt_deg: null, horizon_altitude_deg: null, horizon_profile: null,
+        phase_preference: 'sunset', delivery_preferences: null },
+    ]);
+    derivePlacementStatusMock.mockReturnValueOnce('awaiting_aim');
+    const res = await POST(
+      makeRequest({ id: '42', bearer: 'good', body: { request_placement: true } }),
+      makeContext('42')
+    );
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.placement_status).toBe('awaiting_aim');
+    expect(json.lat).toBe(48.7519);
+    expect(json.lng).toBe(-122.4787);
   });
 
   it('returns 404 when the camera row vanished between auth and update', async () => {

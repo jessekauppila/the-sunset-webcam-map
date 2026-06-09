@@ -30,7 +30,7 @@ describe('derivePlacementStatus', () => {
     ).toBe('ready');
   });
 
-  it('returns "pending" when lat is null', () => {
+  it('returns "awaiting_location" when lat is null', () => {
     expect(
       derivePlacementStatus({
         lat: null,
@@ -38,10 +38,10 @@ describe('derivePlacementStatus', () => {
         azimuth_deg: 270,
         tilt_deg: 5,
       })
-    ).toBe('pending');
+    ).toBe('awaiting_location');
   });
 
-  it('returns "pending" when azimuth_deg is null', () => {
+  it('returns "awaiting_aim" when azimuth_deg is null', () => {
     expect(
       derivePlacementStatus({
         lat: 47.6,
@@ -49,10 +49,10 @@ describe('derivePlacementStatus', () => {
         azimuth_deg: null,
         tilt_deg: 5,
       })
-    ).toBe('pending');
+    ).toBe('awaiting_aim');
   });
 
-  it('returns "pending" when tilt_deg is null', () => {
+  it('returns "awaiting_aim" when tilt_deg is null', () => {
     expect(
       derivePlacementStatus({
         lat: 47.6,
@@ -60,7 +60,7 @@ describe('derivePlacementStatus', () => {
         azimuth_deg: 270,
         tilt_deg: null,
       })
-    ).toBe('pending');
+    ).toBe('awaiting_aim');
   });
 });
 
@@ -187,5 +187,22 @@ describe('upsertCameraByClaimCode', () => {
 describe('sentinelForClaimCode', () => {
   it('returns the pending-<code> shape', () => {
     expect(sentinelForClaimCode('SUNSET-AAAA-BBBB')).toBe('pending-SUNSET-AAAA-BBBB');
+  });
+});
+
+describe('derivePlacementStatus (three states)', () => {
+  it('awaiting_location when lat or lng missing', () => {
+    expect(derivePlacementStatus({ lat: null, lng: null, azimuth_deg: null, tilt_deg: null }))
+      .toBe('awaiting_location');
+    expect(derivePlacementStatus({ lat: 48.7, lng: null, azimuth_deg: null, tilt_deg: null }))
+      .toBe('awaiting_location');
+  });
+  it('awaiting_aim when located but not aimed', () => {
+    expect(derivePlacementStatus({ lat: 48.7, lng: -122.4, azimuth_deg: null, tilt_deg: null }))
+      .toBe('awaiting_aim');
+  });
+  it('ready when located and aimed', () => {
+    expect(derivePlacementStatus({ lat: 48.7, lng: -122.4, azimuth_deg: 270, tilt_deg: 2 }))
+      .toBe('ready');
   });
 });
