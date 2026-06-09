@@ -73,11 +73,18 @@ So a read-only unit (volatile logs) is still debuggable.
 - **Read-only root:** a provisioning checklist + an **unplug test** — cut power mid-operation ~10×, confirm clean boot each time and that the device re-fetches lat/lng + mode from the cloud.
 - **Log-shipping:** device — the heartbeat payload includes the log blob (test with a fake journal source); cloud — the handler stores and returns the latest blob.
 
-## 6. Open questions
+## 6. Decisions (resolved) + scale tripwires
 
-1. **Confirm the P21 tape length** — design targets 14×75mm; if the on-hand stock is 14×40mm, the layout falls back to QR-only (text on a second label or omitted). (Default 14×75mm.)
-2. **Log storage shape** — `cameras.last_log` column (simplest) vs a `camera_logs` table with rotation (richer history). Lean toward the column first.
-3. **Config persistence** — bake identity at commission + cloud-refetch mutable state (chosen), vs a small writable partition for `/opt/sunset-cam/config`. Lean toward bake + refetch (no extra partition).
+The fleet trajectory is ~a dozen → several hundred → a couple thousand cameras. Each decision picks the simplest thing that's right *now* and records the **tripwire** — the concrete signal that says "revisit this."
+
+1. **Label size: 14×75mm.** The only fixed stock length (options are 14×40 / 14×50 / 14×75mm) with room for a reliably-scannable QR (~12–13mm, constrained by the 14mm tape *width*) **plus** all three human-readable lines (name, URL, claim code). The generator stays parameterized by tape dimensions, so 50/40mm remain available (they degrade to fewer text lines / QR-only). No tripwire — stable.
+
+2. **Log storage: `cameras.last_log` column** (the latest log snapshot per camera). Bounded forever — N cameras = N rows, each overwritten — so it's cheap from a dozen through the low hundreds, and it fully serves the immediate goal ("is this read-only field unit OK?").
+   - **Why not a table now:** raw per-heartbeat logs in Postgres don't scale. At ~2,000 cameras heartbeating every 30s, a row-per-heartbeat table is ≈ **5.7M rows/day** — unbounded growth, indexing pain, and real Neon cost (a known sensitivity). Logs are high-volume / append-only / low-value-per-row, which relational DBs handle badly and expensively.
+   - **Tripwire → move history off the column when** you genuinely need *historical* logs (not just latest) around the **hundreds-of-cameras** mark, OR `last_log` write volume starts showing in Neon cost. Target then: an **external log store** (object storage / a logging service) or a **retention-bounded, error-only `camera_logs` table** (e.g. keep 24–72h, ERROR/WARN only) — never an unbounded table. The column coexists with whichever ("latest" vs "history"), so it's additive, not a migration of the column itself.
+
+3. **Config persistence: bake identity at commission + cloud-refetch mutable state.** Simplest, fully read-only (max corruption safety), and the cloud already owns mutable config (lat/lng, capture window, settings delivered via heartbeat into the RAM overlay). Identity (`device_token`/`camera_id`/`api_base`) is written once at commission while the FS is writable, then locked.
+   - **Tripwire → add a tiny writable config partition when** you need to change a **deployed** unit's persistent identity/config **without re-imaging or an overlay-toggle maintenance window** — concretely, **fleet-wide `device_token` rotation** (a leaked token, or routine rotation hygiene at the thousands mark) or **re-binding** units remotely. Until then, the rare identity change is handled by the overlay-toggle window. Adding the partition later is additive (partition the SD + point `/opt/sunset-cam/config` at it), not a rewrite.
 
 ## 7. Implementation slice order
 
