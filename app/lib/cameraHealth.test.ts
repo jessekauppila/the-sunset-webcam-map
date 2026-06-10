@@ -28,6 +28,28 @@ describe('computeCameraHealth', () => {
     ).toBe('live');
   });
 
+  it('returns "live" for a snapshot taken exactly at window.start (inclusive boundary)', () => {
+    expect(
+      computeCameraHealth({
+        lastSnapshotAt: new Date(window.start),
+        lastHeartbeatAt: null,
+        mostRecentWindow: window,
+        now,
+      })
+    ).toBe('live');
+  });
+
+  it('returns "live" for a snapshot taken after window.end then silent (snapshot-only liveness)', () => {
+    expect(
+      computeCameraHealth({
+        lastSnapshotAt: new Date('2026-06-09T06:00:00Z'), // after window.end (05:00Z), then silent
+        lastHeartbeatAt: null,
+        mostRecentWindow: window,
+        now,
+      })
+    ).toBe('live');
+  });
+
   it('returns "stale" when it sent a heartbeat for the window but no snapshot landed', () => {
     expect(
       computeCameraHealth({
