@@ -2,6 +2,8 @@
  * Core types for the Sunset Webcam Map application
  */
 
+import type { CameraHealth } from './cameraHealth';
+
 export type Orientation =
   | 'N'
   | 'NE'
@@ -119,6 +121,13 @@ export interface WindyWebcam {
   // ISO8601 UTC timestamp of the snapshot whose firebase_url is in
   // images.current.preview. Only set when liveAssetKind === 'custom_snapshot'.
   latestSnapshotCapturedAt?: string;
+
+  // "My Cameras" view only — present for the owner's own custom cameras.
+  // Absent on Windy/terminator webcams, so existing markers are unchanged.
+  cameraHealth?: CameraHealth;
+  isInWindowNow?: boolean;
+  lastSnapshotAt?: string | null;
+  lastHeartbeatAt?: string | null;
 }
 
 export function windyWebcamToLocation(
