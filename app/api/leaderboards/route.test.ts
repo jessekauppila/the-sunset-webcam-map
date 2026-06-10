@@ -92,4 +92,18 @@ describe('GET /api/leaderboards', () => {
     const res = await GET(req());
     expect(res.headers.get('cache-control')).toMatch(/s-maxage=60/);
   });
+
+  it('filters to a single webcam when webcam_id is provided (bound param)', async () => {
+    await GET(req('?webcam_id=42'));
+    const [text, params] = sqlQueryMock.mock.calls[0];
+    expect(text).toMatch(/AND s\.webcam_id = \$2/i);
+    expect(params).toEqual([60, 42]);
+  });
+
+  it('ignores a non-numeric webcam_id and adds no filter', async () => {
+    await GET(req('?webcam_id=abc'));
+    const [text, params] = sqlQueryMock.mock.calls[0];
+    expect(text).not.toMatch(/s\.webcam_id = /i);
+    expect(params).toEqual([60]);
+  });
 });
