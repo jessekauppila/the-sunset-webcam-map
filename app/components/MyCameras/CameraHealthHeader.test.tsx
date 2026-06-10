@@ -34,3 +34,18 @@ describe('CameraHealthHeader', () => {
     expect(screen.getByText('Offline')).toBeInTheDocument();
   });
 });
+
+describe('CameraHealthHeader — View all data link', () => {
+  it('renders a link to the detail page when cameraId is set', () => {
+    render(
+      <CameraHealthHeader webcam={{ ...base, cameraHealth: 'live', cameraId: 7 }} />
+    );
+    const link = screen.getByRole('link', { name: /view all data/i });
+    expect(link).toHaveAttribute('href', '/cameras/7');
+  });
+
+  it('renders no link when cameraId is absent', () => {
+    render(<CameraHealthHeader webcam={{ ...base, cameraHealth: 'live' }} />);
+    expect(screen.queryByRole('link', { name: /view all data/i })).toBeNull();
+  });
+});
