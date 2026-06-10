@@ -1,31 +1,18 @@
 'use client';
 
 import { Box, ToggleButton, ToggleButtonGroup } from '@mui/material';
+import type { ViewMode } from './MainViewContainer';
 
 interface MapMosaicModeToggleProps {
-  mode:
-    | 'map'
-    | 'globe'
-    | 'sunrise-mosaic'
-    | 'sunset-mosaic'
-    | 'rating'
-    | 'swipe'
-    | 'gallery';
-  onModeChange: (
-    mode:
-      | 'map'
-      | 'globe'
-      | 'sunrise-mosaic'
-      | 'sunset-mosaic'
-      | 'rating'
-      | 'swipe'
-      | 'gallery'
-  ) => void;
+  mode: ViewMode;
+  onModeChange: (mode: ViewMode) => void;
+  showMyCameras?: boolean;
 }
 
 export function MapMosaicModeToggle({
   mode,
   onModeChange,
+  showMyCameras = false,
 }: MapMosaicModeToggleProps) {
   return (
     <Box
@@ -74,6 +61,9 @@ export function MapMosaicModeToggle({
         <ToggleButton value="sunset-mosaic">
           Sunset Mosaics
         </ToggleButton>
+        {showMyCameras && (
+          <ToggleButton value="my-cameras">My Cameras</ToggleButton>
+        )}
         {/*<ToggleButton value="rating">Rating</ToggleButton>
         <ToggleButton value="swipe">Swipe</ToggleButton>
         <ToggleButton value="gallery">Gallery</ToggleButton> */}
