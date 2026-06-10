@@ -1,6 +1,6 @@
 // app/lib/cameraHealth.test.ts
 import { describe, it, expect } from 'vitest';
-import { computeCameraHealth, type ExpectedWindow } from './cameraHealth';
+import { computeCameraHealth, type ExpectedWindow, getMostRecentExpectedWindow, isInWindowNow } from './cameraHealth';
 
 const win = (startIso: string, endIso: string): ExpectedWindow => ({
   start: new Date(startIso),
@@ -92,5 +92,54 @@ describe('computeCameraHealth', () => {
         now,
       })
     ).toBe('live');
+  });
+});
+
+describe('getMostRecentExpectedWindow', () => {
+  const midLat = { lat: 40, lng: -74 }; // New York-ish, reliable sun events
+
+  it('returns a window that has already started, with end after start', () => {
+    const now = new Date('2026-06-09T18:00:00Z'); // afternoon UTC
+    const w = getMostRecentExpectedWindow(midLat, 'both', now);
+    expect(w).not.toBeNull();
+    expect(w!.start.getTime()).toBeLessThanOrEqual(now.getTime());
+    expect(w!.end.getTime()).toBeGreaterThan(w!.start.getTime());
+  });
+
+  it('honors phase preference (sunrise window opens in the morning, sunset in the evening)', () => {
+    const now = new Date('2026-06-09T18:00:00Z');
+    const sunrise = getMostRecentExpectedWindow(midLat, 'sunrise', now);
+    const sunset = getMostRecentExpectedWindow(midLat, 'sunset', now);
+    expect(sunrise).not.toBeNull();
+    expect(sunset).not.toBeNull();
+    const utcHour = (d: Date) => d.getUTCHours() + d.getUTCMinutes() / 60;
+    // At lng -74 the sunrise window opens in the morning (UTC), the sunset
+    // window in the evening (UTC) — true regardless of which calendar day
+    // each "most recent" window falls on.
+    expect(utcHour(sunrise!.start)).toBeLessThan(12);
+    expect(utcHour(sunset!.start)).toBeGreaterThan(12);
+  });
+
+  it('returns null at a polar latitude where no window can be derived', () => {
+    // Midsummer high Arctic: sun never crosses the dawn/dusk thresholds.
+    const now = new Date('2026-06-21T12:00:00Z');
+    expect(getMostRecentExpectedWindow({ lat: 89, lng: 0 }, 'both', now)).toBeNull();
+  });
+});
+
+describe('isInWindowNow', () => {
+  it('is false for a null window', () => {
+    expect(isInWindowNow(null, new Date())).toBe(false);
+  });
+
+  it('is true only when now is between start and end', () => {
+    const w = { start: new Date('2026-06-09T03:00:00Z'), end: new Date('2026-06-09T05:00:00Z') };
+    expect(isInWindowNow(w, new Date('2026-06-09T04:00:00Z'))).toBe(true);
+    expect(isInWindowNow(w, new Date('2026-06-09T06:00:00Z'))).toBe(false);
+  });
+
+  it('treats the window end as inclusive', () => {
+    const w = { start: new Date('2026-06-09T03:00:00Z'), end: new Date('2026-06-09T05:00:00Z') };
+    expect(isInWindowNow(w, new Date('2026-06-09T05:00:00Z'))).toBe(true);
   });
 });
