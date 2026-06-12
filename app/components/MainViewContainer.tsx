@@ -6,6 +6,7 @@ import { RatingPanel } from './Rating/RatingPanel';
 import { MosaicCanvas } from './MosaicCanvas';
 import { useTerminatorStore } from '@/app/store/useTerminatorStore';
 import { SwipeSnapshotGallery } from './SwipeSnapshotGallery';
+import { MyCamerasView } from './MyCameras/MyCamerasView';
 import type { Location } from '../lib/types';
 
 export type ViewMode =
@@ -15,7 +16,8 @@ export type ViewMode =
   | 'sunset-mosaic'
   | 'rating'
   | 'swipe'
-  | 'gallery';
+  | 'gallery'
+  | 'my-cameras';
 
 interface MainViewContainerProps {
   userLocation: Location;
@@ -88,6 +90,9 @@ export default function MainViewContainer({
     case 'map':
     case 'globe':
       return <SimpleMap userLocation={userLocation} mode={mode} />;
+
+    case 'my-cameras':
+      return <MyCamerasView userLocation={userLocation} />;
 
     case 'rating':
       return (

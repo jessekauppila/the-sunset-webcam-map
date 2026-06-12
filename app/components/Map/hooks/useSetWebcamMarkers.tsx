@@ -9,6 +9,8 @@ import {
   captureAndRateWebcam,
   type CaptureAndRateResponse,
 } from '@/app/lib/snapshots';
+import { healthVisual } from '@/app/components/Map/cameraHealthVisual';
+import { CameraHealthHeader } from '@/app/components/MyCameras/CameraHealthHeader';
 
 type MarkerEntry = {
   marker: mapboxgl.Marker;
@@ -24,6 +26,12 @@ type UseSetWebcamMarkersOptions = {
   activeWebcamId?: number | null;
   onAdvance?: () => void;
   onPopupStateChange?: (isOpen: boolean) => void;
+  /**
+   * Fly to + open this marker's popup. The effect re-runs only when the VALUE
+   * changes, so consumers that want to re-focus the same camera after the popup
+   * was closed must reset this to null first, then set the id again.
+   */
+  focusWebcamId?: number | null;
 };
 
 type FeedbackTone = RateResult['tone'];
@@ -41,6 +49,7 @@ function createMarkerElement(webcam: WindyWebcam) {
     align-items: center;
     justify-content: center;
     pointer-events: auto;
+    position: relative;
   `;
 
   const inner = document.createElement('div');
@@ -72,11 +81,42 @@ function createMarkerElement(webcam: WindyWebcam) {
       object-fit: cover;
     `;
     inner.appendChild(img);
+  } else if (webcam.cameraHealth === 'never') {
+    inner.textContent = '🛰️';
   } else {
     inner.textContent = '🌅';
   }
 
   wrapper.appendChild(inner);
+
+  // "My Cameras" health ring + corner badge (absent for Windy webcams).
+  if (webcam.cameraHealth) {
+    const visual = healthVisual(webcam.cameraHealth);
+    inner.style.boxShadow = `0 0 0 3px ${visual.color}, 0 0 14px ${visual.color}`;
+    inner.style.border = `1px solid ${visual.color}`;
+
+    const badge = document.createElement('div');
+    badge.className = 'webcam-marker-badge';
+    badge.textContent = visual.badge;
+    badge.style.cssText = `
+      position: absolute;
+      bottom: -2px;
+      right: -2px;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: ${visual.color};
+      color: #0d1016;
+      font-size: 11px;
+      font-weight: 900;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 2px solid #11151c;
+    `;
+    wrapper.appendChild(badge);
+  }
+
   return wrapper;
 }
 
@@ -314,14 +354,17 @@ export function useSetWebcamMarkers(
 
         entry.render = (cam: WindyWebcam) => {
           root.render(
-            <RatingCard
-              webcam={cam}
-              initialRating={entry.latestRating ?? cam.rating ?? null}
-              onRate={async () => {
-                /* no-op; map popup is read-only */
-              }}
-              readOnly={true}
-            />
+            <>
+              <CameraHealthHeader webcam={cam} />
+              <RatingCard
+                webcam={cam}
+                initialRating={entry.latestRating ?? cam.rating ?? null}
+                onRate={async () => {
+                  /* no-op; map popup is read-only */
+                }}
+                readOnly={true}
+              />
+            </>
           );
         };
 
@@ -358,6 +401,23 @@ export function useSetWebcamMarkers(
     entry.popup.addTo(map);
     pendingAutoOpenRef.current = false;
   }, [map, mapLoaded, options?.activeWebcamId]);
+
+  // Fly to + open a specific marker when the consumer sets focusWebcamId
+  // (used by the My Cameras list when a row is clicked).
+  useEffect(() => {
+    if (!map || !mapLoaded) return;
+    const focusId = options?.focusWebcamId ?? null;
+    if (focusId == null) return;
+    const entry = markersRef.current.get(focusId);
+    if (!entry) return; // marker not built yet (data not loaded) — silently no-op; no retry
+    const lngLat = entry.marker.getLngLat();
+    map.flyTo({
+      center: [lngLat.lng, lngLat.lat],
+      zoom: Math.max(map.getZoom(), 3),
+      duration: 1200,
+    });
+    entry.popup.addTo(map);
+  }, [map, mapLoaded, options?.focusWebcamId]);
 
   useEffect(() => {
     const markers = markersRef.current;

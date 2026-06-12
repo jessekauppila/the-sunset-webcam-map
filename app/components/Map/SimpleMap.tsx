@@ -14,7 +14,7 @@ const GlobeMap = dynamic(() => import('./GlobeMap'), {
   loading: () => <div>Loading 3D Globe...</div>,
 });
 
-//import type { WindyWebcam } from '../../lib/types';
+import type { WindyWebcam } from '../../lib/types';
 import { useTerminatorStore } from '@/app/store/useTerminatorStore';
 import {
   TERMINATOR_PRECISION_DEG,
@@ -23,12 +23,16 @@ import {
 
 interface SimpleMapProps {
   userLocation: Location;
-  mode: 'map' | 'globe';
+  mode: 'map' | 'globe' | 'my-cameras';
+  cameraWebcams?: WindyWebcam[];
+  focusWebcamId?: number | null;
 }
 
 export default function SimpleMap({
   userLocation,
   mode,
+  cameraWebcams,
+  focusWebcamId,
 }: SimpleMapProps) {
   const [currentTime, setCurrentTime] = useState(new Date());
 
@@ -48,6 +52,9 @@ export default function SimpleMap({
   //this brings in the Zustand "state" store
   const allTerminatorWebcams = useTerminatorStore((t) => t.combined);
 
+  const isMyCameras = mode === 'my-cameras';
+  const markerWebcams = isMyCameras ? cameraWebcams ?? [] : allTerminatorWebcams;
+
   useUpdateTerminatorRing(map, mapLoaded, currentTime, {
     attachToMap: true,
     showSearchRadius: false, // Enable search radius visualization
@@ -61,10 +68,10 @@ export default function SimpleMap({
     next: goToNextWebcam,
     resume: resumeWebcamCycling,
     pause: pauseWebcamCycling,
-  } = useCyclingWebcams(allTerminatorWebcams, {
+  } = useCyclingWebcams(markerWebcams, {
     startIndex: 0,
     intervalMs: 3000,
-    autoStart: true,
+    autoStart: !isMyCameras,
   });
 
   // Track if user has interacted with the map (works for both mapbox and globe)
@@ -91,20 +98,25 @@ export default function SimpleMap({
     nextLatitudeNorthSunsetWebCam,
   );
 
-  useSetWebcamMarkers(map, mapLoaded, allTerminatorWebcams, {
+  useSetWebcamMarkers(map, mapLoaded, markerWebcams, {
     activeWebcamId: nextLatitudeNorthSunsetWebCam?.webcamId ?? null,
-    onAdvance: () => {
-      resetInteractionPause();
-      resumeWebcamCycling();
-      goToNextWebcam();
-    },
-    onPopupStateChange: (isOpen: boolean) => {
-      if (isOpen) {
-        pauseWebcamCycling();
-      } else {
-        resumeWebcamCycling();
-      }
-    },
+    focusWebcamId: focusWebcamId ?? null,
+    onAdvance: isMyCameras
+      ? undefined
+      : () => {
+          resetInteractionPause();
+          resumeWebcamCycling();
+          goToNextWebcam();
+        },
+    onPopupStateChange: isMyCameras
+      ? undefined
+      : (isOpen: boolean) => {
+          if (isOpen) {
+            pauseWebcamCycling();
+          } else {
+            resumeWebcamCycling();
+          }
+        },
   });
 
   return (
@@ -117,7 +129,7 @@ export default function SimpleMap({
             className="w-full h-full"
             style={{ position: 'relative', zIndex: 1 }}
           />
-          {mode === 'globe' && (
+          {(mode === 'globe' || mode === 'my-cameras') && (
             <GlobeMap
               map={map}
               mapLoaded={mapLoaded}
