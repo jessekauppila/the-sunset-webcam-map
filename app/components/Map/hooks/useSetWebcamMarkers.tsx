@@ -38,9 +38,14 @@ type FeedbackTone = RateResult['tone'];
 
 const SNACKBAR_ID = 'webcam-rating-snackbar';
 
-function createMarkerElement(webcam: WindyWebcam) {
+export function createMarkerElement(webcam: WindyWebcam) {
   const wrapper = document.createElement('div');
   wrapper.className = 'webcam-marker';
+  // Do NOT set `position` here. Mapbox positions the marker element via
+  // `.mapboxgl-marker { position: absolute }` + a transform; an inline position
+  // overrides that and drops every marker into normal flow (stacked off-globe).
+  // The health badge below still anchors to this wrapper because Mapbox's
+  // absolute (and its transform) make it the badge's containing block.
   wrapper.style.cssText = `
     width: 60px;
     height: 60px;
@@ -49,7 +54,6 @@ function createMarkerElement(webcam: WindyWebcam) {
     align-items: center;
     justify-content: center;
     pointer-events: auto;
-    position: relative;
   `;
 
   const inner = document.createElement('div');
