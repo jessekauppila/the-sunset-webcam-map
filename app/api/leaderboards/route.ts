@@ -74,6 +74,16 @@ export async function GET(request: Request) {
 
     const windowSql = WINDOW_SQL[window];
 
+    // Optional single-webcam filter (per-camera detail page). Bound param, never
+    // interpolated. Ignored when absent or non-numeric.
+    const webcamIdRaw = searchParams.get('webcam_id');
+    const webcamId =
+      webcamIdRaw !== null && /^\d+$/.test(webcamIdRaw)
+        ? parseInt(webcamIdRaw, 10)
+        : null;
+    const webcamFilter = webcamId !== null ? 'AND s.webcam_id = $2' : '';
+    const params: number[] = webcamId !== null ? [limit, webcamId] : [limit];
+
     // Explicit column allow-list — never expose user_session_id / device_token_hash.
     const cols = `
       s.id,
@@ -103,6 +113,7 @@ export async function GET(request: Request) {
         OR (s.llm_quality IS NULL AND s.ai_regression_score IS NOT NULL AND s.ai_regression_score >= ${MODEL_SUNSET_MIN})
       )
       ${windowSql}
+      ${webcamFilter}
     `;
     // Unified [0,1] rank key: Claude when present, else the real model score.
     const rankKey = 'COALESCE(s.llm_quality, s.ai_regression_score)';
@@ -125,7 +136,7 @@ export async function GET(request: Request) {
       `;
     }
 
-    const rows = (await sql.query(queryText, [limit])) as LeaderboardEntry[];
+    const rows = (await sql.query(queryText, params)) as LeaderboardEntry[];
 
     return NextResponse.json(
       { grouping, window, count: rows.length, entries: rows },

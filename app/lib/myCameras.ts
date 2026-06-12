@@ -19,6 +19,7 @@ export function myCameraToWindyWebcam(cam: MyCameraMarker): WindyWebcam {
     categories: [],
     phase: cam.phase === 'both' ? undefined : cam.phase,
     cameraHealth: cam.health,
+    cameraId: cam.cameraId,
     isInWindowNow: cam.isInWindowNow,
     lastSnapshotAt: cam.lastSnapshotAt,
     lastHeartbeatAt: cam.lastHeartbeatAt,

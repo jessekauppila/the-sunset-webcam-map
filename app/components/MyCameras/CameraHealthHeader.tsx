@@ -50,6 +50,14 @@ export function CameraHealthHeader({ webcam }: { webcam: WindyWebcam }) {
         Snapshot {relativeTime(webcam.lastSnapshotAt)} · heartbeat{' '}
         {relativeTime(webcam.lastHeartbeatAt)}
       </div>
+      {webcam.cameraId != null && (
+        <a
+          href={`/cameras/${webcam.cameraId}`}
+          style={{ fontSize: 11, color: '#60a5fa', marginTop: 4 }}
+        >
+          View all data →
+        </a>
+      )}
     </div>
   );
 }

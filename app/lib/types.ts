@@ -128,6 +128,7 @@ export interface WindyWebcam {
   isInWindowNow?: boolean;
   lastSnapshotAt?: string | null;
   lastHeartbeatAt?: string | null;
+  cameraId?: number;
 }
 
 export function windyWebcamToLocation(
