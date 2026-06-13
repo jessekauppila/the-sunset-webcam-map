@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { initialWizardState, STEPS, type WizardState, type Step } from './types';
 import { solveBracket } from '@/app/lib/bracket';
+import WizardEntry from './steps/WizardEntry';
 import ConfirmCamera from './steps/ConfirmCamera';
 import FacingPhase from './steps/FacingPhase';
 import MeasureWindow from './steps/MeasureWindow';
@@ -14,8 +15,22 @@ import DeliveryPlaceholder from './steps/DeliveryPlaceholder';
 import SubmitStep from './steps/SubmitStep';
 
 export default function WizardClient({ claimCode }: { claimCode: string }) {
+  // State-aware entry (Task 22): gate the flow until we know whether this is a
+  // fresh commission or an already-placed camera. `entered` flips once the entry
+  // routes us in (fresh → 'connect'; re-aim → skip the E-gate, start at facing).
+  const [entered, setEntered] = useState(false);
   const [step, setStep] = useState<Step>('connect');
   const [state, setState] = useState<WizardState>(initialWizardState);
+
+  const onCommission = useCallback(() => {
+    setStep('connect');
+    setEntered(true);
+  }, []);
+  const onReaim = useCallback(() => {
+    // Already connected + placed: skip Connect (the E-gate) and re-run the bracket flow.
+    setStep('facing-phase');
+    setEntered(true);
+  }, []);
 
   const update = (patch: Partial<WizardState>) => setState((s) => ({ ...s, ...patch }));
   const goNext = () => {
@@ -26,6 +41,19 @@ export default function WizardClient({ claimCode }: { claimCode: string }) {
     const idx = STEPS.indexOf(step);
     if (idx > 0) setStep(STEPS[idx - 1]);
   };
+
+  if (!entered) {
+    return (
+      <main className="mx-auto flex min-h-screen max-w-md flex-col bg-black px-4 py-6 text-white">
+        <header className="mb-4 text-xs uppercase tracking-wider text-neutral-400">
+          Camera setup
+        </header>
+        <section className="flex flex-1 flex-col">
+          <WizardEntry claimCode={claimCode} onCommission={onCommission} onReaim={onReaim} />
+        </section>
+      </main>
+    );
+  }
 
   return (
     <main className="mx-auto flex min-h-screen max-w-md flex-col bg-black px-4 py-6 text-white">
