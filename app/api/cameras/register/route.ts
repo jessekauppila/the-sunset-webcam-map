@@ -31,6 +31,9 @@ type ExistingCameraRow = {
   horizon_profile: unknown;
   phase_preference: string;
   delivery_preferences: unknown;
+  azimuth_source: string | null;
+  coarse: boolean | null;
+  bracket: unknown;
 };
 
 export async function POST(request: Request) {
@@ -69,7 +72,8 @@ export async function POST(request: Request) {
     const existingRows = (await sql`
       SELECT id, lat, lng, elevation_m, timezone,
              azimuth_deg, tilt_deg, horizon_altitude_deg, horizon_profile,
-             phase_preference, delivery_preferences
+             phase_preference, delivery_preferences,
+             azimuth_source, coarse, bracket
       FROM cameras WHERE claim_code = ${claimCode} LIMIT 1
     `) as ExistingCameraRow[];
 
@@ -113,11 +117,16 @@ export async function POST(request: Request) {
         VALUES (
           ${hardwareId}, ${hash}, ${claimCode},
           ${firmwareVersion}, ${capabilities}::jsonb,
+          -- phase_preference is NOT NULL; 'both' is a benign transient here —
+          -- pre-register overwrites it with sunrise|sunset before the device
+          -- reaches ACTIVE (contract D-8). A bracket install never goes ACTIVE
+          -- with phase='both'. (Fix 8's NULL default would need a nullable column.)
           'both'
         )
         RETURNING id, lat, lng, elevation_m, timezone,
                   azimuth_deg, tilt_deg, horizon_altitude_deg, horizon_profile,
-                  phase_preference, delivery_preferences
+                  phase_preference, delivery_preferences,
+                  azimuth_source, coarse, bracket
       `) as ExistingCameraRow[];
       cameraId = inserted[0].id;
       placementRow = inserted[0];
@@ -152,6 +161,9 @@ export async function POST(request: Request) {
         horizon_profile: placementRow.horizon_profile,
         phase_preference: placementRow.phase_preference,
         delivery_preferences: placementRow.delivery_preferences,
+        azimuth_source: placementRow.azimuth_source,
+        coarse: placementRow.coarse,
+        bracket: placementRow.bracket,
       };
     }
     return NextResponse.json(responseBody);

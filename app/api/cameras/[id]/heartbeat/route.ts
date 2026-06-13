@@ -23,6 +23,9 @@ type PlacementRow = {
   horizon_profile: unknown;
   phase_preference: string;
   delivery_preferences: unknown;
+  azimuth_source: string | null;
+  coarse: boolean | null;
+  bracket: unknown;
 };
 
 export async function POST(request: Request, context: RouteContext) {
@@ -49,7 +52,8 @@ export async function POST(request: Request, context: RouteContext) {
     WHERE id = ${cameraId}
     RETURNING lat, lng, elevation_m, timezone,
               azimuth_deg, tilt_deg, horizon_altitude_deg, horizon_profile,
-              phase_preference, delivery_preferences
+              phase_preference, delivery_preferences,
+              azimuth_source, coarse, bracket
   `) as PlacementRow[];
 
   const row = rows[0];
@@ -93,6 +97,9 @@ export async function POST(request: Request, context: RouteContext) {
       horizon_profile: row.horizon_profile,
       phase_preference: row.phase_preference,
       delivery_preferences: row.delivery_preferences,
+      azimuth_source: row.azimuth_source,
+      coarse: row.coarse,
+      bracket: row.bracket,
     },
   });
 }

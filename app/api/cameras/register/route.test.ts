@@ -192,4 +192,31 @@ describe('POST /api/cameras/register', () => {
     const res = await POST(makeRequest(REGISTER_BODY));
     expect(res.status).toBe(500);
   });
+
+  it('includes bracket fields in the ready placement block (pre-register-first)', async () => {
+    getClaimCodeMock.mockResolvedValueOnce({
+      code: 'SUNSET-AAAA-BBBB', expires_at: new Date('2099-01-01'),
+      consumed_at: null, consumed_by_camera_id: null,
+    });
+    sqlMock.mockResolvedValueOnce([
+      {
+        id: 17, lat: 47.6, lng: -122.3, elevation_m: 30, timezone: 'America/Los_Angeles',
+        azimuth_deg: 272, tilt_deg: 0, horizon_altitude_deg: 0, horizon_profile: null,
+        phase_preference: 'sunset', delivery_preferences: null,
+        azimuth_source: 'bracket', coarse: true,
+        bracket: { wedge_angle_deg: 5, lens: 'wide_120' },
+      },
+    ]);
+    sqlMock.mockResolvedValueOnce([{ id: 17 }]); // UPDATE device fields
+    consumeClaimCodeMock.mockResolvedValueOnce({ consumed_by_camera_id: 17 });
+    derivePlacementStatusMock.mockReturnValueOnce('ready');
+
+    const res = await POST(makeRequest(REGISTER_BODY));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.placement_status).toBe('ready');
+    expect(body.placement.azimuth_source).toBe('bracket');
+    expect(body.placement.coarse).toBe(true);
+    expect(body.placement.bracket).toEqual({ wedge_angle_deg: 5, lens: 'wide_120' });
+  });
 });
