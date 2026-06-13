@@ -97,3 +97,63 @@ describe('solveBracket', () => {
     expect(dead.offsetSide).toBeNull();
   });
 });
+
+import { buildPreRegisterPayload } from './bracket';
+
+describe('buildPreRegisterPayload', () => {
+  const sol = solveBracket({ lat: 48.75, year: 2026, facing: 'west', windowMagAz: 262, declinationDeg: 15.3 });
+
+  const payload = buildPreRegisterPayload({
+    claimCode: 'SUNSET-7K3M-9XQ2',
+    lat: 47.6062, lng: -122.3321, elevationM: 30, timezone: 'America/Los_Angeles',
+    facing: 'west', solution: sol, declinationDeg: 15.3, delivery: null,
+  });
+
+  it('carries the realized coarse aim as azimuth_deg', () => {
+    expect(payload.placement.azimuth_deg).toBeCloseTo(sol.aimAz, 5);
+  });
+
+  it('pins v1 invariants: tilt 0, horizon flat, profile null', () => {
+    expect(payload.placement.tilt_deg).toBe(0);
+    expect(payload.placement.horizon_altitude_deg).toBe(0);
+    expect(payload.placement.horizon_profile).toBeNull();
+  });
+
+  it('sets the bracket-source signals required for sun self-refine (I-5)', () => {
+    expect(payload.placement.azimuth_source).toBe('bracket');
+    expect(payload.placement.coarse).toBe(true);
+  });
+
+  it('maps the lens to the wire enum', () => {
+    expect(payload.placement.bracket.lens).toBe('wide_120');
+  });
+
+  it('carries full bracket provenance', () => {
+    const b = payload.placement.bracket;
+    expect(b.window_normal_az_true).toBeCloseTo(sol.normalTrue, 5);
+    expect(b.window_azimuth_offset_deg).toBeCloseTo(Math.abs(sol.offset), 1);
+    expect(b.window_offset_side).toBe('south');
+    expect(b.wedge_angle_deg).toBe(5);
+    expect(b.flip_direction).toBe('south');
+    expect(b.residual_aim_error_deg).toBeCloseTo(Math.abs(sol.residual), 1);
+    expect(b.material_thickness_mm).toBe(3.0);
+  });
+
+  it('phase preference is the single-aimed facing (sunset for west), never both (D-8)', () => {
+    expect(payload.operator_preferences.phase_preference).toBe('sunset');
+  });
+
+  it('delivery is null when skipped', () => {
+    expect(payload.operator_preferences.delivery).toBeNull();
+  });
+
+  it('flip_direction is null for a dead-on 0deg window', () => {
+    const dead = solveBracket({ lat: 48.75, year: 2026, facing: 'west', windowMagAz: 254.7, declinationDeg: 15.3 });
+    const p = buildPreRegisterPayload({
+      claimCode: 'SUNSET-7K3M-9XQ2', lat: 1, lng: 2, elevationM: null,
+      timezone: 'UTC', facing: 'west', solution: dead, declinationDeg: 15.3, delivery: null,
+    });
+    expect(p.placement.bracket.flip_direction).toBeNull();
+    expect(p.placement.bracket.window_offset_side).toBeNull();
+  });
+});

@@ -97,3 +97,86 @@ export function solveBracket(args: {
   return { arc, lens, hfov, normalTrue, targetAz, wedge, angle, sign,
            signedWedge, residual, aimAz, offset, offsetSide, poorFit };
 }
+
+export type WireLens = 'wide_120' | 'standard_66';
+export type OffsetSide = 'north' | 'south';
+
+export interface BracketProvenance {
+  window_normal_az_true: number;
+  window_azimuth_offset_deg: number;
+  window_offset_side: OffsetSide | null;
+  wedge_angle_deg: number;
+  flip_direction: OffsetSide | null; // null at 0deg (flat, symmetric)
+  residual_aim_error_deg: number;
+  lens: WireLens;
+  material_thickness_mm: number;
+}
+
+export interface PreRegisterPayload {
+  claim_code: string;
+  lat: number;
+  lng: number;
+  elevation_m: number | null;
+  timezone: string;
+  placement: {
+    azimuth_deg: number;
+    tilt_deg: 0;
+    horizon_altitude_deg: 0;
+    horizon_profile: null;
+    azimuth_source: 'bracket';
+    coarse: true;
+    bracket: BracketProvenance;
+  };
+  operator_preferences: {
+    phase_preference: 'sunrise' | 'sunset';
+    delivery: unknown;
+  };
+}
+
+const wireLens = (l: Lens): WireLens => (l === 'wide' ? 'wide_120' : 'standard_66');
+
+/** Build the exact §4.2 pre-register payload from a solved bracket. */
+export function buildPreRegisterPayload(args: {
+  claimCode: string;
+  lat: number;
+  lng: number;
+  elevationM: number | null;
+  timezone: string;
+  facing: Facing;
+  solution: BracketSolution;
+  declinationDeg: number;
+  delivery: unknown;
+}): PreRegisterPayload {
+  const { claimCode, lat, lng, elevationM, timezone, facing, solution, delivery } = args;
+  return {
+    claim_code: claimCode,
+    lat,
+    lng,
+    elevation_m: elevationM,
+    timezone,
+    placement: {
+      azimuth_deg: solution.aimAz,
+      tilt_deg: 0,
+      horizon_altitude_deg: 0,
+      horizon_profile: null,
+      azimuth_source: 'bracket',
+      coarse: true,
+      bracket: {
+        window_normal_az_true: solution.normalTrue,
+        window_azimuth_offset_deg: +Math.abs(solution.offset).toFixed(1),
+        window_offset_side: solution.offsetSide,
+        wedge_angle_deg: solution.angle,
+        flip_direction: solution.offsetSide,
+        residual_aim_error_deg: +Math.abs(solution.residual).toFixed(1),
+        lens: wireLens(solution.lens),
+        // Fixed v1 case thickness from the part spec (contract §4.2). When the
+        // bracket part spec is parameterized, source this from there instead.
+        material_thickness_mm: 3.0,
+      },
+    },
+    operator_preferences: {
+      phase_preference: facing === 'east' ? 'sunrise' : 'sunset',
+      delivery,
+    },
+  };
+}
