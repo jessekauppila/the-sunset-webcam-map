@@ -149,6 +149,48 @@ describe('POST /api/cameras/[id]/heartbeat', () => {
     expect(json.lng).toBe(-122.4787);
   });
 
+  it('surfaces a wipe_wifi directive (and the flag was consumed) when relocation was requested', async () => {
+    verifyDeviceTokenMock.mockResolvedValueOnce({ id: 42, status: 'decommissioned' });
+    sqlMock.mockResolvedValueOnce([
+      {
+        lat: 47.6, lng: -122.3, elevation_m: 30, timezone: 'UTC',
+        azimuth_deg: 270, tilt_deg: 5, horizon_altitude_deg: 2.5,
+        horizon_profile: null, phase_preference: 'sunset', delivery_preferences: null,
+        azimuth_source: null, coarse: null, bracket: null,
+        wifi_wipe_was_requested: true,
+      },
+    ]); // UPDATE ... RETURNING (CTE captured the pre-reset value)
+    const res = await POST(
+      makeRequest({ id: '42', bearer: 'good', body: { uptime_s: 600 } }),
+      makeContext('42')
+    );
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.directives).toEqual(['wipe_wifi']);
+    // The UPDATE must reset the flag so the directive fires only once.
+    expect(sqlMock.mock.calls[0][0].join('')).toContain('wifi_wipe_requested = FALSE');
+  });
+
+  it('omits directives when no relocation was requested', async () => {
+    verifyDeviceTokenMock.mockResolvedValueOnce({ id: 42, status: 'active' });
+    sqlMock.mockResolvedValueOnce([
+      {
+        lat: 47.6, lng: -122.3, elevation_m: 30, timezone: 'UTC',
+        azimuth_deg: 270, tilt_deg: 5, horizon_altitude_deg: 2.5,
+        horizon_profile: null, phase_preference: 'sunset', delivery_preferences: null,
+        azimuth_source: null, coarse: null, bracket: null,
+        wifi_wipe_was_requested: false,
+      },
+    ]);
+    const res = await POST(
+      makeRequest({ id: '42', bearer: 'good', body: { uptime_s: 600 } }),
+      makeContext('42')
+    );
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.directives).toBeUndefined();
+  });
+
   it('returns 404 when the camera row vanished between auth and update', async () => {
     verifyDeviceTokenMock.mockResolvedValueOnce({ id: 42, status: 'active' });
     sqlMock.mockResolvedValueOnce([]); // UPDATE ... RETURNING — 0 rows
