@@ -75,9 +75,17 @@ other identifier is ever human-handled.
   consume it.
 - **CC-3**: TTL caution — the code is minted at provisioning time but consumed only
   when the recipient powers the unit on. A unit that sits in a box >30 days ships a
-  dead code. Provisioning SHOULD mint with a longer TTL (e.g. `ttlDays: 180`) for
-  shipped units. `mintClaimCode` already accepts `ttlDays`; `provision-unit.sh` must
-  pass it. (This is the "expired capture window" risk also noted in operator memory.)
+  dead code. **Shipped units MUST be minted effectively NON-EXPIRING:** `provision-unit.sh`
+  passes a very long TTL (`ttlDays ~3650`, ≈10 years) or uses a dedicated `shipped`
+  no-expiry path. Rationale: the code lives on the physical sticker for the device's
+  *life* and MUST stay valid to support **recommissioning** (a relocated/re-aimed
+  camera re-scans the same permanent QR — see §11). The 30-day default is
+  **operator/test-only** (short-lived bench codes). `mintClaimCode` already accepts
+  `ttlDays`; `provision-unit.sh` must pass the long/shipped value, keeping 30d only for
+  test codes. This ties to **PR-3**: because shipped codes are consumed at first boot
+  but never expire, pre-register must keep accepting the consumed-but-unexpired code on
+  every recommission. (This is the "expired capture window" risk also noted in operator
+  memory.)
 - **CC-4**: `claim_code` is the join key on the `cameras` table
   (`cameras.claim_code`, indexed). It is NOT in `device-protocol.md` §10's schema; it
   was added by migration `20260516_…` (see §8 divergence D-1).
@@ -148,6 +156,21 @@ set for this contract:
   *mid-flow*. The wizard must surface setup-status `404`/`410` (`"Unknown or expired
   claim code"`) on the **final Submit** as well as on Screen 1 (Connect) — pre-register
   can return `410` at the last step even though Connect succeeded earlier.
+
+### 2.4 Bench-test lifecycle (operator dry-run before ship)
+
+A unit is exercised end-to-end at the bench before it ships, using the SAME flow the
+customer will use — proving the seam, not a separate mode:
+
+`provision → SETUP → **operator** onboards to operator WiFi → a `testing` deployment
+(private, discardable) → verify capture/post → DECOMMISSION (end the testing deployment
++ optional WiFi-wipe) → ship clean → **customer** onboards → `deployed` deployment.`
+
+Because shipped codes are non-expiring (CC-3) and the device keeps its token across
+recommission (§11d), the bench `testing` deployment and the field `deployed` deployment
+are two deployments on the same camera (1:many) — the bench one is ended at
+decommission, not carried to the customer. WiFi-wipe at decommission is the "clean
+ship" nicety (§12); auto-SETUP would handle a new location regardless.
 
 ---
 
@@ -437,6 +460,166 @@ config — exactly E's promise.
   `sunrise|sunset`. F's UI offers only `sunrise|sunset`; the `pre-register` API may stay
   permissive about accepting `'both'` for legacy callers, but the bracket flow never
   sends it.
+
+---
+
+## 9. QR → WiFi handoff timeline (credential entry, network switch)
+
+This expands §6 specifically around the WiFi/credential seam. The phone runs the
+cloud wizard over **its own current internet (cellular, or whatever WiFi the phone is
+already on)** — the wizard NEVER depends on the camera's WiFi or the home WiFi.
+
+1. **Scan QR** → the phone opens the cloud wizard at `/setup/{code}` **over cellular**
+   (or the phone's existing internet). The wizard loads independent of any local network.
+2. The wizard instructs: **"join Sunset-Cam-XXXX"** (the Pi's open AP, SETUP mode).
+3. The recipient **joins the phone to the Pi's open AP**. The Pi's captive page pops
+   (system captive sheet).
+4. The recipient **enters the home-WiFi credentials ONCE** on that captive page.
+5. The Pi **writes the creds, drops its AP, and joins home WiFi**, then calls `register`.
+6. When the AP drops, the **phone AUTO-REJOINS its known home WiFi** (the network it
+   already remembers) — the recipient does not retype anything.
+7. The recipient returns to the still-open wizard tab; the wizard **polls
+   `setup-status`**, sees `!= awaiting_wifi`, and **advances to placement**.
+
+**KEY INVARIANTS**
+- **HT-1**: The WiFi password is entered **exactly ONCE** (on the Pi's captive page).
+- **HT-2**: The network switch is **taps, not re-typed credentials** — joining the Pi
+  AP and rejoining home WiFi are both tap-to-select against networks the phone already
+  has (the Pi AP is open; home WiFi is remembered).
+- **HT-3**: The **cloud wizard never depends on WiFi** — it runs on cellular/whatever
+  the phone already has, so the network dance below it does not interrupt the wizard.
+- **HT-4 (no double credential entry across the lifecycle)**: across the FULL
+  lifecycle there is no double credential entry. The **operator** enters home/operator
+  WiFi once at the bench (then it is wiped on decommission, §12), and the **customer**
+  enters home WiFi once at install. Neither retypes the other's creds.
+- **HT-5 (known UX risk)**: iOS captive auto-pop is unreliable. Wizard copy MUST
+  hedge: *"If the page doesn't appear, open any website."* (forces the captive sheet).
+
+## 10. Single state-aware wizard entry
+
+The QR / wizard is **ONE entry point** for a camera's whole life. The wizard reads the
+camera's commission state (via `setup-status` + the camera row) and routes:
+
+- **Fresh camera** (no active deployment / never placed) → straight into the
+  **commission flow** (§6/§9 → bracket placement).
+- **Already-placed camera** (active deployment exists) → the wizard opens offering, at
+  the **TOP**:
+  - **"Re-aim / move this camera"** — *primary* action (re-runs the wizard, §11).
+  - **"Turn off / decommission"** — *secondary*, present but not in the way (§12).
+
+**SE-1**: Recommissioning = **re-running the wizard**. The user NEVER has to find a
+decommission button first in order to recommission — re-aim/move is the primary path
+and a new placement commit handles the deployment lifecycle automatically (§11c).
+
+## 11. Recommissioning / relocation
+
+A permanent QR + a life-of-device claim code (CC-3) make the same sticker the entry
+point for every move. Cases:
+
+- **11a — moved to a NEW network.** On boot the old WiFi creds fail to associate
+  (BOOT → try-associate → fail(≈15s) → SETUP — the *existing* path, no new trigger).
+  The recipient re-scans the QR and re-onboards the new WiFi exactly as §9. There is
+  **no separate "relocate" trigger** — association failure is the trigger.
+- **11b — re-aim / same network.** The unit is already online; the user re-scans the
+  permanent QR, the wizard opens in the already-placed state (§10), picks "Re-aim,"
+  and submits a new placement via `pre-register`. PR-3 applies: the code is
+  consumed-but-unexpired and pre-register accepts it.
+- **11c — deployment lifecycle on a new placement commit.** A new placement commit
+  **AUTO-ENDS the prior deployment**. A move **> 100 m** makes it a **NEW deployment**
+  with a fresh archive (camera : deployment is **1:many**); a move **≤ 100 m** re-aims
+  the **active** deployment in place (GPS jitter never splits a feed). See the firmware
+  deployment-model doc for the canonical `testing → deployed → ended` states.
+- **11d — token persistence.** The device **KEEPS its `device_token` across
+  recommission** — it does NOT re-register. Recommission changes the deployment/placement
+  (and possibly WiFi), never device identity. (Only a brand-new unit's first boot ever
+  calls `register`/consumes a fresh-mint; a relocated unit reuses its token and reaches
+  the cloud via heartbeat with the new placement.)
+
+## 12. Pause vs decommission
+
+Two distinct stop actions, both triggerable by the **operator** (My Cameras) AND the
+**customer** (the open-access QR/setup page scoped to that one camera, no account):
+
+- **PAUSE** = stop capture, **keep WiFi + the active deployment**, fully resumable
+  ("turn it off for now"). The deployment stays active; resuming restarts capture.
+- **DECOMMISSION** = **end the active deployment cloud-side** (archive frozen or
+  discarded) **+ OPTIONAL WiFi-wipe**. The WiFi-wipe is a "clean ship" nicety only —
+  because a relocated unit auto-re-enters SETUP on association failure (§11a) anyway,
+  wiping creds is **optional**, not required for relocation.
+
+**PD-1 (device executes the wipe via a directive)**: when decommission-with-relocation
+is chosen, the device clears its `wpa_supplicant` creds via a heartbeat **DIRECTIVE**
+(`reprovision`/`wipe_wifi`, §13) when it is next online → it falls back to SETUP.
+**PD-2 (UNPLUG ≠ DECOMMISSION)**: unplugging is just power-off — the deployment and the
+WiFi creds stay intact; plugging back in resumes. There is **NO physical reset button**
+(unplug is the only physical control).
+**PD-3 (open-QR decommission risk)**: a passerby could turn a camera off via the open
+QR. This is **fully recoverable** by re-commissioning (re-scan, re-onboard). An
+armed-toggle / confirm gate MAY be added later if abused — server-side, no label
+reprint (mirrors the deployment-model doc's deferrable armed-toggle).
+
+## 13. Decommission/pause action surface + heartbeat directives (new seams)
+
+These are the cloud seams the above sections imply. They follow the existing
+claim-code-scoped, open-for-the-setup-page pattern (I-7).
+
+- **Decommission/pause action surface** — usable by **both** the operator and the
+  open-access setup page. Either:
+  - `POST /api/cameras/{id|code}/decommission` and `POST /api/cameras/{id|code}/pause`, or
+  - a field on an existing camera-action endpoint.
+  Shape: **claim-code-scoped** (the open setup page authenticates with *only* the claim
+  code — no account, no Bearer, exactly as `setup-status`/`pre-register`; the operator
+  path may additionally use its existing auth). `decommission` **ends** the active
+  deployment (`ended_at` set; `state → ended`) and MAY set a `wipe_wifi` flag that the
+  next heartbeat surfaces as a directive; `pause` **pauses** capture on the active
+  deployment without ending it. Rate-limit per I-7.
+  > **Keying decision (judgment call):** the open-access page only ever holds the
+  > **claim_code** (the QR encodes the code, not the serial `id`), so the
+  > **claim-code-scoped form is authoritative for the customer path**; the `{id}` form
+  > is a convenience for the authenticated operator (My Cameras already knows the id).
+  > A single endpoint SHOULD accept either key and resolve to the same camera row.
+- **Heartbeat `reprovision` / `wipe_wifi` directive** — the device honors a heartbeat
+  directive instructing it to clear `wpa_supplicant` creds and drop to SETUP (the device
+  half of a cloud-triggered decommission-with-relocation, §12 PD-1). It rides the same
+  heartbeat-response channel as placement delivery (§5).
+- **Deployment lifecycle states** referenced throughout: **`testing | deployed | ended`**
+  (see the firmware deployment-model doc for the canonical definitions and the
+  >100 m / ≤100 m commit rule).
+
+---
+
+## Lifecycle addendum (2026-06-13)
+
+Agreed device-lifecycle refinements folded into this contract (and the E/F plans +
+the firmware deployment-model doc). Summary of items 1–6:
+
+1. **Shipped-code TTL (CC-3 amended).** `provision-unit.sh` mints shipped codes
+   effectively non-expiring (`ttlDays ~3650` or a `shipped` no-expiry path); the
+   sticker code must stay valid for the device's life to support recommissioning. 30d
+   is operator/test-only. Ties to PR-3 (consumed-but-unexpired accepted).
+2. **QR → WiFi handoff timeline (§9).** Wizard runs on cellular; WiFi password entered
+   exactly once; network switch is taps not re-typed creds; no double credential entry
+   across operator-bench-then-customer; iOS captive auto-pop hedge copy.
+3. **Single state-aware wizard entry (§10).** One QR/entry point: fresh → commission;
+   already-placed → "Re-aim/move" (primary) + "Turn off/decommission" (secondary).
+   Recommission = re-run the wizard; no hunt for a decommission button first.
+4. **Recommissioning / relocation (§11).** New network → association fails → auto-SETUP
+   (existing path, no new trigger). Re-aim same network → re-scan permanent QR →
+   pre-register (PR-3). New commit auto-ends the prior deployment; >100 m = new
+   deployment + fresh archive (1:many); device keeps its `device_token`.
+5. **Pause vs decommission (§12).** PAUSE = stop capture, keep WiFi+deployment,
+   resumable. DECOMMISSION = end the active deployment + OPTIONAL WiFi-wipe. Both
+   operator- and customer-triggerable; device wipes WiFi via a heartbeat directive when
+   online. UNPLUG ≠ DECOMMISSION; no physical reset button; open-QR decommission risk
+   is recoverable (armed-toggle deferrable).
+6. **Bench-test lifecycle (§13/timeline).** provision → SETUP → operator onboards to
+   operator WiFi → `testing` deployment (private, discardable) → verify capture/post →
+   DECOMMISSION (end testing deployment + optional WiFi-wipe) → ship clean → customer
+   onboards → `deployed` deployment.
+
+New seams specified: a claim-code-scoped decommission/pause action surface (open for
+the setup page, also operator-usable), a heartbeat `reprovision`/`wipe_wifi` directive,
+and the `testing | deployed | ended` deployment states.
 
 ---
 

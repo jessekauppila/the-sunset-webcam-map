@@ -2543,6 +2543,17 @@ function listMissing(state: WizardState): string[] {
 }
 ```
 
+> **Deployment-end-on-new-commit (contract §11c):** a placement commit through this
+> Submit/`pre-register` path MUST drive the deployment lifecycle: a new placement
+> **> 100 m** from the active deployment opens a **NEW deployment** (`testing|deployed`)
+> and **ends the prior** one (`ended_at` set, `state → ended`, archive frozen); a move
+> **≤ 100 m** **re-aims the active deployment** in place (no new deployment — GPS jitter
+> never splits a feed). `upsertCameraByClaimCode` (Task 5) is where this distance test +
+> deployment open/close lives; add it there (or in a `pre-register` pre-step) with a
+> vitest test covering both the >100 m (new+prior-ended) and ≤100 m (re-aim active)
+> branches. Recommission reuses the same code path (the wizard's "Re-aim/move" entry,
+> Task 22).
+
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `npx vitest run app/setup/[claim_code]/steps/SubmitStep.test.tsx`
@@ -2740,6 +2751,114 @@ git commit -m "test(wizard): green suite + type-check for bracket flow"
 
 ---
 
+## Task 22: State-aware wizard entry — fresh vs already-placed routing
+
+**Files:**
+- Modify: `app/setup/[claim_code]/steps/ConfirmCamera.tsx` (or add a new first screen
+  `app/setup/[claim_code]/steps/WizardEntry.tsx`)
+- Modify: `app/setup/[claim_code]/WizardClient.tsx`
+- Test: `app/setup/[claim_code]/steps/WizardEntry.test.tsx` (vitest, jsdom)
+
+Per contract §10 (single state-aware entry) + SE-1. The wizard's entry must read the
+camera's commission state and route: **fresh** (no active deployment / never placed) →
+the commission flow; **already-placed** (active deployment exists) → offer, at the TOP,
+**"Re-aim / move this camera"** (primary, re-runs the bracket flow → §11b/§11c) and
+**"Turn off / decommission"** (secondary, present but not in the way → Task 23). The
+user never has to find decommission first to recommission.
+
+- [ ] **Step 1: Write the failing test**
+
+Cover: (a) a `setup-status`/camera-state response indicating **no active deployment** →
+entry renders the commission flow / advances into Step 1 (Connect) as today;
+(b) a response indicating an **already-placed** camera → entry renders both
+"Re-aim / move this camera" (primary) and "Turn off / decommission" (secondary), with
+re-aim wired to re-enter the bracket flow and decommission wired to the Task 23 action.
+Assert ordering (re-aim above decommission) and that picking "Re-aim" lands in the
+bracket flow (not on a decommission gate).
+
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `npx vitest run app/setup/[claim_code]/steps/WizardEntry.test.tsx`
+Expected: FAIL — entry does not yet branch on commission state.
+
+- [ ] **Step 3: Implement the state-aware entry**
+
+Read the camera's commission state (the wizard already polls `setup-status`; surface
+whether the camera has an **active deployment** — add it to the status payload or read
+the camera row). Branch fresh→commission vs already-placed→{Re-aim primary, Turn off
+secondary}. Re-aim re-runs the existing bracket steps (Tasks 13–19); decommission/pause
+call the Task 23 endpoints.
+
+- [ ] **Step 4: Run test + type-check**
+
+Run: `npx vitest run app/setup/[claim_code]/steps/WizardEntry.test.tsx && npx tsc --noEmit`
+Expected: PASS, no type errors.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add app/setup/[claim_code]/steps/WizardEntry.tsx app/setup/[claim_code]/WizardClient.tsx app/setup/[claim_code]/steps/WizardEntry.test.tsx
+git commit -m "feat(wizard): state-aware entry routes fresh vs already-placed (re-aim/decommission)"
+```
+
+---
+
+## Task 23: Decommission + pause cloud endpoints (claim-code/camera scoped)
+
+**Files:**
+- Create: `app/api/cameras/[id]/decommission/route.ts` and `.../pause/route.ts`
+  (accept either the serial `id` or the `claim_code` as the route/body key — see the
+  contract §13 keying decision)
+- Test: `app/api/cameras/[id]/decommission/route.test.ts`, `.../pause/route.test.ts`
+
+Per contract §12 + §13. Both actions are usable by the **operator** (My Cameras) and by
+the **open-access setup page** (claim-code-scoped, no account/Bearer beyond the code,
+exactly like `setup-status`/`pre-register`; rate-limited per I-7).
+
+- **`decommission`** — ends the **active deployment** (`ended_at` set, `state → ended`;
+  archive frozen/discarded). When called with relocation intent, sets a `wipe_wifi`
+  flag the next heartbeat surfaces as a `reprovision`/`wipe_wifi` **directive** (the
+  device half is E plan's directive-honor task). WiFi-wipe is OPTIONAL.
+- **`pause`** — **pauses** capture on the active deployment **without ending it**
+  (resumable; WiFi + deployment intact).
+
+- [ ] **Step 1: Write the failing tests**
+
+Cover, per endpoint:
+- claim-code-scoped call (no Bearer) resolves the camera and acts;
+- `decommission` sets the active deployment's `ended_at` / `state='ended'`;
+- `decommission` with the relocation flag enqueues the heartbeat `wipe_wifi` directive
+  (assert the directive/flag is set on the row);
+- `pause` leaves the deployment active (`ended_at` still null) and marks capture paused;
+- unknown/expired code → `404`/`410`; a passerby decommission is recoverable
+  (re-commission re-opens a deployment — covered by Task 22 + SubmitStep path).
+
+- [ ] **Step 2: Run tests to verify they fail**
+
+Run: `npx vitest run app/api/cameras/[id]/decommission/route.test.ts 'app/api/cameras/[id]/pause/route.test.ts'`
+Expected: FAIL — routes do not exist.
+
+- [ ] **Step 3: Implement the routes**
+
+Resolve the camera by `claim_code` OR `id` (§13 keying decision: claim-code is
+authoritative for the customer path; `id` is the operator convenience — accept both,
+resolve to the same row). `decommission` ends the active deployment + optionally sets
+the `wipe_wifi` directive flag; `pause` flips a paused flag without touching `ended_at`.
+
+- [ ] **Step 4: Run tests + type-check**
+
+Run: `npx vitest run app/api/cameras && npx tsc --noEmit`
+Expected: PASS, no type errors.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add app/api/cameras/[id]/decommission app/api/cameras/[id]/pause
+git commit -m "feat(api): claim-code/camera-scoped decommission + pause endpoints"
+```
+
+---
+
 ## Self-Review
 
 **Spec coverage (reconciliation 9-step table + contract §4.3 work items):**
@@ -2773,6 +2892,11 @@ git commit -m "test(wizard): green suite + type-check for bracket flow"
 - Fix 7 (consumed code) — pre-register accepts consumed-but-unexpired code; test with `consumed_at`/`consumed_by_camera_id` (Task 6). ✓
 - Fix 8 (phase NULL) — register-first INSERT defaults `phase_preference` to NULL not 'both' (Task 7 note). ✓
 - Fix 9 — `'unknown'` documented client-only sentinel (Task 8 types); `material_thickness_mm` annotated as fixed-v1 part-spec thickness (Task 3); pre-register success pinned to 202 (tests already assert 202). ✓
+
+**Lifecycle addendum (2026-06-13) coverage:**
+- State-aware wizard entry (contract §10/SE-1) — Task 22 (fresh→commission vs already-placed→{Re-aim primary, Turn off secondary}; TDD vitest). ✓
+- Decommission + pause endpoints (contract §12/§13) — Task 23 (claim-code/camera scoped; decommission ends active deployment + optional `wipe_wifi` directive; pause keeps deployment; vitest tests). ✓
+- Deployment-end-on-new-commit (contract §11c) — note added to the SubmitStep/`upsertCameraByClaimCode` path (>100 m → new deployment + prior ended; ≤100 m → re-aim active). ✓
 
 **Placeholder scan:** Task 7 Step 1 intentionally leaves a copy-the-existing-mock instruction (the register test's exact `sql` mock setup is file-specific and must be read at execution time); the concrete assertions and field values are given. Task 8's `DeliveryPreferences` import note is a conditional the executor resolves by type-check. No "TODO/TBD-as-implementation" remain.
 

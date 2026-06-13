@@ -181,6 +181,15 @@ def test_no_creds_goes_to_setup():
 
 def test_creds_present_goes_to_online():
     assert decide_boot_state(has_creds=True) == "online"
+
+
+def test_creds_present_but_association_fails_re_enters_setup():
+    # Relocation (contract §11a): a camera moved to a NEW network still has the OLD
+    # creds on disk, so has_creds=True, but the radio cannot associate. After the
+    # bounded try-associate window (~15s) fails, the device must DROP TO SETUP and
+    # re-run onboarding — no new trigger, just association failure.
+    assert decide_boot_state(has_creds=True, associated=False) == "setup"
+    assert decide_boot_state(has_creds=True, associated=True) == "online"
 ```
 
 Append to `tests/test_service_control.py`:
@@ -212,14 +221,21 @@ Expected: FAIL — no `sunset_cam.boot`; `SETUP_UNIT` not exported; `set_mode("s
 Create `src/sunset_cam/boot.py`:
 
 ```python
-"""First decision after power-on (contract §2.1, E-spec §5.3): with no usable
-WiFi credentials the device enters SETUP (captive portal up); otherwise it goes
-ONLINE and lets the supervisor drive IDLE/ACTIVE from placement_status."""
+"""First decision after power-on (contract §2.1/§11a, E-spec §5.3): with no usable
+WiFi credentials the device enters SETUP (captive portal up); otherwise it tries to
+associate and, on success, goes ONLINE and lets the supervisor drive IDLE/ACTIVE from
+placement_status. RELOCATION: a unit moved to a NEW network still has the OLD creds on
+disk (has_creds=True) but cannot associate; after the bounded try-associate window
+(~15s) fails (`associated=False`) it falls back to SETUP and re-runs onboarding — no
+new trigger, association failure IS the trigger."""
 from __future__ import annotations
 
 
-def decide_boot_state(has_creds: bool) -> str:
-    return "online" if has_creds else "setup"
+def decide_boot_state(has_creds: bool, associated: bool = True) -> str:
+    # No creds, or creds that no longer associate (moved to a new network) => SETUP.
+    if not has_creds or not associated:
+        return "setup"
+    return "online"
 ```
 
 In `src/sunset_cam/service_control.py`, add the SETUP unit constant after `CAPTURE_UNIT`:
@@ -856,6 +872,63 @@ Expected: PASS (existing supervisor tests unaffected)
 ```bash
 git add src/sunset_cam/supervisor.py tests/test_supervisor.py
 git commit -m "feat(firmware): wire register->IDLE->heartbeat->ACTIVE rendezvous into supervisor"
+```
+
+### Task 8e: Honor a heartbeat `reprovision`/`wipe_wifi` directive (device half of decommission)
+
+**Files:**
+- Modify: `src/sunset_cam/cloud_client.py` (read the directive off the heartbeat body)
+- Create: `src/sunset_cam/wifi_wipe.py` (clear `wpa_supplicant` creds → SETUP)
+- Test: `tests/test_wifi_wipe.py`, append to `tests/test_cloud_client.py`
+
+This is the **device half of a cloud-triggered decommission-with-relocation**
+(contract §12 PD-1 / §13). When the camera is online and the operator/customer
+decommissions-with-relocation (F plan Task 23), the next heartbeat response carries a
+`reprovision`/`wipe_wifi` directive. The device clears its `wpa_supplicant` creds and
+drops to SETUP (the existing BOOT path then re-onboards the new location). There is
+**NO physical reset button** — this directive (plus association-failure, §11a) is how a
+unit returns to SETUP.
+
+- [ ] **Step 1: Write the failing tests**
+
+`tests/test_wifi_wipe.py` — `wipe_wifi_credentials(path)` clears the creds with a
+mocked filesystem/subprocess: it removes the `network={...}` block (or writes back the
+header-only conf), leaving `has_wifi_credentials(path)` False afterward; it does NOT
+delete unrelated config; it is idempotent (wiping an already-headerless conf is a
+no-op). Inject the conf path and any `wpa_cli reconfigure` subprocess runner so no real
+radio/FS is touched.
+
+Append to `tests/test_cloud_client.py` — a heartbeat body carrying
+`{"directive": "wipe_wifi"}` (or `{"reprovision": true}`) is recognized by a helper
+(e.g. `wants_wifi_wipe(body) is True`) and a plain heartbeat body is not. Assert the
+helper returns False for an absent/empty directive.
+
+- [ ] **Step 2: Run tests to verify they fail**
+
+Run: `cd /Users/jessekauppila/GitHub/sunset-cam-firmware/.claude/worktrees/bench-supervisor && python -m pytest tests/test_wifi_wipe.py tests/test_cloud_client.py -k 'wipe or reprovision or directive' -v`
+Expected: FAIL — `wifi_wipe` / `wants_wifi_wipe` not defined.
+
+- [ ] **Step 3: Write minimal implementation**
+
+`src/sunset_cam/wifi_wipe.py` — `wipe_wifi_credentials(path=WPA_SUPPLICANT_PATH, runner=...)`
+rewrites the conf to the header-only form (no `network={...}` block) via an injected
+writer, then optionally runs `wpa_cli reconfigure` via the injected runner. Add
+`wants_wifi_wipe(body: dict) -> bool` to `cloud_client.py` recognizing
+`body.get("directive") == "wipe_wifi"` or `body.get("reprovision") is True`. Wire it
+into the IDLE/ACTIVE heartbeat handling so that on the directive the device calls
+`wipe_wifi_credentials()` and transitions back to SETUP (`set_mode("setup")`). Keep all
+FS/subprocess injected so the path is fully unit-tested (no real radio).
+
+- [ ] **Step 4: Run tests to verify they pass**
+
+Run: `cd /Users/jessekauppila/GitHub/sunset-cam-firmware/.claude/worktrees/bench-supervisor && python -m pytest tests/test_wifi_wipe.py tests/test_cloud_client.py -v`
+Expected: PASS
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add src/sunset_cam/wifi_wipe.py src/sunset_cam/cloud_client.py tests/test_wifi_wipe.py tests/test_cloud_client.py
+git commit -m "feat(firmware): honor heartbeat wipe_wifi/reprovision directive -> SETUP"
 ```
 
 ---
@@ -1661,7 +1734,7 @@ def test_setup_url_encodes_the_code():
     assert pl.setup_url("SUNSET-7K3M-9XQ2") == "https://sunrisesunset.studio/setup/SUNSET-7K3M-9XQ2"
 
 
-def test_mint_claim_code_posts_with_long_ttl_and_bearer():
+def test_mint_claim_code_defaults_to_non_expiring_shipped_ttl_and_bearer():
     captured = {}
     def fake_post(url, json=None, headers=None, timeout=None):
         captured["url"] = url
@@ -1672,14 +1745,33 @@ def test_mint_claim_code_posts_with_long_ttl_and_bearer():
             "json": lambda self: {"code": "SUNSET-7K3M-9XQ2", "expires_at": "2099-01-01T00:00:00Z"},
             "raise_for_status": lambda self: None,
         })()
+    # Default (shipped unit): effectively non-expiring (CC-3) — the code lives on the
+    # sticker for the device's life and must stay valid for recommissioning.
     code, expires = pl.mint_claim_code(
         api_base="https://x", cron_secret="s3cret", label="unit-42",
-        ttl_days=180, poster=fake_post,
+        poster=fake_post,
     )
     assert code == "SUNSET-7K3M-9XQ2"
     assert captured["headers"]["Authorization"] == "Bearer s3cret"
     assert captured["json"]["label"] == "unit-42"
-    assert captured["json"]["ttlDays"] == 180  # CC-3: shipped units get a long TTL
+    assert captured["json"]["ttlDays"] == 3650  # CC-3: shipped units ~10y (non-expiring)
+
+
+def test_mint_claim_code_allows_short_ttl_for_test_codes():
+    captured = {}
+    def fake_post(url, json=None, headers=None, timeout=None):
+        captured["json"] = json
+        return type("R", (), {
+            "status_code": 200,
+            "json": lambda self: {"code": "SUNSET-TEST-0001", "expires_at": "2026-07-13T00:00:00Z"},
+            "raise_for_status": lambda self: None,
+        })()
+    # 30d is operator/test-only (CC-3): explicit, never the shipped default.
+    pl.mint_claim_code(
+        api_base="https://x", cron_secret="s3cret", label="bench-test",
+        ttl_days=30, poster=fake_post,
+    )
+    assert captured["json"]["ttlDays"] == 30
 
 
 def test_write_boot_config_writes_only_claim_code(tmp_path):
@@ -1701,8 +1793,9 @@ Create empty `scripts/__init__.py`. Create `scripts/provision_lib.py`:
 ```python
 """Pure, testable provisioning helpers (E-spec §5.2, contract CC-1/CC-3).
 The shell wrapper (provision-unit.sh) calls these; the dd flash stays in bash
-because it is hardware-gated. Mints with a long TTL so a unit that sits in a box
-does not ship a dead code (CC-3)."""
+because it is hardware-gated. Shipped units mint effectively NON-EXPIRING
+(`ttl_days` default ~3650 ≈ 10y) so the sticker code stays valid for the
+device's life and supports recommissioning (CC-3); 30d is operator/test-only."""
 from __future__ import annotations
 
 import json
@@ -1716,8 +1809,13 @@ def setup_url(code: str) -> str:
     return f"{SETUP_URL_BASE}/{code}"
 
 
+# CC-3: shipped units are effectively non-expiring (~10y). 30d is test-only and
+# must be passed explicitly (e.g. provision-unit.sh --test).
+SHIPPED_TTL_DAYS = 3650
+
+
 def mint_claim_code(
-    *, api_base: str, cron_secret: str, label: str, ttl_days: int = 180,
+    *, api_base: str, cron_secret: str, label: str, ttl_days: int = SHIPPED_TTL_DAYS,
     poster: Callable | None = None,
 ) -> tuple[str, str]:
     import requests
@@ -2035,6 +2133,8 @@ Per E-spec §6.3 full sequence + §6.4: provision → flash → boot → captive
 **Spec coverage (E-spec §8 slice order):** (1) `placement_status`+setup-status — Task 0 verifies existing (bracket persistence is F-owned, see contract §0 — NOT authored here); (2) either-order pre-register — verified Task 0 (bracket parse/validate is F Task 6); (3) heartbeat placement — verified Task 0 (bracket emit is F Task 7); (4) state machine SETUP/ONLINE/IDLE/ACTIVE + capture extraction — Tasks 6–8; (4a) **device HTTP client — register, IDLE heartbeat-poll, placement consume, wired into the supervisor rendezvous — Tasks 8a–8d**; (5) captive-portal Flask — Tasks 9–13; (6) hostapd/dnsmasq/setup.service — Task 14; (7) SD-image build — Task 15; (8) provision-unit.sh + sticker — Tasks 16–18; plus protocol amendment Task 19. Contract CC-3 (long TTL) is Task 16/16b.
 
 **Reconciliation (2026-06-13) coverage:** Fix 2 — removed the duplicate cloud authoring slices (old Slices 1–2: migration, `pre-register` validator with the stale `left/right`+`up/down/left/right` enums, `register`/`heartbeat`/`cameraRegistration` edits); replaced with the F-ownership dependency note. Fix 3 — added the device HTTP client (Slice 3a, Tasks 8a–8d) making `SETUP→ONLINE→register→IDLE→heartbeat→ACTIVE` real code. Fix 6 — IDLE heartbeat-poll uses bounded backoff with a give-up guard (`poll_for_placement`). Fix 8 — register-first INSERT default `phase=NULL` is F-owned; E only consumes the resulting placement.
+
+**Lifecycle addendum (2026-06-13) coverage:** CC-3 — `mint_claim_code` defaults to the non-expiring shipped TTL (`SHIPPED_TTL_DAYS=3650`); 30d is explicit test-only (Task 16, two tests). §11a relocation — `decide_boot_state(has_creds, associated)` re-enters SETUP when old creds no longer associate (Task 7, added assertion); the moved-to-new-network unit needs no new trigger. §12 PD-1 / §13 — device honors a heartbeat `reprovision`/`wipe_wifi` directive: `wifi_wipe.wipe_wifi_credentials` + `wants_wifi_wipe`, clearing creds → SETUP, TDD with mocked FS/subprocess; no physical reset button (Task 8e).
 
 **Placeholder scan:** none — every code step has full content.
 
