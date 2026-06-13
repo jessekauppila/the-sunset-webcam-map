@@ -3,7 +3,8 @@
 // v19-aligned (handoff: no vertical tilt, no +-65 gate, fixed ladder,
 // flip-direction handedness, coverage is TBD).
 // Reuses angDiff / ArcAnchors from app/lib/solar.ts — does not re-derive them.
-import { angDiff, type ArcAnchors } from './solar';
+import { angDiff, arcAnchors, type ArcAnchors, type Facing } from './solar';
+export type { Facing } from './solar';
 
 // Horizontal FOV per lens. The IMX708 "wide" is 120deg DIAGONAL but ~102deg
 // HORIZONTAL; the sunset arc spans horizontally, so the arc/coverage math uses
@@ -43,3 +44,56 @@ export const toTrue = (mag: number, decl: number) => (mag + decl + 360) % 360;
 /** Signed horizontal wedge needed: targetAz - windowNormalAz, in (-180, 180]. */
 export const bracketHorizontalWedge = (windowNormalAz: number, targetAz: number) =>
   angDiff(targetAz, windowNormalAz);
+
+const WINDS = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
+/** 16-point compass name for a true azimuth. */
+export const compassName = (az: number) =>
+  WINDS[Math.round((((az % 360) + 360) % 360) / 22.5) % 16];
+
+export interface BracketSolution {
+  arc: ArcAnchors;
+  lens: Lens;
+  hfov: number;
+  normalTrue: number;     // window facing, true north
+  targetAz: number;       // equinox event azimuth (the aim target)
+  wedge: number;          // signed ideal wedge (deg)
+  angle: number;          // snapped magnitude on the ladder
+  sign: 1 | -1;
+  signedWedge: number;    // angle * sign
+  residual: number;       // wedge - signedWedge (absorbed by lens + sun refine)
+  aimAz: number;          // realized COARSE aim = normalTrue + signedWedge
+  offset: number;         // == wedge, named for the contract
+  offsetSide: 'north' | 'south' | null; // flip direction; null at 0deg
+  poorFit: boolean;       // past the ladder ceiling -> advisory, not blocked
+}
+
+/** Solve the full per-window bracket bundle (the prototype's `M` memo). */
+export function solveBracket(args: {
+  lat: number;
+  year: number;
+  facing: Facing;
+  windowMagAz: number;
+  declinationDeg: number;
+}): BracketSolution {
+  const { lat, year, facing, windowMagAz, declinationDeg } = args;
+  const arc = arcAnchors(lat, year, facing);
+  const lens = recommendLens(arc);
+  const hfov = HFOV[lens];
+  const normalTrue = toTrue(windowMagAz, declinationDeg);
+  const targetAz = arc.equinox;
+  const wedge = bracketHorizontalWedge(normalTrue, targetAz);
+  const { angle, sign } = snapWedge(wedge);
+  const signedWedge = angle * sign;
+  const residual = wedge - signedWedge;
+  const aimAz = (normalTrue + signedWedge + 360) % 360;
+  const offset = wedge;
+  const offsetSide =
+    Math.abs(offset) < 0.5 || angle === 0
+      ? null
+      : facing === 'west'
+        ? offset >= 0 ? 'north' : 'south'
+        : offset >= 0 ? 'south' : 'north';
+  const poorFit = Math.abs(wedge) > WEDGE_MAX + 2;
+  return { arc, lens, hfov, normalTrue, targetAz, wedge, angle, sign,
+           signedWedge, residual, aimAz, offset, offsetSide, poorFit };
+}

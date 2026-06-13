@@ -47,3 +47,53 @@ describe('bracketHorizontalWedge', () => {
     expect(bracketHorizontalWedge(262, 270)).toBeCloseTo(8, 5);
   });
 });
+
+import { solveBracket, compassName, type Facing } from './bracket';
+
+describe('compassName', () => {
+  it('names due west', () => expect(compassName(270)).toBe('W'));
+  it('names due east', () => expect(compassName(90)).toBe('E'));
+  it('wraps north', () => expect(compassName(359)).toBe('N'));
+});
+
+describe('solveBracket', () => {
+  const facing: Facing = 'west';
+  // Bellingham, window magnetic 262, declination +15.3 -> true ~277.3.
+  const r = solveBracket({ lat: 48.75, year: 2026, facing, windowMagAz: 262, declinationDeg: 15.3 });
+
+  it('converts the window normal to true north', () => {
+    expect(r.normalTrue).toBeCloseTo(277.3, 1);
+  });
+
+  it('targets the equinox event azimuth (~270 due west)', () => {
+    expect(r.targetAz).toBeCloseTo(270, 0);
+  });
+
+  it('snaps the ideal wedge to a manufactured part with a residual', () => {
+    // real equinox sunset at 48.75N ~269.9 (not exactly 270), normalTrue 277.3
+    // -> ideal wedge ~-7.37 -> snaps to 5deg, sign -1; residual ~-2.37
+    expect(r.angle).toBe(5);
+    expect(r.sign).toBe(-1);
+    expect(r.signedWedge).toBe(-5);
+    expect(r.residual).toBeCloseTo(-2.37, 1);
+  });
+
+  it('records the realized coarse aim = normalTrue + signedWedge', () => {
+    expect(r.aimAz).toBeCloseTo(272.3, 1);
+  });
+
+  it('recommends the wide lens at this latitude', () => {
+    expect(r.lens).toBe('wide');
+  });
+
+  it('reports which side of due-axis the window offset falls on', () => {
+    // west facing, signed wedge negative -> tall end toward south
+    expect(r.offsetSide).toBe('south');
+  });
+
+  it('a dead-on window has a null offset side and zero wedge', () => {
+    const dead = solveBracket({ lat: 48.75, year: 2026, facing, windowMagAz: 254.7, declinationDeg: 15.3 });
+    expect(dead.angle).toBe(0);
+    expect(dead.offsetSide).toBeNull();
+  });
+});
