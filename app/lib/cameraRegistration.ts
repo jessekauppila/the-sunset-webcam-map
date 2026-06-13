@@ -40,6 +40,11 @@ export type CameraUpsertInput = {
   horizon_profile: unknown;
   phase_preference: PhasePreference;
   delivery_preferences: unknown;
+  // Bracket provenance (integration contract §4.3.2). Nullable so non-bracket
+  // callers (and legacy precise installs) can omit them.
+  azimuth_source: string | null;
+  coarse: boolean | null;
+  bracket: unknown;
 };
 
 export type CameraRow = {
@@ -71,7 +76,10 @@ export async function upsertCameraByClaimCode(
         horizon_altitude_deg = ${input.horizon_altitude_deg},
         horizon_profile = ${input.horizon_profile == null ? null : JSON.stringify(input.horizon_profile)}::jsonb,
         phase_preference = ${input.phase_preference},
-        delivery_preferences = ${input.delivery_preferences == null ? null : JSON.stringify(input.delivery_preferences)}::jsonb
+        delivery_preferences = ${input.delivery_preferences == null ? null : JSON.stringify(input.delivery_preferences)}::jsonb,
+        azimuth_source = ${input.azimuth_source ?? null},
+        coarse = ${input.coarse ?? null},
+        bracket = ${input.bracket == null ? null : JSON.stringify(input.bracket)}::jsonb
       WHERE id = ${existing[0].id}
       RETURNING id, claim_code, lat, lng, azimuth_deg, tilt_deg
     `) as CameraRow[];
@@ -88,13 +96,15 @@ export async function upsertCameraByClaimCode(
       hardware_id, device_token_hash, claim_code,
       lat, lng, elevation_m, timezone,
       azimuth_deg, tilt_deg, horizon_altitude_deg, horizon_profile,
-      phase_preference, delivery_preferences
+      phase_preference, delivery_preferences,
+      azimuth_source, coarse, bracket
     )
     VALUES (
       ${sentinelToken}, ${sentinelToken}, ${claimCode},
       ${input.lat}, ${input.lng}, ${input.elevation_m ?? null}, ${input.timezone},
       ${input.azimuth_deg}, ${input.tilt_deg}, ${input.horizon_altitude_deg}, ${input.horizon_profile == null ? null : JSON.stringify(input.horizon_profile)}::jsonb,
-      ${input.phase_preference}, ${input.delivery_preferences == null ? null : JSON.stringify(input.delivery_preferences)}::jsonb
+      ${input.phase_preference}, ${input.delivery_preferences == null ? null : JSON.stringify(input.delivery_preferences)}::jsonb,
+      ${input.azimuth_source ?? null}, ${input.coarse ?? null}, ${input.bracket == null ? null : JSON.stringify(input.bracket)}::jsonb
     )
     RETURNING id, claim_code, lat, lng, azimuth_deg, tilt_deg
   `) as CameraRow[];

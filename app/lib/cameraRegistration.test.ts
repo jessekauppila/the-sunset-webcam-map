@@ -104,6 +104,9 @@ describe('upsertCameraByClaimCode', () => {
       horizon_profile: [{ azimuth_deg: 0, altitude_deg: 1.2 }],
       phase_preference: 'sunset',
       delivery_preferences: { type: 'email', target: 'a@b.c', cadence: 'daily' },
+      azimuth_source: null,
+      coarse: null,
+      bracket: null,
     });
 
     expect(row.id).toBe(17);
@@ -136,6 +139,9 @@ describe('upsertCameraByClaimCode', () => {
       horizon_profile: null,
       phase_preference: 'sunset',
       delivery_preferences: null,
+      azimuth_source: null,
+      coarse: null,
+      bracket: null,
     });
 
     expect(row.id).toBe(17);
@@ -155,6 +161,9 @@ describe('upsertCameraByClaimCode', () => {
       horizon_profile: null,
       phase_preference: 'sunset',
       delivery_preferences: null,
+      azimuth_source: null,
+      coarse: null,
+      bracket: null,
     });
 
     // sqlMock.mock.calls[1] is the UPDATE call. Index 0 is the strings TemplateStringsArray;
@@ -177,10 +186,59 @@ describe('upsertCameraByClaimCode', () => {
       horizon_profile: null,
       phase_preference: 'sunset',
       delivery_preferences: null,
+      azimuth_source: null,
+      coarse: null,
+      bracket: null,
     });
 
     const insertValues = sqlMock.mock.calls[1].slice(1);
     expect(insertValues).not.toContain('null');
+  });
+
+  it('persists bracket provenance fields on INSERT', async () => {
+    sqlMock
+      .mockResolvedValueOnce([]) // SELECT existing — none
+      .mockResolvedValueOnce([
+        { id: 20, claim_code: 'SUNSET-EEEE-FFFF', lat: 1, lng: 2, azimuth_deg: 272, tilt_deg: 0 },
+      ]); // INSERT RETURNING
+
+    await upsertCameraByClaimCode('SUNSET-EEEE-FFFF', {
+      lat: 1, lng: 2, timezone: 'UTC',
+      azimuth_deg: 272, tilt_deg: 0, horizon_altitude_deg: 0,
+      horizon_profile: null,
+      phase_preference: 'sunset',
+      delivery_preferences: null,
+      azimuth_source: 'bracket',
+      coarse: true,
+      bracket: { wedge_angle_deg: 5, lens: 'wide_120' },
+    });
+
+    const insertValues = sqlMock.mock.calls[1].slice(1);
+    expect(insertValues).toContain('bracket'); // azimuth_source value
+    expect(insertValues).toContain(true);      // coarse value
+    expect(insertValues).not.toContain('null');
+  });
+
+  it('passes SQL NULL (not "null") for bracket when omitted on UPDATE', async () => {
+    sqlMock
+      .mockResolvedValueOnce([{ id: 21, claim_code: 'SUNSET-GGGG-HHHH' }])
+      .mockResolvedValueOnce([
+        { id: 21, claim_code: 'SUNSET-GGGG-HHHH', lat: 1, lng: 2, azimuth_deg: 3, tilt_deg: 0 },
+      ]);
+
+    await upsertCameraByClaimCode('SUNSET-GGGG-HHHH', {
+      lat: 1, lng: 2, timezone: 'UTC',
+      azimuth_deg: 3, tilt_deg: 0, horizon_altitude_deg: 0,
+      horizon_profile: null,
+      phase_preference: 'sunset',
+      delivery_preferences: null,
+      azimuth_source: null,
+      coarse: null,
+      bracket: null,
+    });
+
+    const updateValues = sqlMock.mock.calls[1].slice(1);
+    expect(updateValues).not.toContain('null');
   });
 });
 
