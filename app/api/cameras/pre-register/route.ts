@@ -19,6 +19,9 @@ type Body = {
     tilt_deg?: unknown;
     horizon_altitude_deg?: unknown;
     horizon_profile?: unknown;
+    azimuth_source?: unknown;
+    coarse?: unknown;
+    bracket?: unknown;
   };
   operator_preferences?: {
     phase_preference?: unknown;
@@ -32,6 +35,33 @@ function asNumber(v: unknown): number | null {
 
 function asString(v: unknown): string | null {
   return typeof v === 'string' && v.trim() !== '' ? v.trim() : null;
+}
+
+const LENS_VALUES = ['wide_120', 'standard_66'] as const;
+// Canonical solver vocabulary (contract Fix 1): north/south, null at a 0deg wedge.
+const SIDE_VALUES = ['north', 'south'] as const;
+
+function isFiniteNumber(v: unknown): v is number {
+  return typeof v === 'number' && Number.isFinite(v);
+}
+
+// Validate the bracket provenance blob if present. The single canonical bracket
+// validator (contract §0 — F owns this file). NULL-TOLERANT: only enum-checks
+// window_offset_side/flip_direction when non-null.
+function parseBracket(raw: unknown): { ok: true; value: unknown } | { ok: false } {
+  if (raw == null) return { ok: true, value: null };
+  if (typeof raw !== 'object') return { ok: false };
+  const b = raw as Record<string, unknown>;
+  if (!(LENS_VALUES as readonly unknown[]).includes(b.lens)) return { ok: false };
+  for (const key of ['window_offset_side', 'flip_direction'] as const) {
+    const v = b[key];
+    if (v != null && !(SIDE_VALUES as readonly unknown[]).includes(v)) return { ok: false };
+  }
+  for (const key of ['window_normal_az_true', 'window_azimuth_offset_deg',
+                     'wedge_angle_deg', 'residual_aim_error_deg', 'material_thickness_mm'] as const) {
+    if (b[key] != null && !isFiniteNumber(b[key])) return { ok: false };
+  }
+  return { ok: true, value: b };
 }
 
 export async function POST(request: Request) {
@@ -67,6 +97,27 @@ export async function POST(request: Request) {
     );
   }
 
+  const bracketResult = parseBracket(body.placement?.bracket);
+  if (!bracketResult.ok) {
+    return NextResponse.json({ error: 'placement.bracket is malformed' }, { status: 400 });
+  }
+  let azimuthSource = asString(body.placement?.azimuth_source);
+  let coarse = typeof body.placement?.coarse === 'boolean' ? body.placement.coarse : null;
+
+  // Invariant PR-2 (contract): if a bracket blob is present, azimuth_source MUST be
+  // 'bracket' AND coarse MUST be true. Default them when omitted; REJECT (400) a
+  // contradiction — persisting provenance while disabling sun-refine is self-contradictory.
+  if (bracketResult.value != null) {
+    if (azimuthSource == null) azimuthSource = 'bracket';
+    if (coarse == null) coarse = true;
+    if (azimuthSource !== 'bracket' || coarse !== true) {
+      return NextResponse.json(
+        { error: "placement.bracket requires azimuth_source==='bracket' and coarse===true" },
+        { status: 400 }
+      );
+    }
+  }
+
   const phaseRaw = asString(body.operator_preferences?.phase_preference);
   const phase = phaseRaw != null && (PHASE_VALUES as readonly string[]).includes(phaseRaw)
     ? (phaseRaw as typeof PHASE_VALUES[number])
@@ -98,6 +149,9 @@ export async function POST(request: Request) {
       horizon_profile: horizonProfile ?? null,
       phase_preference: phase,
       delivery_preferences: body.operator_preferences?.delivery ?? null,
+      azimuth_source: azimuthSource,
+      coarse,
+      bracket: bracketResult.value,
     });
 
     return NextResponse.json(
