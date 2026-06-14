@@ -13,6 +13,8 @@ export interface MyCameraMarker {
   lastSnapshotAt: string | null;  // ISO
   latestSnapshotUrl: string | null;
   phase: PhasePreference;
+  state: string | null;           // deployment state (e.g. 'active', 'ended')
+  ended_at: string | null;        // ISO — null for active deployments
 }
 
 // Custom cameras without a webcams row still need a unique, non-colliding marker

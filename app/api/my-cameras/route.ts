@@ -24,6 +24,8 @@ type Row = {
   title: string | null;
   latest_snapshot_url: string | null;
   latest_snapshot_captured_at: string | Date | null;
+  state: string | null;
+  ended_at: string | null;
 };
 
 function toPhase(value: string | null): PhasePreference {
@@ -36,33 +38,63 @@ function toDate(v: string | Date | null): Date | null {
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   const denied = await requireOwner();
   if (denied) return denied;
 
+  const includeEnded =
+    new URL(request.url).searchParams.get('includeEnded') === '1';
+
   try {
-    const rows = (await sql`
-      select c.id               as camera_id,
-             c.webcam_id        as webcam_id,
-             c.lat              as lat,
-             c.lng              as lng,
-             c.phase_preference as phase_preference,
-             c.last_heartbeat_at as last_heartbeat_at,
-             coalesce(w.title, c.hardware_id) as title,
-             ls.firebase_url    as latest_snapshot_url,
-             ls.captured_at     as latest_snapshot_captured_at
-      from cameras c
-      left join webcams w on w.id = c.webcam_id
-      left join lateral (
-        select firebase_url, captured_at
-        from webcam_snapshots
-        where webcam_id = c.webcam_id
-        order by captured_at desc
-        limit 1
-      ) ls on true
-      where c.status = 'active'
-      order by c.id
-    `) as Row[];
+    const rows = includeEnded
+      ? ((await sql`
+          select c.id                             as camera_id,
+                 w.id                             as webcam_id,
+                 w.lat                            as lat,
+                 w.lng                            as lng,
+                 w.phase_preference               as phase_preference,
+                 c.last_heartbeat_at              as last_heartbeat_at,
+                 coalesce(w.title, c.hardware_id) as title,
+                 ls.firebase_url                  as latest_snapshot_url,
+                 ls.captured_at                   as latest_snapshot_captured_at,
+                 w.state                          as state,
+                 w.ended_at                       as ended_at
+          from cameras c
+          join webcams w on w.custom_camera_id = c.id and w.source = 'custom'
+          left join lateral (
+            select firebase_url, captured_at
+            from webcam_snapshots
+            where webcam_id = w.id
+            order by captured_at desc
+            limit 1
+          ) ls on true
+          where c.status <> 'retired'
+          order by c.id, w.id
+        `) as Row[])
+      : ((await sql`
+          select c.id                             as camera_id,
+                 w.id                             as webcam_id,
+                 w.lat                            as lat,
+                 w.lng                            as lng,
+                 w.phase_preference               as phase_preference,
+                 c.last_heartbeat_at              as last_heartbeat_at,
+                 coalesce(w.title, c.hardware_id) as title,
+                 ls.firebase_url                  as latest_snapshot_url,
+                 ls.captured_at                   as latest_snapshot_captured_at,
+                 w.state                          as state,
+                 w.ended_at                       as ended_at
+          from cameras c
+          join webcams w on w.custom_camera_id = c.id and w.source = 'custom' and w.ended_at is null
+          left join lateral (
+            select firebase_url, captured_at
+            from webcam_snapshots
+            where webcam_id = w.id
+            order by captured_at desc
+            limit 1
+          ) ls on true
+          where c.status <> 'retired'
+          order by c.id
+        `) as Row[]);
 
     const now = new Date();
 
@@ -81,7 +113,9 @@ export async function GET() {
       });
 
       return {
-        markerId: row.webcam_id ?? MY_CAMERA_MARKER_ID_OFFSET + row.camera_id,
+        markerId: row.webcam_id != null
+          ? row.webcam_id
+          : MY_CAMERA_MARKER_ID_OFFSET + row.camera_id,
         cameraId: row.camera_id,
         webcamId: row.webcam_id,
         title: row.title ?? `camera-${row.camera_id}`,
@@ -93,6 +127,8 @@ export async function GET() {
         lastSnapshotAt: lastSnapshotAt ? lastSnapshotAt.toISOString() : null,
         latestSnapshotUrl: row.latest_snapshot_url,
         phase,
+        state: row.state ?? null,
+        ended_at: row.ended_at ?? null,
       };
     });
 
