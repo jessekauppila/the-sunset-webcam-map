@@ -5,7 +5,7 @@ import type { MyCameraMarker } from '@/app/lib/myCameras.types';
 const mk = (title: string, health: MyCameraMarker['health']): MyCameraMarker => ({
   markerId: 0, cameraId: 0, webcamId: 0, title, lat: 0, lng: 0,
   health, isInWindowNow: false, lastHeartbeatAt: null, lastSnapshotAt: null,
-  latestSnapshotUrl: null, phase: 'both',
+  latestSnapshotUrl: null, phase: 'both', state: null, ended_at: null,
 });
 
 describe('sortByHealthWorstFirst', () => {

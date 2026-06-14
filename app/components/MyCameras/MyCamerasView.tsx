@@ -10,16 +10,23 @@ import { sortByHealthWorstFirst, summarizeHealth } from './healthOrdering';
 import { healthVisual } from '@/app/components/Map/cameraHealthVisual';
 
 export function MyCamerasView({ userLocation }: { userLocation: Location }) {
-  useLoadMyCameras();
+  const [showDecommissioned, setShowDecommissioned] = useState(false);
+  useLoadMyCameras({ includeEnded: showDecommissioned });
   const cameras = useMyCamerasStore((s) => s.cameras);
 
   const [inRangeOnly, setInRangeOnly] = useState(false); // default: All
   const [listCollapsed, setListCollapsed] = useState(false);
   const [focusId, setFocusId] = useState<number | null>(null);
 
+  // Exclude ended markers unless the toggle is on
+  const activeCameras = useMemo(
+    () => showDecommissioned ? cameras : cameras.filter((c) => c.state !== 'ended' && c.ended_at == null),
+    [cameras, showDecommissioned]
+  );
+
   const visible = useMemo(
-    () => (inRangeOnly ? cameras.filter((c) => c.isInWindowNow) : cameras),
-    [cameras, inRangeOnly]
+    () => (inRangeOnly ? activeCameras.filter((c) => c.isInWindowNow) : activeCameras),
+    [activeCameras, inRangeOnly]
   );
   const summary = useMemo(() => summarizeHealth(visible), [visible]);
   const sorted = useMemo(() => sortByHealthWorstFirst(visible), [visible]);
@@ -65,6 +72,19 @@ export function MyCamerasView({ userLocation }: { userLocation: Location }) {
         >
           {inRangeOnly ? 'In range' : 'All'}
         </button>
+        <button
+          type="button"
+          aria-label="Show decommissioned"
+          aria-pressed={showDecommissioned}
+          onClick={() => setShowDecommissioned((v) => !v)}
+          style={{
+            marginLeft: 4, fontSize: 11, padding: '2px 8px', borderRadius: 999,
+            background: showDecommissioned ? '#5a3e6b' : 'rgba(255,255,255,0.15)',
+            color: showDecommissioned ? '#d4aaff' : 'white',
+          }}
+        >
+          {showDecommissioned ? 'Incl. decommissioned' : 'Show decommissioned'}
+        </button>
       </div>
 
       {/* Camera list panel */}
@@ -89,6 +109,7 @@ export function MyCamerasView({ userLocation }: { userLocation: Location }) {
         {!listCollapsed && (
           <div style={{ overflowY: 'auto', padding: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
             {sorted.map((cam) => {
+              const isEnded = cam.state === 'ended' || cam.ended_at != null;
               const visual = healthVisual(cam.health);
               return (
                 <button
@@ -99,16 +120,31 @@ export function MyCamerasView({ userLocation }: { userLocation: Location }) {
                   onClick={() => setFocusId(cam.markerId)}
                   style={{
                     display: 'flex', alignItems: 'center', gap: 8, fontSize: 11,
-                    background: '#151b25', borderRadius: 6, padding: '5px 6px', textAlign: 'left',
+                    background: isEnded ? '#1a1520' : '#151b25',
+                    borderRadius: 6, padding: '5px 6px', textAlign: 'left',
+                    opacity: isEnded ? 0.6 : 1,
                   }}
                 >
                   <span
-                    style={{ width: 8, height: 8, borderRadius: '50%', background: visual.color, flex: 'none' }}
+                    style={{
+                      width: 8, height: 8, borderRadius: '50%',
+                      background: isEnded ? '#6b6b7a' : visual.color,
+                      flex: 'none',
+                    }}
                   />
                   <span style={{ overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>
                     {cam.title}
                   </span>
-                  <span style={{ marginLeft: 'auto', color: visual.color }}>{visual.label}</span>
+                  {isEnded ? (
+                    <span
+                      data-testid="decommissioned-badge"
+                      style={{ marginLeft: 'auto', color: '#8a8a9a', fontSize: 10 }}
+                    >
+                      decommissioned
+                    </span>
+                  ) : (
+                    <span style={{ marginLeft: 'auto', color: visual.color }}>{visual.label}</span>
+                  )}
                 </button>
               );
             })}
