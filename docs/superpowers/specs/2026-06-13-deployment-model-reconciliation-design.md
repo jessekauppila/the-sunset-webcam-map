@@ -114,8 +114,16 @@ the trail). `paused` is an **orthogonal boolean** on the active deployment
 
 - **Bench bringup** = deployment #1, `state='testing'` (owner mode default, §7).
 - **Field install** = `state='deployed'` (customer mode default, or owner Publish).
-- **A new placement commit auto-ends the prior deployment** when the move is
-  > ~100 m and confirmed (§8); ≤100 m re-aims the active one in place.
+- **Re-aim vs new deployment is the human's choice** at re-commission, not an
+  automatic distance threshold (§8). "New spot" ends the prior deployment (a trail
+  entry) and opens a fresh one; "re-aim here" keeps the active deployment + archive.
+
+### Multiple cameras at one location — expected, not a conflict
+Several cameras can share a lat/lng: a **sunrise + sunset pair** at one house, or a
+**bench batch** at the studio. Each is a **distinct Camera** with its own
+deployment, so nothing collides — the re-aim/new decision below is strictly
+*per-camera* (does *this* Pi's new placement continue or replace *its own* active
+deployment). Neighbors never enter into it.
 
 ## 6. Decommission / Pause / wipe_wifi — retargeted
 
@@ -153,25 +161,36 @@ unpublished; public sees published) = `testing → deployed`.
 Deferred (not in this build): a server-side **"armed / needs-approval"** state to
 vet customer installs before they go public. Same mechanism, third gate.
 
-## 8. Placement flow + the >100 m rule
+## 8. Placement flow — human-confirmed, not threshold-driven
 
 Camera identity is created at **provisioning** (§9), so the wizard always operates
 on an existing camera and only ever creates/updates a **deployment**.
 
-`upsertActiveDeployment(cameraId, placement, { state, confirmedNewLocation })`:
+The human running the wizard knows whether they moved the camera, so the
+re-aim-vs-new decision is **theirs**, passed explicitly as a `mode`:
+
+`upsertActiveDeployment(cameraId, placement, { state, mode })` where
+`mode ∈ {'reaim','new'}`:
 1. Resolve the camera (must exist; else 404 — provisioning missing).
 2. Find the active deployment (`ended_at IS NULL`).
 3. **None** → INSERT deployment #1 (`started_at=NOW()`, `state` per §7); set
-   `cameras.webcam_id`.
-4. **Active exists** → `haversine(new, active)`:
-   - **> ~100 m AND `confirmedNewLocation`** → end the active (`ended_at`,
-     `state='ended'`), INSERT a new deployment, repoint `cameras.webcam_id`.
-   - **≤ 100 m** (or not confirmed) → UPDATE the active deployment in place
-     (re-aim; GPS jitter never splits a feed).
+   `cameras.webcam_id`. (`mode` ignored — nothing to continue.)
+4. **Active exists**:
+   - `mode='new'` → end the active (`ended_at`, `state='ended'`), INSERT a new
+     deployment, repoint `cameras.webcam_id`.
+   - `mode='reaim'` (the default) → UPDATE the active deployment in place.
 5. Reconciliation when device + cloud disagree: **latest-timestamp wins**; cloud is
    system-of-record once the camera is online (carried over from the firmware spec).
 
-`haversine` + the 100 m threshold live in a small pure lib (`app/lib/deploymentPlacement.ts`, TDD).
+**Distance is advisory only — it never acts.** A small pure helper
+(`app/lib/deploymentPlacement.ts`, TDD: `haversineMeters`) lets the wizard:
+- **Pre-select the default `mode`** when an active deployment exists — far from its
+  current spot ⇒ suggest `new`, near ⇒ suggest `reaim`. The human confirms; GPS
+  jitter never silently splits a feed because nothing happens without the choice.
+- **Surface a non-blocking "nearby" FYI** at commission if *another* camera's active
+  deployment is within ~N m ("Camera 3 is ~40 m away — fine if intentional, e.g. a
+  sunrise/sunset pair"). Informational; catches wrong-unit / duplicate mistakes.
+  Never blocks, never auto-acts.
 
 ## 9. Camera identity at provisioning
 
