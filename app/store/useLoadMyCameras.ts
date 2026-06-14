@@ -11,15 +11,20 @@ const fetcher = (url: string) => fetch(url).then((r) => r.json());
  * Loads /api/my-cameras into the store on a 60s cadence, but only for the
  * operator — the SWR key is null otherwise, so no request (and no 401) fires
  * for logged-out visitors.
+ *
+ * @param opts.includeEnded - when true, appends ?includeEnded=1 to the URL so
+ *   ended (decommissioned) deployments are included in the response.
  */
-export function useLoadMyCameras() {
+export function useLoadMyCameras({ includeEnded = false }: { includeEnded?: boolean } = {}) {
   const { isOperator } = useIsOperator();
   const setCameras = useMyCamerasStore((s) => s.setCameras);
   const setLoading = useMyCamerasStore((s) => s.setLoading);
   const setError = useMyCamerasStore((s) => s.setError);
 
+  const url = includeEnded ? '/api/my-cameras?includeEnded=1' : '/api/my-cameras';
+
   const { data, error, isLoading } = useSWR(
-    isOperator ? '/api/my-cameras' : null,
+    isOperator ? url : null,
     fetcher,
     { refreshInterval: 60_000 }
   );

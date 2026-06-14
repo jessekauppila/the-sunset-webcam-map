@@ -1,66 +1,81 @@
-// Shape of what the wizard accumulates as the operator walks through
-// the screens. Submitted to /api/cameras/pre-register at the end.
-// See pre-register/route.ts:11-27 for the matching server-side type.
+// Shape of what the wizard accumulates as the operator walks through the
+// bracket flow. Submitted to /api/cameras/pre-register at the end via
+// buildPreRegisterPayload (app/lib/bracket.ts).
+import type { Facing } from '@/app/lib/solar';
+import type { BracketSolution } from '@/app/lib/bracket';
 
-export type PhasePreference = 'sunrise' | 'sunset' | 'both';
+// Single-aimed bracket cameras: no 'both' in the UI (integration contract D-8).
+export type WizardPhase = 'sunrise' | 'sunset';
 
-export type DeliveryPreferences = {
+export type DeliveryChoice = {
   channel: 'email' | 'sms' | 'gallery-only';
   email?: string;
   phone?: string;
   cadence: 'daily' | 'per-event' | 'quality-gated';
-};
+} | null;
 
-export type HorizonPoint = { azimuth_deg: number; altitude_deg: number };
+// setup-status reports FOUR states over the wire (integration contract §2.2 / D-6):
+// awaiting_wifi | registered | awaiting_aim | ready. 'unknown' is a CLIENT-ONLY
+// sentinel for the pre-first-poll initial state — setup-status NEVER returns it
+// (contract §2.2 note). Keep it in the union; no endpoint produces it.
+export type DeviceStatus = 'awaiting_wifi' | 'registered' | 'awaiting_aim' | 'ready' | 'unknown';
 
 export type WizardState = {
-  // Screen 1: confirm-camera polling result.
-  deviceStatus: 'awaiting_wifi' | 'registered' | 'ready' | 'unknown';
+  // Step 1 (Connect) — setup-status poll result.
+  deviceStatus: DeviceStatus;
 
-  // Screen 2.
-  phasePreference: PhasePreference | null;
+  // Step 2 (Facing/phase). facing drives both the solar arcs and phase_preference.
+  facing: Facing | null;
 
-  // Screen 3.
-  delivery: DeliveryPreferences | null;
+  // Step 3 (Measure window) — phone-flat magnetic reading + declination.
+  windowMagAz: number | null;
+  declinationDeg: number | null;
 
-  // Screens 4-5 (deferred to brainstorming session).
-  horizonProfile: HorizonPoint[] | null;
+  // Step 4 onward — the solved bracket bundle (recomputed when inputs change).
+  solution: BracketSolution | null;
 
-  // Screen 6: captured on "Mount Here" tap.
-  placementAzimuth: number | null;
-  placementTilt: number | null;
-
-  // Geolocation API output. Captured automatically when permission is
-  // granted; not bound to any particular screen.
+  // Geolocation (captured on Measure window).
   lat: number | null;
   lng: number | null;
   elevationM: number | null;
-
-  // Browser-derived.
   timezone: string | null;
+
+  // Step 8 (Delivery) — null when skipped.
+  delivery: DeliveryChoice;
+
+  // Placement mode: 're-aiming in-place' vs 'moved to a new spot' (Task 15).
+  // Sent to /api/cameras/pre-register; server uses it to derive deployment state.
+  mode: 'reaim' | 'new';
+
+  // Owner-only: whether to immediately publish (go live) on submit.
+  publish: boolean;
 };
 
 export const initialWizardState: WizardState = {
   deviceStatus: 'unknown',
-  phasePreference: null,
-  delivery: null,
-  horizonProfile: null,
-  placementAzimuth: null,
-  placementTilt: null,
+  facing: null,
+  windowMagAz: null,
+  declinationDeg: null,
+  solution: null,
   lat: null,
   lng: null,
   elevationM: null,
   timezone: null,
+  delivery: null,
+  mode: 'reaim',
+  publish: false,
 };
 
-// Six screens per the design spec. Names match the spec's headings.
+// The reconciliation spec's 9-step flow (step 1 gated on sub-project E).
 export const STEPS = [
-  'confirm-camera',
-  'phase-preference',
-  'delivery-preferences',
-  'ar-placement',     // Screen 4 — placeholder until brainstorm
-  'horizon-sweep',    // Screen 5 — placeholder until brainstorm
-  'mount-here',
-  'submit',
+  'connect',          // 1 — real, E-gated
+  'facing-phase',     // 2 — real
+  'measure-window',   // 3 — real
+  'hinge-equinox',    // 4 — real (solar.ts + declination endpoint)
+  'bracket-spec',     // 5 — real
+  'assemble',         // 6 — real
+  'mount-confirm',    // 7 — real
+  'delivery',         // 8 — PLACEHOLDER (Skip for now)
+  'submit',           // 9 — real (pre-register)
 ] as const;
 export type Step = typeof STEPS[number];

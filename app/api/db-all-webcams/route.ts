@@ -20,6 +20,8 @@ export async function GET() {
            w.ai_rating_binary, w.ai_model_version_binary,
            w.ai_rating_regression, w.ai_model_version_regression
     from webcams w
+    where (w.source <> 'custom'
+           or (w.state = 'deployed' and w.ended_at is null and w.paused = false))
     order by w.updated_at desc
     limit 5000
   `) as Array<{

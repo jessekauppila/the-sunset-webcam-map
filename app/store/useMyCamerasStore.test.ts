@@ -6,6 +6,7 @@ const cam: MyCameraMarker = {
   markerId: 1, cameraId: 1, webcamId: 1, title: 'a', lat: 0, lng: 0,
   health: 'live', isInWindowNow: false, lastHeartbeatAt: null,
   lastSnapshotAt: null, latestSnapshotUrl: null, phase: 'both',
+  state: null, ended_at: null,
 };
 
 beforeEach(() => {

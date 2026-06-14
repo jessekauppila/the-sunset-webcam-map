@@ -2,24 +2,30 @@
 
 import { useEffect } from 'react';
 import { usePolling } from '../lib/usePolling';
+import type { DeviceStatus } from '../types';
 
-type StatusResponse = { status: 'awaiting_wifi' | 'registered' | 'ready' };
+type StatusResponse = { status: Exclude<DeviceStatus, 'unknown'> };
 
-// Screen 1. Polls /api/cameras/setup-status/[claim_code] every 3s until
-// the device has either registered or finished pre-register from another
-// path. Auto-advances when status != 'awaiting_wifi'.
+// Step 1 (Connect). Polls /api/cameras/setup-status/[claim_code] every 3s
+// until the device leaves 'awaiting_wifi'. Auto-advances on any other status
+// (registered | awaiting_aim | ready) — covering the resumable re-entry case
+// where the device already registered before the recipient returned (Fix 6).
+//
+// E-gated: until sub-project E ships the captive-portal onboarding, no device
+// flips setup-status, so this step only completes against a manually-seeded
+// device row.
 export default function ConfirmCamera({
   claimCode,
   onAdvance,
 }: {
   claimCode: string;
-  onAdvance: (status: 'awaiting_wifi' | 'registered' | 'ready') => void;
+  onAdvance: (status: Exclude<DeviceStatus, 'unknown'>) => void;
 }) {
   const { latest, error, stopped } = usePolling<StatusResponse>(
     async () => {
       const res = await fetch(`/api/cameras/setup-status/${claimCode}`);
       if (!res.ok) {
-        if (res.status === 404) {
+        if (res.status === 404 || res.status === 410) {
           throw new Error('Unknown or expired claim code.');
         }
         throw new Error(`Setup status check failed (${res.status})`);
@@ -38,9 +44,12 @@ export default function ConfirmCamera({
 
   return (
     <div className="flex flex-1 flex-col justify-center text-center">
-      <h1 className="mb-4 text-2xl font-light">Finding your camera</h1>
-      <p className="mb-8 text-neutral-400">
+      <h1 className="mb-4 text-2xl font-light">Connect your camera</h1>
+      <p className="mb-2 text-neutral-400">
         Waiting for your camera to connect…
+      </p>
+      <p className="mb-8 text-xs text-neutral-500">
+        This step needs the camera&apos;s WiFi onboarding (sub-project E) to be live.
       </p>
       <div className="flex justify-center">
         <div className="h-6 w-6 animate-spin rounded-full border-2 border-neutral-700 border-t-white" />

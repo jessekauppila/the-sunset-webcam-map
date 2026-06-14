@@ -26,6 +26,9 @@ vi.mock('@/app/lib/cameraHealth', () => ({
 
 import { GET } from './route';
 
+const makeRequest = (search = '') =>
+  new Request(`http://test/api/my-cameras${search}`);
+
 beforeEach(() => {
   sqlMock.mockReset().mockResolvedValue([]);
   requireOwnerMock.mockReset().mockResolvedValue(null); // authorized owner
@@ -39,7 +42,7 @@ describe('GET /api/my-cameras', () => {
     requireOwnerMock.mockResolvedValue(
       NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
     );
-    const res = await GET();
+    const res = await GET(makeRequest());
     expect(res.status).toBe(401);
     expect(sqlMock).not.toHaveBeenCalled();
   });
@@ -48,16 +51,24 @@ describe('GET /api/my-cameras', () => {
     requireOwnerMock.mockResolvedValue(
       NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     );
-    const res = await GET();
+    const res = await GET(makeRequest());
     expect(res.status).toBe(403);
     expect(sqlMock).not.toHaveBeenCalled();
   });
 
-  it('queries only active cameras', async () => {
-    await GET();
-    const q = (sqlMock.mock.calls[0][0] as TemplateStringsArray).join('?');
+  it('default mode: query joins on ended_at is null and excludes retired', async () => {
+    await GET(makeRequest());
+    const q = (sqlMock.mock.calls[0][0] as TemplateStringsArray).join('');
     expect(q).toMatch(/from cameras c/i);
-    expect(q).toMatch(/c\.status = 'active'/i);
+    expect(q).toMatch(/ended_at is null/i);
+    expect(q).toMatch(/status.*<>.*'retired'/i);
+  });
+
+  it('includeEnded=1: query does NOT restrict ended_at is null', async () => {
+    await GET(makeRequest('?includeEnded=1'));
+    const q = (sqlMock.mock.calls[0][0] as TemplateStringsArray).join('');
+    expect(q).not.toMatch(/ended_at is null/i);
+    expect(q).toMatch(/status.*<>.*'retired'/i);
   });
 
   it('maps a row with a webcam_id, coercing NUMERIC strings and ISO dates', async () => {
@@ -74,9 +85,11 @@ describe('GET /api/my-cameras', () => {
         title: 'deck-west',
         latest_snapshot_url: 'https://x/y.jpg',
         latest_snapshot_captured_at: '2026-06-09T04:01:00.000Z',
+        state: 'active',
+        ended_at: null,
       },
     ]);
-    const res = await GET();
+    const res = await GET(makeRequest());
     const body = await res.json();
     expect(body).toHaveLength(1);
     expect(body[0]).toMatchObject({
@@ -92,6 +105,8 @@ describe('GET /api/my-cameras', () => {
       lastSnapshotAt: '2026-06-09T04:01:00.000Z',
       latestSnapshotUrl: 'https://x/y.jpg',
       phase: 'sunset',
+      state: 'active',
+      ended_at: null,
     });
   });
 
@@ -108,14 +123,61 @@ describe('GET /api/my-cameras', () => {
         title: 'barn-cam',
         latest_snapshot_url: null,
         latest_snapshot_captured_at: null,
+        state: null,
+        ended_at: null,
       },
     ]);
-    const res = await GET();
+    const res = await GET(makeRequest());
     const body = await res.json();
     expect(body[0].markerId).toBe(1_000_000_003);
     expect(body[0].webcamId).toBeNull();
     expect(body[0].health).toBe('never');
     expect(body[0].lastHeartbeatAt).toBeNull();
     expect(body[0].lastSnapshotAt).toBeNull();
+    expect(body[0].state).toBeNull();
+    expect(body[0].ended_at).toBeNull();
+  });
+
+  it('includeEnded=1: an ended deployment row maps into the output with state+ended_at', async () => {
+    computeCameraHealthMock.mockReturnValue('offline');
+    sqlMock.mockResolvedValue([
+      {
+        camera_id: 5,
+        webcam_id: 99,
+        lat: '47.6',
+        lng: '-122.3',
+        phase_preference: 'sunset',
+        last_heartbeat_at: '2026-05-01T03:00:00.000Z',
+        title: 'old-spot',
+        latest_snapshot_url: null,
+        latest_snapshot_captured_at: null,
+        state: 'ended',
+        ended_at: '2026-06-01T00:00:00.000Z',
+      },
+    ]);
+    const res = await GET(makeRequest('?includeEnded=1'));
+    const body = await res.json();
+    expect(body).toHaveLength(1);
+    expect(body[0]).toMatchObject({
+      markerId: 99,
+      cameraId: 5,
+      webcamId: 99,
+      state: 'ended',
+      ended_at: '2026-06-01T00:00:00.000Z',
+      health: 'offline',
+    });
+  });
+
+  it('lat/lng come from the deployment (webcams) row, not the cameras row', async () => {
+    // The deployment row carries the placement; the route should use w.lat / w.lng.
+    // We verify this by checking the query joins on webcams aliased as w and selects w.lat.
+    await GET(makeRequest());
+    const q = (sqlMock.mock.calls[0][0] as TemplateStringsArray).join('');
+    // Should join webcams with the deployment condition
+    expect(q).toMatch(/join webcams w/i);
+    expect(q).toMatch(/w\.custom_camera_id\s*=\s*c\.id/i);
+    // Placement columns should come from the deployment row
+    expect(q).toMatch(/w\.lat/i);
+    expect(q).toMatch(/w\.lng/i);
   });
 });

@@ -1,5 +1,14 @@
 # Cloud HTTPS Phone-Compass Calibration (MVP) — Implementation Plan
 
+> **⚠️ SUPERSEDED (2026-06-13).** This plan built a *standalone* `/setup/[code]` wizard —
+> but there is **already a cloud wizard** at `app/setup/[claim_code]/` (commit `9be50a801`,
+> spec `2026-05-16-cloud-wizard-frontend-design.md`) with `useDeviceOrientation`,
+> `/api/cameras/pre-register`, and a spec'd AR-placement placeholder. Most of this plan
+> duplicated it. **What was kept** (branch `feat/cloud-https-setup`): `app/lib/solar.ts`,
+> `app/lib/declination.ts`, `GET /api/setup/declination?lat=&lng=`. **Real next step:** fold
+> the arc overlay into `ArPlacementPlaceholder` per that spec's §4 — do NOT build a second
+> wizard. See memory `cloud-https-setup-mvp-in-progress`.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** A phone, over HTTPS, reads its compass against a live sun-arc overlay, captures a true-north heading, and writes it to a camera's placement — the calibration loop the Pi's HTTP can't do.

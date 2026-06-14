@@ -1,4 +1,6 @@
 import { notFound } from 'next/navigation';
+import { auth } from '@/auth';
+import { isOwner } from '@/app/lib/owner';
 import WizardClient from './WizardClient';
 
 type PageProps = {
@@ -18,5 +20,6 @@ export default async function SetupPage({ params }: PageProps) {
     notFound();
   }
 
-  return <WizardClient claimCode={claim_code} />;
+  const session = await auth();
+  return <WizardClient claimCode={claim_code} isOwner={isOwner(session)} />;
 }

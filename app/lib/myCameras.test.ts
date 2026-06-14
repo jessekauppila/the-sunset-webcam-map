@@ -15,6 +15,8 @@ const base: MyCameraMarker = {
   lastSnapshotAt: '2026-06-09T04:01:00.000Z',
   latestSnapshotUrl: 'https://x/y.jpg',
   phase: 'sunset',
+  state: 'active',
+  ended_at: null,
 };
 
 describe('myCameraToWindyWebcam', () => {
