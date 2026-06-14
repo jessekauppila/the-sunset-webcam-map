@@ -14,7 +14,7 @@ import MountConfirm from './steps/MountConfirm';
 import DeliveryPlaceholder from './steps/DeliveryPlaceholder';
 import SubmitStep from './steps/SubmitStep';
 
-export default function WizardClient({ claimCode }: { claimCode: string }) {
+export default function WizardClient({ claimCode, isOwner }: { claimCode: string; isOwner: boolean }) {
   // State-aware entry (Task 22): gate the flow until we know whether this is a
   // fresh commission or an already-placed camera. `entered` flips once the entry
   // routes us in (fresh → 'connect'; re-aim → skip the E-gate, start at facing).
@@ -22,17 +22,21 @@ export default function WizardClient({ claimCode }: { claimCode: string }) {
   const [step, setStep] = useState<Step>('connect');
   const [state, setState] = useState<WizardState>(initialWizardState);
 
+  const update = (patch: Partial<WizardState>) => setState((s) => ({ ...s, ...patch }));
+
   const onCommission = useCallback(() => {
+    // Fresh camera: keep mode at default 'reaim' (first deployment; mode is
+    // ignored server-side when there's no active deployment).
     setStep('connect');
     setEntered(true);
   }, []);
-  const onReaim = useCallback(() => {
-    // Already connected + placed: skip Connect (the E-gate) and re-run the bracket flow.
+  const onReaim = useCallback((mode: 'reaim' | 'new') => {
+    // Already connected + placed: record which kind of re-aim the operator chose,
+    // then skip Connect (the E-gate) and jump straight into the bracket flow.
+    setState((s) => ({ ...s, mode }));
     setStep('facing-phase');
     setEntered(true);
   }, []);
-
-  const update = (patch: Partial<WizardState>) => setState((s) => ({ ...s, ...patch }));
   const goNext = () => {
     const idx = STEPS.indexOf(step);
     if (idx >= 0 && idx < STEPS.length - 1) setStep(STEPS[idx + 1]);
@@ -116,7 +120,13 @@ export default function WizardClient({ claimCode }: { claimCode: string }) {
           <DeliveryPlaceholder onSkip={() => { update({ delivery: null }); goNext(); }} onBack={goBack} />
         )}
         {step === 'submit' && (
-          <SubmitStep claimCode={claimCode} state={state} onBack={goBack} />
+          <SubmitStep
+            claimCode={claimCode}
+            state={state}
+            onBack={goBack}
+            isOwner={isOwner}
+            onPublishChange={(publish) => update({ publish })}
+          />
         )}
       </section>
     </main>

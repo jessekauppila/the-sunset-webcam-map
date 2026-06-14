@@ -6,14 +6,20 @@ import { buildPreRegisterPayload } from '@/app/lib/bracket';
 
 // Step 9. Builds the §4.2 pre-register payload from the solved bracket and
 // POSTs it. The shape comes from buildPreRegisterPayload (app/lib/bracket.ts).
+// isOwner: when true, renders the "Publish now" checkbox and includes publish
+// in the POST body so the server can set deployment state = 'deployed'.
 export default function SubmitStep({
   claimCode,
   state,
   onBack,
+  isOwner,
+  onPublishChange,
 }: {
   claimCode: string;
   state: WizardState;
   onBack: () => void;
+  isOwner: boolean;
+  onPublishChange?: (publish: boolean) => void;
 }) {
   const [status, setStatus] = useState<'idle' | 'submitting' | 'success' | 'error'>('idle');
   const [message, setMessage] = useState<string | null>(null);
@@ -39,10 +45,15 @@ export default function SubmitStep({
         declinationDeg: state.declinationDeg,
         delivery: state.delivery,
       });
+      const body: Record<string, unknown> = {
+        ...payload,
+        mode: state.mode,
+        ...(isOwner ? { publish: state.publish } : {}),
+      };
       const res = await fetch('/api/cameras/pre-register', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(body),
       });
       if (!res.ok) {
         // Fix 6 / contract LC-5: a near-TTL code can expire mid-flow; surface
@@ -86,6 +97,18 @@ export default function SubmitStep({
         <Row label="Lens" value={sol ? (sol.lens === 'wide' ? 'wide 102°' : 'standard 66°') : '—'} />
         <Row label="Delivery" value={state.delivery ? `${state.delivery.channel}` : 'gallery only'} />
       </dl>
+
+      {isOwner && (
+        <label className="mb-4 flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={state.publish}
+            onChange={(e) => onPublishChange?.(e.target.checked)}
+            className="h-4 w-4 rounded"
+          />
+          Publish now (go live)
+        </label>
+      )}
 
       {missing.length > 0 && (
         <p className="mb-4 text-sm text-amber-400">Missing: {missing.join(', ')}. Go back and fill them in.</p>

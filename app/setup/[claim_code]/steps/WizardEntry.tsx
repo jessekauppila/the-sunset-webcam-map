@@ -22,7 +22,7 @@ export default function WizardEntry({
 }: {
   claimCode: string;
   onCommission: () => void;
-  onReaim: () => void;
+  onReaim: (mode: 'reaim' | 'new') => void;
 }) {
   const [phase, setPhase] = useState<EntryPhase>('loading');
   const [busy, setBusy] = useState(false);
@@ -70,14 +70,17 @@ export default function WizardEntry({
     <div className="flex flex-1 flex-col">
       <h1 className="text-lg font-semibold">This camera is already set up</h1>
       <Why>
-        It already has a saved aim. Re-aim it if you moved it or it is pointing the
-        wrong way. Turning it off stops capture at this spot — you can set it up again
-        any time with this same code.
+        It already has a saved aim. Re-aim it if the camera is still in the same spot
+        but pointing the wrong way, or tell us you moved it to a new location. Turning
+        it off stops capture — you can set it up again any time with this same code.
       </Why>
 
-      {/* Primary: Re-aim is FIRST so re-commissioning is the easy path. */}
-      <Btn onClick={onReaim} disabled={busy}>
-        Re-aim / move this camera
+      {/* Primary: two re-aim options — same-spot re-aim above moved-to-new-spot. */}
+      <Btn onClick={() => onReaim('reaim')} disabled={busy}>
+        Re-aim it where it is
+      </Btn>
+      <Btn onClick={() => onReaim('new')} disabled={busy}>
+        I moved it to a new spot
       </Btn>
 
       {/* Secondary: present, but visually subordinate (ghost) and below Re-aim. */}

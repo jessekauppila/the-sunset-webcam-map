@@ -34,7 +34,7 @@ describe('WizardEntry', () => {
     expect(onReaim).not.toHaveBeenCalled();
   });
 
-  it('already-placed camera → offers Re-aim (primary) above Turn off (secondary)', async () => {
+  it('already-placed camera → offers two re-aim options above Turn off (secondary)', async () => {
     mockFetch(async () => jsonResponse({ status: 'ready' }));
     const onCommission = vi.fn();
     const onReaim = vi.fn();
@@ -43,16 +43,18 @@ describe('WizardEntry', () => {
       <WizardEntry claimCode="SUNSET-AAAA-BBBB" onCommission={onCommission} onReaim={onReaim} />
     );
 
-    const reaim = await screen.findByRole('button', { name: /re-?aim|move/i });
+    const reaim = await screen.findByRole('button', { name: /re-?aim it where it is/i });
+    const moved = screen.getByRole('button', { name: /moved it to a new spot/i });
     const turnOff = screen.getByRole('button', { name: /turn off|decommission/i });
 
-    // Ordering: Re-aim must appear before Turn off in the DOM.
+    // Ordering: both re-aim buttons must appear before Turn off in the DOM.
     expect(reaim.compareDocumentPosition(turnOff) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(moved.compareDocumentPosition(turnOff) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     // A placed camera must NOT auto-route into commission.
     expect(onCommission).not.toHaveBeenCalled();
   });
 
-  it('Re-aim lands in the bracket flow (calls onReaim, not a decommission gate)', async () => {
+  it('"Re-aim it where it is" calls onReaim("reaim")', async () => {
     mockFetch(async () => jsonResponse({ status: 'ready' }));
     const onReaim = vi.fn();
 
@@ -60,9 +62,24 @@ describe('WizardEntry', () => {
       <WizardEntry claimCode="SUNSET-AAAA-BBBB" onCommission={vi.fn()} onReaim={onReaim} />
     );
 
-    const reaim = await screen.findByRole('button', { name: /re-?aim|move/i });
+    const reaim = await screen.findByRole('button', { name: /re-?aim it where it is/i });
     fireEvent.click(reaim);
     expect(onReaim).toHaveBeenCalledTimes(1);
+    expect(onReaim).toHaveBeenCalledWith('reaim');
+  });
+
+  it('"I moved it to a new spot" calls onReaim("new")', async () => {
+    mockFetch(async () => jsonResponse({ status: 'ready' }));
+    const onReaim = vi.fn();
+
+    render(
+      <WizardEntry claimCode="SUNSET-AAAA-BBBB" onCommission={vi.fn()} onReaim={onReaim} />
+    );
+
+    const moved = await screen.findByRole('button', { name: /moved it to a new spot/i });
+    fireEvent.click(moved);
+    expect(onReaim).toHaveBeenCalledTimes(1);
+    expect(onReaim).toHaveBeenCalledWith('new');
   });
 
   it('Turn off posts to the decommission endpoint (claim-code scoped)', async () => {

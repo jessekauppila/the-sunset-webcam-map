@@ -25,7 +25,7 @@ describe('WizardClient', () => {
       ) as unknown as typeof fetch
     );
 
-    render(<WizardClient claimCode="SUNSET-7K3M-9XQ2" />);
+    render(<WizardClient claimCode="SUNSET-7K3M-9XQ2" isOwner={false} />);
 
     expect(await screen.findByText(/Connect your camera/i)).toBeTruthy();
     expect(screen.getByText(/Step 1 of 9/)).toBeTruthy();

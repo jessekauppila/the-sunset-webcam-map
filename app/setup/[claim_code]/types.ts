@@ -42,6 +42,13 @@ export type WizardState = {
 
   // Step 8 (Delivery) — null when skipped.
   delivery: DeliveryChoice;
+
+  // Placement mode: 're-aiming in-place' vs 'moved to a new spot' (Task 15).
+  // Sent to /api/cameras/pre-register; server uses it to derive deployment state.
+  mode: 'reaim' | 'new';
+
+  // Owner-only: whether to immediately publish (go live) on submit.
+  publish: boolean;
 };
 
 export const initialWizardState: WizardState = {
@@ -55,6 +62,8 @@ export const initialWizardState: WizardState = {
   elevationM: null,
   timezone: null,
   delivery: null,
+  mode: 'reaim',
+  publish: false,
 };
 
 // The reconciliation spec's 9-step flow (step 1 gated on sub-project E).
