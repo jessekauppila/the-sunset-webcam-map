@@ -3,14 +3,15 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const getClaimCodeMock = vi.fn();
 const sqlMock = vi.fn();
+const getActiveDeploymentMock = vi.fn();
 const derivePlacementStatusMock = vi.fn();
 
 vi.mock('@/app/lib/cameraClaimCode', () => ({
   getClaimCode: (...a: unknown[]) => getClaimCodeMock(...a),
 }));
-vi.mock('@/app/lib/cameraRegistration', () => ({
+vi.mock('@/app/lib/cameraDeployment', () => ({
+  getActiveDeployment: (...a: unknown[]) => getActiveDeploymentMock(...a),
   derivePlacementStatus: (...a: unknown[]) => derivePlacementStatusMock(...a),
-  sentinelForClaimCode: (code: string) => `pending-${code}`,
 }));
 vi.mock('@/app/lib/db', () => ({
   sql: (s: TemplateStringsArray, ...v: unknown[]) => sqlMock(s, ...v),
@@ -21,6 +22,7 @@ import { GET } from './route';
 beforeEach(() => {
   getClaimCodeMock.mockReset();
   sqlMock.mockReset();
+  getActiveDeploymentMock.mockReset();
   derivePlacementStatusMock.mockReset();
 });
 
@@ -39,69 +41,6 @@ describe('GET /api/cameras/setup-status/[claim_code]', () => {
     expect(res.status).toBe(404);
   });
 
-  it('returns awaiting_wifi when no cameras row exists for the claim code yet', async () => {
-    getClaimCodeMock.mockResolvedValueOnce({
-      code: 'SUNSET-AAAA-BBBB',
-      expires_at: new Date('2099-01-01'),
-      consumed_at: null,
-      consumed_by_camera_id: null,
-    });
-    sqlMock.mockResolvedValueOnce([]); // SELECT cameras → none
-    const res = await GET(makeRequest('SUNSET-AAAA-BBBB'), makeContext('SUNSET-AAAA-BBBB'));
-    expect(res.status).toBe(200);
-    const body = await res.json();
-    expect(body.status).toBe('awaiting_wifi');
-  });
-
-  it('returns awaiting_wifi when a pre-register-only row exists (no real device_token_hash)', async () => {
-    getClaimCodeMock.mockResolvedValueOnce({
-      code: 'SUNSET-AAAA-BBBB',
-      expires_at: new Date('2099-01-01'),
-      consumed_at: null,
-      consumed_by_camera_id: null,
-    });
-    sqlMock.mockResolvedValueOnce([
-      {
-        id: 17,
-        hardware_id: 'pending-SUNSET-AAAA-BBBB',
-        device_token_hash: 'pending-SUNSET-AAAA-BBBB',
-        lat: 47.6,
-        lng: -122.3,
-        azimuth_deg: 270,
-        tilt_deg: 5,
-      },
-    ]);
-    const res = await GET(makeRequest('SUNSET-AAAA-BBBB'), makeContext('SUNSET-AAAA-BBBB'));
-    expect(res.status).toBe(200);
-    const body = await res.json();
-    expect(body.status).toBe('awaiting_wifi');
-  });
-
-  it('returns registered when device has registered but placement is still pending', async () => {
-    getClaimCodeMock.mockResolvedValueOnce({
-      code: 'SUNSET-AAAA-BBBB',
-      expires_at: new Date('2099-01-01'),
-      consumed_at: new Date(),
-      consumed_by_camera_id: 17,
-    });
-    sqlMock.mockResolvedValueOnce([
-      {
-        id: 17,
-        hardware_id: 'rpi-real-serial',
-        device_token_hash: 'real-hash-abc',
-        lat: null,
-        lng: null,
-        azimuth_deg: null,
-        tilt_deg: null,
-      },
-    ]);
-    derivePlacementStatusMock.mockReturnValueOnce('pending');
-    const res = await GET(makeRequest('SUNSET-AAAA-BBBB'), makeContext('SUNSET-AAAA-BBBB'));
-    expect(res.status).toBe(200);
-    const body = await res.json();
-    expect(body.status).toBe('registered');
-  });
-
   it('returns 404 for an expired claim code', async () => {
     getClaimCodeMock.mockResolvedValueOnce({
       code: 'SUNSET-AAAA-BBBB',
@@ -116,51 +55,45 @@ describe('GET /api/cameras/setup-status/[claim_code]', () => {
     expect(res.status).toBe(404);
   });
 
-  it('returns registered (not awaiting_wifi) when only one column matches the sentinel', async () => {
-    // Defensive: if some future code path ever leaves the columns out of sync,
-    // setup-status should NOT silently hide it behind awaiting_wifi.
+  it('returns awaiting_wifi when no cameras row exists for the claim code', async () => {
     getClaimCodeMock.mockResolvedValueOnce({
       code: 'SUNSET-AAAA-BBBB',
       expires_at: new Date('2099-01-01'),
-      consumed_at: new Date(),
-      consumed_by_camera_id: 17,
+      consumed_at: null,
+      consumed_by_camera_id: null,
     });
-    sqlMock.mockResolvedValueOnce([
-      {
-        id: 17,
-        hardware_id: 'rpi-real-serial',
-        device_token_hash: 'pending-SUNSET-AAAA-BBBB',
-        lat: 47.6, lng: -122.3, azimuth_deg: 270, tilt_deg: 5,
-      },
-    ]);
-    derivePlacementStatusMock.mockReturnValueOnce('ready');
-    const res = await GET(
-      makeRequest('SUNSET-AAAA-BBBB'),
-      makeContext('SUNSET-AAAA-BBBB')
-    );
+    sqlMock.mockResolvedValueOnce([]); // SELECT cameras → none
+    const res = await GET(makeRequest('SUNSET-AAAA-BBBB'), makeContext('SUNSET-AAAA-BBBB'));
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.status).toBe('ready');
+    expect(body.status).toBe('awaiting_wifi');
   });
 
-  it('returns ready when device is registered AND placement is populated', async () => {
+  it('returns registered when camera exists but has no active deployment', async () => {
+    getClaimCodeMock.mockResolvedValueOnce({
+      code: 'SUNSET-AAAA-BBBB',
+      expires_at: new Date('2099-01-01'),
+      consumed_at: null,
+      consumed_by_camera_id: null,
+    });
+    sqlMock.mockResolvedValueOnce([{ id: 7 }]);
+    getActiveDeploymentMock.mockResolvedValueOnce(null);
+    const res = await GET(makeRequest('SUNSET-AAAA-BBBB'), makeContext('SUNSET-AAAA-BBBB'));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.status).toBe('registered');
+  });
+
+  it('returns ready when camera has an active deployment that is fully placed', async () => {
     getClaimCodeMock.mockResolvedValueOnce({
       code: 'SUNSET-AAAA-BBBB',
       expires_at: new Date('2099-01-01'),
       consumed_at: new Date(),
-      consumed_by_camera_id: 17,
+      consumed_by_camera_id: 7,
     });
-    sqlMock.mockResolvedValueOnce([
-      {
-        id: 17,
-        hardware_id: 'rpi-real-serial',
-        device_token_hash: 'real-hash-abc',
-        lat: 47.6,
-        lng: -122.3,
-        azimuth_deg: 270,
-        tilt_deg: 5,
-      },
-    ]);
+    sqlMock.mockResolvedValueOnce([{ id: 7 }]);
+    const deployment = { id: 1, lat: 47.6, lng: -122.3, azimuth_deg: 270, tilt_deg: 5 };
+    getActiveDeploymentMock.mockResolvedValueOnce(deployment);
     derivePlacementStatusMock.mockReturnValueOnce('ready');
     const res = await GET(makeRequest('SUNSET-AAAA-BBBB'), makeContext('SUNSET-AAAA-BBBB'));
     expect(res.status).toBe(200);
@@ -168,28 +101,37 @@ describe('GET /api/cameras/setup-status/[claim_code]', () => {
     expect(body.status).toBe('ready');
   });
 
-  it('reports awaiting_aim when located but not yet aimed', async () => {
+  it('returns awaiting_aim when deployment has location but no aim', async () => {
     getClaimCodeMock.mockResolvedValueOnce({
       code: 'SUNSET-AAAA-BBBB',
       expires_at: new Date('2099-01-01'),
       consumed_at: new Date(),
-      consumed_by_camera_id: 17,
+      consumed_by_camera_id: 7,
     });
-    sqlMock.mockResolvedValueOnce([
-      {
-        id: 17,
-        hardware_id: 'rpi-real-serial',
-        device_token_hash: 'real-hash-abc',
-        lat: 47.6,
-        lng: -122.3,
-        azimuth_deg: null,
-        tilt_deg: null,
-      },
-    ]);
+    sqlMock.mockResolvedValueOnce([{ id: 7 }]);
+    const deployment = { id: 1, lat: 47.6, lng: -122.3, azimuth_deg: null, tilt_deg: null };
+    getActiveDeploymentMock.mockResolvedValueOnce(deployment);
     derivePlacementStatusMock.mockReturnValueOnce('awaiting_aim');
     const res = await GET(makeRequest('SUNSET-AAAA-BBBB'), makeContext('SUNSET-AAAA-BBBB'));
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.status).toBe('awaiting_aim');
+  });
+
+  it('returns registered when deployment exists but has awaiting_location placement', async () => {
+    getClaimCodeMock.mockResolvedValueOnce({
+      code: 'SUNSET-AAAA-BBBB',
+      expires_at: new Date('2099-01-01'),
+      consumed_at: new Date(),
+      consumed_by_camera_id: 7,
+    });
+    sqlMock.mockResolvedValueOnce([{ id: 7 }]);
+    const deployment = { id: 1, lat: null, lng: null, azimuth_deg: null, tilt_deg: null };
+    getActiveDeploymentMock.mockResolvedValueOnce(deployment);
+    derivePlacementStatusMock.mockReturnValueOnce('awaiting_location');
+    const res = await GET(makeRequest('SUNSET-AAAA-BBBB'), makeContext('SUNSET-AAAA-BBBB'));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.status).toBe('registered');
   });
 });

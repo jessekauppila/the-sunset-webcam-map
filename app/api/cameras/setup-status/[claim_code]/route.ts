@@ -1,21 +1,13 @@
 import { NextResponse } from 'next/server';
 import { sql } from '@/app/lib/db';
 import { getClaimCode } from '@/app/lib/cameraClaimCode';
-import { derivePlacementStatus, sentinelForClaimCode } from '@/app/lib/cameraRegistration';
+import { getActiveDeployment, derivePlacementStatus } from '@/app/lib/cameraDeployment';
 
 export const dynamic = 'force-dynamic';
 
 type RouteContext = { params: Promise<{ claim_code: string }> };
 
-type StatusRow = {
-  id: number;
-  hardware_id: string;
-  device_token_hash: string;
-  lat: number | null;
-  lng: number | null;
-  azimuth_deg: number | null;
-  tilt_deg: number | null;
-};
+type CameraIdRow = { id: number };
 
 export async function GET(_request: Request, context: RouteContext) {
   const { claim_code } = await context.params;
@@ -25,26 +17,25 @@ export async function GET(_request: Request, context: RouteContext) {
   }
 
   const rows = (await sql`
-    SELECT id, hardware_id, device_token_hash, lat, lng, azimuth_deg, tilt_deg
-    FROM cameras WHERE claim_code = ${claim_code} LIMIT 1
-  `) as StatusRow[];
+    SELECT id FROM cameras WHERE claim_code = ${claim_code} LIMIT 1
+  `) as CameraIdRow[];
 
   const row = rows[0];
   if (!row) {
+    // Defensive: camera always exists post-provisioning, but handle the edge case.
     return NextResponse.json({ status: 'awaiting_wifi' });
   }
 
-  // A pre-register-first row is identifiable by the sentinel placeholder
-  // (see Task 4's upsert). Treat such rows as "device hasn't called register yet."
-  const sentinel = sentinelForClaimCode(claim_code);
-  if (row.hardware_id === sentinel && row.device_token_hash === sentinel) {
-    return NextResponse.json({ status: 'awaiting_wifi' });
+  const deployment = await getActiveDeployment(row.id);
+  if (!deployment) {
+    // Camera provisioned but no placement created yet.
+    return NextResponse.json({ status: 'registered' });
   }
 
-  const placement = derivePlacementStatus(row);
+  const placement = derivePlacementStatus(deployment);
   const status =
     placement === 'ready' ? 'ready'
     : placement === 'awaiting_aim' ? 'awaiting_aim'
-    : 'registered'; // awaiting_location: device is up but has no coords yet
+    : 'registered'; // awaiting_location: deployment exists but no coords yet
   return NextResponse.json({ status });
 }
