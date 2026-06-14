@@ -66,26 +66,28 @@ export async function fetchCameraDetail(
   cameraId: number
 ): Promise<CameraDetail | null> {
   const rows = (await sql`
-    select c.id               as camera_id,
-           c.webcam_id        as webcam_id,
-           c.hardware_id      as hardware_id,
-           c.device_class     as device_class,
-           c.firmware_version as firmware_version,
-           c.lat              as lat,
-           c.lng              as lng,
-           c.phase_preference as phase_preference,
-           c.status           as status,
-           c.registered_at    as registered_at,
+    select c.id                as camera_id,
+           w.id                as webcam_id,
+           c.hardware_id       as hardware_id,
+           c.device_class      as device_class,
+           c.firmware_version  as firmware_version,
+           w.lat               as lat,
+           w.lng               as lng,
+           w.phase_preference  as phase_preference,
+           c.status            as status,
+           c.registered_at     as registered_at,
            c.last_heartbeat_at as last_heartbeat_at,
            coalesce(w.title, c.hardware_id) as title,
-           ls.firebase_url    as latest_snapshot_url,
-           ls.captured_at     as latest_snapshot_captured_at
+           ls.firebase_url     as latest_snapshot_url,
+           ls.captured_at      as latest_snapshot_captured_at
     from cameras c
-    left join webcams w on w.id = c.webcam_id
+    left join webcams w on w.custom_camera_id = c.id
+                       and w.source = 'custom'
+                       and w.ended_at is null
     left join lateral (
       select firebase_url, captured_at
       from webcam_snapshots
-      where webcam_id = c.webcam_id
+      where webcam_id = w.id
       order by captured_at desc
       limit 1
     ) ls on true

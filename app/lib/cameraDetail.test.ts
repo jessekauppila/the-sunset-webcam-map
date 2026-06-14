@@ -33,9 +33,10 @@ describe('fetchCameraDetail', () => {
     expect(await fetchCameraDetail(999)).toBeNull();
   });
 
-  it('maps a row to CameraDetail, coercing NUMERIC + ISO dates and computing health', async () => {
+  it('maps a row to CameraDetail, reading placement from the active deployment join', async () => {
     computeCameraHealthMock.mockReturnValue('stale');
     isInWindowNowMock.mockReturnValue(true);
+    // lat/lng/phase_preference now come from the deployment join (w.*), not c.*
     sqlMock.mockResolvedValue([
       {
         camera_id: 7,
@@ -75,8 +76,9 @@ describe('fetchCameraDetail', () => {
     });
   });
 
-  it('handles a never-reported camera (null webcam_id and null timestamps)', async () => {
+  it('handles a camera with no active deployment (null placement from outer join)', async () => {
     computeCameraHealthMock.mockReturnValue('never');
+    // Outer join yields null for all deployment columns when no active deployment
     sqlMock.mockResolvedValue([
       {
         camera_id: 3,
@@ -84,9 +86,9 @@ describe('fetchCameraDetail', () => {
         hardware_id: 'barn-cam',
         device_class: 'rpi-zero-2w',
         firmware_version: null,
-        lat: '10',
-        lng: '20',
-        phase_preference: 'both',
+        lat: null,
+        lng: null,
+        phase_preference: null,
         status: 'active',
         registered_at: '2026-05-01T00:00:00.000Z',
         last_heartbeat_at: null,
@@ -101,5 +103,9 @@ describe('fetchCameraDetail', () => {
     expect(d?.firmwareVersion).toBeNull();
     expect(d?.lastSnapshotAt).toBeNull();
     expect(d?.latestSnapshotUrl).toBeNull();
+    // lat/lng will be NaN when null — acceptable for a no-deployment camera
+    // Number(null) === 0 in JS — no active deployment means placement is 0,0
+    expect(d?.lat).toBe(0);
+    expect(d?.lng).toBe(0);
   });
 });

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { sql } from '@/app/lib/db';
 import { verifyDeviceToken } from '@/app/lib/cameraAuth';
-import { derivePlacementStatus } from '@/app/lib/cameraRegistration';
+import { derivePlacementStatus } from '@/app/lib/cameraDeployment';
 
 export const dynamic = 'force-dynamic';
 
@@ -40,13 +40,14 @@ export async function POST(request: Request, context: RouteContext) {
   }
 
   const rows = (await sql`
-    UPDATE cameras SET azimuth_deg = ${azimuth}, tilt_deg = ${tilt}
-    WHERE id = ${cameraId}
+    UPDATE webcams
+    SET azimuth_deg = ${azimuth}, tilt_deg = ${tilt}, coarse = FALSE
+    WHERE custom_camera_id = ${cameraId} AND source = 'custom' AND ended_at IS NULL
     RETURNING lat, lng, azimuth_deg, tilt_deg
   `) as PlacementRow[];
 
   if (!rows[0]) {
-    return NextResponse.json({ error: 'camera not found' }, { status: 404 });
+    return NextResponse.json({ error: 'no active deployment for camera' }, { status: 404 });
   }
 
   return NextResponse.json({ placement_status: derivePlacementStatus(rows[0]) });
