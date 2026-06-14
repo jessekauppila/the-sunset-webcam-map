@@ -14,10 +14,6 @@ export type PlacementShape = {
   tilt_deg: number | null;
 };
 
-export function sentinelForClaimCode(claimCode: string): string {
-  return `pending-${claimCode}`;
-}
-
 export function derivePlacementStatus(row: PlacementShape): PlacementStatus {
   if (row.lat == null || row.lng == null) return 'awaiting_location';
   if (row.azimuth_deg == null || row.tilt_deg == null) return 'awaiting_aim';
@@ -29,84 +25,3 @@ export function mintDeviceToken(): { plaintext: string; hash: string } {
   return { plaintext, hash: hashDeviceToken(plaintext) };
 }
 
-export type CameraUpsertInput = {
-  lat: number | null;
-  lng: number | null;
-  elevation_m?: number | null;
-  timezone: string | null;
-  azimuth_deg: number | null;
-  tilt_deg: number | null;
-  horizon_altitude_deg: number | null;
-  horizon_profile: unknown;
-  phase_preference: PhasePreference;
-  delivery_preferences: unknown;
-  // Bracket provenance (integration contract §4.3.2). Nullable so non-bracket
-  // callers (and legacy precise installs) can omit them.
-  azimuth_source: string | null;
-  coarse: boolean | null;
-  bracket: unknown;
-};
-
-export type CameraRow = {
-  id: number;
-  claim_code: string;
-  lat: number | null;
-  lng: number | null;
-  azimuth_deg: number | null;
-  tilt_deg: number | null;
-};
-
-export async function upsertCameraByClaimCode(
-  claimCode: string,
-  input: CameraUpsertInput
-): Promise<CameraRow> {
-  const existing = (await sql`
-    SELECT id FROM cameras WHERE claim_code = ${claimCode} LIMIT 1
-  `) as { id: number }[];
-
-  if (existing[0]) {
-    const rows = (await sql`
-      UPDATE cameras SET
-        lat = ${input.lat},
-        lng = ${input.lng},
-        elevation_m = ${input.elevation_m ?? null},
-        timezone = ${input.timezone},
-        azimuth_deg = ${input.azimuth_deg},
-        tilt_deg = ${input.tilt_deg},
-        horizon_altitude_deg = ${input.horizon_altitude_deg},
-        horizon_profile = ${input.horizon_profile == null ? null : JSON.stringify(input.horizon_profile)}::jsonb,
-        phase_preference = ${input.phase_preference},
-        delivery_preferences = ${input.delivery_preferences == null ? null : JSON.stringify(input.delivery_preferences)}::jsonb,
-        azimuth_source = ${input.azimuth_source ?? null},
-        coarse = ${input.coarse ?? null},
-        bracket = ${input.bracket == null ? null : JSON.stringify(input.bracket)}::jsonb
-      WHERE id = ${existing[0].id}
-      RETURNING id, claim_code, lat, lng, azimuth_deg, tilt_deg
-    `) as CameraRow[];
-    return rows[0];
-  }
-
-  // Pre-register-first: insert a row with placement + sentinel device fields.
-  // hardware_id and device_token_hash are filled in by the device's later
-  // register call (Task 6). We use sentinel placeholders so the existing
-  // NOT NULL constraint holds; register replaces them atomically.
-  const sentinelToken = sentinelForClaimCode(claimCode);
-  const rows = (await sql`
-    INSERT INTO cameras (
-      hardware_id, device_token_hash, claim_code,
-      lat, lng, elevation_m, timezone,
-      azimuth_deg, tilt_deg, horizon_altitude_deg, horizon_profile,
-      phase_preference, delivery_preferences,
-      azimuth_source, coarse, bracket
-    )
-    VALUES (
-      ${sentinelToken}, ${sentinelToken}, ${claimCode},
-      ${input.lat}, ${input.lng}, ${input.elevation_m ?? null}, ${input.timezone},
-      ${input.azimuth_deg}, ${input.tilt_deg}, ${input.horizon_altitude_deg}, ${input.horizon_profile == null ? null : JSON.stringify(input.horizon_profile)}::jsonb,
-      ${input.phase_preference}, ${input.delivery_preferences == null ? null : JSON.stringify(input.delivery_preferences)}::jsonb,
-      ${input.azimuth_source ?? null}, ${input.coarse ?? null}, ${input.bracket == null ? null : JSON.stringify(input.bracket)}::jsonb
-    )
-    RETURNING id, claim_code, lat, lng, azimuth_deg, tilt_deg
-  `) as CameraRow[];
-  return rows[0];
-}
