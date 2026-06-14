@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { sql } from '@/app/lib/db';
 import { verifyDeviceToken } from '@/app/lib/cameraAuth';
-import { derivePlacementStatus } from '@/app/lib/cameraRegistration';
+import { getActiveDeployment, derivePlacementStatus } from '@/app/lib/cameraDeployment';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,20 +12,9 @@ type Body = {
   request_placement?: unknown;
 };
 
-type PlacementRow = {
-  lat: number | null;
-  lng: number | null;
-  elevation_m: number | null;
-  timezone: string | null;
-  azimuth_deg: number | null;
-  tilt_deg: number | null;
-  horizon_altitude_deg: number | null;
-  horizon_profile: unknown;
-  phase_preference: string;
-  delivery_preferences: unknown;
-  azimuth_source: string | null;
-  coarse: boolean | null;
-  bracket: unknown;
+// Minimal type for the CTE UPDATE result — only what's camera-level.
+// Placement columns now come from the active deployment row, not from cameras.
+type CteRow = {
   // Pre-reset value of cameras.wifi_wipe_requested, captured by the CTE so the
   // directive fires exactly once (this same UPDATE resets the flag to FALSE).
   wifi_wipe_was_requested: boolean | null;
@@ -58,12 +47,8 @@ export async function POST(request: Request, context: RouteContext) {
     )
     UPDATE cameras SET last_heartbeat_at = NOW(), wifi_wipe_requested = FALSE
     WHERE id = ${cameraId}
-    RETURNING lat, lng, elevation_m, timezone,
-              azimuth_deg, tilt_deg, horizon_altitude_deg, horizon_profile,
-              phase_preference, delivery_preferences,
-              azimuth_source, coarse, bracket,
-              (SELECT was_requested FROM prev) AS wifi_wipe_was_requested
-  `) as PlacementRow[];
+    RETURNING (SELECT was_requested FROM prev) AS wifi_wipe_was_requested
+  `) as CteRow[];
 
   const row = rows[0];
   if (!row) {
@@ -78,7 +63,10 @@ export async function POST(request: Request, context: RouteContext) {
     return NextResponse.json({ acknowledged_at: acknowledgedAt, ...directives });
   }
 
-  const status = derivePlacementStatus(row);
+  // Placement now comes from the active deployment, not the cameras row.
+  const d = await getActiveDeployment(cameraId);
+  const status = derivePlacementStatus(d);
+
   if (status === 'awaiting_location') {
     return NextResponse.json({
       acknowledged_at: acknowledgedAt,
@@ -91,28 +79,29 @@ export async function POST(request: Request, context: RouteContext) {
       acknowledged_at: acknowledgedAt,
       ...directives,
       placement_status: 'awaiting_aim',
-      lat: row.lat,
-      lng: row.lng,
+      lat: d!.lat,
+      lng: d!.lng,
     });
   }
+  // status === 'ready'
   return NextResponse.json({
     acknowledged_at: acknowledgedAt,
     ...directives,
     placement_status: 'ready',
     placement: {
-      lat: row.lat,
-      lng: row.lng,
-      elevation_m: row.elevation_m,
-      timezone: row.timezone,
-      azimuth_deg: row.azimuth_deg,
-      tilt_deg: row.tilt_deg,
-      horizon_altitude_deg: row.horizon_altitude_deg,
-      horizon_profile: row.horizon_profile,
-      phase_preference: row.phase_preference,
-      delivery_preferences: row.delivery_preferences,
-      azimuth_source: row.azimuth_source,
-      coarse: row.coarse,
-      bracket: row.bracket,
+      lat: d!.lat,
+      lng: d!.lng,
+      elevation_m: d!.elevation_m,
+      timezone: d!.timezone,
+      azimuth_deg: d!.azimuth_deg,
+      tilt_deg: d!.tilt_deg,
+      horizon_altitude_deg: d!.horizon_altitude_deg,
+      horizon_profile: d!.horizon_profile,
+      phase_preference: d!.phase_preference,
+      delivery_preferences: d!.delivery_preferences,
+      azimuth_source: d!.azimuth_source,
+      coarse: d!.coarse,
+      bracket: d!.bracket,
     },
   });
 }
