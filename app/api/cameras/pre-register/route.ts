@@ -1,10 +1,13 @@
 import { NextResponse } from 'next/server';
+import { auth } from '@/auth';
+import { isOwner } from '@/app/lib/owner';
+import { sql } from '@/app/lib/db';
 import { getClaimCode } from '@/app/lib/cameraClaimCode';
+import { PHASE_VALUES } from '@/app/lib/cameraRegistration';
 import {
-  upsertCameraByClaimCode,
+  upsertActiveDeployment,
   derivePlacementStatus,
-  PHASE_VALUES,
-} from '@/app/lib/cameraRegistration';
+} from '@/app/lib/cameraDeployment';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,6 +17,8 @@ type Body = {
   lng?: unknown;
   elevation_m?: unknown;
   timezone?: unknown;
+  mode?: unknown;
+  publish?: unknown;
   placement?: {
     azimuth_deg?: unknown;
     tilt_deg?: unknown;
@@ -137,8 +142,24 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'claim code expired' }, { status: 410 });
   }
 
+  // Resolve the provisioned camera by claim code
+  const cameraRows = (await sql`SELECT id FROM cameras WHERE claim_code = ${claimCode} LIMIT 1`) as { id: number }[];
+  if (!cameraRows[0]) {
+    return NextResponse.json({ error: 'camera not provisioned for this claim code' }, { status: 404 });
+  }
+  const cameraId = cameraRows[0].id;
+
+  // Owner-aware state (server-enforced; NEVER trust a client 'state')
+  const session = await auth();
+  const owner = isOwner(session);
+  const publish = owner && (body as { publish?: unknown }).publish === true;
+  const state: 'testing' | 'deployed' = owner ? (publish ? 'deployed' : 'testing') : 'deployed';
+
+  // Mode from the body (default reaim)
+  const mode = (body as { mode?: unknown }).mode === 'new' ? 'new' : 'reaim';
+
   try {
-    const camera = await upsertCameraByClaimCode(claimCode, {
+    const deployment = await upsertActiveDeployment(cameraId, {
       lat,
       lng,
       elevation_m: asNumber(body.elevation_m),
@@ -147,17 +168,19 @@ export async function POST(request: Request) {
       tilt_deg: tilt,
       horizon_altitude_deg: asNumber(body.placement?.horizon_altitude_deg) ?? 0,
       horizon_profile: horizonProfile ?? null,
-      phase_preference: phase,
-      delivery_preferences: body.operator_preferences?.delivery ?? null,
       azimuth_source: azimuthSource,
       coarse,
       bracket: bracketResult.value,
-    });
+      phase_preference: phase,
+      delivery_preferences: body.operator_preferences?.delivery ?? null,
+    }, { state, mode });
 
     return NextResponse.json(
       {
-        camera_id: camera.id,
-        placement_status: derivePlacementStatus(camera),
+        camera_id: cameraId,
+        deployment_id: deployment.id,
+        state: deployment.state,
+        placement_status: derivePlacementStatus(deployment),
       },
       { status: 202 }
     );
