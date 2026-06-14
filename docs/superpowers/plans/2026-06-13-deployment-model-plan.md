@@ -40,29 +40,18 @@
 
 ---
 
-## Slice 0 — Recon (no code change, but REQUIRED before the migration)
+## Slice 0 — Recon (DONE 2026-06-13)
 
-## Task 0: Enumerate the live `webcams` schema
+## Task 0: Enumerate the live `webcams` schema ✅ COMPLETE
 
-**Why:** `upsertActiveDeployment` INSERTs a new `webcams` row per deployment. Every NOT NULL column without a default must be supplied or the INSERT 500s in prod. We must know the real constraints before writing the migration and the INSERT.
+Ran `\d webcams` against prod (read-only). Findings (authoritative — Tasks 1 & 5 use these):
 
-- [ ] **Step 1: Dump the schema**
-
-Run against a Neon branch or prod read-only (user's hands if prod creds needed — ask them to paste it as a single line):
-
-```
-psql "$DATABASE_URL" -c "\d webcams"
-```
-
-- [ ] **Step 2: Record findings in this plan**
-
-Capture, in a comment block at the top of `database/migrations/20260613_deployment_model.sql`, the list of NOT NULL columns on `webcams` that lack a default (e.g. `source`, `external_id`, `lat`, `lng`, `title`, `status`, ...). The deployment INSERT in Task 5 must supply all of them. Note any that are awkward for a custom row (e.g. `external_id` if NOT NULL → use the camera's `hardware_id` or `custom-{cameraId}-{startedAt}`).
-
-- [ ] **Step 3: Confirm how existing custom rows were created**
-
-Run `grep -rn "INSERT INTO webcams\|insert into webcams" app/` to find the existing custom-camera/pairing INSERT (if any) and mirror its required-column set. If none exists in-app (camera 1 was paired by a script/by hand), rely on the `\d webcams` output.
-
-Expected output of this task: a definitive NOT-NULL column list, pasted into the migration file header, used by Tasks 1 and 5.
+- **NOT NULL columns without a default** (the INSERT MUST supply): **`source`, `external_id`, `lat`, `lng`**. (`id` is NOT NULL but auto-fills from `webcams_id_seq`.)
+- **`title`, `status` are NULLABLE** — supply `title`/`status` for nice display but they are not required.
+- **CRITICAL — `UNIQUE (source, external_id)`** (constraint `webcams_source_external_id_key`). Every custom deployment row has `source='custom'`, so **`external_id` must be unique per deployment**. Use `external_id = 'custom-{cameraId}-{Date.now()}'` (a fixed `custom-{cameraId}` collides on deployment #2). Backfilled rows keep their existing `external_id` — only NEW deployments mint one.
+- `custom_camera_id` is `integer`, nullable, FK → `cameras(id)`. `cameras.webcam_id` FK → `webcams(id)` (the active-deployment cache).
+- `webcam_snapshots.webcam_id` FK → `webcams(id)`: ended deployment rows are **kept** (never deleted), so their snapshot archive stays frozen with them = the trail.
+- No in-app `INSERT INTO webcams` for custom rows exists (camera 1 was paired by hand), so Task 5's INSERT is the first; the column set above is the contract.
 
 ---
 
@@ -81,8 +70,9 @@ Expected output of this task: a definitive NOT-NULL column list, pasted into the
 -- webcams rows (one per deployment). All new columns nullable/defaulted so the
 -- thousands of Windy rows (state IS NULL) are untouched.
 --
--- NOT NULL columns on webcams that the deployment INSERT must supply (from Task 0):
---   <PASTE the \d webcams NOT-NULL-without-default list here>
+-- webcams NOT NULL (no default) the deployment INSERT must supply (Task 0):
+--   source, external_id, lat, lng.  UNIQUE(source, external_id) → external_id
+--   must be unique per deployment (use custom-{cameraId}-{Date.now()}).
 --
 -- Forward-only, idempotent. Apply BEFORE the retargeted routes deploy.
 --   psql "$DATABASE_URL" -f database/migrations/20260613_deployment_model.sql
@@ -509,9 +499,8 @@ function j(v: unknown): string | null {
 // §8. mode='new' ends the active deployment and opens a fresh one; mode='reaim'
 // updates the active in place (state untouched). When none exists, always inserts
 // deployment #1. Repoints cameras.webcam_id on every active-row transition.
-// NOTE: the INSERT must satisfy webcams NOT NULL columns enumerated in Task 0 —
-// supply source='custom', custom_camera_id, lat, lng, and any others found there
-// (e.g. external_id = `custom-${cameraId}`, title, status='active').
+// Task 0: webcams requires source/external_id/lat/lng, and UNIQUE(source,external_id)
+// means external_id MUST be unique per deployment — hence custom-{id}-{Date.now()}.
 export async function upsertActiveDeployment(
   cameraId: number,
   p: DeploymentPlacementInput,
@@ -542,6 +531,8 @@ export async function upsertActiveDeployment(
     await sql`UPDATE webcams SET ended_at = NOW(), state = 'ended' WHERE id = ${active.id}`;
   }
 
+  // external_id must be unique per deployment (UNIQUE(source, external_id), Task 0).
+  const externalId = `custom-${cameraId}-${Date.now()}`;
   const inserted = (await sql`
     INSERT INTO webcams (
       source, custom_camera_id, external_id, title, status,
@@ -550,7 +541,7 @@ export async function upsertActiveDeployment(
       horizon_altitude_deg, horizon_profile, azimuth_source, coarse, bracket,
       phase_preference, delivery_preferences
     ) VALUES (
-      'custom', ${cameraId}, ${'custom-' + cameraId}, ${'Camera ' + cameraId}, 'active',
+      'custom', ${cameraId}, ${externalId}, ${'Camera ' + cameraId}, 'active',
       ${opts.state}, FALSE, NOW(),
       ${p.lat}, ${p.lng}, ${p.elevation_m}, ${p.timezone}, ${p.azimuth_deg}, ${p.tilt_deg},
       ${p.horizon_altitude_deg}, ${j(p.horizon_profile)}::jsonb, ${p.azimuth_source}, ${p.coarse}, ${j(p.bracket)}::jsonb,
