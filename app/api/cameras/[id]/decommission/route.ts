@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import { sql } from '@/app/lib/db';
 import { resolveCameraRef } from '@/app/lib/cameraLifecycle';
+import { endActiveDeployment } from '@/app/lib/cameraDeployment';
 
 export const dynamic = 'force-dynamic';
 
@@ -8,12 +8,12 @@ type RouteContext = { params: Promise<{ id: string }> };
 
 type Body = { claim_code?: unknown; relocate?: unknown };
 
-// Decommission: turn this camera off at its current location (contract §12).
-// Sets status='decommissioned'. With relocate:true it raises the wifi_wipe
-// directive, surfaced on the next heartbeat (the device half is E plan's
+// Decommission: end the active deployment for this camera (contract §12).
+// With relocate:true the wifi_wipe directive is raised on the active deployment
+// record, surfaced on the next heartbeat (the device half is E plan's
 // directive-honor task). Re-commission via the wizard (pre-register upsert)
-// flips status back to 'active'. Usable by the operator (numeric id) or the
-// open setup page (claim_code, no Bearer); never reset-as-power (unplug is power).
+// opens a new deployment. Usable by the operator (numeric id) or the open
+// setup page (claim_code, no Bearer); never reset-as-power (unplug is power).
 export async function POST(request: Request, context: RouteContext) {
   const { id } = await context.params;
 
@@ -30,18 +30,6 @@ export async function POST(request: Request, context: RouteContext) {
   }
 
   const relocate = body.relocate === true;
-  const rows = (await sql`
-    UPDATE cameras
-    SET status = 'decommissioned',
-        wifi_wipe_requested = (wifi_wipe_requested OR ${relocate})
-    WHERE id = ${ref.cameraId}
-    RETURNING id, status, wifi_wipe_requested
-  `) as { id: number; status: string; wifi_wipe_requested: boolean }[];
-
-  const row = rows[0];
-  return NextResponse.json({
-    camera_id: row.id,
-    status: row.status,
-    wifi_wipe_requested: row.wifi_wipe_requested,
-  });
+  const r = await endActiveDeployment(ref.cameraId, { relocate });
+  return NextResponse.json({ camera_id: ref.cameraId, ended: r.ended });
 }

@@ -8,10 +8,9 @@ type RouteContext = { params: Promise<{ id: string }> };
 
 type Body = { claim_code?: unknown };
 
-// Pause: suspend capture on the active deployment WITHOUT ending it (contract §12).
-// paused=true is resumable — WiFi and placement stay intact, the wipe directive
-// is untouched. Usable by the operator (numeric id) or the open setup page
-// (claim_code, no Bearer).
+// Resume: un-pause the active deployment (complement of /pause, contract §12).
+// paused=false re-enables capture without touching placement or the wipe directive.
+// Usable by the operator (numeric id) or the open setup page (claim_code, no Bearer).
 export async function POST(request: Request, context: RouteContext) {
   const { id } = await context.params;
 
@@ -27,6 +26,6 @@ export async function POST(request: Request, context: RouteContext) {
     return NextResponse.json({ error: ref.error }, { status: ref.status });
   }
 
-  const d = await setDeploymentPaused(ref.cameraId, true);
-  return NextResponse.json({ camera_id: ref.cameraId, paused: d?.paused ?? true });
+  const d = await setDeploymentPaused(ref.cameraId, false);
+  return NextResponse.json({ camera_id: ref.cameraId, paused: d?.paused ?? false });
 }

@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const getClaimCodeMock = vi.fn();
 const sqlMock = vi.fn();
+const setDeploymentPausedMock = vi.fn();
 
 vi.mock('@/app/lib/db', () => ({
   sql: (s: TemplateStringsArray, ...v: unknown[]) => sqlMock(s, ...v),
@@ -11,12 +12,16 @@ vi.mock('@/app/lib/cameraClaimCode', async (importActual) => {
   const actual = await importActual<typeof import('@/app/lib/cameraClaimCode')>();
   return { ...actual, getClaimCode: (...a: unknown[]) => getClaimCodeMock(...a) };
 });
+vi.mock('@/app/lib/cameraDeployment', () => ({
+  setDeploymentPaused: (...a: unknown[]) => setDeploymentPausedMock(...a),
+}));
 
 import { POST } from './route';
 
 beforeEach(() => {
   getClaimCodeMock.mockReset();
   sqlMock.mockReset();
+  setDeploymentPausedMock.mockReset();
 });
 
 function makeRequest(body: unknown) {
@@ -39,10 +44,10 @@ const VALID_CLAIM = {
 };
 
 describe('POST /api/cameras/[id]/pause', () => {
-  it('claim-code-scoped pause sets status=paused (camera not ended)', async () => {
+  it('claim-code-scoped pause calls setDeploymentPaused(cameraId, true)', async () => {
     getClaimCodeMock.mockResolvedValueOnce(VALID_CLAIM);
     sqlMock.mockResolvedValueOnce([{ id: 5 }]); // SELECT id by claim_code
-    sqlMock.mockResolvedValueOnce([{ id: 5, status: 'paused' }]); // UPDATE
+    setDeploymentPausedMock.mockResolvedValueOnce({ id: 10, paused: true });
 
     const res = await POST(
       makeRequest({ claim_code: 'SUNSET-AAAA-BBBB' }),
@@ -51,21 +56,21 @@ describe('POST /api/cameras/[id]/pause', () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.camera_id).toBe(5);
-    expect(body.status).toBe('paused');
-    // pause must NOT touch the wipe directive.
-    const updateCall = sqlMock.mock.calls[1];
-    expect(updateCall[0].join('')).not.toContain('wifi_wipe_requested');
+    expect(body.paused).toBe(true);
+    expect(setDeploymentPausedMock).toHaveBeenCalledWith(5, true);
   });
 
   it('operator path: numeric id resolves without a claim code', async () => {
     sqlMock.mockResolvedValueOnce([{ id: 7 }]);
-    sqlMock.mockResolvedValueOnce([{ id: 7, status: 'paused' }]);
+    setDeploymentPausedMock.mockResolvedValueOnce({ id: 11, paused: true });
 
     const res = await POST(makeRequest({}), ctx('7'));
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.camera_id).toBe(7);
+    expect(body.paused).toBe(true);
     expect(getClaimCodeMock).not.toHaveBeenCalled();
+    expect(setDeploymentPausedMock).toHaveBeenCalledWith(7, true);
   });
 
   it('unknown claim code → 404', async () => {
@@ -75,6 +80,7 @@ describe('POST /api/cameras/[id]/pause', () => {
       ctx('SUNSET-AAAA-BBBB')
     );
     expect(res.status).toBe(404);
+    expect(setDeploymentPausedMock).not.toHaveBeenCalled();
   });
 
   it('expired claim code → 410', async () => {
@@ -87,5 +93,6 @@ describe('POST /api/cameras/[id]/pause', () => {
       ctx('SUNSET-AAAA-BBBB')
     );
     expect(res.status).toBe(410);
+    expect(setDeploymentPausedMock).not.toHaveBeenCalled();
   });
 });

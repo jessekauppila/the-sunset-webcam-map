@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const getClaimCodeMock = vi.fn();
 const sqlMock = vi.fn();
-const endActiveDeploymentMock = vi.fn();
+const setDeploymentPausedMock = vi.fn();
 
 vi.mock('@/app/lib/db', () => ({
   sql: (s: TemplateStringsArray, ...v: unknown[]) => sqlMock(s, ...v),
@@ -13,7 +13,7 @@ vi.mock('@/app/lib/cameraClaimCode', async (importActual) => {
   return { ...actual, getClaimCode: (...a: unknown[]) => getClaimCodeMock(...a) };
 });
 vi.mock('@/app/lib/cameraDeployment', () => ({
-  endActiveDeployment: (...a: unknown[]) => endActiveDeploymentMock(...a),
+  setDeploymentPaused: (...a: unknown[]) => setDeploymentPausedMock(...a),
 }));
 
 import { POST } from './route';
@@ -21,11 +21,11 @@ import { POST } from './route';
 beforeEach(() => {
   getClaimCodeMock.mockReset();
   sqlMock.mockReset();
-  endActiveDeploymentMock.mockReset();
+  setDeploymentPausedMock.mockReset();
 });
 
 function makeRequest(body: unknown) {
-  return new Request('http://test/api/cameras/x/decommission', {
+  return new Request('http://test/api/cameras/x/resume', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(body),
@@ -43,11 +43,11 @@ const VALID_CLAIM = {
   consumed_by_camera_id: 5,
 };
 
-describe('POST /api/cameras/[id]/decommission', () => {
-  it('claim-code-scoped (no Bearer) ends the active deployment', async () => {
+describe('POST /api/cameras/[id]/resume', () => {
+  it('claim-code-scoped resume calls setDeploymentPaused(cameraId, false)', async () => {
     getClaimCodeMock.mockResolvedValueOnce(VALID_CLAIM);
     sqlMock.mockResolvedValueOnce([{ id: 5 }]); // SELECT id by claim_code
-    endActiveDeploymentMock.mockResolvedValueOnce({ ended: true });
+    setDeploymentPausedMock.mockResolvedValueOnce({ id: 10, paused: false });
 
     const res = await POST(
       makeRequest({ claim_code: 'SUNSET-AAAA-BBBB' }),
@@ -56,35 +56,21 @@ describe('POST /api/cameras/[id]/decommission', () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.camera_id).toBe(5);
-    expect(body.ended).toBe(true);
-    expect(endActiveDeploymentMock).toHaveBeenCalledWith(5, { relocate: false });
-  });
-
-  it('with relocate:true passes relocate flag to endActiveDeployment', async () => {
-    getClaimCodeMock.mockResolvedValueOnce(VALID_CLAIM);
-    sqlMock.mockResolvedValueOnce([{ id: 5 }]);
-    endActiveDeploymentMock.mockResolvedValueOnce({ ended: true });
-
-    const res = await POST(
-      makeRequest({ claim_code: 'SUNSET-AAAA-BBBB', relocate: true }),
-      ctx('SUNSET-AAAA-BBBB')
-    );
-    expect(res.status).toBe(200);
-    const body = await res.json();
-    expect(body.ended).toBe(true);
-    expect(endActiveDeploymentMock).toHaveBeenCalledWith(5, { relocate: true });
+    expect(body.paused).toBe(false);
+    expect(setDeploymentPausedMock).toHaveBeenCalledWith(5, false);
   });
 
   it('operator path: numeric id resolves without a claim code', async () => {
-    sqlMock.mockResolvedValueOnce([{ id: 7 }]); // SELECT id by numeric id
-    endActiveDeploymentMock.mockResolvedValueOnce({ ended: true });
+    sqlMock.mockResolvedValueOnce([{ id: 7 }]);
+    setDeploymentPausedMock.mockResolvedValueOnce({ id: 11, paused: false });
 
     const res = await POST(makeRequest({}), ctx('7'));
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.camera_id).toBe(7);
+    expect(body.paused).toBe(false);
     expect(getClaimCodeMock).not.toHaveBeenCalled();
-    expect(endActiveDeploymentMock).toHaveBeenCalledWith(7, { relocate: false });
+    expect(setDeploymentPausedMock).toHaveBeenCalledWith(7, false);
   });
 
   it('unknown claim code → 404', async () => {
@@ -94,7 +80,7 @@ describe('POST /api/cameras/[id]/decommission', () => {
       ctx('SUNSET-AAAA-BBBB')
     );
     expect(res.status).toBe(404);
-    expect(endActiveDeploymentMock).not.toHaveBeenCalled();
+    expect(setDeploymentPausedMock).not.toHaveBeenCalled();
   });
 
   it('expired claim code → 410', async () => {
@@ -107,13 +93,6 @@ describe('POST /api/cameras/[id]/decommission', () => {
       ctx('SUNSET-AAAA-BBBB')
     );
     expect(res.status).toBe(410);
-    expect(endActiveDeploymentMock).not.toHaveBeenCalled();
-  });
-
-  it('unknown numeric id → 404', async () => {
-    sqlMock.mockResolvedValueOnce([]); // SELECT by id → none
-    const res = await POST(makeRequest({}), ctx('999'));
-    expect(res.status).toBe(404);
-    expect(endActiveDeploymentMock).not.toHaveBeenCalled();
+    expect(setDeploymentPausedMock).not.toHaveBeenCalled();
   });
 });
