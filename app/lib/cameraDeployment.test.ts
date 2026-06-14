@@ -83,6 +83,9 @@ describe('endActiveDeployment', () => {
     sqlMock.mockResolvedValueOnce([{ id: 1 }]); // UPDATE cameras still runs
     const r = await endActiveDeployment(1, { relocate: false });
     expect(r.ended).toBe(false);
+    // The cameras UPDATE (clear webcam_id) must run even with no active deployment.
+    expect(sqlMock.mock.calls.length).toBe(2);
+    expect(sqlMock.mock.calls[1][0].join('')).toContain('webcam_id');
   });
 });
 

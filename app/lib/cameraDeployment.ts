@@ -70,7 +70,6 @@ function j(v: unknown): string | null {
 // mode='new' ends the active deployment and opens a fresh one; mode='reaim'
 // updates the active in place (state untouched). When none exists, always inserts
 // deployment #1. Repoints cameras.webcam_id on every active-row transition.
-// external_id must be unique per deployment (UNIQUE(source, external_id)).
 export async function upsertActiveDeployment(
   cameraId: number,
   p: DeploymentPlacementInput,
