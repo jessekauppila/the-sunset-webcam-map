@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server';
 import { sql } from '@/app/lib/db';
-import { getClaimCode, consumeClaimCode } from '@/app/lib/cameraClaimCode';
+import { getClaimCode } from '@/app/lib/cameraClaimCode';
 import {
-  mintDeviceToken,
+  getActiveDeployment,
   derivePlacementStatus,
-} from '@/app/lib/cameraRegistration';
+} from '@/app/lib/cameraDeployment';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,21 +19,9 @@ function asString(v: unknown): string | null {
   return typeof v === 'string' && v.trim() !== '' ? v.trim() : null;
 }
 
-type ExistingCameraRow = {
+type CameraRow = {
   id: number;
-  lat: number | null;
-  lng: number | null;
-  elevation_m: number | null;
-  timezone: string | null;
-  azimuth_deg: number | null;
-  tilt_deg: number | null;
-  horizon_altitude_deg: number | null;
-  horizon_profile: unknown;
-  phase_preference: string;
-  delivery_preferences: unknown;
-  azimuth_source: string | null;
-  coarse: boolean | null;
-  bracket: unknown;
+  hardware_id: string | null;
 };
 
 export async function POST(request: Request) {
@@ -53,6 +41,9 @@ export async function POST(request: Request) {
     );
   }
 
+  // 1. Validate claim code exists and is not expired.
+  //    consumed_at is intentionally NOT checked — claim codes are permanent
+  //    once bound at provisioning; a consumed code is normal on re-register.
   const claim = await getClaimCode(claimCode);
   if (!claim) {
     return NextResponse.json({ error: 'unknown claim code' }, { status: 404 });
@@ -60,112 +51,72 @@ export async function POST(request: Request) {
   if (claim.expires_at.getTime() < Date.now()) {
     return NextResponse.json({ error: 'claim code expired' }, { status: 410 });
   }
-  if (claim.consumed_at) {
-    return NextResponse.json({ error: 'claim code already consumed' }, { status: 409 });
-  }
-
-  const { plaintext, hash } = mintDeviceToken();
-  const firmwareVersion = asString(body.firmware_version);
-  const capabilities = JSON.stringify(body.capabilities ?? {});
 
   try {
-    const existingRows = (await sql`
-      SELECT id, lat, lng, elevation_m, timezone,
-             azimuth_deg, tilt_deg, horizon_altitude_deg, horizon_profile,
-             phase_preference, delivery_preferences,
-             azimuth_source, coarse, bracket
-      FROM cameras WHERE claim_code = ${claimCode} LIMIT 1
-    `) as ExistingCameraRow[];
+    // 2. Resolve the provisioned camera row for this claim code.
+    const cameraRows = (await sql`
+      SELECT id, hardware_id FROM cameras WHERE claim_code = ${claimCode} LIMIT 1
+    `) as CameraRow[];
 
-    let cameraId: number;
-    let placementRow: ExistingCameraRow;
-
-    if (existingRows[0]) {
-      // Pre-register-first path: row exists with placement; fill in device fields.
-      const r = existingRows[0];
-      const updated = (await sql`
-        UPDATE cameras SET
-          hardware_id = ${hardwareId},
-          device_token_hash = ${hash},
-          firmware_version = ${firmwareVersion},
-          capabilities = ${capabilities}::jsonb,
-          registered_at = NOW()
-        WHERE id = ${r.id}
-        RETURNING id
-      `) as { id: number }[];
-      cameraId = updated[0].id;
-      placementRow = r;
-    } else {
-      // Register-first path: check for a hardware_id collision before inserting.
-      const collision = (await sql`
-        SELECT id FROM cameras WHERE hardware_id = ${hardwareId} LIMIT 1
-      `) as { id: number }[];
-      if (collision[0]) {
-        return NextResponse.json(
-          { error: 'hardware_id already registered', existing_camera_id: collision[0].id },
-          { status: 409 }
-        );
-      }
-
-      // Insert a row with no placement; pre-register will fill it in later.
-      const inserted = (await sql`
-        INSERT INTO cameras (
-          hardware_id, device_token_hash, claim_code,
-          firmware_version, capabilities,
-          phase_preference
-        )
-        VALUES (
-          ${hardwareId}, ${hash}, ${claimCode},
-          ${firmwareVersion}, ${capabilities}::jsonb,
-          -- phase_preference is NOT NULL; 'both' is a benign transient here —
-          -- pre-register overwrites it with sunrise|sunset before the device
-          -- reaches ACTIVE (contract D-8). A bracket install never goes ACTIVE
-          -- with phase='both'. (Fix 8's NULL default would need a nullable column.)
-          'both'
-        )
-        RETURNING id, lat, lng, elevation_m, timezone,
-                  azimuth_deg, tilt_deg, horizon_altitude_deg, horizon_profile,
-                  phase_preference, delivery_preferences,
-                  azimuth_source, coarse, bracket
-      `) as ExistingCameraRow[];
-      cameraId = inserted[0].id;
-      placementRow = inserted[0];
-    }
-
-    const consumed = await consumeClaimCode(claimCode, cameraId);
-    if (!consumed) {
-      console.error(
-        `[cameras/register] consumeClaimCode returned null after row creation cameraId=${cameraId} claim=${claimCode}`
-      );
+    if (!cameraRows[0]) {
       return NextResponse.json(
-        { error: 'internal server error', details: 'claim consumption failed after row creation' },
-        { status: 500 }
+        { error: 'camera not provisioned for this claim code' },
+        { status: 404 }
       );
     }
 
-    const status = derivePlacementStatus(placementRow);
+    const row = cameraRows[0];
+
+    // 3. Guard: provisioned identity is authoritative; a different board must not hijack it.
+    if (row.hardware_id !== hardwareId) {
+      return NextResponse.json(
+        { error: 'hardware_id mismatch', existing_camera_id: row.id },
+        { status: 409 }
+      );
+    }
+
+    const cameraId = row.id;
+    const firmwareVersion = asString(body.firmware_version);
+    const capabilities = JSON.stringify(body.capabilities ?? {});
+
+    // 4. Update device fields; stamp registered_at + last_seen_at.
+    await sql`
+      UPDATE cameras SET
+        firmware_version = ${firmwareVersion},
+        capabilities = ${capabilities}::jsonb,
+        last_seen_at = NOW(),
+        registered_at = NOW()
+      WHERE id = ${cameraId}
+      RETURNING id
+    `;
+
+    // 5. Read the active deployment for placement status.
+    const d = await getActiveDeployment(cameraId);
+    const status = derivePlacementStatus(d);
+
     const responseBody: Record<string, unknown> = {
       camera_id: cameraId,
-      device_token: plaintext,
       placement_status: status,
     };
-    if (status === 'ready') {
+
+    if (status === 'ready' && d) {
       responseBody.placement = {
-        lat: placementRow.lat,
-        lng: placementRow.lng,
-        elevation_m: placementRow.elevation_m,
-        timezone: placementRow.timezone,
-        azimuth_deg: placementRow.azimuth_deg,
-        tilt_deg: placementRow.tilt_deg,
-        horizon_altitude_deg: placementRow.horizon_altitude_deg,
-        horizon_profile: placementRow.horizon_profile,
-        phase_preference: placementRow.phase_preference,
-        delivery_preferences: placementRow.delivery_preferences,
-        azimuth_source: placementRow.azimuth_source,
-        coarse: placementRow.coarse,
-        bracket: placementRow.bracket,
+        lat: d.lat,
+        lng: d.lng,
+        elevation_m: d.elevation_m,
+        timezone: d.timezone,
+        azimuth_deg: d.azimuth_deg,
+        tilt_deg: d.tilt_deg,
+        horizon_altitude_deg: d.horizon_altitude_deg,
+        horizon_profile: d.horizon_profile,
+        phase_preference: d.phase_preference,
+        delivery_preferences: d.delivery_preferences,
+        azimuth_source: d.azimuth_source,
+        coarse: d.coarse,
+        bracket: d.bracket,
       };
     }
+
     return NextResponse.json(responseBody);
   } catch (error) {
     console.error('[cameras/register] failed:', error);
