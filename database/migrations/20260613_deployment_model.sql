@@ -33,8 +33,11 @@ ALTER TABLE webcams ADD COLUMN IF NOT EXISTS bracket JSONB;
 ALTER TABLE webcams ADD COLUMN IF NOT EXISTS phase_preference TEXT;
 ALTER TABLE webcams ADD COLUMN IF NOT EXISTS delivery_preferences JSONB;
 
--- Index: fast active-deployment lookup
-CREATE INDEX IF NOT EXISTS webcams_active_deployment_idx
+-- Fast active-deployment lookup AND the one-active-deployment-per-camera invariant.
+-- UNIQUE so a concurrent double-commit errors instead of silently creating two
+-- active rows (upsertActiveDeployment ends-then-inserts, so the steady state is
+-- always <=1 active row; this index is the safety net under races).
+CREATE UNIQUE INDEX IF NOT EXISTS webcams_active_deployment_idx
   ON webcams (custom_camera_id)
   WHERE source = 'custom' AND ended_at IS NULL;
 

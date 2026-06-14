@@ -60,13 +60,29 @@ describe('upsertActiveDeployment', () => {
     expect(sqlMock.mock.calls[1][0].join('')).toContain("'ended'");
   });
 
-  it('mode=reaim updates the active deployment in place (no new row, state untouched)', async () => {
+  it('mode=reaim updates the active deployment in place (no new row, no repoint)', async () => {
     sqlMock.mockResolvedValueOnce([{ id: 40, state: 'deployed' }]); // getActive → exists
     sqlMock.mockResolvedValueOnce([{ id: 40, state: 'deployed' }]); // UPDATE in place
     const d = await upsertActiveDeployment(1, PLACEMENT, { state: 'testing', mode: 'reaim' });
     expect(d.id).toBe(40);
+    // Only 2 sql calls — no INSERT, no cameras.webcam_id repoint.
     expect(sqlMock.mock.calls.length).toBe(2);
-    expect(sqlMock.mock.calls[1][0].join('')).not.toContain('state =');
+  });
+
+  it('mode=reaim never DEMOTES a deployed feed back to testing', async () => {
+    sqlMock.mockResolvedValueOnce([{ id: 40, state: 'deployed' }]); // active is deployed
+    sqlMock.mockResolvedValueOnce([{ id: 40, state: 'deployed' }]);
+    await upsertActiveDeployment(1, PLACEMENT, { state: 'testing', mode: 'reaim' });
+    // The UPDATE binds 'deployed' (the existing state), not the passed-in 'testing'.
+    expect(sqlMock.mock.calls[1].slice(1)).toContain('deployed');
+    expect(sqlMock.mock.calls[1].slice(1)).not.toContain('testing');
+  });
+
+  it('mode=reaim PROMOTES testing→deployed when owner publishes', async () => {
+    sqlMock.mockResolvedValueOnce([{ id: 40, state: 'testing' }]); // active is testing
+    sqlMock.mockResolvedValueOnce([{ id: 40, state: 'deployed' }]);
+    await upsertActiveDeployment(1, PLACEMENT, { state: 'deployed', mode: 'reaim' });
+    expect(sqlMock.mock.calls[1].slice(1)).toContain('deployed');
   });
 });
 

@@ -78,8 +78,13 @@ export async function upsertActiveDeployment(
   const active = await getActiveDeployment(cameraId);
 
   if (active && opts.mode === 'reaim') {
+    // State on re-aim is monotonic PROMOTION only: an owner publishing during a
+    // re-aim (opts.state='deployed') promotes testing→deployed, but a re-aim is
+    // never allowed to DEMOTE an already-deployed feed back to testing.
+    const nextState: DeploymentState = active.state === 'deployed' ? 'deployed' : opts.state;
     const rows = (await sql`
       UPDATE webcams SET
+        state = ${nextState},
         lat = ${p.lat}, lng = ${p.lng}, elevation_m = ${p.elevation_m},
         timezone = ${p.timezone}, azimuth_deg = ${p.azimuth_deg}, tilt_deg = ${p.tilt_deg},
         horizon_altitude_deg = ${p.horizon_altitude_deg},
