@@ -139,3 +139,67 @@ def test_build_selection_info_falls_back_to_source_and_default_batch_flag():
         "skip_rated": False,
         "use_batch_api": False,
     }
+
+
+def test_normalize_rating_defaults_and_clamps():
+    from llm_rater import normalize_rating
+
+    out = normalize_rating({"quality": 1.7, "confidence": -0.2,
+                            "time_of_day": "BOGUS", "sky_coverage": "nope"})
+    assert out["quality"] == 1.0
+    assert out["confidence"] == 0.0
+    assert out["is_sunset"] is False
+    assert out["is_sunrise"] is False
+    assert out["time_of_day"] == "unclear"
+    assert out["sky_coverage"] == "partial"
+    assert out["rating_explanation"] == ""
+
+
+def test_parse_custom_id_round_trip():
+    from llm_rater import parse_custom_id
+
+    assert parse_custom_id("webcam:123") == ("webcam", 123)
+    assert parse_custom_id("external:45") == ("external", 45)
+
+
+def _fake_rows(n):
+    return [
+        {"record_id": i, "source_table": "webcam", "webcam_id": i % 7,
+         "image_url": f"https://x/{i}.jpg",
+         "human_calculated_rating": None, "human_rating_count": 0}
+        for i in range(n)
+    ]
+
+
+def test_build_batch_requests_chunks_by_request_count():
+    from llm_rater import build_batch_requests
+
+    def fake_download(url, timeout=30.0):
+        return b"tinyjpeg", "image/jpeg"
+
+    chunks, failures = build_batch_requests(
+        _fake_rows(2500), "claude-sonnet-5", 30.0, download_fn=fake_download,
+    )
+    assert failures == []
+    assert [len(c) for c in chunks] == [1000, 1000, 500]
+    first = chunks[0][0]
+    assert first["custom_id"] == "webcam:0"
+    assert first["params"]["model"] == "claude-sonnet-5"
+    assert first["params"]["max_tokens"] == 600
+    assert "temperature" not in first["params"]
+
+
+def test_build_batch_requests_records_download_failures():
+    from llm_rater import build_batch_requests
+
+    def flaky_download(url, timeout=30.0):
+        if url.endswith("1.jpg"):
+            raise RuntimeError("404 dead url")
+        return b"tinyjpeg", "image/jpeg"
+
+    chunks, failures = build_batch_requests(
+        _fake_rows(3), "claude-sonnet-5", 30.0, download_fn=flaky_download,
+    )
+    assert len(failures) == 1
+    assert failures[0]["custom_id"] == "webcam:1"
+    assert sum(len(c) for c in chunks) == 2

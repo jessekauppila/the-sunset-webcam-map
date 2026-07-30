@@ -154,6 +154,13 @@ def parse_args() -> argparse.Namespace:
              "(per-camera round-robin order). Implies --source webcam.",
     )
     parser.add_argument(
+        "--use-batch-api", action="store_true",
+        help="Anthropic only: submit via the Message Batches API (50%% "
+             "cheaper, hours not days). Requires --write-to-db; "
+             "incompatible with --dry-run. CSV/HTML reports are skipped — "
+             "the run manifest carries the accounting.",
+    )
+    parser.add_argument(
         "--write-to-db", action="store_true",
         help="Write LLM ratings back to the source database table",
     )
@@ -444,6 +451,142 @@ PROVIDER_RATE_FNS = {
 }
 
 
+def normalize_rating(result: dict) -> dict:
+    """Apply defaults + clamps to a raw LLM rating dict (shared by the
+    sequential path and the Batch API path)."""
+    result.setdefault("is_sunset", False)
+    result.setdefault("is_sunrise", False)
+    result.setdefault("quality", 0.0)
+    result.setdefault("confidence", 0.5)
+    result.setdefault("has_clouds", False)
+    result.setdefault("color_palette", "")
+    result.setdefault("obstruction", None)
+    result.setdefault("time_of_day", "unclear")
+    result.setdefault("sky_coverage", "partial")
+    result.setdefault("rating_explanation", "")
+    result["quality"] = max(0.0, min(1.0, float(result["quality"])))
+    result["confidence"] = max(0.0, min(1.0, float(result["confidence"])))
+    time_of_day = str(result["time_of_day"]).strip().lower()
+    if time_of_day not in {"golden_hour", "blue_hour", "twilight",
+                           "day", "night", "unclear"}:
+        time_of_day = "unclear"
+    result["time_of_day"] = time_of_day
+    sky_coverage = str(result["sky_coverage"]).strip().lower()
+    if sky_coverage not in {"none", "partial", "mostly", "full"}:
+        sky_coverage = "partial"
+    result["sky_coverage"] = sky_coverage
+    return result
+
+
+MAX_BATCH_REQUESTS = 1000
+MAX_BATCH_BYTES = 200_000_000  # ~200 MB of base64 payload per batch (API cap 256 MB)
+
+
+def parse_custom_id(custom_id: str) -> tuple[str, int]:
+    source_table, _, record_id = custom_id.partition(":")
+    return source_table, int(record_id)
+
+
+def build_batch_requests(
+    rows: list[dict],
+    model: str,
+    download_timeout: float,
+    download_fn=download_image_bytes,
+) -> tuple[list[list[dict]], list[dict]]:
+    """Download images and build Message Batches request chunks.
+
+    Returns (chunks, failures): chunks is a list of request-lists sized
+    under MAX_BATCH_REQUESTS / MAX_BATCH_BYTES; failures records rows whose
+    image could not be downloaded (they stay unrated — the
+    --flagged-unrated predicate re-selects them on the next run).
+    """
+    chunks: list[list[dict]] = []
+    current: list[dict] = []
+    current_bytes = 0
+    failures: list[dict] = []
+
+    for row in rows:
+        custom_id = f"{row['source_table']}:{row['record_id']}"
+        try:
+            image_bytes, content_type = download_fn(
+                row["image_url"], timeout=download_timeout,
+            )
+        except Exception as exc:
+            failures.append({"custom_id": custom_id, "error": str(exc)})
+            continue
+        media_type = detect_image_media_type(image_bytes, content_type)
+        b64 = base64.b64encode(image_bytes).decode("utf-8")
+        request = {
+            "custom_id": custom_id,
+            "params": {
+                "model": model,
+                "max_tokens": 600,
+                "messages": [{
+                    "role": "user",
+                    "content": [
+                        {"type": "image",
+                         "source": {"type": "base64",
+                                    "media_type": media_type,
+                                    "data": b64}},
+                        {"type": "text", "text": RATING_PROMPT},
+                    ],
+                }],
+            },
+        }
+        if (len(current) >= MAX_BATCH_REQUESTS
+                or current_bytes + len(b64) > MAX_BATCH_BYTES):
+            if current:
+                chunks.append(current)
+            current, current_bytes = [], 0
+        current.append(request)
+        current_bytes += len(b64)
+
+    if current:
+        chunks.append(current)
+    return chunks, failures
+
+
+def run_batch_chunks(
+    api_key: str,
+    chunks: list[list[dict]],
+    poll_seconds: int = 60,
+):
+    """Submit each chunk as a Message Batch, poll to completion, and yield
+    (custom_id, ok, payload, usage) tuples. payload is the parsed rating
+    dict when ok, else an error string; usage is (input_tokens,
+    output_tokens) for succeeded entries, (0, 0) otherwise."""
+    from anthropic import Anthropic
+
+    client = Anthropic(api_key=api_key)
+    for i, chunk in enumerate(chunks, 1):
+        batch = client.messages.batches.create(requests=chunk)
+        print(f"Batch {i}/{len(chunks)} submitted: {batch.id} "
+              f"({len(chunk)} requests)")
+        while True:
+            batch = client.messages.batches.retrieve(batch.id)
+            if batch.processing_status == "ended":
+                break
+            time.sleep(poll_seconds)
+        for result in client.messages.batches.results(batch.id):
+            if result.result.type == "succeeded":
+                message = result.result.message
+                usage = (message.usage.input_tokens, message.usage.output_tokens)
+                text = message.content[0].text.strip()
+                if text.startswith("```"):
+                    lines = text.split("\n")
+                    if lines[0].startswith("```"):
+                        lines = lines[1:]
+                    if lines and lines[-1].startswith("```"):
+                        lines = lines[:-1]
+                    text = "\n".join(lines).strip()
+                try:
+                    yield result.custom_id, True, json.loads(text), usage
+                except Exception as exc:
+                    yield result.custom_id, False, f"unparseable JSON: {exc}", (0, 0)
+            else:
+                yield result.custom_id, False, result.result.type, (0, 0)
+
+
 def rate_image(
     image_bytes: bytes,
     provider: str,
@@ -458,27 +601,7 @@ def rate_image(
     for attempt in range(MAX_RETRIES):
         try:
             result = rate_fn(image_bytes, model, api_key, timeout, media_type)
-            result.setdefault("is_sunset", False)
-            result.setdefault("is_sunrise", False)
-            result.setdefault("quality", 0.0)
-            result.setdefault("confidence", 0.5)
-            result.setdefault("has_clouds", False)
-            result.setdefault("color_palette", "")
-            result.setdefault("obstruction", None)
-            result.setdefault("time_of_day", "unclear")
-            result.setdefault("sky_coverage", "partial")
-            result.setdefault("rating_explanation", "")
-            result["quality"] = max(0.0, min(1.0, float(result["quality"])))
-            result["confidence"] = max(0.0, min(1.0, float(result["confidence"])))
-            time_of_day = str(result["time_of_day"]).strip().lower()
-            if time_of_day not in {"golden_hour", "blue_hour", "twilight",
-                                   "day", "night", "unclear"}:
-                time_of_day = "unclear"
-            result["time_of_day"] = time_of_day
-            sky_coverage = str(result["sky_coverage"]).strip().lower()
-            if sky_coverage not in {"none", "partial", "mostly", "full"}:
-                sky_coverage = "partial"
-            result["sky_coverage"] = sky_coverage
+            result = normalize_rating(result)
             return result
         except Exception as exc:
             if attempt == MAX_RETRIES - 1:
@@ -1213,6 +1336,15 @@ def write_run_manifest(
 
 def main() -> None:
     args = parse_args()
+
+    if args.use_batch_api:
+        if args.provider != "anthropic":
+            sys.exit("--use-batch-api requires --provider anthropic")
+        if not args.write_to_db:
+            sys.exit("--use-batch-api requires --write-to-db (no CSV path)")
+        if args.dry_run:
+            sys.exit("--use-batch-api is incompatible with --dry-run")
+
     model = resolve_model(args.provider, args.model)
     # Estimate-only doesn't make API calls, so skip the API key check.
     api_key = "" if args.estimate_only else resolve_api_key(
@@ -1241,6 +1373,7 @@ def main() -> None:
     print(f"  API timeout:      {args.api_timeout:.0f}s", flush=True)
     print(f"  Skip rated: {args.skip_rated}", flush=True)
     print(f"  Write to DB: {args.write_to_db}", flush=True)
+    print(f"  Use batch API: {args.use_batch_api}", flush=True)
     print(f"  Dry run: {args.dry_run}", flush=True)
     print(f"  Verbose: {args.verbose}", flush=True)
     print(f"  Output: {output_csv}", flush=True)
@@ -1391,6 +1524,59 @@ def main() -> None:
             )
             print(f"Run manifest: {manifest_path}")
         conn.close()
+        return
+
+    if args.use_batch_api:
+        # The rows are already fetched; drop the Postgres connection now
+        # rather than holding it idle through a submit/poll cycle that can
+        # run for hours (Neon aggressively closes idle connections — see
+        # open_db_connection's docstring).
+        conn.close()
+        run_started_at_iso = datetime.now(timezone.utc).isoformat()
+        chunks, failures = build_batch_requests(
+            rows, model, args.download_timeout,
+        )
+        for f in failures:
+            print(f"  download failed, left unrated: {f['custom_id']}: {f['error']}")
+        db = DbWriter(database_url)
+        success_count, failure_count = 0, len(failures)
+        total_tokens_in = total_tokens_out = 0
+        for custom_id, ok, payload, usage in run_batch_chunks(api_key, chunks):
+            source_table, record_id = parse_custom_id(custom_id)
+            total_tokens_in += usage[0]
+            total_tokens_out += usage[1]
+            if not ok:
+                failure_count += 1
+                print(f"  batch entry failed, left unrated: {custom_id}: {payload}")
+                continue
+            rating = normalize_rating(payload)
+            db.write_rating(source_table, record_id, rating, model, args.provider)
+            success_count += 1
+        db.close()
+        attempted_count = len(rows)
+        # Sticker-rate estimate from real usage; the Batch API bills ~50% of
+        # this (and intro pricing less again) — the manifest field is an
+        # upper-bound estimate, actual billing is whatever Anthropic charges.
+        price = MODEL_PRICING_USD_PER_MTOK.get(model, {"input": 0.0, "output": 0.0})
+        est_cost = (total_tokens_in / 1e6) * price["input"] \
+            + (total_tokens_out / 1e6) * price["output"]
+        manifest_path = write_run_manifest(
+            Path("ml/artifacts/llm_ratings"),
+            model=model,
+            provider=args.provider,
+            selection=build_selection_info(args),
+            attempted=attempted_count,
+            succeeded=success_count,
+            failed=failure_count,
+            tokens_in=total_tokens_in,
+            tokens_out=total_tokens_out,
+            est_cost_usd=round(est_cost, 2),
+            started_at=run_started_at_iso,
+            finished_at=datetime.now(timezone.utc).isoformat(),
+        )
+        print(f"Run manifest: {manifest_path}")
+        print(f"Batch run complete: {success_count} rated, {failure_count} failed/skipped "
+              f"of {attempted_count} selected.")
         return
 
     delay = 60.0 / args.rpm if args.rpm > 0 else 0
