@@ -314,6 +314,25 @@ describe('GET /api/cron/update-cameras', () => {
     expect(insertArgs.firebaseUrl).toContain('https://');
   });
 
+  it('passes the binary head evidence through to the persisted snapshot', async () => {
+    computeDisagreementKindMock.mockReturnValueOnce(
+      'binary_negative_regression_high',
+    );
+    scoreMock.mockReset().mockResolvedValue({
+      rawScore: 0.82, aiRating: 4.28, modelVersion: 'v4-regression',
+      imageHash: 'h', source: 'windy', pathTaken: 'onnx',
+      binaryRawScore: 0.12, binaryIsSunset: false,
+      binaryModelVersion: 'v4-binary', binaryPathTaken: 'onnx',
+    });
+    await GET(makeReq());
+    expect(insertWindyDisagreementSnapshotMock).toHaveBeenCalledTimes(1);
+    expect(insertWindyDisagreementSnapshotMock.mock.calls[0][0]).toMatchObject({
+      aiBinaryScore: 0.12,
+      aiBinaryIsSunset: false,
+      aiModelVersionBinary: 'v4-binary',
+    });
+  });
+
   it('does not persist a Windy snapshot when models agree (disagreementKind=null)', async () => {
     // Default mock returns null (agreement) — no persist.
     await GET(makeReq());
