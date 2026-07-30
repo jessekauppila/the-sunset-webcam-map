@@ -73,7 +73,7 @@ describe('releasePhone', () => {
 
 describe('computeSlots', () => {
   it('orders phones west→east by longitude and spaces them evenly', () => {
-    let s = { claims: {
+    const s = { claims: {
       east: { cameraId: 30, claimedAt: 1, lastHeartbeat: 1 },  // lng 150
       west: { cameraId: 10, claimedAt: 1, lastHeartbeat: 1 },  // lng -120
       mid:  { cameraId: 20, claimedAt: 1, lastHeartbeat: 1 },  // lng 30

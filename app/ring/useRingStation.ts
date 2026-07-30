@@ -34,6 +34,7 @@ export function useRingStation(): StationState {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ phoneId: phoneIdRef.current }),
         });
+        if (!res.ok) throw new Error(`sync failed: ${res.status}`);
         const data = await res.json();
         if (cancelled) return;
         if (data.assigned) {
@@ -44,10 +45,10 @@ export function useRingStation(): StationState {
             slot: data.slot,
           });
         } else {
-          setState((s) => ({ ...s, status: 'waiting' }));
+          setState({ status: 'waiting', imageUrl: null, title: null, slot: null });
         }
       } catch {
-        if (!cancelled) setState((s) => ({ ...s, status: 'error' }));
+        if (!cancelled) setState({ status: 'error', imageUrl: null, title: null, slot: null });
       }
     }
 
@@ -56,7 +57,9 @@ export function useRingStation(): StationState {
         const nav = navigator as Navigator & {
           wakeLock?: { request: (t: 'screen') => Promise<{ release: () => Promise<void> }> };
         };
-        wakeLock = (await nav.wakeLock?.request('screen')) ?? null;
+        const lock = (await nav.wakeLock?.request('screen')) ?? null;
+        if (cancelled) { void lock?.release(); return; }
+        wakeLock = lock;
       } catch {
         /* wake lock unavailable — screen may sleep; acceptable for v1 */
       }
