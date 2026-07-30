@@ -205,25 +205,23 @@ export const DISAGREEMENT_KIND_PRIORITY: Record<DisagreementKind, number> = {
  * the Hard Examples queue. Pure function — no DB writes; the caller persists
  * the return value on the snapshot row.
  *
- * Returns the HIGHEST-priority applicable kind, or null. Model-vs-Claude is
- * evaluated first and does NOT require the binary head — the archive backfill
- * (U3) runs this offline before the binary head is enabled in prod (U8), so an
- * undefined `binaryIsSunset` must not short-circuit the model-vs-Claude check.
+ * v2 behavior: when Claude has rated the frame, Claude adjudicates — this
+ * returns a genuine model-vs-Claude disagreement kind if one applies, else
+ * null (settled; binary-vs-regression flags are provisional pending Claude's
+ * verdict, not final answers). When Claude has NOT rated the frame, this
+ * falls back to a provisional binary-vs-regression flag that nominates the
+ * frame for Claude review, else null. Model-vs-Claude is evaluated first and
+ * does NOT require the binary head — the archive backfill (U3) runs this
+ * offline before the binary head is enabled in prod (U8), so an undefined
+ * `binaryIsSunset` must not short-circuit the model-vs-Claude check.
  *
  * Claude's quality is the NORMALIZED [0,1] llm_quality, not the raw 1-5 rating
  * (see masterConfig). The CLAUDE_HIGH gate sits above the borderline-quality
  * band, which is the deadband that keeps borderline frames out of the queue.
  *
- * v2 (2026-07-29): once Claude has rated a frame, Claude adjudicates. Binary-
- * vs-regression flags are only PROVISIONAL — they exist to nominate frames for
- * Claude review before Claude has weighed in (the live cron path). Once
- * `llmIsSunset`/`llmQuality` are present, only a genuine model-vs-Claude
- * contest can surface the frame; everything else is considered settled and
- * returns null. The one exception is a two-judges-agree guard: if the binary
- * head agrees with Claude that a frame is NOT a sunset, the regression head's
- * high rating is outvoted 2-to-1 and does not promote to
- * `model_high_claude_not_sunset`. If Claude data is absent, behavior is
- * unchanged from v1 (binary-vs-regression rules only).
+ * v2 (2026-07-29) two-judges-agree guard: if the binary head agrees with
+ * Claude that a frame is NOT a sunset, the regression head's high rating is
+ * outvoted 2-to-1 and does not promote to `model_high_claude_not_sunset`.
  *
  * Behavior note: if Claude data is present but `aiRating` is undefined (no
  * regression score), this still returns null — every rule below requires
@@ -235,19 +233,19 @@ export function computeDisagreementKind(input: {
   llmQuality?: number | null;
   llmIsSunset?: boolean | null;
 }): DisagreementKind | null {
-  const { aiRating } = input;
+  const { aiRating, llmQuality } = input;
   const hasClaude =
     typeof input.llmIsSunset === 'boolean' &&
-    typeof input.llmQuality === 'number';
+    typeof llmQuality === 'number';
 
   // 1) Claude present → Claude adjudicates. Only genuine model-vs-Claude
   //    contests survive; everything else is settled (null). Binary-vs-
   //    regression flags are provisional pending this adjudication.
-  if (hasClaude && typeof aiRating === 'number') {
+  if (hasClaude && typeof aiRating === 'number' && typeof llmQuality === 'number') {
     // miss: Claude confident it's a good sunset, model rated it low.
     if (
       input.llmIsSunset &&
-      (input.llmQuality as number) >= MODEL_VS_CLAUDE_CLAUDE_HIGH &&
+      llmQuality >= MODEL_VS_CLAUDE_CLAUDE_HIGH &&
       aiRating <= MODEL_VS_CLAUDE_MODEL_LOW
     ) {
       return 'model_low_claude_sunset';
