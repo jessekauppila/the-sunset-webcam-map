@@ -12,6 +12,7 @@ import {
   upsertTerminatorState,
   getWebcamImageHashMap,
   updateWebcamAiFields,
+  insertWindyDisagreementSnapshot,
 } from './dbOperations';
 
 describe('getWebcamImageHashMap', () => {
@@ -76,6 +77,53 @@ describe('updateWebcamAiFields', () => {
     expect(sqlMock).toHaveBeenCalledTimes(1);
     const values = sqlMock.mock.calls[0].slice(1);
     expect(values).toContain('fresh-hash');
+  });
+});
+
+describe('insertWindyDisagreementSnapshot', () => {
+  const baseOpts = {
+    webcamId: 700,
+    phase: 'sunset' as const,
+    firebaseUrl: 'https://stub-firebase/test.jpg',
+    firebasePath: 'snapshots/700/test.jpg',
+    aiRating: 4.1,
+    aiRegressionScore: 0.78,
+    aiModelVersionRegression: 'v4-regression',
+    scoringPath: 'onnx',
+    disagreementKind: 'binary_negative_regression_high',
+  };
+
+  beforeEach(() => {
+    sqlMock.mockReset();
+    sqlMock.mockResolvedValue([{ id: 999 }]);
+  });
+
+  it('persists the binary head evidence columns when provided', async () => {
+    await insertWindyDisagreementSnapshot({
+      ...baseOpts,
+      aiBinaryScore: 0.12,
+      aiBinaryIsSunset: false,
+      aiModelVersionBinary: 'v4-binary',
+    });
+
+    expect(sqlMock).toHaveBeenCalledTimes(1);
+    const query = (sqlMock.mock.calls[0][0] as readonly string[]).join(' ');
+    expect(query).toContain('ai_binary_score');
+    expect(query).toContain('ai_binary_is_sunset');
+    expect(query).toContain('ai_model_version_binary');
+    const values = sqlMock.mock.calls[0].slice(1);
+    expect(values).toContain(0.12);
+    expect(values).toContain(false);
+    expect(values).toContain('v4-binary');
+  });
+
+  it('writes NULL binary columns when the binary head is not configured', async () => {
+    await insertWindyDisagreementSnapshot(baseOpts);
+
+    expect(sqlMock).toHaveBeenCalledTimes(1);
+    const values = sqlMock.mock.calls[0].slice(1);
+    // Three explicit nulls: score, is_sunset, model version.
+    expect(values.filter((v) => v === null).length).toBeGreaterThanOrEqual(3);
   });
 });
 
