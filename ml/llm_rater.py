@@ -210,6 +210,8 @@ API_KEY_ENV = {
 MODEL_PRICING_USD_PER_MTOK: dict[str, dict[str, float]] = {
     # Anthropic
     "claude-haiku-4-5":    {"input": 1.00, "output": 5.00},
+    # Sticker price; intro $2/$10 through 2026-08-31, Batch API halves either.
+    "claude-sonnet-5":     {"input": 3.00, "output": 15.00},
     "claude-sonnet-4-5":   {"input": 3.00, "output": 15.00},
     "claude-opus-4":       {"input": 15.00, "output": 75.00},
     "claude-3-5-haiku":    {"input": 0.80, "output": 4.00},
@@ -404,7 +406,6 @@ def rate_with_anthropic(
     response = client.messages.create(
         model=model,
         max_tokens=600,
-        temperature=0.1,
         messages=[
             {
                 "role": "user",

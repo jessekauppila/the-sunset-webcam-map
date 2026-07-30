@@ -30,3 +30,40 @@ def test_flagged_unrated_orders_per_camera_round_robin():
 def test_flagged_unrated_omits_limit_clause_when_zero():
     q = build_flagged_unrated_query(limit=0)
     assert "LIMIT" not in q
+
+
+def test_anthropic_request_sends_no_temperature(monkeypatch):
+    """claude-sonnet-5 rejects non-default sampling params with a 400."""
+    captured = {}
+
+    class FakeMessages:
+        def create(self, **kwargs):
+            captured.update(kwargs)
+
+            class Block:
+                text = '{"quality": 0.5, "is_sunset": true}'
+
+            class Resp:
+                content = [Block()]
+
+            return Resp()
+
+    class FakeClient:
+        def __init__(self, **kwargs):
+            self.messages = FakeMessages()
+
+    import anthropic
+    monkeypatch.setattr(anthropic, "Anthropic", FakeClient)
+
+    from llm_rater import rate_with_anthropic
+    result = rate_with_anthropic(b"fakejpegbytes", "claude-sonnet-5", "key")
+
+    assert "temperature" not in captured
+    assert captured["model"] == "claude-sonnet-5"
+    assert result["quality"] == 0.5
+
+
+def test_sonnet_5_has_a_pricing_entry():
+    from llm_rater import MODEL_PRICING_USD_PER_MTOK
+    entry = MODEL_PRICING_USD_PER_MTOK["claude-sonnet-5"]
+    assert entry == {"input": 3.00, "output": 15.00}
