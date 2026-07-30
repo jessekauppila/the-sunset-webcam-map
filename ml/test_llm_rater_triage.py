@@ -41,6 +41,7 @@ def test_anthropic_request_sends_no_temperature(monkeypatch):
             captured.update(kwargs)
 
             class Block:
+                type = "text"
                 text = '{"quality": 0.5, "is_sunset": true}'
 
             class Resp:
@@ -60,6 +61,7 @@ def test_anthropic_request_sends_no_temperature(monkeypatch):
 
     assert "temperature" not in captured
     assert captured["model"] == "claude-sonnet-5"
+    assert captured["thinking"] == {"type": "disabled"}
     assert result["quality"] == 0.5
 
 
@@ -67,6 +69,58 @@ def test_sonnet_5_has_a_pricing_entry():
     from llm_rater import MODEL_PRICING_USD_PER_MTOK
     entry = MODEL_PRICING_USD_PER_MTOK["claude-sonnet-5"]
     assert entry == {"input": 3.00, "output": 15.00}
+
+
+def test_lookup_model_pricing_prefix_match_and_unknown():
+    from llm_rater import lookup_model_pricing
+
+    # A dated model id should match the longest applicable prefix entry.
+    assert lookup_model_pricing("claude-sonnet-5-20270101") == {
+        "input": 3.00, "output": 15.00,
+    }
+    # Unknown model → zeros, not a KeyError/None.
+    assert lookup_model_pricing("some-unreleased-model") == {
+        "input": 0.0, "output": 0.0,
+    }
+
+
+def test_extract_text_block_picks_text_block_over_thinking_block():
+    from llm_rater import extract_text_block
+
+    class FakeBlock:
+        def __init__(self, type_, text=None):
+            self.type = type_
+            self.text = text
+
+    content = [
+        FakeBlock("thinking", text="reasoning about the sky…"),
+        FakeBlock("text", text='{"quality": 0.5, "is_sunset": true}'),
+    ]
+    assert extract_text_block(content) == '{"quality": 0.5, "is_sunset": true}'
+
+
+def test_extract_text_block_raises_when_no_text_block_present():
+    from llm_rater import extract_text_block
+
+    class FakeBlock:
+        def __init__(self, type_):
+            self.type = type_
+
+    content = [FakeBlock("thinking")]
+    try:
+        extract_text_block(content)
+        assert False, "expected ValueError"
+    except ValueError:
+        pass
+
+
+def test_payload_is_complete_requires_quality_and_is_sunset():
+    from llm_rater import payload_is_complete
+
+    assert payload_is_complete({"quality": 0.5, "is_sunset": True}) is True
+    assert payload_is_complete({"quality": 0.5}) is False
+    assert payload_is_complete({"is_sunset": True}) is False
+    assert payload_is_complete({}) is False
 
 
 import hashlib
@@ -177,15 +231,19 @@ def test_build_batch_requests_chunks_by_request_count():
     def fake_download(url, timeout=30.0):
         return b"tinyjpeg", "image/jpeg"
 
-    chunks, failures = build_batch_requests(
+    chunk_iter, failures = build_batch_requests(
         _fake_rows(2500), "claude-sonnet-5", 30.0, download_fn=fake_download,
     )
+    # build_batch_requests returns a lazy generator: `failures` only
+    # reflects reality once the iterator has been fully consumed.
+    chunks = list(chunk_iter)
     assert failures == []
     assert [len(c) for c in chunks] == [1000, 1000, 500]
     first = chunks[0][0]
     assert first["custom_id"] == "webcam:0"
     assert first["params"]["model"] == "claude-sonnet-5"
     assert first["params"]["max_tokens"] == 600
+    assert first["params"]["thinking"] == {"type": "disabled"}
     assert "temperature" not in first["params"]
 
 
@@ -197,9 +255,10 @@ def test_build_batch_requests_records_download_failures():
             raise RuntimeError("404 dead url")
         return b"tinyjpeg", "image/jpeg"
 
-    chunks, failures = build_batch_requests(
+    chunk_iter, failures = build_batch_requests(
         _fake_rows(3), "claude-sonnet-5", 30.0, download_fn=flaky_download,
     )
+    chunks = list(chunk_iter)
     assert len(failures) == 1
     assert failures[0]["custom_id"] == "webcam:1"
     assert sum(len(c) for c in chunks) == 2
@@ -217,11 +276,39 @@ def test_build_batch_requests_chunks_by_cumulative_byte_cap(monkeypatch):
     def fake_download(url, timeout=30.0):
         return b"abcdef", "image/jpeg"
 
-    chunks, failures = llm_rater.build_batch_requests(
+    chunk_iter, failures = llm_rater.build_batch_requests(
         _fake_rows(3), "claude-sonnet-5", 30.0, download_fn=fake_download,
     )
+    chunks = list(chunk_iter)
     assert failures == []
     assert [len(c) for c in chunks] == [2, 1]
     assert chunks[0][0]["custom_id"] == "webcam:0"
     assert chunks[0][1]["custom_id"] == "webcam:1"
     assert chunks[1][0]["custom_id"] == "webcam:2"
+
+
+def test_build_batch_requests_is_lazy_and_downloads_are_deferred():
+    """Advancing the chunk iterator by one chunk must not download images
+    that belong to a later chunk — this is the whole point of converting
+    build_batch_requests to a generator (memory stays ~one chunk, and
+    run_batch_chunks can submit chunk 1 before chunk 2 is even fetched)."""
+    from llm_rater import build_batch_requests
+
+    downloaded_urls: list[str] = []
+
+    def tracking_download(url, timeout=30.0):
+        downloaded_urls.append(url)
+        return b"tinyjpeg", "image/jpeg"
+
+    chunk_iter, failures = build_batch_requests(
+        _fake_rows(2500), "claude-sonnet-5", 30.0, download_fn=tracking_download,
+    )
+    first_chunk = next(chunk_iter)
+    assert len(first_chunk) == 1000
+    # Only the first chunk's images (plus the lookahead row that triggered
+    # the chunk boundary) should have been downloaded so far.
+    assert len(downloaded_urls) <= 1001
+
+    remaining = list(chunk_iter)
+    assert sum(len(c) for c in remaining) == 1500
+    assert len(downloaded_urls) == 2500

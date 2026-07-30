@@ -254,6 +254,24 @@ def measure_image_tokens(image_bytes: bytes) -> tuple[int, int, int]:
     return w, h, img_tokens
 
 
+def lookup_model_pricing(model: str) -> dict:
+    """Longest-prefix-match lookup against MODEL_PRICING_USD_PER_MTOK.
+
+    Model names carry date suffixes (e.g. "claude-sonnet-5-20270101") that
+    won't exact-match a pricing key, so the longest matching prefix wins.
+    Returns {"input": 0.0, "output": 0.0} when no prefix matches — no
+    real pricing entry is ever all-zero, so callers can treat an all-zero
+    result as "unknown model" without a separate None-check.
+    """
+    pricing = {"input": 0.0, "output": 0.0}
+    best_prefix_len = 0
+    for prefix, rates in MODEL_PRICING_USD_PER_MTOK.items():
+        if model.startswith(prefix) and len(prefix) > best_prefix_len:
+            pricing = rates
+            best_prefix_len = len(prefix)
+    return pricing
+
+
 def estimate_cost_usd(
     model: str,
     n_images: int,
@@ -264,13 +282,8 @@ def estimate_cost_usd(
 
     Falls back to (0.0, None) when we don't have pricing data for the model.
     """
-    pricing = None
-    best_prefix_len = 0
-    for prefix, rates in MODEL_PRICING_USD_PER_MTOK.items():
-        if model.startswith(prefix) and len(prefix) > best_prefix_len:
-            pricing = rates
-            best_prefix_len = len(prefix)
-    if pricing is None:
+    pricing = lookup_model_pricing(model)
+    if pricing["input"] == 0.0 and pricing["output"] == 0.0:
         return 0.0, None
     in_cost  = n_images * tokens_in_per_image  / 1_000_000 * pricing["input"]
     out_cost = n_images * tokens_out_per_image / 1_000_000 * pricing["output"]
@@ -397,6 +410,39 @@ def rate_with_openai(
     return json.loads(response.choices[0].message.content)
 
 
+def extract_text_block(content: list) -> str:
+    """Return the `.text` of the first content block with `type == "text"`.
+
+    Models with adaptive/extended thinking (e.g. Sonnet 5) can prepend a
+    thinking block before the text block, so naively indexing content[0]
+    silently grabs the thinking block instead of the JSON response. Shared
+    by both the sequential (`rate_with_anthropic`) and Batch API
+    (`run_batch_chunks`) response readers.
+
+    Raises ValueError if no text block is present so callers treat it as
+    a parse failure rather than crashing on an AttributeError deep in
+    json.loads.
+    """
+    for block in content:
+        if getattr(block, "type", None) == "text":
+            return block.text
+    raise ValueError(f"no text content block in response (types: "
+                      f"{[getattr(b, 'type', None) for b in content]!r})")
+
+
+def _strip_markdown_fences(text: str) -> str:
+    """Strip accidental markdown code fences (```json ... ```) from a
+    Claude text response."""
+    if text.startswith("```"):
+        lines = text.split("\n")
+        if lines[0].startswith("```"):
+            lines = lines[1:]
+        if lines and lines[-1].startswith("```"):
+            lines = lines[:-1]
+        text = "\n".join(lines).strip()
+    return text
+
+
 def rate_with_anthropic(
     image_bytes: bytes, model: str, api_key: str,
     timeout: float = 60.0, media_type: str = "image/jpeg",
@@ -404,7 +450,10 @@ def rate_with_anthropic(
     """Rate via Anthropic Claude API.
 
     Claude does not have a native JSON response mode, so we strip any
-    accidental markdown fences from the response before parsing.
+    accidental markdown fences from the response before parsing. Thinking
+    is explicitly disabled: Sonnet 5's adaptive thinking otherwise eats the
+    600-token max_tokens budget on a thinking block, leaving no room for
+    (or even producing) the text response.
     """
     from anthropic import Anthropic
 
@@ -414,6 +463,7 @@ def rate_with_anthropic(
     response = client.messages.create(
         model=model,
         max_tokens=600,
+        thinking={"type": "disabled"},
         messages=[
             {
                 "role": "user",
@@ -432,15 +482,7 @@ def rate_with_anthropic(
         ],
     )
 
-    text = response.content[0].text.strip()
-    # Strip accidental markdown code fences (```json ... ```).
-    if text.startswith("```"):
-        lines = text.split("\n")
-        if lines[0].startswith("```"):
-            lines = lines[1:]
-        if lines and lines[-1].startswith("```"):
-            lines = lines[:-1]
-        text = "\n".join(lines).strip()
+    text = _strip_markdown_fences(extract_text_block(response.content).strip())
     return json.loads(text)
 
 
@@ -487,81 +529,112 @@ def parse_custom_id(custom_id: str) -> tuple[str, int]:
     return source_table, int(record_id)
 
 
+def payload_is_complete(payload: dict) -> bool:
+    """True if a parsed LLM rating payload has both required keys.
+
+    Batch-API-only guard: `normalize_rating()` defaults every missing
+    field, which would otherwise let a truncated/malformed model response
+    (e.g. valid JSON but missing fields) masquerade as a confident
+    "not a sunset, quality 0.0" verdict once written to the DB. The
+    sequential path doesn't need this — a malformed payload there just
+    gets defaulted the same way it always has, and operators reviewing
+    the CSV/HTML report can spot it; the batch path writes straight to
+    the DB with no human review step, so it gets the stricter check.
+    """
+    return "quality" in payload and "is_sunset" in payload
+
+
 def build_batch_requests(
     rows: list[dict],
     model: str,
     download_timeout: float,
     download_fn=download_image_bytes,
-) -> tuple[list[list[dict]], list[dict]]:
-    """Download images and build Message Batches request chunks.
+) -> tuple[Any, list[dict]]:
+    """Lazily download images and build Message Batches request chunks.
 
-    Returns (chunks, failures): chunks is a list of request-lists sized
-    under MAX_BATCH_REQUESTS / MAX_BATCH_BYTES; failures records rows whose
-    image could not be downloaded (they stay unrated — the
-    --flagged-unrated predicate re-selects them on the next run).
+    Returns (chunk_iterator, failures). chunk_iterator is a GENERATOR that
+    yields one chunk (a list of request dicts, sized under
+    MAX_BATCH_REQUESTS / MAX_BATCH_BYTES) at a time — images are downloaded
+    on demand as the generator is advanced, not all upfront, so memory
+    stays ~one chunk regardless of how many rows are selected, and a
+    caller (`run_batch_chunks`) can submit the first chunk before the rest
+    have even been downloaded.
+
+    `failures` is a list that the generator appends to AS IT ITERATES
+    (rows whose image could not be downloaded; they stay unrated — the
+    --flagged-unrated predicate re-selects them on the next run). It is
+    only complete once the chunk_iterator has been fully consumed —
+    inspect it after exhausting the generator, not before.
     """
-    chunks: list[list[dict]] = []
-    current: list[dict] = []
-    current_bytes = 0
     failures: list[dict] = []
 
-    for row in rows:
-        custom_id = f"{row['source_table']}:{row['record_id']}"
-        try:
-            image_bytes, content_type = download_fn(
-                row["image_url"], timeout=download_timeout,
-            )
-        except Exception as exc:
-            failures.append({"custom_id": custom_id, "error": str(exc)})
-            continue
-        media_type = detect_image_media_type(image_bytes, content_type)
-        b64 = base64.b64encode(image_bytes).decode("utf-8")
-        request = {
-            "custom_id": custom_id,
-            "params": {
-                "model": model,
-                "max_tokens": 600,
-                "messages": [{
-                    "role": "user",
-                    "content": [
-                        {"type": "image",
-                         "source": {"type": "base64",
-                                    "media_type": media_type,
-                                    "data": b64}},
-                        {"type": "text", "text": RATING_PROMPT},
-                    ],
-                }],
-            },
-        }
-        if (len(current) >= MAX_BATCH_REQUESTS
-                or current_bytes + len(b64) > MAX_BATCH_BYTES):
-            if current:
-                chunks.append(current)
-            current, current_bytes = [], 0
-        current.append(request)
-        current_bytes += len(b64)
+    def _chunks():
+        current: list[dict] = []
+        current_bytes = 0
+        for row in rows:
+            custom_id = f"{row['source_table']}:{row['record_id']}"
+            try:
+                image_bytes, content_type = download_fn(
+                    row["image_url"], timeout=download_timeout,
+                )
+            except Exception as exc:
+                failures.append({"custom_id": custom_id, "error": str(exc)})
+                continue
+            media_type = detect_image_media_type(image_bytes, content_type)
+            b64 = base64.b64encode(image_bytes).decode("utf-8")
+            request = {
+                "custom_id": custom_id,
+                "params": {
+                    "model": model,
+                    "max_tokens": 600,
+                    "thinking": {"type": "disabled"},
+                    "messages": [{
+                        "role": "user",
+                        "content": [
+                            {"type": "image",
+                             "source": {"type": "base64",
+                                        "media_type": media_type,
+                                        "data": b64}},
+                            {"type": "text", "text": RATING_PROMPT},
+                        ],
+                    }],
+                },
+            }
+            if (len(current) >= MAX_BATCH_REQUESTS
+                    or current_bytes + len(b64) > MAX_BATCH_BYTES):
+                if current:
+                    yield current
+                current, current_bytes = [], 0
+            current.append(request)
+            current_bytes += len(b64)
 
-    if current:
-        chunks.append(current)
-    return chunks, failures
+        if current:
+            yield current
+
+    return _chunks(), failures
 
 
 def run_batch_chunks(
     api_key: str,
-    chunks: list[list[dict]],
+    chunks,
     poll_seconds: int = 60,
 ):
     """Submit each chunk as a Message Batch, poll to completion, and yield
     (custom_id, ok, payload, usage) tuples. payload is the parsed rating
-    dict when ok, else an error string; usage is (input_tokens,
-    output_tokens) for succeeded entries, (0, 0) otherwise."""
+    dict when ok, else a readable error string; usage is (input_tokens,
+    output_tokens) for succeeded entries, (0, 0) otherwise.
+
+    `chunks` may be (and typically is) a GENERATOR — this function pulls
+    one chunk at a time and submits it immediately, so chunk N+1 isn't
+    downloaded (see `build_batch_requests`) until chunk N has been
+    submitted, polled to completion, and its results yielded.
+    """
     from anthropic import Anthropic
 
     client = Anthropic(api_key=api_key)
     for i, chunk in enumerate(chunks, 1):
         batch = client.messages.batches.create(requests=chunk)
-        print(f"Batch {i}/{len(chunks)} submitted: {batch.id} "
-              f"({len(chunk)} requests)")
+        print(f"Batch {i} submitted: {batch.id} ({len(chunk)} requests)")
         while True:
             batch = client.messages.batches.retrieve(batch.id)
             if batch.processing_status == "ended":
@@ -571,23 +644,25 @@ def run_batch_chunks(
             if result.result.type == "succeeded":
                 message = result.result.message
                 usage = (message.usage.input_tokens, message.usage.output_tokens)
-                text = message.content[0].text.strip()
-                if text.startswith("```"):
-                    lines = text.split("\n")
-                    if lines[0].startswith("```"):
-                        lines = lines[1:]
-                    if lines and lines[-1].startswith("```"):
-                        lines = lines[:-1]
-                    text = "\n".join(lines).strip()
+                # Text extraction happens INSIDE the try: an unexpected
+                # content shape (e.g. no text block, or non-JSON text)
+                # must yield a not-ok entry with the real usage rather than
+                # crash the generator and lose every later chunk's results.
                 try:
-                    yield result.custom_id, True, json.loads(text), usage
+                    text = _strip_markdown_fences(
+                        extract_text_block(message.content).strip()
+                    )
+                    payload = json.loads(text)
                 except Exception as exc:
                     # The message was still generated and billed — keep the
                     # real usage so the manifest's token/cost accounting
                     # stays honest even though the rating is unusable.
-                    yield result.custom_id, False, f"unparseable JSON: {exc}", usage
+                    yield result.custom_id, False, f"unparseable response: {exc}", usage
+                    continue
+                yield result.custom_id, True, payload, usage
             else:
-                yield result.custom_id, False, result.result.type, (0, 0)
+                error_str = f"{result.result.type}: {getattr(result.result, 'error', None)}"
+                yield result.custom_id, False, error_str, (0, 0)
 
 
 def rate_image(
@@ -1536,16 +1611,22 @@ def main() -> None:
         # open_db_connection's docstring).
         conn.close()
         run_started_at_iso = datetime.now(timezone.utc).isoformat()
-        chunks, failures = build_batch_requests(
+        # chunk_iter is a lazy generator (see build_batch_requests): images
+        # download as run_batch_chunks below pulls each chunk, not upfront.
+        # `failures` is the same list object the generator appends
+        # download failures to as it iterates — it isn't complete until
+        # chunk_iter has been fully consumed, so we read it after the loop,
+        # not here.
+        chunk_iter, failures = build_batch_requests(
             rows, model, args.download_timeout,
         )
-        for f in failures:
-            print(f"  download failed, left unrated: {f['custom_id']}: {f['error']}")
         db = DbWriter(database_url)
-        success_count, failure_count = 0, len(failures)
+        success_count = 0
+        failure_count = 0
+        db_failures = 0
         total_tokens_in = total_tokens_out = 0
         try:
-            for custom_id, ok, payload, usage in run_batch_chunks(api_key, chunks):
+            for custom_id, ok, payload, usage in run_batch_chunks(api_key, chunk_iter):
                 source_table, record_id = parse_custom_id(custom_id)
                 total_tokens_in += usage[0]
                 total_tokens_out += usage[1]
@@ -1553,8 +1634,22 @@ def main() -> None:
                     failure_count += 1
                     print(f"  batch entry failed, left unrated: {custom_id}: {payload}")
                     continue
+                if not payload_is_complete(payload):
+                    # Malformed-but-parseable JSON (missing quality/is_sunset)
+                    # must NOT be silently defaulted and written to the DB —
+                    # the batch path has no human reviewing the output before
+                    # it lands, unlike the sequential dry-run/CSV path.
+                    failure_count += 1
+                    print(f"  batch entry incomplete (missing quality/is_sunset), "
+                          f"left unrated: {custom_id}: {payload}")
+                    continue
                 rating = normalize_rating(payload)
-                db.write_rating(source_table, record_id, rating, model, args.provider)
+                try:
+                    db.write_rating(source_table, record_id, rating, model, args.provider)
+                except Exception as exc:
+                    db_failures += 1
+                    print(f"  DB write failed, left unrated: {custom_id}: {exc}")
+                    continue
                 success_count += 1
         finally:
             # A transient exception mid-poll (hours-long) must not swallow
@@ -1563,13 +1658,20 @@ def main() -> None:
             # far, then let the exception (if any) propagate. The operator
             # sees the failure and reruns; --flagged-unrated picks up
             # whatever is still unrated.
+            #
+            # By the time we get here (loop finished OR an exception
+            # propagated out of it), chunk_iter has stopped downloading, so
+            # `failures` reflects every download attempt that ran.
+            for f in failures:
+                print(f"  download failed, left unrated: {f['custom_id']}: {f['error']}")
+            failure_count += len(failures) + db_failures
             db.close()
             attempted_count = len(rows)
             # Sticker-rate estimate from real usage; the Batch API bills
             # ~50% of this (and intro pricing less again) — the manifest
             # field is an upper-bound estimate, actual billing is whatever
             # Anthropic charges.
-            price = MODEL_PRICING_USD_PER_MTOK.get(model, {"input": 0.0, "output": 0.0})
+            price = lookup_model_pricing(model)
             est_cost = (total_tokens_in / 1e6) * price["input"] \
                 + (total_tokens_out / 1e6) * price["output"]
             manifest_path = write_run_manifest(
@@ -1588,7 +1690,7 @@ def main() -> None:
             )
             print(f"Run manifest: {manifest_path}")
             print(f"Batch run complete: {success_count} rated, {failure_count} failed/skipped "
-                  f"of {attempted_count} selected.")
+                  f"of {attempted_count} selected (db_failures={db_failures}).")
         return
 
     delay = 60.0 / args.rpm if args.rpm > 0 else 0

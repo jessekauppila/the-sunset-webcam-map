@@ -1738,7 +1738,8 @@ Every LLM rating is traceable; training exports may slice by any of these:
 Spec: `docs/superpowers/specs/2026-07-29-hard-example-triage-design.md`.
 Each step is a manual operator action — the script never auto-escalates spend.
 
-1. **Dry run (free):**
+1. **Dry run (~cents: rates `--dry-run-count` sample images for real,
+   costing cents — not free):**
    `python3 ml/llm_rater.py --provider anthropic --model claude-sonnet-5 --flagged-unrated --dry-run`
    Check the selection count and eyeball the HTML sample.
 2. **Smoke slice (~$1.50):**
@@ -1747,6 +1748,10 @@ Each step is a manual operator action — the script never auto-escalates spend.
    within ~an hour the update-cameras cron's recompute step clears/promotes
    those 500 flags; Hard Examples queue counts move the right way.
 3. **Full run (~$35–45):** same command without `--limit`.
+
+   Pre-check: `SELECT count(*) FROM webcam_snapshots WHERE llm_quality IS
+   NOT NULL AND llm_is_sunset IS NULL;` — should be 0; any such rows would
+   be recomputed under Claude-absent rules.
 4. **Recompute reset (one-time, after the v2 rule deploys):**
    ```sql
    UPDATE webcam_snapshots
