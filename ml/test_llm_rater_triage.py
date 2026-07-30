@@ -67,3 +67,41 @@ def test_sonnet_5_has_a_pricing_entry():
     from llm_rater import MODEL_PRICING_USD_PER_MTOK
     entry = MODEL_PRICING_USD_PER_MTOK["claude-sonnet-5"]
     assert entry == {"input": 3.00, "output": 15.00}
+
+
+import hashlib
+import json
+
+
+def test_run_manifest_contents(tmp_path):
+    from llm_rater import write_run_manifest, RATING_PROMPT
+
+    path = write_run_manifest(
+        tmp_path,
+        model="claude-sonnet-5",
+        provider="anthropic",
+        selection={"mode": "flagged_unrated", "limit": 500},
+        attempted=500,
+        succeeded=497,
+        failed=3,
+        tokens_in=1_000_000,
+        tokens_out=75_000,
+        est_cost_usd=4.13,
+        started_at="2026-07-29T20:00:00Z",
+        finished_at="2026-07-29T21:30:00Z",
+    )
+
+    assert path.name.startswith("run_") and path.name.endswith("_manifest.json")
+    data = json.loads(path.read_text())
+    assert data["model"] == "claude-sonnet-5"
+    assert data["provider"] == "anthropic"
+    assert data["prompt_version"] == "v2_extended"
+    assert data["prompt_sha256"] == hashlib.sha256(
+        RATING_PROMPT.encode("utf-8")
+    ).hexdigest()
+    assert data["selection"] == {"mode": "flagged_unrated", "limit": 500}
+    assert data["counts"] == {"attempted": 500, "succeeded": 497, "failed": 3}
+    assert data["tokens"] == {"input": 1_000_000, "output": 75_000}
+    assert data["est_cost_usd"] == 4.13
+    assert data["started_at"] == "2026-07-29T20:00:00Z"
+    assert data["finished_at"] == "2026-07-29T21:30:00Z"

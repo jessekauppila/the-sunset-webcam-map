@@ -41,6 +41,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+import hashlib
 import io
 import json
 import sys
@@ -1154,6 +1155,46 @@ class DbWriter:
             pass
 
 
+def write_run_manifest(
+    out_dir: "str | Path",
+    *,
+    model: str,
+    provider: str,
+    selection: dict,
+    attempted: int,
+    succeeded: int,
+    failed: int,
+    tokens_in: int,
+    tokens_out: int,
+    est_cost_usd: float,
+    started_at: str,
+    finished_at: str,
+) -> Path:
+    """Write a per-campaign provenance manifest (2026-07-29 triage spec).
+
+    Documents exactly how a rating run was produced so training exports
+    can slice by judge/campaign later. The prompt has no version constant;
+    its sha256 IS the version.
+    """
+    out_dir = Path(out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+    path = out_dir / f"run_{stamp}_manifest.json"
+    path.write_text(json.dumps({
+        "model": model,
+        "provider": provider,
+        "prompt_version": "v2_extended",
+        "prompt_sha256": hashlib.sha256(RATING_PROMPT.encode("utf-8")).hexdigest(),
+        "selection": selection,
+        "counts": {"attempted": attempted, "succeeded": succeeded, "failed": failed},
+        "tokens": {"input": tokens_in, "output": tokens_out},
+        "est_cost_usd": est_cost_usd,
+        "started_at": started_at,
+        "finished_at": finished_at,
+    }, indent=2))
+    return path
+
+
 def main() -> None:
     args = parse_args()
     model = resolve_model(args.provider, args.model)
@@ -1323,6 +1364,7 @@ def main() -> None:
     if not args.dry_run and args.write_to_db:
         db_writer = DbWriter(database_url)
     db_failures = 0
+    run_started_at_iso = datetime.now(timezone.utc).isoformat()
 
     progress = tqdm(
         rows, desc="Rating", unit="img", disable=args.no_progress,
@@ -1499,6 +1541,38 @@ def main() -> None:
     }
     print(f"\n--- Summary ---")
     print(json.dumps(summary, indent=2))
+
+    if not args.dry_run:
+        # Per-campaign provenance manifest (2026-07-29 triage spec). Reuse
+        # the same accumulators the summary above was built from; no
+        # per-call token usage is captured on this path today, so those
+        # totals stay 0 rather than being estimated/invented.
+        attempted_count = len(rows)
+        success_count = len(results)
+        failure_count = len(failures)
+        total_tokens_in = 0
+        total_tokens_out = 0
+        est_cost = 0.0
+        manifest_path = write_run_manifest(
+            Path("ml/artifacts/llm_ratings"),
+            model=model,
+            provider=args.provider,
+            selection={
+                "mode": "flagged_unrated" if args.flagged_unrated else args.source,
+                "limit": args.limit,
+                "skip_rated": args.skip_rated,
+                "use_batch_api": getattr(args, "use_batch_api", False),
+            },
+            attempted=attempted_count,
+            succeeded=success_count,
+            failed=failure_count,
+            tokens_in=total_tokens_in,
+            tokens_out=total_tokens_out,
+            est_cost_usd=round(est_cost, 2),
+            started_at=run_started_at_iso,
+            finished_at=datetime.now(timezone.utc).isoformat(),
+        )
+        print(f"Run manifest: {manifest_path}")
 
 
 if __name__ == "__main__":
