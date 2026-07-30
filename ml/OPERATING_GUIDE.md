@@ -1714,8 +1714,6 @@ export const CLEANUP_ENABLED = true;
 The endpoint returns the count deleted and a list of any errors per
 snapshot.
 
----
-
 ## Rating provenance
 
 Every LLM rating is traceable; training exports may slice by any of these:
