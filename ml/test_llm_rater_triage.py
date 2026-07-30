@@ -105,3 +105,37 @@ def test_run_manifest_contents(tmp_path):
     assert data["est_cost_usd"] == 4.13
     assert data["started_at"] == "2026-07-29T20:00:00Z"
     assert data["finished_at"] == "2026-07-29T21:30:00Z"
+
+
+from types import SimpleNamespace
+
+
+def test_build_selection_info_uses_flagged_unrated_mode_when_set():
+    from llm_rater import build_selection_info
+
+    args = SimpleNamespace(
+        flagged_unrated=True, source="webcam", limit=500, skip_rated=True,
+        use_batch_api=True,
+    )
+    assert build_selection_info(args) == {
+        "mode": "flagged_unrated",
+        "limit": 500,
+        "skip_rated": True,
+        "use_batch_api": True,
+    }
+
+
+def test_build_selection_info_falls_back_to_source_and_default_batch_flag():
+    from llm_rater import build_selection_info
+
+    # No `use_batch_api` attribute at all (Task 4 hasn't landed yet on some
+    # call site) — must default to False rather than raising.
+    args = SimpleNamespace(
+        flagged_unrated=False, source="external", limit=0, skip_rated=False,
+    )
+    assert build_selection_info(args) == {
+        "mode": "external",
+        "limit": 0,
+        "skip_rated": False,
+        "use_batch_api": False,
+    }

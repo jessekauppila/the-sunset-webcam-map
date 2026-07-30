@@ -1155,6 +1155,22 @@ class DbWriter:
             pass
 
 
+def build_selection_info(args: argparse.Namespace) -> dict:
+    """Build the manifest `selection` dict from parsed CLI args.
+
+    Shared by both `write_run_manifest` call sites in `main()` (the
+    zero-rows early return and the end-of-run wiring) so the mode/limit
+    logic — including the `--flagged-unrated` override of `--source` —
+    lives in exactly one place.
+    """
+    return {
+        "mode": "flagged_unrated" if args.flagged_unrated else args.source,
+        "limit": args.limit,
+        "skip_rated": args.skip_rated,
+        "use_batch_api": getattr(args, "use_batch_api", False),
+    }
+
+
 def write_run_manifest(
     out_dir: "str | Path",
     *,
@@ -1249,6 +1265,7 @@ def main() -> None:
         rows = sample_rows(rows, args.dry_run_count, args.dry_run_sample_mode)
 
     print(f"  Images to rate: {len(rows)}")
+    run_started_at_iso = datetime.now(timezone.utc).isoformat()
 
     # --- Estimate-only preflight: print cost + time and exit ---
     if args.estimate_only:
@@ -1354,6 +1371,25 @@ def main() -> None:
 
     if not rows:
         print("Nothing to rate.")
+        if not args.dry_run:
+            # Zero rows is still a real run (e.g. --flagged-unrated with
+            # nothing left to triage) — write an honest, all-zero manifest
+            # rather than silently skipping provenance for this campaign.
+            manifest_path = write_run_manifest(
+                Path("ml/artifacts/llm_ratings"),
+                model=model,
+                provider=args.provider,
+                selection=build_selection_info(args),
+                attempted=0,
+                succeeded=0,
+                failed=0,
+                tokens_in=0,
+                tokens_out=0,
+                est_cost_usd=0.0,
+                started_at=run_started_at_iso,
+                finished_at=datetime.now(timezone.utc).isoformat(),
+            )
+            print(f"Run manifest: {manifest_path}")
         conn.close()
         return
 
@@ -1364,7 +1400,6 @@ def main() -> None:
     if not args.dry_run and args.write_to_db:
         db_writer = DbWriter(database_url)
     db_failures = 0
-    run_started_at_iso = datetime.now(timezone.utc).isoformat()
 
     progress = tqdm(
         rows, desc="Rating", unit="img", disable=args.no_progress,
@@ -1557,12 +1592,7 @@ def main() -> None:
             Path("ml/artifacts/llm_ratings"),
             model=model,
             provider=args.provider,
-            selection={
-                "mode": "flagged_unrated" if args.flagged_unrated else args.source,
-                "limit": args.limit,
-                "skip_rated": args.skip_rated,
-                "use_batch_api": getattr(args, "use_batch_api", False),
-            },
+            selection=build_selection_info(args),
             attempted=attempted_count,
             succeeded=success_count,
             failed=failure_count,
