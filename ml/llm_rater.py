@@ -582,7 +582,10 @@ def run_batch_chunks(
                 try:
                     yield result.custom_id, True, json.loads(text), usage
                 except Exception as exc:
-                    yield result.custom_id, False, f"unparseable JSON: {exc}", (0, 0)
+                    # The message was still generated and billed — keep the
+                    # real usage so the manifest's token/cost accounting
+                    # stays honest even though the rating is unusable.
+                    yield result.custom_id, False, f"unparseable JSON: {exc}", usage
             else:
                 yield result.custom_id, False, result.result.type, (0, 0)
 
@@ -1541,42 +1544,51 @@ def main() -> None:
         db = DbWriter(database_url)
         success_count, failure_count = 0, len(failures)
         total_tokens_in = total_tokens_out = 0
-        for custom_id, ok, payload, usage in run_batch_chunks(api_key, chunks):
-            source_table, record_id = parse_custom_id(custom_id)
-            total_tokens_in += usage[0]
-            total_tokens_out += usage[1]
-            if not ok:
-                failure_count += 1
-                print(f"  batch entry failed, left unrated: {custom_id}: {payload}")
-                continue
-            rating = normalize_rating(payload)
-            db.write_rating(source_table, record_id, rating, model, args.provider)
-            success_count += 1
-        db.close()
-        attempted_count = len(rows)
-        # Sticker-rate estimate from real usage; the Batch API bills ~50% of
-        # this (and intro pricing less again) — the manifest field is an
-        # upper-bound estimate, actual billing is whatever Anthropic charges.
-        price = MODEL_PRICING_USD_PER_MTOK.get(model, {"input": 0.0, "output": 0.0})
-        est_cost = (total_tokens_in / 1e6) * price["input"] \
-            + (total_tokens_out / 1e6) * price["output"]
-        manifest_path = write_run_manifest(
-            Path("ml/artifacts/llm_ratings"),
-            model=model,
-            provider=args.provider,
-            selection=build_selection_info(args),
-            attempted=attempted_count,
-            succeeded=success_count,
-            failed=failure_count,
-            tokens_in=total_tokens_in,
-            tokens_out=total_tokens_out,
-            est_cost_usd=round(est_cost, 2),
-            started_at=run_started_at_iso,
-            finished_at=datetime.now(timezone.utc).isoformat(),
-        )
-        print(f"Run manifest: {manifest_path}")
-        print(f"Batch run complete: {success_count} rated, {failure_count} failed/skipped "
-              f"of {attempted_count} selected.")
+        try:
+            for custom_id, ok, payload, usage in run_batch_chunks(api_key, chunks):
+                source_table, record_id = parse_custom_id(custom_id)
+                total_tokens_in += usage[0]
+                total_tokens_out += usage[1]
+                if not ok:
+                    failure_count += 1
+                    print(f"  batch entry failed, left unrated: {custom_id}: {payload}")
+                    continue
+                rating = normalize_rating(payload)
+                db.write_rating(source_table, record_id, rating, model, args.provider)
+                success_count += 1
+        finally:
+            # A transient exception mid-poll (hours-long) must not swallow
+            # the ratings already committed to the DB by earlier chunks —
+            # write the manifest with whatever counts/tokens accumulated so
+            # far, then let the exception (if any) propagate. The operator
+            # sees the failure and reruns; --flagged-unrated picks up
+            # whatever is still unrated.
+            db.close()
+            attempted_count = len(rows)
+            # Sticker-rate estimate from real usage; the Batch API bills
+            # ~50% of this (and intro pricing less again) — the manifest
+            # field is an upper-bound estimate, actual billing is whatever
+            # Anthropic charges.
+            price = MODEL_PRICING_USD_PER_MTOK.get(model, {"input": 0.0, "output": 0.0})
+            est_cost = (total_tokens_in / 1e6) * price["input"] \
+                + (total_tokens_out / 1e6) * price["output"]
+            manifest_path = write_run_manifest(
+                Path("ml/artifacts/llm_ratings"),
+                model=model,
+                provider=args.provider,
+                selection=build_selection_info(args),
+                attempted=attempted_count,
+                succeeded=success_count,
+                failed=failure_count,
+                tokens_in=total_tokens_in,
+                tokens_out=total_tokens_out,
+                est_cost_usd=round(est_cost, 2),
+                started_at=run_started_at_iso,
+                finished_at=datetime.now(timezone.utc).isoformat(),
+            )
+            print(f"Run manifest: {manifest_path}")
+            print(f"Batch run complete: {success_count} rated, {failure_count} failed/skipped "
+                  f"of {attempted_count} selected.")
         return
 
     delay = 60.0 / args.rpm if args.rpm > 0 else 0

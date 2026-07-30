@@ -203,3 +203,25 @@ def test_build_batch_requests_records_download_failures():
     assert len(failures) == 1
     assert failures[0]["custom_id"] == "webcam:1"
     assert sum(len(c) for c in chunks) == 2
+
+
+def test_build_batch_requests_chunks_by_cumulative_byte_cap(monkeypatch):
+    import llm_rater
+
+    # b"abcdef" is 6 raw bytes -> base64.b64encode gives exactly 8 chars
+    # (6 is a multiple of 3, so no padding). With the cap patched to 17,
+    # two requests (16 bytes) fit but a third (24 bytes) doesn't, so the
+    # third request must start a new chunk.
+    monkeypatch.setattr(llm_rater, "MAX_BATCH_BYTES", 17)
+
+    def fake_download(url, timeout=30.0):
+        return b"abcdef", "image/jpeg"
+
+    chunks, failures = llm_rater.build_batch_requests(
+        _fake_rows(3), "claude-sonnet-5", 30.0, download_fn=fake_download,
+    )
+    assert failures == []
+    assert [len(c) for c in chunks] == [2, 1]
+    assert chunks[0][0]["custom_id"] == "webcam:0"
+    assert chunks[0][1]["custom_id"] == "webcam:1"
+    assert chunks[1][0]["custom_id"] == "webcam:2"
