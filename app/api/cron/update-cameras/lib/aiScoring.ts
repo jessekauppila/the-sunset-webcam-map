@@ -213,6 +213,21 @@ export const DISAGREEMENT_KIND_PRIORITY: Record<DisagreementKind, number> = {
  * Claude's quality is the NORMALIZED [0,1] llm_quality, not the raw 1-5 rating
  * (see masterConfig). The CLAUDE_HIGH gate sits above the borderline-quality
  * band, which is the deadband that keeps borderline frames out of the queue.
+ *
+ * v2 (2026-07-29): once Claude has rated a frame, Claude adjudicates. Binary-
+ * vs-regression flags are only PROVISIONAL — they exist to nominate frames for
+ * Claude review before Claude has weighed in (the live cron path). Once
+ * `llmIsSunset`/`llmQuality` are present, only a genuine model-vs-Claude
+ * contest can surface the frame; everything else is considered settled and
+ * returns null. The one exception is a two-judges-agree guard: if the binary
+ * head agrees with Claude that a frame is NOT a sunset, the regression head's
+ * high rating is outvoted 2-to-1 and does not promote to
+ * `model_high_claude_not_sunset`. If Claude data is absent, behavior is
+ * unchanged from v1 (binary-vs-regression rules only).
+ *
+ * Behavior note: if Claude data is present but `aiRating` is undefined (no
+ * regression score), this still returns null — every rule below requires
+ * `aiRating`, same as before.
  */
 export function computeDisagreementKind(input: {
   binaryIsSunset?: boolean;
@@ -221,29 +236,38 @@ export function computeDisagreementKind(input: {
   llmIsSunset?: boolean | null;
 }): DisagreementKind | null {
   const { aiRating } = input;
-
-  // 1) Model-vs-Claude (Claude trusted). Needs the regression rating + Claude's
-  //    verdict; independent of the binary head.
-  if (
-    typeof aiRating === 'number' &&
+  const hasClaude =
     typeof input.llmIsSunset === 'boolean' &&
-    typeof input.llmQuality === 'number'
-  ) {
+    typeof input.llmQuality === 'number';
+
+  // 1) Claude present → Claude adjudicates. Only genuine model-vs-Claude
+  //    contests survive; everything else is settled (null). Binary-vs-
+  //    regression flags are provisional pending this adjudication.
+  if (hasClaude && typeof aiRating === 'number') {
     // miss: Claude confident it's a good sunset, model rated it low.
     if (
       input.llmIsSunset &&
-      input.llmQuality >= MODEL_VS_CLAUDE_CLAUDE_HIGH &&
+      (input.llmQuality as number) >= MODEL_VS_CLAUDE_CLAUDE_HIGH &&
       aiRating <= MODEL_VS_CLAUDE_MODEL_LOW
     ) {
       return 'model_low_claude_sunset';
     }
-    // false positive: model rated it high, Claude says it isn't a sunset.
-    if (!input.llmIsSunset && aiRating >= MODEL_VS_CLAUDE_MODEL_HIGH) {
+    // false positive: model rated it high, Claude says it isn't a sunset —
+    // UNLESS the binary head also says not-a-sunset, in which case two of
+    // three judges agree and the case is settled (the regression head's
+    // overrating is captured by the Claude label itself).
+    if (
+      !input.llmIsSunset &&
+      aiRating >= MODEL_VS_CLAUDE_MODEL_HIGH &&
+      input.binaryIsSunset !== false
+    ) {
       return 'model_high_claude_not_sunset';
     }
+    return null;
   }
 
-  // 2) Binary-vs-regression (the model's internal split). Needs both heads.
+  // 2) Claude absent → the model's internal split provisionally flags the
+  //    frame for adjudication (live cron path; unchanged).
   if (typeof input.binaryIsSunset === 'boolean' && typeof aiRating === 'number') {
     if (!input.binaryIsSunset && aiRating >= SUNSET_DISAGREEMENT_HIGH) {
       return 'binary_negative_regression_high';
