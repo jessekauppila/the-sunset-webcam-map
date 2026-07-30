@@ -1713,3 +1713,55 @@ export const CLEANUP_ENABLED = true;
 
 The endpoint returns the count deleted and a list of any errors per
 snapshot.
+
+---
+
+## Rating provenance
+
+Every LLM rating is traceable; training exports may slice by any of these:
+
+- **Judge:** `llm_model` + `llm_provider` + `llm_rated_at` are stamped on
+  every `llm_*` write (e.g. `claude-sonnet-4-5` for the May/June campaigns,
+  `claude-sonnet-5` for the 2026-07 triage pass). `llm_metadata.prompt_version`
+  records the prompt revision. Exports that mix campaigns MUST carry
+  `llm_model` into the dataset manifest so labels can be filtered or
+  calibrated per judge.
+- **Source:** webcam frames live in `webcam_snapshots`, Flickr in
+  `external_images`. A webcam-only (or Flickr-free) model is a source filter
+  in `export_dataset.py` — no data changes needed.
+- **Model heads:** `ai_model_version_regression` / `ai_model_version_binary`
+  stamp which ONNX versions scored each frame.
+- **Campaign:** each non-dry `llm_rater.py` run writes
+  `ml/artifacts/llm_ratings/run_<timestamp>_manifest.json` (model, prompt
+  sha256, selection filters, counts, est. spend, timestamps).
+
+## Hard-example triage runbook (2026-07 backlog)
+
+Spec: `docs/superpowers/specs/2026-07-29-hard-example-triage-design.md`.
+Each step is a manual operator action — the script never auto-escalates spend.
+
+1. **Dry run (free):**
+   `python3 ml/llm_rater.py --provider anthropic --model claude-sonnet-5 --flagged-unrated --dry-run`
+   Check the selection count and eyeball the HTML sample.
+2. **Smoke slice (~$1.50):**
+   `python3 ml/llm_rater.py --provider anthropic --model claude-sonnet-5 --flagged-unrated --limit 500 --use-batch-api --write-to-db`
+   Then verify: `llm_*` columns landed (`llm_model = 'claude-sonnet-5'`);
+   within ~an hour the update-cameras cron's recompute step clears/promotes
+   those 500 flags; Hard Examples queue counts move the right way.
+3. **Full run (~$35–45):** same command without `--limit`.
+4. **Recompute reset (one-time, after the v2 rule deploys):**
+   ```sql
+   UPDATE webcam_snapshots
+   SET disagreement_computed_at = NULL
+   WHERE model_disagreement_kind IS NOT NULL
+     AND llm_quality IS NOT NULL;
+   ```
+   The hourly recompute loop then re-derives the June-rated rows under the
+   v2 rule, page by page.
+5. **Eyeball the queue.** Expect ~790 existing model-vs-Claude rows plus
+   ~10% of the backlog as genuine contests; if the live cron refills the
+   queue too fast afterward, see the spec's follow-ups (per-camera flag
+   throttling, `SUNSET_DISAGREEMENT_HIGH` tuning).
+
+Failed/errored frames stay unrated by design — re-running step 2/3 picks
+them up (`--flagged-unrated` selects `llm_quality IS NULL`).
