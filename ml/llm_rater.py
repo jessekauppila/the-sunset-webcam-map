@@ -43,6 +43,7 @@ import argparse
 import base64
 import io
 import json
+import sys
 import time
 from datetime import datetime, timezone
 from html import escape as html_escape
@@ -144,6 +145,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--skip-rated", action="store_true",
         help="Skip images that already have an LLM rating in the database",
+    )
+    parser.add_argument(
+        "--flagged-unrated", action="store_true",
+        help="Triage mode: select only webcam snapshots with "
+             "model_disagreement_kind set and no llm_quality yet "
+             "(per-camera round-robin order). Implies --source webcam.",
     )
     parser.add_argument(
         "--write-to-db", action="store_true",
@@ -510,6 +517,46 @@ def fetch_webcam_rows(
     """
     with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
         cur.execute(query)
+        return [dict(r) for r in cur.fetchall()]
+
+
+def build_flagged_unrated_query(limit: int) -> str:
+    """Selection SQL for the hard-example triage pass (2026-07-29 spec).
+
+    Every webcam snapshot the live cron flagged (model_disagreement_kind
+    set) that Claude has not yet rated. Per-camera round-robin ordering so
+    a --limit slice spreads coverage across cameras.
+    """
+    limit_clause = f"LIMIT {limit}" if limit > 0 else ""
+    return f"""
+    SELECT record_id, source_table, webcam_id, image_url,
+           human_calculated_rating, human_rating_count
+    FROM (
+      SELECT
+        s.id AS record_id,
+        'webcam' AS source_table,
+        s.webcam_id,
+        s.firebase_url AS image_url,
+        s.calculated_rating AS human_calculated_rating,
+        0 AS human_rating_count,
+        ROW_NUMBER() OVER (PARTITION BY s.webcam_id ORDER BY s.captured_at DESC) AS cam_rank
+      FROM webcam_snapshots s
+      WHERE s.firebase_url IS NOT NULL
+        AND s.model_disagreement_kind IS NOT NULL
+        AND s.llm_quality IS NULL
+    ) ranked
+    ORDER BY cam_rank, webcam_id
+    {limit_clause}
+    """
+
+
+def fetch_flagged_unrated_rows(
+    conn: psycopg2.extensions.connection,
+    limit: int,
+) -> list[dict[str, Any]]:
+    """Fetch flagged-but-Claude-unrated webcam snapshots (triage pass)."""
+    with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+        cur.execute(build_flagged_unrated_query(limit))
         return [dict(r) for r in cur.fetchall()]
 
 
@@ -1145,9 +1192,14 @@ def main() -> None:
     print("  connected.", flush=True)
 
     rows: list[dict[str, Any]] = []
-    if args.source in ("webcam", "all"):
+    if args.flagged_unrated:
+        if args.source != "webcam":
+            print("--flagged-unrated implies --source webcam; ignoring --source", file=sys.stderr)
+        rows = fetch_flagged_unrated_rows(conn, args.limit)
+    elif args.source in ("webcam", "all"):
         rows.extend(fetch_webcam_rows(conn, args.skip_rated, args.limit))
-    if args.source in ("external", "all"):
+
+    if args.source in ("external", "all") and not args.flagged_unrated:
         ext_limit = max(0, args.limit - len(rows)) if args.limit > 0 else 0
         rows.extend(fetch_external_rows(conn, args.skip_rated, ext_limit))
 
