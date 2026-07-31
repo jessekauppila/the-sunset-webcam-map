@@ -525,7 +525,11 @@ MAX_BATCH_BYTES = 200_000_000  # ~200 MB of base64 payload per batch (API cap 25
 
 
 def parse_custom_id(custom_id: str) -> tuple[str, int]:
-    source_table, _, record_id = custom_id.partition(":")
+    """Split "<source_table>-<record_id>". Hyphen separator because the
+    Batch API requires custom_id to match ^[a-zA-Z0-9_-]{1,64}$ (a colon
+    separator was rejected with a live 400 on 2026-07-30). rpartition is
+    safe: record_id is numeric and never contains a hyphen."""
+    source_table, _, record_id = custom_id.rpartition("-")
     return source_table, int(record_id)
 
 
@@ -572,7 +576,7 @@ def build_batch_requests(
         current: list[dict] = []
         current_bytes = 0
         for row in rows:
-            custom_id = f"{row['source_table']}:{row['record_id']}"
+            custom_id = f"{row['source_table']}-{row['record_id']}"
             try:
                 image_bytes, content_type = download_fn(
                     row["image_url"], timeout=download_timeout,

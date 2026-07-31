@@ -212,8 +212,8 @@ def test_normalize_rating_defaults_and_clamps():
 def test_parse_custom_id_round_trip():
     from llm_rater import parse_custom_id
 
-    assert parse_custom_id("webcam:123") == ("webcam", 123)
-    assert parse_custom_id("external:45") == ("external", 45)
+    assert parse_custom_id("webcam-123") == ("webcam", 123)
+    assert parse_custom_id("external-45") == ("external", 45)
 
 
 def _fake_rows(n):
@@ -240,7 +240,7 @@ def test_build_batch_requests_chunks_by_request_count():
     assert failures == []
     assert [len(c) for c in chunks] == [1000, 1000, 500]
     first = chunks[0][0]
-    assert first["custom_id"] == "webcam:0"
+    assert first["custom_id"] == "webcam-0"
     assert first["params"]["model"] == "claude-sonnet-5"
     assert first["params"]["max_tokens"] == 600
     assert first["params"]["thinking"] == {"type": "disabled"}
@@ -260,7 +260,7 @@ def test_build_batch_requests_records_download_failures():
     )
     chunks = list(chunk_iter)
     assert len(failures) == 1
-    assert failures[0]["custom_id"] == "webcam:1"
+    assert failures[0]["custom_id"] == "webcam-1"
     assert sum(len(c) for c in chunks) == 2
 
 
@@ -282,9 +282,9 @@ def test_build_batch_requests_chunks_by_cumulative_byte_cap(monkeypatch):
     chunks = list(chunk_iter)
     assert failures == []
     assert [len(c) for c in chunks] == [2, 1]
-    assert chunks[0][0]["custom_id"] == "webcam:0"
-    assert chunks[0][1]["custom_id"] == "webcam:1"
-    assert chunks[1][0]["custom_id"] == "webcam:2"
+    assert chunks[0][0]["custom_id"] == "webcam-0"
+    assert chunks[0][1]["custom_id"] == "webcam-1"
+    assert chunks[1][0]["custom_id"] == "webcam-2"
 
 
 def test_build_batch_requests_is_lazy_and_downloads_are_deferred():
@@ -312,3 +312,22 @@ def test_build_batch_requests_is_lazy_and_downloads_are_deferred():
     remaining = list(chunk_iter)
     assert sum(len(c) for c in remaining) == 1500
     assert len(downloaded_urls) == 2500
+
+
+def test_custom_id_matches_batch_api_pattern():
+    """Anthropic Message Batches rejects custom_ids not matching
+    ^[a-zA-Z0-9_-]{1,64}$ — colons caused a live 400 on 2026-07-30."""
+    import re
+
+    from llm_rater import build_batch_requests
+
+    def fake_download(url, timeout=30.0):
+        return b"tinyjpeg", "image/jpeg"
+
+    chunk_iter, _failures = build_batch_requests(
+        _fake_rows(3), "claude-sonnet-5", 30.0, download_fn=fake_download,
+    )
+    pattern = re.compile(r"^[a-zA-Z0-9_-]{1,64}$")
+    for chunk in chunk_iter:
+        for request in chunk:
+            assert pattern.match(request["custom_id"]), request["custom_id"]
