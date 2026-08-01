@@ -3,6 +3,7 @@ import type { OpsStatsResponse } from '@/app/lib/opsTypes';
 import { pct } from './opsMath';
 import { Sparkline } from './Sparkline';
 import { UsageChart } from './UsageChart';
+import { DozeControl } from './DozeControl';
 
 function Stat({
   label,
@@ -38,6 +39,7 @@ export function OpsPanels({ data }: { data: OpsStatsResponse }) {
   const cachePct = pct(latest.cache_hits, latest.webcams_scored);
   return (
     <>
+      <DozeControl />
       <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
         <Stat
           label="fallbacks (spike = scoring broke)"
