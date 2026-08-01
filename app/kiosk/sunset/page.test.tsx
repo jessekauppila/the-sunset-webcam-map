@@ -19,6 +19,10 @@ vi.mock('@/app/store/useTerminatorStore', () => ({
   ),
 }));
 
+vi.mock('../useKioskRuntime', () => ({
+  useKioskRuntime: () => ({ dozing: false }),
+}));
+
 describe('SunsetKioskPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();

@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 import { MosaicCanvas } from '@/app/components/MosaicCanvas';
 import { useTerminatorStore } from '@/app/store/useTerminatorStore';
 import { useLoadTerminatorWebcams } from '@/app/store/useLoadTerminatorWebcams';
+import { useKioskRuntime } from '../useKioskRuntime';
+import { KioskDozeOverlay } from '../KioskDozeOverlay';
 import {
   KIOSK_MOSAIC_MAX_IMAGE_HEIGHT_PX,
   KIOSK_MOSAIC_MIN_IMAGE_HEIGHT_PX,
@@ -13,6 +15,7 @@ import {
 export default function SunsetKioskPage() {
   useLoadTerminatorWebcams();
   const webcams = useTerminatorStore((t) => t.sunset);
+  const { dozing } = useKioskRuntime();
 
   const [dimensions, setDimensions] = useState({
     width: typeof window !== 'undefined' ? window.innerWidth : 1080,
@@ -31,17 +34,20 @@ export default function SunsetKioskPage() {
   }, []);
 
   return (
-    <MosaicCanvas
-      webcams={webcams}
-      width={dimensions.width}
-      height={dimensions.height}
-      maxImages={KIOSK_CANVAS_MAX_IMAGES}
-      padding={2}
-      ratingSizeEffect={0.75}
-      viewSizeEffect={0.1}
-      fillScreenHeight={true}
-      maxImageHeight={KIOSK_MOSAIC_MAX_IMAGE_HEIGHT_PX}
-      minImageHeight={KIOSK_MOSAIC_MIN_IMAGE_HEIGHT_PX}
-    />
+    <>
+      <MosaicCanvas
+        webcams={webcams}
+        width={dimensions.width}
+        height={dimensions.height}
+        maxImages={KIOSK_CANVAS_MAX_IMAGES}
+        padding={2}
+        ratingSizeEffect={0.75}
+        viewSizeEffect={0.1}
+        fillScreenHeight={true}
+        maxImageHeight={KIOSK_MOSAIC_MAX_IMAGE_HEIGHT_PX}
+        minImageHeight={KIOSK_MOSAIC_MIN_IMAGE_HEIGHT_PX}
+      />
+      <KioskDozeOverlay dozing={dozing} />
+    </>
   );
 }
