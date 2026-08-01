@@ -75,7 +75,8 @@ Expected steady-state: webcams ~$12–18/mo, nwac ~$3–5/mo.
     deliberately local-state-only, since kiosk URLs are public and a shared
     write here would let any visitor doze the gallery. The Argon ONE case
     button maps to this: its stock daemon ignores a short single press
-    (double-tap=reboot and 3s+=shutdown are untouched), so a Pi-side
+    (double-tap=reboot and 3s+=shutdown are untouched; power-on-from-off is
+    case hardware and always works), so a Pi-side
     extension catches the short-press pulse and injects `d` into BOTH
     Chromium windows via xdotool — instant, offline-safe, credential-free.
     Pi work lives in the kiosk setup scripts (GALLERY_DISPLAY), not this app.
