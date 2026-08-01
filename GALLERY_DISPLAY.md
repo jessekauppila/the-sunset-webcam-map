@@ -121,5 +121,6 @@ timer / smart plug) to save electricity; doze saves database compute.
 **Deploy checklist for this feature set:**
 1. Apply `database/migrations/20260731_provider_usage_and_cost_events.sql` via psql.
 2. Add `NEON_COST_API` to Vercel env (Production).
-3. After deploy, confirm ONNX on `/api/kiosk/tick` (real tick latencyMs 100–500 ms
-   per image; 10–20 ms = silent baseline fallback).
+3. After deploy, confirm ONNX is live on the kiosk path: `GET /api/debug/scoring-smoke`
+   (per-image `latencyMs` 100–500 ms = working ONNX; 10–20 ms = silent baseline
+   fallback), and check a real kiosk tick's response has `tick.scoringPaths.onnx > 0`.
