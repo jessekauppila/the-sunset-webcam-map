@@ -13,7 +13,9 @@ import {
 } from '@/app/lib/masterConfig';
 
 export function useKioskRuntime(): { dozing: boolean } {
-  const [visible, setVisible] = useState(true);
+  const [visible, setVisible] = useState(
+    () => typeof document === 'undefined' || document.visibilityState === 'visible',
+  );
   const [localDoze, setLocalDoze] = useState(false);
   const [remoteDoze, setRemoteDoze] = useState(false);
   const [, forceRender] = useState(0);

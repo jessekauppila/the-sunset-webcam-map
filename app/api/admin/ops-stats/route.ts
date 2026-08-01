@@ -27,7 +27,7 @@ export async function GET() {
   const providerUsage = (await sql`
     SELECT day::text AS day, project_id, compute_time_s::bigint AS compute_time_s
     FROM provider_usage_daily
-    WHERE day > CURRENT_DATE - ${PROVIDER_USAGE_LOOKBACK_DAYS}
+    WHERE day > CURRENT_DATE - ${PROVIDER_USAGE_LOOKBACK_DAYS}::int
     ORDER BY day ASC, project_id ASC
   `) as unknown as ProviderUsageRow[];
 

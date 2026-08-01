@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import SunsetKioskPage from './page';
 import { useTerminatorStore } from '@/app/store/useTerminatorStore';
+import { useLoadTerminatorWebcams } from '@/app/store/useLoadTerminatorWebcams';
 
 vi.mock('@/app/components/MosaicCanvas', () => ({
   MosaicCanvas: ({ webcams }: { webcams: unknown[] }) => (
@@ -19,13 +20,15 @@ vi.mock('@/app/store/useTerminatorStore', () => ({
   ),
 }));
 
+const useKioskRuntimeMock = vi.fn(() => ({ dozing: false }));
 vi.mock('../useKioskRuntime', () => ({
-  useKioskRuntime: () => ({ dozing: false }),
+  useKioskRuntime: () => useKioskRuntimeMock(),
 }));
 
 describe('SunsetKioskPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    useKioskRuntimeMock.mockReturnValue({ dozing: false });
     vi.mocked(useTerminatorStore).mockImplementation(
       (selector: (state: { sunset: unknown[] }) => unknown) =>
         selector({ sunset: [] })
@@ -46,5 +49,11 @@ describe('SunsetKioskPage', () => {
     render(<SunsetKioskPage />);
     const canvas = screen.getByTestId('mosaic-canvas');
     expect(canvas.getAttribute('data-count')).toBe('3');
+  });
+
+  it('pauses the terminator-webcams poll when the kiosk is dozing', () => {
+    useKioskRuntimeMock.mockReturnValue({ dozing: true });
+    render(<SunsetKioskPage />);
+    expect(useLoadTerminatorWebcams).toHaveBeenCalledWith({ paused: true });
   });
 });

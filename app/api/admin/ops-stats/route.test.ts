@@ -68,4 +68,19 @@ describe('GET /api/admin/ops-stats', () => {
     expect(body.providerUsage[0].project_id).toBe('noisy-leaf-96391119');
     expect(body.costEvents[0].description).toContain('autoscale');
   });
+
+  it('casts the provider-usage lookback interpolation to ::int so Postgres does not parse it as a date', async () => {
+    requireOwnerMock.mockResolvedValueOnce(null);
+    sqlMock
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([]);
+    await GET();
+    const providerUsageCall = sqlMock.mock.calls.find(([strings]) =>
+      (strings as TemplateStringsArray).join('').includes('provider_usage_daily'),
+    );
+    expect(providerUsageCall).toBeDefined();
+    const [strings] = providerUsageCall as [TemplateStringsArray, ...unknown[]];
+    expect(strings.join('')).toContain('::int');
+  });
 });

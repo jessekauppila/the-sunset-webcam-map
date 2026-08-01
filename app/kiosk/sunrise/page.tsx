@@ -13,9 +13,9 @@ import {
 } from '@/app/lib/masterConfig';
 
 export default function SunriseKioskPage() {
-  useLoadTerminatorWebcams();
-  const webcams = useTerminatorStore((t) => t.sunrise);
   const { dozing } = useKioskRuntime();
+  useLoadTerminatorWebcams({ paused: dozing });
+  const webcams = useTerminatorStore((t) => t.sunrise);
 
   const [dimensions, setDimensions] = useState({
     width: typeof window !== 'undefined' ? window.innerWidth : 1080,

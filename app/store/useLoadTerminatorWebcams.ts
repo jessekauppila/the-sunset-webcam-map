@@ -6,7 +6,9 @@ import { useTerminatorStore } from './useTerminatorStore';
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
-export function useLoadTerminatorWebcams() {
+export function useLoadTerminatorWebcams({
+  paused = false,
+}: { paused?: boolean } = {}) {
   const setTerimantorWebcams = useTerminatorStore(
     (s) => s.setTerimantorWebcams
   );
@@ -18,7 +20,8 @@ export function useLoadTerminatorWebcams() {
     '/api/db-terminator-webcams',
     fetcher,
     {
-      refreshInterval: 60_000,
+      refreshInterval: paused ? 0 : 60_000,
+      isPaused: () => paused,
     }
   );
 
