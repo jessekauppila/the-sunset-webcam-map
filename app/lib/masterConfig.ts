@@ -229,6 +229,10 @@ export const YOUTUBE_FETCH_DELAY_BETWEEN_BATCHES_MS = 800;
 // sparklines; the query is one cheap indexed scan on the PK.
 export const OPS_STATS_DAYS = 14;
 
+// How far back the Ops usage chart reaches. 60 days spans two billing cycles
+// so month-rollover deltas are visible and testable.
+export const PROVIDER_USAGE_LOOKBACK_DAYS = 60;
+
 // Neon projects in the Vercel-managed org whose month-to-date usage counters
 // the cron snapshots daily into provider_usage_daily. Project ids are not
 // secrets (the API key NEON_COST_API is, and lives only in env).
