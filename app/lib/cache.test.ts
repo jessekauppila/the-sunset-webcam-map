@@ -65,3 +65,45 @@ describe('terminator payload cache', () => {
     ).resolves.toBeUndefined();
   });
 });
+
+describe('kiosk helpers', () => {
+  it('acquireKioskTickLock passes NX+PX and reports acquisition', async () => {
+    setMock.mockResolvedValueOnce('OK');
+    const { acquireKioskTickLock } = await import('./cache');
+    await expect(acquireKioskTickLock()).resolves.toBe(true);
+    expect(setMock).toHaveBeenCalledWith(
+      'kiosk:tick:lock',
+      '1',
+      expect.objectContaining({ nx: true, px: 55000 }),
+    );
+  });
+
+  it('acquireKioskTickLock returns false when the lock is held', async () => {
+    setMock.mockResolvedValueOnce(null); // upstash returns null when NX fails
+    const { acquireKioskTickLock } = await import('./cache');
+    await expect(acquireKioskTickLock()).resolves.toBe(false);
+  });
+
+  it('markKioskTickRan sets the lock without NX', async () => {
+    const { markKioskTickRan } = await import('./cache');
+    await markKioskTickRan();
+    expect(setMock).toHaveBeenCalledWith(
+      'kiosk:tick:lock',
+      '1',
+      expect.objectContaining({ px: 55000 }),
+    );
+    expect(setMock.mock.calls.at(-1)![2]).not.toHaveProperty('nx');
+  });
+
+  it('doze flag round-trips', async () => {
+    const { setKioskDoze, getKioskDoze } = await import('./cache');
+    await setKioskDoze(true);
+    expect(setMock).toHaveBeenCalledWith('kiosk:doze', '1');
+    getMock.mockResolvedValueOnce('1');
+    await expect(getKioskDoze()).resolves.toBe(true);
+    await setKioskDoze(false);
+    expect(delMock).toHaveBeenCalledWith('kiosk:doze');
+    getMock.mockResolvedValueOnce(null);
+    await expect(getKioskDoze()).resolves.toBe(false);
+  });
+});

@@ -221,3 +221,39 @@ export const KIOSK_CANVAS_MAX_IMAGES = 120;
 // ---------------------------------------------------------------------------
 export const YOUTUBE_FETCH_BATCH_SIZE = 5;
 export const YOUTUBE_FETCH_DELAY_BETWEEN_BATCHES_MS = 800;
+
+// ---------------------------------------------------------------------------
+// Ops tab (owner-only cost/health panel in the drawer)
+// ---------------------------------------------------------------------------
+// How many daily_sunset_stats rows the Ops tab shows. Two weeks reads well as
+// sparklines; the query is one cheap indexed scan on the PK.
+export const OPS_STATS_DAYS = 14;
+
+// How far back the Ops usage chart reaches. 60 days spans two billing cycles
+// so month-rollover deltas are visible and testable.
+export const PROVIDER_USAGE_LOOKBACK_DAYS = 60;
+
+// Neon projects in the Vercel-managed org whose month-to-date usage counters
+// the cron snapshots daily into provider_usage_daily. Project ids are not
+// secrets (the API key NEON_COST_API is, and lives only in env).
+export const NEON_USAGE_PROJECT_IDS = [
+  'noisy-leaf-96391119', // sunrise-sunset-webcams (this app)
+  'rough-resonance-57753560', // nwac-observations (Weather_Web_App)
+  'holy-shadow-28821259', // land_buyback (idle)
+  'small-tree-05551811', // nextjs-dashboard-postgres (idle)
+];
+
+// ---------------------------------------------------------------------------
+// Kiosk gallery mode (presence-driven scoring cadence + doze)
+// ---------------------------------------------------------------------------
+// Tick lock TTL: slightly under the 60s poll interval so the next poll can
+// re-acquire even if clocks drift. One global lock = at most ~1 tick/minute
+// regardless of how many kiosk screens are open.
+export const KIOSK_TICK_LOCK_TTL_MS = 55_000;
+// Quiet hours default: gallery-local hours during which the kiosk dozes
+// (no scoring ticks). Override per install with ?quiet=off or ?quiet=23-9.
+export const KIOSK_QUIET_DEFAULT = '1-8';
+// How long one interaction keeps a quiet-hours kiosk awake.
+export const KIOSK_WAKE_MINUTES = 30;
+// Poll cadences (tick + doze-state check). Two cheap requests per minute.
+export const KIOSK_TICK_INTERVAL_MS = 60_000;

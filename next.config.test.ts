@@ -18,7 +18,11 @@ import nextConfig from './next.config';
  * This test fails the build if anyone re-broadens the globs or bundles v2.
  */
 
-const MODEL_ROUTES = ['/api/cron/update-cameras', '/api/debug/scoring-smoke'];
+const MODEL_ROUTES = [
+  '/api/cron/update-cameras',
+  '/api/debug/scoring-smoke',
+  '/api/kiosk/tick',
+];
 // v4 regression (43M) + v4 binary (43M) = 86M. The threshold sits above that
 // but well below the 172M you'd get if a v2 model crept back in.
 const MAX_BUNDLED_MODEL_BYTES = 120 * 1024 * 1024;

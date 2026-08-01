@@ -53,6 +53,10 @@ const nextConfig: NextConfig = {
       './ml/artifacts/models/regression_resnet18/20260513_113243_v4_regression_llm_with_flickr/**/*',
       './ml/artifacts/models/binary_resnet18/20260601_063518_v4_binary_llm_with_flickr/**/*',
     ],
+    '/api/kiosk/tick': [
+      './ml/artifacts/models/regression_resnet18/20260513_113243_v4_regression_llm_with_flickr/**/*',
+      './ml/artifacts/models/binary_resnet18/20260601_063518_v4_binary_llm_with_flickr/**/*',
+    ],
   },
 };
 
