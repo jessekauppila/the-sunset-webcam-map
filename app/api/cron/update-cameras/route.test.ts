@@ -16,6 +16,7 @@ const scoreMock = vi.fn();
 const backfillMock = vi.fn();
 const customClassifyMock = vi.fn();
 const upsertStatsMock = vi.fn();
+const captureProviderUsageDailyMock = vi.fn();
 const verifyAuthMock = vi.fn(() => true);
 const computeTickStatsMock = vi.fn();
 const computeDisagreementKindMock = vi.fn(() => null);
@@ -73,6 +74,10 @@ vi.mock('./lib/dailyStats', () => ({
   computeTickStats: (...a: unknown[]) => computeTickStatsMock(...a),
   upsertDailyStats: (...a: unknown[]) => upsertStatsMock(...a),
 }));
+vi.mock('./lib/providerUsage', () => ({
+  captureProviderUsageDaily: (...a: unknown[]) =>
+    captureProviderUsageDailyMock(...a),
+}));
 vi.mock('@/app/components/Map/lib/subsolarLocation', () => ({
   subsolarPoint: () => ({ raHours: 0, gmstHours: 0 }),
 }));
@@ -120,6 +125,7 @@ beforeEach(() => {
   backfillMock.mockReset().mockResolvedValue({ scored: 0, failed: 0, deadUrls: 0, fallbacks: 0, abortedOnFallback: false, modelVersion: null, scores: [] });
   customClassifyMock.mockReset().mockResolvedValue({ sunrise: [], sunset: [] });
   upsertStatsMock.mockReset().mockResolvedValue(undefined);
+  captureProviderUsageDailyMock.mockReset().mockResolvedValue({ captured: 0 });
   setCachedMock.mockReset().mockResolvedValue(undefined);
   fetchTerminatorWebcamsMock.mockReset().mockResolvedValue([]);
   computeTickStatsMock.mockReset().mockReturnValue({ modelVersion: 'v4', webcamsScored: 1, cacheHits: 0, fallbacks: 0, scoreAvg: 0.5, scoreP50: 0.5, scoreP90: 0.5, scoreP99: 0.5, aboveMinScoreToWinCount: 0, sourceBreakdown: { windy: { scored: 1, avg: 0.5 }, custom: { scored: 0, avg: null } } });
@@ -352,5 +358,12 @@ describe('GET /api/cron/update-cameras', () => {
     });
     await GET(makeReq());
     expect(insertWindyDisagreementSnapshotMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('captures provider usage without failing the tick when it errors', async () => {
+    captureProviderUsageDailyMock.mockRejectedValueOnce(new Error('neon down'));
+    const res = await GET(makeReq());
+    expect(res.status).toBe(200);
+    expect(captureProviderUsageDailyMock).toHaveBeenCalled();
   });
 });
