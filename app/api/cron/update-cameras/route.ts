@@ -48,6 +48,7 @@ import { computeDisagreementKind, scoreImage } from './lib/aiScoring';
 import { backfillArchiveSnapshotScores } from './lib/archiveBackfill';
 import { computeTickStats, upsertDailyStats } from './lib/dailyStats';
 import { captureProviderUsageDaily } from './lib/providerUsage';
+import { sendDailyUsageDigest } from './lib/dailyDigest';
 import { downloadImage, uploadToFirebase } from '@/app/lib/webcamSnapshot';
 
 const TICK_DEADLINE_MS = 50_000;
@@ -401,6 +402,20 @@ export async function GET(req: Request) {
     providerUsage = { error: true };
   }
 
+  // The digest rides the once-per-day capture: it only sends on the tick that
+  // actually landed a fresh snapshot. Same non-fatal contract.
+  let digest: Awaited<ReturnType<typeof sendDailyUsageDigest>> | { skipped: string };
+  if ('captured' in providerUsage && providerUsage.captured > 0) {
+    try {
+      digest = await sendDailyUsageDigest(new Date());
+    } catch (error) {
+      console.warn('[update-cameras] daily digest failed:', error);
+      digest = { skipped: 'send-failed' };
+    }
+  } else {
+    digest = { skipped: 'no-fresh-capture' };
+  }
+
   return NextResponse.json({
     ok: true,
     sunrise: sunriseRows.length,
@@ -411,5 +426,6 @@ export async function GET(req: Request) {
     scoringPaths,
     archiveBackfill: backfillResult,
     providerUsage,
+    digest,
   });
 }

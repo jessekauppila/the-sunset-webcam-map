@@ -229,6 +229,12 @@ export const YOUTUBE_FETCH_DELAY_BETWEEN_BATCHES_MS = 800;
 // sparklines; the query is one cheap indexed scan on the PK.
 export const OPS_STATS_DAYS = 14;
 
+// Rough Neon usage rate for the digest email's dollar estimate. The invoice
+// of record is Vercel; this exists so the email can say "~$14 so far" without
+// an extra API. Update if Neon/Vercel repricing makes it drift.
+export const NEON_COST_PER_CU_HOUR = 0.14;
+// Days of history in the daily digest email's inline bar chart.
+export const DIGEST_LOOKBACK_DAYS = 14;
 // How far back the Ops usage chart reaches. 60 days spans two billing cycles
 // so month-rollover deltas are visible and testable.
 export const PROVIDER_USAGE_LOOKBACK_DAYS = 60;

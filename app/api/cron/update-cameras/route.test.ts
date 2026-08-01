@@ -80,6 +80,10 @@ vi.mock('./lib/providerUsage', () => ({
   captureProviderUsageDaily: (...a: unknown[]) =>
     captureProviderUsageDailyMock(...a),
 }));
+const sendDailyUsageDigestMock = vi.fn();
+vi.mock('./lib/dailyDigest', () => ({
+  sendDailyUsageDigest: (...a: unknown[]) => sendDailyUsageDigestMock(...a),
+}));
 vi.mock('@/app/components/Map/lib/subsolarLocation', () => ({
   subsolarPoint: () => ({ raHours: 0, gmstHours: 0 }),
 }));
@@ -128,6 +132,7 @@ beforeEach(() => {
   customClassifyMock.mockReset().mockResolvedValue({ sunrise: [], sunset: [] });
   upsertStatsMock.mockReset().mockResolvedValue(undefined);
   captureProviderUsageDailyMock.mockReset().mockResolvedValue({ captured: 0 });
+  sendDailyUsageDigestMock.mockReset().mockResolvedValue({ sent: true });
   setCachedMock.mockReset().mockResolvedValue(undefined);
   markKioskTickRanMock.mockReset().mockResolvedValue(undefined);
   fetchTerminatorWebcamsMock.mockReset().mockResolvedValue([]);
@@ -374,5 +379,28 @@ describe('GET /api/cron/update-cameras', () => {
     const res = await GET(makeReq());
     expect(res.status).toBe(200);
     expect(captureProviderUsageDailyMock).toHaveBeenCalled();
+  });
+
+  it('sends the daily digest only on the tick that landed a fresh capture', async () => {
+    captureProviderUsageDailyMock.mockResolvedValueOnce({ captured: 4 });
+    const res = await GET(makeReq());
+    expect(res.status).toBe(200);
+    expect(sendDailyUsageDigestMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('skips the digest when the capture was skipped', async () => {
+    captureProviderUsageDailyMock.mockResolvedValueOnce({ skipped: 'already-captured' });
+    const res = await GET(makeReq());
+    const body = await res.json();
+    expect(sendDailyUsageDigestMock).not.toHaveBeenCalled();
+    expect(body.digest).toEqual({ skipped: 'no-fresh-capture' });
+  });
+
+  it('a digest failure never fails the tick', async () => {
+    captureProviderUsageDailyMock.mockResolvedValueOnce({ captured: 4 });
+    sendDailyUsageDigestMock.mockRejectedValueOnce(new Error('resend down'));
+    const res = await GET(makeReq());
+    expect(res.status).toBe(200);
+    expect((await res.json()).digest).toEqual({ skipped: 'send-failed' });
   });
 });
