@@ -50,6 +50,19 @@ Expected steady-state: webcams ~$12–18/mo, nwac ~$3–5/mo.
 - **Kiosk pages** (`app/kiosk/sunset`, `app/kiosk/sunrise`) poll the route every
   60s **only while visible** (`document.visibilityState === 'visible'`), with
   jitter so multiple screens don't stampede.
+- **Freshness expectations (be explicit in docs/UI):** the tick re-scores and
+  re-ranks every minute, but each webcam's image only turns over when its
+  upstream refreshes — Windy sources typically every 5–15 min; our Pi cams at
+  their snapshot cadence. Every-minute polling catches a fresh frame within a
+  minute of it existing; it does not make every frame new.
+- **Quiet hours + wake-on-interaction:** browsers don't report display power-off
+  (Page Visibility covers tab-hidden only), so a blanked kiosk screen would keep
+  polling. Therefore: configurable quiet window (default 01:00–08:00 local,
+  URL-overridable e.g. `?quiet=off` / `?quiet=23-9`) during which the kiosk
+  stops ticking and renders a dim "dozing" state so the pause is visible. Any
+  pointer/touch/key event during quiet hours resumes normal polling for 30 min
+  (`KIOSK_WAKE_MINUTES`), then dozes again. Saves roughly $0.25–1/day of
+  hot-mode cost across an installation.
 - **Baseline unchanged:** the `*/15` Vercel cron remains the floor for the public
   site. The cron route also sets the same Redis lock when it runs so a kiosk poll
   right after a cron tick is a no-op.
@@ -67,13 +80,16 @@ Expected steady-state: webcams ~$12–18/mo, nwac ~$3–5/mo.
 
 ## Part C — Cost monitoring (Ops panel + snapshots + change log)
 
-### C1. Ops panel v1 (per the approved 2026-06-04 design, unchanged)
-Owner-gated `app/ops/page.tsx` (server component, `isOwner` → `notFound()`),
-reading last ~14 rows of `daily_sunset_stats` via `app/lib/opsStats.ts`.
+### C1. Ops panel v1 — an owner-only tab in the existing drawer (revised 2026-07-31)
+Per Jesse's review: no standalone `/ops` page. Ops is a new tab in the
+`HomeClient.tsx` drawer, rendered only when the signed-in user is owner (same
+conditional-tab pattern as Hard Examples). Data via an owner-gated
+`GET /api/admin/ops-stats` route (mirrors existing admin routes) returning the
+last ~14 rows of `daily_sunset_stats`.
 Signals: fallback %, cache-hit %, webcams_scored, score p50/p90, source_breakdown,
 model_version. Inline-SVG sparklines, no new deps.
-Components: `opsStats.ts` (query + types), `ops/page.tsx` (gate+layout),
-`components/ops/StatsPanel.tsx` (presentational).
+Components: `app/api/admin/ops-stats/route.ts` (gate + query),
+`components/Ops/OpsTab.tsx` (fetch + presentational).
 
 ### C2. Provider usage snapshots (replaces the Scale-gated history API)
 - Table `provider_usage_daily(day date, project_id text, compute_time_s bigint,
@@ -109,7 +125,9 @@ Components: `opsStats.ts` (query + types), `ops/page.tsx` (gate+layout),
 - Snapshot: guard skips when today's row exists; upsert shape; delta derivation
   incl. month rollover.
 - opsStats: query shape + % math with null rows; StatsPanel render test.
-- Kiosk polling hook: fires only when visible, stops on hide.
+- Kiosk polling hook: fires only when visible, stops on hide; quiet-hours
+  suppression incl. windows crossing midnight; interaction wake resumes for
+  KIOSK_WAKE_MINUTES then re-dozes.
 
 ## Build order
 1. C1 ops panel (standalone value, no external deps)
