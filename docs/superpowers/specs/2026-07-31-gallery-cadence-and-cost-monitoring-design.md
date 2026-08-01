@@ -63,13 +63,20 @@ Expected steady-state: webcams ~$12–18/mo, nwac ~$3–5/mo.
   pointer/touch/key event during quiet hours resumes normal polling for 30 min
   (`KIOSK_WAKE_MINUTES`), then dozes again. Saves roughly $0.25–1/day of
   hot-mode cost across an installation.
-- **Manual doze (invisible):** no visible control, and `cursor: none` across
-  kiosk pages. Gesture follows kiosk-industry practice (Fully Kiosk, Android
-  dev-mode): **5 rapid taps in any one corner** (invisible ~15%-of-edge hit
-  zones, all four corners work, taps within ~3s). `d` key works too. Feedback
-  is a slow ~2s fade to the doze state. **Sticky:** manual doze ignores
-  ordinary touches — only the same gesture (or `d`) wakes it. Scheduled doze
-  stays wake-on-any-interaction for gallery staff.
+- **Manual doze — remote-first (primary):** Jesse's kiosk Pi has no touch or
+  mouse, so the primary control is a **doze toggle in the owner-gated Ops
+  drawer tab**, usable from a phone anywhere. It sets/clears a `kiosk:doze`
+  flag in Redis via owner-gated `POST /api/kiosk/doze`. The kiosk sees the
+  flag on its next poll and fades out (~2s). **While dozing it runs no scoring
+  ticks (zero Neon wakes) and only checks a cheap Redis-only
+  `GET /api/kiosk/state` once a minute** so it can hear the wake command
+  (~2 Redis commands/min). Sticky until toggled back.
+- **Manual doze — local gesture (touch installs only):** kiosk-industry
+  standard 5 rapid taps in any one corner (invisible ~15%-of-edge zones,
+  within ~3s), or the `d` key; toggles the same flag. `cursor: none` across
+  kiosk pages regardless. Scheduled doze stays wake-on-any-interaction for
+  gallery staff. Someday (firmware side): map a Pi case button to inject `d`
+  via ydotool, with the OS power-key handler disabled.
   Note: doze saves database cost only — display *power* is device-level
   (Pi DPMS cron / TV timer / smart plug), a natural companion since a dark
   screen collects no wake interactions.
