@@ -221,3 +221,10 @@ export const KIOSK_CANVAS_MAX_IMAGES = 120;
 // ---------------------------------------------------------------------------
 export const YOUTUBE_FETCH_BATCH_SIZE = 5;
 export const YOUTUBE_FETCH_DELAY_BETWEEN_BATCHES_MS = 800;
+
+// ---------------------------------------------------------------------------
+// Ops tab (owner-only cost/health panel in the drawer)
+// ---------------------------------------------------------------------------
+// How many daily_sunset_stats rows the Ops tab shows. Two weeks reads well as
+// sparklines; the query is one cheap indexed scan on the PK.
+export const OPS_STATS_DAYS = 14;
