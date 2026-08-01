@@ -250,3 +250,10 @@ export const NEON_USAGE_PROJECT_IDS = [
 // re-acquire even if clocks drift. One global lock = at most ~1 tick/minute
 // regardless of how many kiosk screens are open.
 export const KIOSK_TICK_LOCK_TTL_MS = 55_000;
+// Quiet hours default: gallery-local hours during which the kiosk dozes
+// (no scoring ticks). Override per install with ?quiet=off or ?quiet=23-9.
+export const KIOSK_QUIET_DEFAULT = '1-8';
+// How long one interaction keeps a quiet-hours kiosk awake.
+export const KIOSK_WAKE_MINUTES = 30;
+// Poll cadences (tick + doze-state check). Two cheap requests per minute.
+export const KIOSK_TICK_INTERVAL_MS = 60_000;
