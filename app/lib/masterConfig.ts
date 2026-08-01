@@ -242,3 +242,11 @@ export const NEON_USAGE_PROJECT_IDS = [
   'holy-shadow-28821259', // land_buyback (idle)
   'small-tree-05551811', // nextjs-dashboard-postgres (idle)
 ];
+
+// ---------------------------------------------------------------------------
+// Kiosk gallery mode (presence-driven scoring cadence + doze)
+// ---------------------------------------------------------------------------
+// Tick lock TTL: slightly under the 60s poll interval so the next poll can
+// re-acquire even if clocks drift. One global lock = at most ~1 tick/minute
+// regardless of how many kiosk screens are open.
+export const KIOSK_TICK_LOCK_TTL_MS = 55_000;
