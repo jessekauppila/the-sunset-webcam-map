@@ -11,7 +11,7 @@
  */
 
 import { fetchTerminatorWebcams } from '@/app/lib/terminatorPayload';
-import { setCachedTerminatorPayload } from '@/app/lib/cache';
+import { setCachedTerminatorPayload, markKioskTickRan } from '@/app/lib/cache';
 import { NextResponse } from 'next/server';
 import { subsolarPoint } from '@/app/components/Map/lib/subsolarLocation';
 import { createTerminatorQueryRing } from '@/app/components/Map/lib/terminatorRing';
@@ -61,6 +61,10 @@ export async function GET(req: Request) {
   if (!verifyCronAuth(req)) {
     return new NextResponse('Unauthorized', { status: 401 });
   }
+
+  // Stamp the kiosk tick lock so a kiosk poll immediately after this cron
+  // tick is a no-op (shared once-per-minute budget).
+  void markKioskTickRan();
 
   console.log('🚀 Starting cron job...');
 

@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const fetchTerminatorWebcamsMock = vi.fn();
 const setCachedMock = vi.fn();
+const markKioskTickRanMock = vi.fn();
 const fetchBatchesMock = vi.fn();
 const upsertWebcamsMock = vi.fn();
 const classifyMock = vi.fn();
@@ -31,6 +32,7 @@ vi.mock('@/app/lib/terminatorPayload', () => ({
 }));
 vi.mock('@/app/lib/cache', () => ({
   setCachedTerminatorPayload: (...a: unknown[]) => setCachedMock(...a),
+  markKioskTickRan: () => markKioskTickRanMock(),
 }));
 vi.mock('@/app/lib/webcamSnapshot', () => ({
   downloadImage: (...a: unknown[]) => downloadMock(...a),
@@ -127,6 +129,7 @@ beforeEach(() => {
   upsertStatsMock.mockReset().mockResolvedValue(undefined);
   captureProviderUsageDailyMock.mockReset().mockResolvedValue({ captured: 0 });
   setCachedMock.mockReset().mockResolvedValue(undefined);
+  markKioskTickRanMock.mockReset().mockResolvedValue(undefined);
   fetchTerminatorWebcamsMock.mockReset().mockResolvedValue([]);
   computeTickStatsMock.mockReset().mockReturnValue({ modelVersion: 'v4', webcamsScored: 1, cacheHits: 0, fallbacks: 0, scoreAvg: 0.5, scoreP50: 0.5, scoreP90: 0.5, scoreP99: 0.5, aboveMinScoreToWinCount: 0, sourceBreakdown: { windy: { scored: 1, avg: 0.5 }, custom: { scored: 0, avg: null } } });
   verifyAuthMock.mockReset().mockReturnValue(true);
@@ -199,6 +202,12 @@ describe('GET /api/cron/update-cameras', () => {
     expect(res.status).toBe(401);
     expect(scoreMock).not.toHaveBeenCalled();
     expect(backfillMock).not.toHaveBeenCalled();
+  });
+
+  it('stamps the kiosk tick lock after a successful authed GET', async () => {
+    const res = await GET(makeReq());
+    expect(res.status).toBe(200);
+    expect(markKioskTickRanMock).toHaveBeenCalled();
   });
 
   it('unions custom cams into the upsert active set', async () => {
