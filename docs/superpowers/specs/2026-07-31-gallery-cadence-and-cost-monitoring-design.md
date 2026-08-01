@@ -64,10 +64,11 @@ Expected steady-state: webcams ~$12–18/mo, nwac ~$3–5/mo.
   (`KIOSK_WAKE_MINUTES`), then dozes again. Saves roughly $0.25–1/day of
   hot-mode cost across an installation.
 - **Manual doze (invisible):** no visible control, and `cursor: none` across
-  kiosk pages. Secret gesture: tap the four corners in order TL→TR→BR→BL within
-  5s (invisible hit zones ~15% of each edge); `d` key works too. Feedback is a
-  slow ~2s fade to the doze state. **Sticky:** manual doze ignores ordinary
-  touches — only the same corner sequence (or `d`) wakes it. Scheduled doze
+  kiosk pages. Gesture follows kiosk-industry practice (Fully Kiosk, Android
+  dev-mode): **5 rapid taps in any one corner** (invisible ~15%-of-edge hit
+  zones, all four corners work, taps within ~3s). `d` key works too. Feedback
+  is a slow ~2s fade to the doze state. **Sticky:** manual doze ignores
+  ordinary touches — only the same gesture (or `d`) wakes it. Scheduled doze
   stays wake-on-any-interaction for gallery staff.
   Note: doze saves database cost only — display *power* is device-level
   (Pi DPMS cron / TV timer / smart plug), a natural companion since a dark
