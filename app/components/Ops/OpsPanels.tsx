@@ -30,40 +30,47 @@ function Stat({
 export function OpsPanels({ data }: { data: OpsStatsResponse }) {
   const days = data.dailyStats;
   const latest = [...days].reverse().find((d) => d.webcams_scored > 0);
-  if (!latest) {
-    return (
-      <Typography sx={{ color: '#9ca3af', p: 2 }}>No data yet.</Typography>
-    );
-  }
-  const fallbackPct = pct(latest.fallbacks, latest.webcams_scored);
-  const cachePct = pct(latest.cache_hits, latest.webcams_scored);
   return (
     <>
       <DozeControl />
-      <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-        <Stat
-          label="fallbacks (spike = scoring broke)"
-          value={fallbackPct === null ? '—' : `${fallbackPct}%`}
-          spark={days.map((d) => pct(d.fallbacks, d.webcams_scored))}
-        />
-        <Stat
-          label="cache hits (dedup working)"
-          value={cachePct === null ? '—' : `${cachePct}%`}
-          spark={days.map((d) => pct(d.cache_hits, d.webcams_scored))}
-        />
-        <Stat
-          label="webcams scored"
-          value={String(latest.webcams_scored)}
-          spark={days.map((d) => d.webcams_scored)}
-        />
-        <Stat
-          label="score p50 / p90"
-          value={`${latest.score_p50 ?? '—'} / ${latest.score_p90 ?? '—'}`}
-          spark={days.map((d) => d.score_p50)}
-        />
-        <Stat label="model" value={latest.model_version} />
-      </Box>
-      <UsageChart usage={data.providerUsage} events={data.costEvents} />
+      {!latest ? (
+        <Typography sx={{ color: '#9ca3af', p: 2 }}>No data yet.</Typography>
+      ) : (
+        <>
+          {(() => {
+            const fallbackPct = pct(latest.fallbacks, latest.webcams_scored);
+            const cachePct = pct(latest.cache_hits, latest.webcams_scored);
+            return (
+              <>
+                <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+                  <Stat
+                    label="fallbacks (spike = scoring broke)"
+                    value={fallbackPct === null ? '—' : `${fallbackPct}%`}
+                    spark={days.map((d) => pct(d.fallbacks, d.webcams_scored))}
+                  />
+                  <Stat
+                    label="cache hits (dedup working)"
+                    value={cachePct === null ? '—' : `${cachePct}%`}
+                    spark={days.map((d) => pct(d.cache_hits, d.webcams_scored))}
+                  />
+                  <Stat
+                    label="webcams scored"
+                    value={String(latest.webcams_scored)}
+                    spark={days.map((d) => d.webcams_scored)}
+                  />
+                  <Stat
+                    label="score p50 / p90"
+                    value={`${latest.score_p50 ?? '—'} / ${latest.score_p90 ?? '—'}`}
+                    spark={days.map((d) => d.score_p50)}
+                  />
+                  <Stat label="model" value={latest.model_version} />
+                </Box>
+                <UsageChart usage={data.providerUsage} events={data.costEvents} />
+              </>
+            );
+          })()}
+        </>
+      )}
     </>
   );
 }
