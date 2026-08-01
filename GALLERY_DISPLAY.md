@@ -85,3 +85,41 @@ These may need tuning for the vertical display format.
 - `DATABASE_URL` — Neon Postgres connection string
 - `NEXT_PUBLIC_MAPBOX_TOKEN` — Mapbox API key (may not be needed for mosaic-only views)
 - Firebase credentials (if snapshots are re-enabled)
+
+## Gallery mode runtime (2026-07)
+
+**Cadence:** kiosk pages POST `/api/kiosk/tick` every 60s while visible; a Redis
+lock caps the whole fleet at ~1 tick/minute. The `*/15` cron is the baseline
+when no screen is watching. Scoring re-ranks every minute; individual webcam
+images refresh on their upstream cadence (Windy ≈ 5–15 min).
+
+**Quiet hours:** default 01:00–08:00 local. Override per screen in the kiosk
+URL: `?quiet=off`, `?quiet=23-9`. Any interaction wakes a quiet-hours doze for
+30 minutes.
+
+**Doze controls:**
+- Remote (primary): Ops tab in the site drawer → "Doze kiosks" (owner-only).
+- Local: the `d` key toggles a sticky per-screen doze (only `d` wakes it).
+- Pi case button (Argon ONE, future firmware task): a short single press is
+  unused by the stock argonone daemon — extend it to inject `d` into both
+  Chromium windows via xdotool. Double-tap=reboot / 3s hold=shutdown /
+  5s=hard cut / press-from-off=boot are case-level and unchanged.
+
+**Button card (print and stick on the case):**
+
+| Press                | Does            |
+|----------------------|-----------------|
+| (off) short press    | power on        |
+| short press          | doze / wake     |
+| double tap           | reboot          |
+| hold 3 s             | safe shutdown   |
+| hold 5 s             | force power off |
+
+**Display power** is separate from doze: schedule DPMS off on the Pi (or a TV
+timer / smart plug) to save electricity; doze saves database compute.
+
+**Deploy checklist for this feature set:**
+1. Apply `database/migrations/20260731_provider_usage_and_cost_events.sql` via psql.
+2. Add `NEON_COST_API` to Vercel env (Production).
+3. After deploy, confirm ONNX on `/api/kiosk/tick` (real tick latencyMs 100–500 ms
+   per image; 10–20 ms = silent baseline fallback).
