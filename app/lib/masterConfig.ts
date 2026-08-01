@@ -228,3 +228,13 @@ export const YOUTUBE_FETCH_DELAY_BETWEEN_BATCHES_MS = 800;
 // How many daily_sunset_stats rows the Ops tab shows. Two weeks reads well as
 // sparklines; the query is one cheap indexed scan on the PK.
 export const OPS_STATS_DAYS = 14;
+
+// Neon projects in the Vercel-managed org whose month-to-date usage counters
+// the cron snapshots daily into provider_usage_daily. Project ids are not
+// secrets (the API key NEON_COST_API is, and lives only in env).
+export const NEON_USAGE_PROJECT_IDS = [
+  'noisy-leaf-96391119', // sunrise-sunset-webcams (this app)
+  'rough-resonance-57753560', // nwac-observations (Weather_Web_App)
+  'holy-shadow-28821259', // land_buyback (idle)
+  'small-tree-05551811', // nextjs-dashboard-postgres (idle)
+];
