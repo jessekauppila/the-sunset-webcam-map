@@ -63,6 +63,11 @@ Expected steady-state: webcams ~$12–18/mo, nwac ~$3–5/mo.
   pointer/touch/key event during quiet hours resumes normal polling for 30 min
   (`KIOSK_WAKE_MINUTES`), then dozes again. Saves roughly $0.25–1/day of
   hot-mode cost across an installation.
+- **Manual doze:** a small moon toggle on the kiosk (and the `d` key) enters
+  doze immediately, outside any schedule; any interaction wakes it as usual.
+  Note: doze saves database cost only — display *power* is device-level
+  (Pi DPMS cron / TV timer / smart plug), a natural companion since a dark
+  screen collects no wake interactions.
 - **Baseline unchanged:** the `*/15` Vercel cron remains the floor for the public
   site. The cron route also sets the same Redis lock when it runs so a kiosk poll
   right after a cron tick is a no-op.
