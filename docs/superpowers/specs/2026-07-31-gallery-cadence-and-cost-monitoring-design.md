@@ -80,6 +80,10 @@ Expected steady-state: webcams ~$12–18/mo, nwac ~$3–5/mo.
     extension catches the short-press pulse and injects `d` into BOTH
     Chromium windows via xdotool — instant, offline-safe, credential-free.
     Pi work lives in the kiosk setup scripts (GALLERY_DISPLAY), not this app.
+    Ship with a **printable button-map label for the case** (off+press=boot;
+    press=doze/wake; double-tap=reboot; hold 3s=shutdown; hold 5s=force off) —
+    small card via the existing admin label-PNG pattern or a print-ready page
+    in GALLERY_DISPLAY.
   `cursor: none` across kiosk pages. Scheduled doze stays
   wake-on-any-interaction; local/remote doze are sticky until toggled back.
   Note: doze saves database cost only — display *power* is device-level
