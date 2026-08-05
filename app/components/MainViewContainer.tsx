@@ -3,7 +3,7 @@
 import { useRef, useState, useEffect } from 'react';
 import SimpleMap from './Map/SimpleMap';
 import { RatingPanel } from './Rating/RatingPanel';
-import { MosaicCanvas } from './MosaicCanvas';
+import { GeoMosaic } from './GeoMosaic/GeoMosaic';
 import { useTerminatorStore } from '@/app/store/useTerminatorStore';
 import { SwipeSnapshotGallery } from './SwipeSnapshotGallery';
 import { MyCamerasView } from './MyCameras/MyCamerasView';
@@ -82,8 +82,18 @@ export default function MainViewContainer({
       window.removeEventListener('resize', updateDimensions);
   }, []);
 
-  const canvasMaxImages = 90;
-  const canvasPadding = 2;
+  // Setup mode (?setup=1) enables the GeoMosaic debug overlay. Read via
+  // window.location.search in an effect rather than useSearchParams so this
+  // client component doesn't need a Suspense boundary added at the page
+  // root (app/page.tsx renders HomeClient -> MainViewContainer with none).
+  const [setupMode, setSetupMode] = useState(false);
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      setSetupMode(
+        new URLSearchParams(window.location.search).get('setup') === '1'
+      );
+    }
+  }, []);
 
   // Render different views based on mode
   switch (mode) {
@@ -117,15 +127,12 @@ export default function MainViewContainer({
             </h1> */}
             <div ref={sunsetContainerRef} className="flex-1">
               {sunsetDimensions.height > 0 && (
-                <MosaicCanvas
+                <GeoMosaic
                   webcams={sunsetWebcams || []}
                   width={sunsetDimensions.width}
                   height={sunsetDimensions.height}
-                  maxImages={canvasMaxImages}
-                  padding={canvasPadding}
-                  ratingSizeEffect={0.75}
-                  viewSizeEffect={0.1}
-                  fillScreenHeight={true}
+                  feed="sunset"
+                  setupMode={setupMode}
                   onSelect={(webcam) => {
                     console.log(
                       'Selected webcam:',
@@ -152,15 +159,12 @@ export default function MainViewContainer({
             </h1> */}
             <div ref={sunriseContainerRef} className="flex-1">
               {sunriseDimensions.height > 0 && (
-                <MosaicCanvas
+                <GeoMosaic
                   webcams={sunriseWebcams || []}
                   width={sunriseDimensions.width}
                   height={sunriseDimensions.height}
-                  maxImages={canvasMaxImages}
-                  padding={canvasPadding}
-                  ratingSizeEffect={0.75}
-                  viewSizeEffect={0.1}
-                  fillScreenHeight={true}
+                  feed="sunrise"
+                  setupMode={setupMode}
                   onSelect={(webcam) => {
                     console.log(
                       'Selected webcam:',
