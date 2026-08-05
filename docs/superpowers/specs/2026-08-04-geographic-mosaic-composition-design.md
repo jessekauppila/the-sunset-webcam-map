@@ -139,6 +139,13 @@ plus existing kiosk cadence constants (unchanged).
   could adapt to the active pool's latitude extent (with damping/padding so it doesn't
   jitter frame to frame). v1 ships fixed; the window is already a config value, so a
   dynamic mode is an additive change to `distributeSpace`.
+- **Graceful refresh transitions**: today each data refresh redraws the whole canvas
+  — the wall visibly blinks. Once composition v1 is knocked down, add continuity
+  between refreshes: tiles present in both layouts animate to their new position/size,
+  departing tiles fade out, arriving tiles fade in, and unchanged images don't repaint
+  at all. The pure `compose()` output makes this a diff between two Layouts, so the
+  renderer can tween without touching the engine. Explicitly sequenced AFTER the
+  composition work.
 - **Edge-case fixture gallery**: capture real webcam-pool snapshots (sparse night,
   dense night, one-hemisphere, all-unscored, etc.) as JSON fixtures and render each
   through `compose()` in a browsable gallery page — a visual regression sketchbook for
