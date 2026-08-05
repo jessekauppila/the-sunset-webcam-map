@@ -5,10 +5,34 @@ CLI + logging for the kiosk's GL.iNet GL-X3000NR cellular router, per the
 reachable over Tailscale) is the jump host: deploy there, and the Bow
 deployment becomes remotely diagnosable.
 
-**No secrets here — this repo is public.** The router admin password lives in
-`GLINET_PASSWORD` or `~/.config/glinet/password` (chmod 600) on whatever
-machine runs the script. Site addresses, SIM/line details, and the open
-registration issue live in the private handoff doc outside this repo.
+**No secrets here — this repo is public.** All credentials live in
+`~/.config/sunset/router.env` (chmod 600, created by `./init-secrets.sh`,
+never committed anywhere); `glinet.py` also honors `GLINET_PASSWORD` and the
+Pi-side `~/.config/glinet/password` file. Site addresses, SIM/line details,
+and the open registration issue live in the private handoff doc outside this
+repo.
+
+## Secrets + credential rotation
+
+The original handoff doc leaked the wifi PSK and an admin-password hint into
+public git history (`f8503237e`), so both must be rotated. Flow, all runnable
+"from here" once the router is powered and visible:
+
+1. `./init-secrets.sh` — run it yourself (e.g. `! bash scripts/router/init-secrets.sh`
+   inside a Claude session): prompts once for the *current* admin password,
+   generates `GLINET_NEW_PASSWORD` + `WIFI_NEW_PSK` into the env file, prints
+   nothing secret. Read the file yourself to copy values into the password
+   manager.
+2. `./rotate-creds.sh [pi@sunsetdisplay]` — verifies the current password,
+   updates the **Pi first** (spitz PSK + stored admin password) so the
+   Tailscale recovery path survives, rotates the admin password via API
+   candidates (falls back to panel instructions), then walks the wifi PSK
+   change through the panel (via `ssh -L 8081:192.168.8.1:80 pi@sunsetdisplay`
+   when remote) and confirms the Pi rejoined before promoting the new values.
+   If Tailscale is down but you're on the router's wifi, find the Pi's LAN IP
+   in the panel (Clients) and pass `pi@<lan-ip>`.
+3. Afterwards, by hand: new PSK on your Mac/phone, both values into the
+   password manager.
 
 ## Commands
 

@@ -17,6 +17,7 @@ Subcommands:
   reboot   reboot the router (requires --yes)
   probe    try candidate API methods and report which exist on this firmware
   raw      call an arbitrary (object, method) for exploration
+  login    authenticate only — clean exit code for scripts (rotate-creds.sh)
 
 First session against live hardware: run `probe` once — GL.iNet method names
 vary by firmware, and this script has not yet been validated against the
@@ -37,6 +38,7 @@ import urllib.error
 DEFAULT_HOST = "192.168.8.1"
 USERNAME = "root"
 PASSWORD_FILE = os.path.expanduser("~/.config/glinet/password")
+ENV_FILE = os.path.expanduser("~/.config/sunset/router.env")
 
 # (object, method) pairs seen across GL.iNet 4.x firmwares for cellular state.
 STATUS_CANDIDATES = [
@@ -155,13 +157,27 @@ class GlinetClient:
         return self._rpc("call", [self.sid, obj, method, params or {}])
 
 
+def read_env_file(path=ENV_FILE):
+    vals = {}
+    if os.path.exists(path):
+        with open(path) as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith("#") and "=" in line:
+                    k, _, v = line.partition("=")
+                    vals[k.strip()] = v
+    return vals
+
+
 def get_password(args):
-    pw = args.password or os.environ.get("GLINET_PASSWORD")
+    pw = (args.password or os.environ.get("GLINET_PASSWORD")
+          or read_env_file().get("GLINET_PASSWORD"))
     if not pw and os.path.exists(PASSWORD_FILE):
         with open(PASSWORD_FILE) as f:
             pw = f.read().strip()
     if not pw:
-        sys.exit(f"No password: set GLINET_PASSWORD or write {PASSWORD_FILE} (chmod 600)")
+        sys.exit(f"No password: set GLINET_PASSWORD, or {ENV_FILE}, "
+                 f"or {PASSWORD_FILE} (chmod 600)")
     return pw
 
 
@@ -372,8 +388,19 @@ def cmd_probe(args, client):
 
 
 def cmd_raw(args, client):
-    params = json.loads(args.params) if args.params else {}
+    if args.params == "-":  # stdin keeps secrets out of argv/ps and ssh quoting
+        params = json.load(sys.stdin)
+    else:
+        params = json.loads(args.params) if args.params else {}
     print(json.dumps(client.call(args.object, args.method, params), indent=2))
+
+
+def cmd_login(args, client):
+    try:
+        client.login()
+    except Exception as e:
+        sys.exit(f"login FAILED: {e}")
+    print("login ok")
 
 
 def main():
@@ -408,7 +435,9 @@ def main():
     wp = sub.add_parser("raw")
     wp.add_argument("object")
     wp.add_argument("method")
-    wp.add_argument("params", nargs="?", help="JSON dict of call params")
+    wp.add_argument("params", nargs="?", help="JSON dict of call params, or '-' for stdin")
+
+    sub.add_parser("login")
 
     args = p.parse_args()
 
@@ -423,7 +452,7 @@ def main():
 
     client = factory()
     {"status": cmd_status, "usage": cmd_usage, "reboot": cmd_reboot,
-     "probe": cmd_probe, "raw": cmd_raw}[args.cmd](args, client)
+     "probe": cmd_probe, "raw": cmd_raw, "login": cmd_login}[args.cmd](args, client)
 
 
 if __name__ == "__main__":

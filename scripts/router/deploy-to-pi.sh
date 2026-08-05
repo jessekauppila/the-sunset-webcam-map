@@ -10,9 +10,13 @@ ssh "$HOST" 'mkdir -p ~/router'
 scp "$DIR/glinet.py" "$HOST:router/glinet.py"
 
 if ! ssh "$HOST" 'test -s ~/.config/glinet/password'; then
-  echo "Router admin password is not on the Pi yet."
-  read -rs -p "GL-X3000 admin password (stored on the Pi, chmod 600, never in git): " PW
-  echo
+  # Prefer the local env file (see init-secrets.sh); prompt only as fallback.
+  PW="$(grep -E '^GLINET_PASSWORD=' "$HOME/.config/sunset/router.env" 2>/dev/null | tail -1 | cut -d= -f2- || true)"
+  if [ -z "$PW" ]; then
+    echo "Router admin password is not on the Pi yet and no ~/.config/sunset/router.env."
+    read -rs -p "GL-X3000 admin password (stored on the Pi, chmod 600, never in git): " PW
+    echo
+  fi
   printf '%s' "$PW" | ssh "$HOST" \
     'mkdir -p ~/.config/glinet && cat > ~/.config/glinet/password && chmod 600 ~/.config/glinet/password'
 fi
