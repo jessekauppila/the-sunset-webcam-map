@@ -212,7 +212,7 @@ export const MOSAIC_SIZE_SCALE_MODE = 'linear';
 // Tile heights are larger than the default mosaic to fill the taller display.
 // Tune these visually using Chrome DevTools at 1080×1920.
 export const KIOSK_MOSAIC_MAX_IMAGE_HEIGHT_PX = 180;
-export const KIOSK_MOSAIC_MIN_IMAGE_HEIGHT_PX = 32;
+export const KIOSK_MOSAIC_MIN_IMAGE_HEIGHT_PX = 100;
 // More images than default (90) to fill the extra vertical height.
 export const KIOSK_CANVAS_MAX_IMAGES = 120;
 

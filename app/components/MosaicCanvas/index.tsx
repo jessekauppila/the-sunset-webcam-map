@@ -202,7 +202,7 @@ export function MosaicCanvas({
         const imageData: ImageData[] = [];
 
         let totalImageWidth = 0;
-        let maxImageHeight = 0;
+        let rowMaxHeight = 0;
 
         // Calculate dimensions for each image
         row.forEach((item) => {
@@ -236,7 +236,7 @@ export function MosaicCanvas({
           });
 
           totalImageWidth += imgWidth;
-          maxImageHeight = Math.max(maxImageHeight, imgHeight);
+          rowMaxHeight = Math.max(rowMaxHeight, imgHeight);
         });
 
         // Add padding between images
@@ -244,13 +244,13 @@ export function MosaicCanvas({
 
         // Store row data
         rowData.push({
-          height: maxImageHeight,
+          height: rowMaxHeight,
           y: 0, // Will be calculated below
           imageData,
           totalWidth: totalImageWidth,
         });
 
-        totalContentHeight += maxImageHeight + finalConfig.padding;
+        totalContentHeight += rowMaxHeight + finalConfig.padding;
       });
 
       // Calculate vertical offset to center content
