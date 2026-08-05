@@ -8,8 +8,9 @@
 
 One composition algorithm that renders sunrise/sunset webcam mosaics on every surface
 — the two portrait kiosk monitors, the main site's mosaic view modes, and any browser
-tab used for remote troubleshooting. The screen always reads as a north-south axis;
-what changes with population is how literally geography maps to position.
+tab used for remote troubleshooting. The screen always reads as a north-south axis
+(and east-west within rows); what changes with the number of webcam images populating
+the screen is how literally geography maps to position.
 
 ## Core directives (from Jesse, on-glass)
 
@@ -18,7 +19,10 @@ what changes with population is how literally geography maps to position.
 3. Tile size follows quality rating — but never below the legibility floor
    (~100px height on the 27" 1080×1920 panels) and never upscaled past what the
    source image supports (~1.5×).
-4. Too many images → drop the worst-rated rather than crowd or shrink.
+4. Too many images → drop the worst-rated rather than crowd or shrink. TOGGLEABLE
+   (config): with culling off, overflow instead compresses all tiles uniformly toward
+   the legibility floor (crowded-but-complete), dropping only as a last resort if the
+   pool doesn't fit even at the floor. Lets us compare both philosophies on-glass.
 5. Sparse pools breathe: tiles sit at latitude-proportional positions, and the
    empty space is information. Dense pools pack: spacing serves the images,
    ordering still carries the geography.
@@ -72,9 +76,13 @@ Input: webcam pool for one feed (sunrise or sunset), viewport W×H, config.
    right until the next tile would exceed viewport width; start a new row. Sort each
    completed row W→E by longitude. (Rows are emergent latitude bands — ordering is
    strict, band edges adapt to tile sizes.)
-4. **Overflow** (`overflow`). If stacked row heights (at preferred sizes) exceed H,
-   drop the single lowest-percentile tile and re-form rows; repeat until it fits.
-   Dropped tiles are reported in the Layout (setup mode shows the count).
+4. **Overflow** (`overflow`). If stacked row heights (at preferred sizes) exceed H:
+   - `COMPOSITION_CULL_OVERFLOW = true` (default): drop the single lowest-percentile
+     tile and re-form rows; repeat until it fits.
+   - `false`: uniformly compress all preferred heights until the layout fits, but
+     never below `FLOOR`; if it still exceeds H at the floor, drop lowest-percentile
+     tiles as a last resort.
+   Dropped tiles are reported in the Layout either way (setup mode shows the count).
 5. **Space distribution** (`distributeSpace`) — the sparse↔dense blend, with no mode
    switch: after packing, leftover vertical space `S = H − Σ rowHeights` is allocated
    to the gaps between rows (plus top/bottom margins) **proportional to the latitude
@@ -121,6 +129,7 @@ dropped count. This replaces the local label HTML pages currently on the kiosk P
 `COMPOSITION_TILE_FLOOR_PX = 100`, `COMPOSITION_TILE_CEIL_PX = 300`,
 `COMPOSITION_UPSCALE_MAX = 1.5`, `COMPOSITION_LAT_WINDOW = [70, -60]`,
 `COMPOSITION_MAX_GROWTH = 2.0` (cap on the sparse uniform growth factor),
+`COMPOSITION_CULL_OVERFLOW = true` (drop-worst vs compress-to-floor on overflow),
 plus existing kiosk cadence constants (unchanged).
 
 ## Testing
