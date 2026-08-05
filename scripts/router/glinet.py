@@ -113,6 +113,48 @@ def md5crypt(password: str, salt: str) -> str:
     return "$1$" + salt[:8] + "$" + out
 
 
+def sha256crypt(password: str, salt: str, rounds: int = 5000) -> str:
+    """SHA-256 crypt ($5$), Drepper's spec — GL.iNet challenge alg 5.
+    Verified against the spec test vector (see self-test in the repo)."""
+    pw, s = password.encode(), salt[:16].encode()
+    B = hashlib.sha256(pw + s + pw).digest()
+    A = hashlib.sha256(pw + s)
+    cnt = len(pw)
+    while cnt > 32:
+        A.update(B)
+        cnt -= 32
+    A.update(B[:cnt])
+    i = len(pw)
+    while i:
+        A.update(B if i & 1 else pw)
+        i >>= 1
+    A = A.digest()
+    DP = hashlib.sha256(pw * len(pw)).digest()
+    P = (DP * (len(pw) // 32 + 1))[:len(pw)]
+    DS = hashlib.sha256(s * (16 + A[0])).digest()
+    S = (DS * (len(s) // 32 + 1))[:len(s)]
+    C = A
+    for i in range(rounds):
+        ctx = hashlib.sha256()
+        ctx.update(P if i & 1 else C)
+        if i % 3:
+            ctx.update(S)
+        if i % 7:
+            ctx.update(P)
+        ctx.update(C if i & 1 else P)
+        C = ctx.digest()
+
+    def b64(v, n):
+        return "".join(ITOA64[(v >> (6 * k)) & 0x3F] for k in range(n))
+
+    order = ((0, 10, 20), (21, 1, 11), (12, 22, 2), (3, 13, 23), (24, 4, 14),
+             (15, 25, 5), (6, 16, 26), (27, 7, 17), (18, 28, 8), (9, 19, 29))
+    out = "".join(b64((C[a] << 16) | (C[b] << 8) | C[c], 4) for a, b, c in order)
+    out += b64((C[31] << 8) | C[30], 3)
+    prefix = f"$5$rounds={rounds}$" if rounds != 5000 else "$5$"
+    return prefix + salt[:16] + "$" + out
+
+
 class GlinetClient:
     def __init__(self, host: str, password: str, timeout: int = 10):
         self.url = f"http://{host}/rpc"
@@ -138,10 +180,12 @@ class GlinetClient:
         alg, salt, nonce = ch.get("alg"), ch["salt"], ch["nonce"]
         if str(alg) in ("1", "md5"):
             cipher = md5crypt(self.password, salt)
+        elif str(alg) == "5":
+            cipher = sha256crypt(self.password, salt)
         else:
-            try:  # pre-3.13 Linux fallback for sha-crypt algs
+            try:  # pre-3.13 Linux fallback for other crypt algs (e.g. $6$)
                 import crypt
-                prefix = {"5": "$5$", "6": "$6$"}.get(str(alg), "$1$")
+                prefix = {"6": "$6$"}.get(str(alg), "$1$")
                 cipher = crypt.crypt(self.password, prefix + salt)
             except ImportError:
                 raise RuntimeError(f"unsupported challenge alg {alg!r}")
@@ -182,7 +226,11 @@ def get_password(args):
 
 
 def try_candidates(client, candidates):
-    """Call each candidate; return {'obj.method': result} for ones that answer."""
+    """Call each candidate; return {'obj.method': result} for ones that answer.
+    Logs in first (raises on failure) so a bad password is one challenge
+    request, not one per candidate — the router rate-limits challenges."""
+    if not client.sid:
+        client.login()
     results = {}
     for obj, method in candidates:
         try:
@@ -451,8 +499,11 @@ def main():
         return
 
     client = factory()
-    {"status": cmd_status, "usage": cmd_usage, "reboot": cmd_reboot,
-     "probe": cmd_probe, "raw": cmd_raw, "login": cmd_login}[args.cmd](args, client)
+    try:
+        {"status": cmd_status, "usage": cmd_usage, "reboot": cmd_reboot,
+         "probe": cmd_probe, "raw": cmd_raw, "login": cmd_login}[args.cmd](args, client)
+    except (RuntimeError, urllib.error.URLError, OSError) as e:
+        sys.exit(f"error: {e}")
 
 
 if __name__ == "__main__":
