@@ -133,6 +133,18 @@ plus existing kiosk cadence constants (unchanged).
 - Renderer smoke tests (jsdom): renders without crash, setup overlay presence.
 - Visual verification: browser at 1080×1920 via `?setup=1`, then on-glass at the wall.
 
+## Future ideas (recorded, not in v1)
+
+- **Dynamic latitude window**: instead of the fixed [70°N, 60°S] anchor, the window
+  could adapt to the active pool's latitude extent (with damping/padding so it doesn't
+  jitter frame to frame). v1 ships fixed; the window is already a config value, so a
+  dynamic mode is an additive change to `distributeSpace`.
+- **Edge-case fixture gallery**: capture real webcam-pool snapshots (sparse night,
+  dense night, one-hemisphere, all-unscored, etc.) as JSON fixtures and render each
+  through `compose()` in a browsable gallery page — a visual regression sketchbook for
+  reviewing how the algorithm behaves across situations as it evolves. Natural fit
+  since `compose()` is pure: fixture in, layout out.
+
 ## Out of scope
 
 - Gating unscored/non-regression images (future toggle).
