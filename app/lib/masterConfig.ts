@@ -1,3 +1,5 @@
+import type { CompositionConfig } from '@/app/components/GeoMosaic/engine/types';
+
 // Master configuration constants - single source of truth for runtime tuning.
 // This file can be imported by both server and client code.
 //
@@ -263,3 +265,23 @@ export const KIOSK_QUIET_DEFAULT = '1-8';
 export const KIOSK_WAKE_MINUTES = 30;
 // Poll cadences (tick + doze-state check). Two cheap requests per minute.
 export const KIOSK_TICK_INTERVAL_MS = 60_000;
+
+// ---------------------------------------------------------------------------
+// Geographic mosaic composition engine
+// ---------------------------------------------------------------------------
+export const COMPOSITION_TILE_FLOOR_PX = 100;
+export const COMPOSITION_TILE_CEIL_PX = 300;
+export const COMPOSITION_UPSCALE_MAX = 1.5;
+export const COMPOSITION_LAT_WINDOW: [number, number] = [70, -60];
+export const COMPOSITION_MAX_GROWTH = 2.0;
+export const COMPOSITION_CULL_OVERFLOW = true;
+
+export const COMPOSITION_CONFIG = {
+  floorPx: COMPOSITION_TILE_FLOOR_PX,
+  ceilPx: COMPOSITION_TILE_CEIL_PX,
+  upscaleMax: COMPOSITION_UPSCALE_MAX,
+  latWindow: COMPOSITION_LAT_WINDOW,
+  maxGrowth: COMPOSITION_MAX_GROWTH,
+  cullOverflow: COMPOSITION_CULL_OVERFLOW,
+  padding: 2,
+} satisfies CompositionConfig;
