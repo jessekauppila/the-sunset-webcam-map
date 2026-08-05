@@ -38,7 +38,7 @@ export function GeoMosaic(props: {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const hitRectsRef = useRef<HitRect[]>([]);
 
-  const { tiles, byId, skipped } = useLoadedTiles(webcams);
+  const { tiles, byId, skipped, loading } = useLoadedTiles(webcams);
 
   const mergedConfig: CompositionConfig = useMemo(
     () => ({ ...COMPOSITION_CONFIG, ...config }),
@@ -107,7 +107,7 @@ export function GeoMosaic(props: {
   };
 
   const feedLabel = feed === 'sunrise' ? 'SUNRISE' : 'SUNSET';
-  const isEmpty = layout.tiles.length === 0;
+  const isEmpty = layout.tiles.length === 0 && !loading;
 
   return (
     <div style={{ position: 'relative', width, height }}>

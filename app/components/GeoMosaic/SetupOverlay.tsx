@@ -43,7 +43,7 @@ export function SetupOverlay({
         >
           {`${tile.lat.toFixed(1)}°, ${tile.lng.toFixed(1)}° p${Math.round(
             tile.percentile * 100
-          )}`}
+          )}${tile.score !== null ? ` s${tile.score.toFixed(1)}` : ''}`}
         </div>
       ))}
 

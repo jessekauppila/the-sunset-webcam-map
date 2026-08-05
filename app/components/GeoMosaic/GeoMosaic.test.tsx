@@ -119,6 +119,22 @@ describe('GeoMosaic', () => {
     ).toBeInTheDocument();
   });
 
+  it('does not flash the empty-state feed label while images are still loading', async () => {
+    render(
+      <GeoMosaic webcams={webcams} width={800} height={600} feed="sunset" />
+    );
+
+    // Synchronously right after mount, useLoadedTiles has announced a new
+    // load cycle (loading: true) but the FakeImage loads haven't resolved
+    // yet (they fire on a later microtask) — layout.tiles is still empty
+    // at this instant. The dim empty-state label must not flash on here.
+    expect(screen.queryByText('SUNSET')).not.toBeInTheDocument();
+
+    // Let the in-flight FakeImage microtasks settle before the test ends,
+    // so their state updates don't leak into the next test outside act().
+    await waitFor(() => expect(ctx.drawImage).toHaveBeenCalled());
+  });
+
   it('renders no overlay text outside setup mode', async () => {
     render(
       <GeoMosaic webcams={webcams} width={800} height={600} feed="sunset" />
@@ -231,5 +247,32 @@ describe('useLoadedTiles', () => {
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(result.current.tiles.length).toBe(webcams.length);
     expect(result.current.skipped).toBe(0);
+  });
+
+  it('counts webcams with no preview URL into skipped', async () => {
+    const webcamsWithMissingPreview: WindyWebcam[] = [
+      ...webcams,
+      { ...makeWebcam(4, 5, 5, 2), images: { current: {} } } as WindyWebcam,
+    ];
+
+    const { result } = renderHook(() =>
+      useLoadedTiles(webcamsWithMissingPreview)
+    );
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.tiles.length).toBe(webcams.length);
+    expect(result.current.skipped).toBe(1);
+  });
+
+  it('reports skipped for a no-preview pool immediately, without an in-flight load', () => {
+    const noPreviewWebcams: WindyWebcam[] = [
+      { ...makeWebcam(9, 1, 1, 1), images: { current: {} } } as WindyWebcam,
+    ];
+
+    const { result } = renderHook(() => useLoadedTiles(noPreviewWebcams));
+
+    expect(result.current.loading).toBe(false);
+    expect(result.current.tiles).toEqual([]);
+    expect(result.current.skipped).toBe(1);
   });
 });

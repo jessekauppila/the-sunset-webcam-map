@@ -37,4 +37,57 @@ describe('compose', () => {
     expect(h(2)).toBeGreaterThan(h(3));
     expect(h(3)).toBeGreaterThan(h(1));
   });
+
+  // Regression coverage for the growth-search fix: a naive single-shot k
+  // (scaling every tile's width AND height by the same k computed from the
+  // ungrown stacked height) grows area ~k², which can push row-wrapped
+  // tiles past the viewport width, forcing more/taller rows than assumed
+  // and overflowing height — causing cullMode to drop tiles that fit fine
+  // ungrown. This pool is built so uniform tiles pack 2-per-row at k=1,
+  // but any k above ~1.08 forces a width-driven re-wrap to 1-per-row (8
+  // rows instead of 4), which overflows the 1920px viewport under the old
+  // naive-k approach. The fix must search for a workable k instead of
+  // assuming the first one.
+  describe('sparse growth search never overshoots into drops', () => {
+    // floorPx === ceilPx pins every tile to the same preferred height
+    // (280px) regardless of percentile, so the row-packing geometry below
+    // is exact and independent of each tile's (still-varied) score.
+    const growthCfg: CompositionConfig = {
+      floorPx: 280,
+      ceilPx: 280,
+      upscaleMax: 1.5,
+      latWindow: [70, -60],
+      maxGrowth: 2,
+      cullOverflow: true,
+      padding: 2,
+    };
+    const viewport = { width: 1080, height: 1920 };
+    const pool: TileInput[] = [
+      t(1, 60, -100, 1),
+      t(2, 60, -80, 4.5),
+      t(3, 40, -60, 2),
+      t(4, 40, -40, 5),
+      t(5, 20, -20, 1.5),
+      t(6, 20, 0, 3.5),
+      t(7, 0, 20, 2.5),
+      t(8, 0, 40, 4),
+    ];
+
+    it('keeps all 8 tiles with growth active and no drops', () => {
+      const layout = compose(pool, viewport, growthCfg);
+      expect(layout.dropped).toEqual([]);
+      expect(layout.tiles.length).toBe(8);
+      // Growth must actually have kicked in (heights above the ungrown
+      // 280px preferred size) — otherwise this test wouldn't distinguish
+      // the fix from simply disabling growth altogether.
+      expect(layout.tiles.some((p) => p.height > 280)).toBe(true);
+    });
+
+    it('grown tile heights never exceed srcHeight × upscaleMax', () => {
+      const layout = compose(pool, viewport, growthCfg);
+      for (const p of layout.tiles) {
+        expect(p.height).toBeLessThanOrEqual(400 * growthCfg.upscaleMax + 1e-6);
+      }
+    });
+  });
 });

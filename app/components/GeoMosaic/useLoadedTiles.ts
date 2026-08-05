@@ -32,9 +32,10 @@ export function useLoadedTiles(webcams: WindyWebcam[]): LoadedTilesResult {
     let cancelled = false;
 
     const withPreview = webcams.filter((w) => w.images?.current?.preview);
+    const noPreviewCount = webcams.length - withPreview.length;
 
     if (withPreview.length === 0) {
-      setResult(EMPTY);
+      setResult({ ...EMPTY, skipped: noPreviewCount });
       return () => {
         cancelled = true;
       };
@@ -42,11 +43,12 @@ export function useLoadedTiles(webcams: WindyWebcam[]): LoadedTilesResult {
 
     // Starting a new load cycle: announce it (loading: true) and reset the
     // accumulators so a stale previous cycle's tiles/byId/skipped don't leak
-    // into this one.
-    setResult({ tiles: [], byId: new Map(), skipped: 0, loading: true });
+    // into this one. Webcams with no preview URL are counted as skipped
+    // immediately so setup-mode's tiles+dropped+skipped tracks the full pool.
+    setResult({ tiles: [], byId: new Map(), skipped: noPreviewCount, loading: true });
 
     let settled = 0;
-    let skipped = 0;
+    let skipped = noPreviewCount;
     const tiles: TileInput[] = [];
     const byId = new Map<number, { img: HTMLImageElement; webcam: WindyWebcam }>();
 
@@ -64,6 +66,7 @@ export function useLoadedTiles(webcams: WindyWebcam[]): LoadedTilesResult {
 
     for (const webcam of withPreview) {
       const img = new Image();
+      img.crossOrigin = 'anonymous';
       img.onload = () => {
         if (cancelled) return;
         tiles.push({
