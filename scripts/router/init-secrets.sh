@@ -21,17 +21,23 @@ gen() { python3 -c "import secrets,string; print(''.join(secrets.choice(string.a
 
 [ -n "$(getk GLINET_HOST)" ] || setk GLINET_HOST 192.168.8.1
 
-if [ -z "$(getk GLINET_PASSWORD)" ]; then
-  read -rs -p "CURRENT router admin password (from your password manager, never echoed): " CUR
-  echo
-  setk GLINET_PASSWORD "$CUR"
-fi
-
 # Rotation targets — generated alphanumeric-only so they pass safely through
 # ssh/nmcli quoting. Kept under separate keys until rotate-creds.sh confirms
-# the router actually accepted them, then promoted.
+# the router actually accepted them, then promoted. Generated BEFORE the
+# password prompt so a non-interactive run still produces them.
 [ -n "$(getk GLINET_NEW_PASSWORD)" ] || setk GLINET_NEW_PASSWORD "$(gen 20)"
 [ -n "$(getk WIFI_NEW_PSK)" ] || setk WIFI_NEW_PSK "$(gen 16)"
+
+if [ -z "$(getk GLINET_PASSWORD)" ]; then
+  if [ -t 0 ]; then
+    read -rs -p "CURRENT router admin password (from your password manager, never echoed): " CUR
+    echo
+    setk GLINET_PASSWORD "$CUR"
+  else
+    echo "NOTE: no terminal for the password prompt. Run this again in a normal"
+    echo "Terminal window to store the current admin password (everything else is done)."
+  fi
+fi
 
 echo "OK — $ENV_FILE ready (chmod 600)."
 echo "Keys: GLINET_HOST, GLINET_PASSWORD (current), GLINET_NEW_PASSWORD, WIFI_NEW_PSK."
