@@ -1,21 +1,34 @@
 import { vi } from 'vitest';
 
 // jsdom has no real Image loader — auto-fire onload with fixed naturals so
-// useLoadedTiles resolves synchronously-ish (via microtask) in tests.
+// useLoadedTiles resolves synchronously-ish (via microtask) in tests. A src
+// containing 'bad' fires onerror instead, so tests can exercise the
+// skipped-load path.
 class FakeImage {
   onload: null | (() => void) = null;
   onerror: null | (() => void) = null;
   naturalWidth = 712;
   naturalHeight = 400;
-  set src(_v: string) {
-    queueMicrotask(() => this.onload?.());
+  set src(v: string) {
+    if (v.includes('bad')) {
+      queueMicrotask(() => this.onerror?.());
+    } else {
+      queueMicrotask(() => this.onload?.());
+    }
   }
 }
 vi.stubGlobal('Image', FakeImage);
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import {
+  render,
+  renderHook,
+  screen,
+  waitFor,
+  fireEvent,
+} from '@testing-library/react';
 import { GeoMosaic } from './GeoMosaic';
+import { useLoadedTiles } from './useLoadedTiles';
 import { compose } from './engine/compose';
 import { COMPOSITION_CONFIG } from '@/app/lib/masterConfig';
 import type { WindyWebcam } from '@/app/lib/types';
@@ -169,5 +182,54 @@ describe('GeoMosaic', () => {
     });
 
     await waitFor(() => expect(onSelect).toHaveBeenCalledWith(targetWebcam));
+  });
+
+  it('counts a failed image load as skipped and reflects it in the overlay counter', async () => {
+    const webcamsWithOneBad: WindyWebcam[] = [
+      makeWebcam(1, 40, -20, 5),
+      { ...makeWebcam(2, -10, 60, 3), images: { current: { preview: 'https://example.com/bad.jpg' } } },
+      makeWebcam(3, 20, 100, 1),
+    ];
+
+    render(
+      <GeoMosaic
+        webcams={webcamsWithOneBad}
+        width={800}
+        height={600}
+        feed="sunset"
+        setupMode
+      />
+    );
+
+    const counterEl = await waitFor(() =>
+      screen.getByText(/skipped/)
+    );
+    const match = counterEl.textContent!.match(
+      /(\d+) tiles · (\d+) dropped · (\d+) skipped/
+    );
+    expect(match).toBeTruthy();
+    const [, tilesStr, droppedStr, skippedStr] = match!;
+    // Exactly 1 of the 3 webcams failed to load (the 'bad' one).
+    expect(Number(skippedStr)).toBe(1);
+    // The 2 successfully loaded webcams are each either placed or dropped
+    // by the composition engine's overflow handling — either way they're
+    // accounted for.
+    expect(Number(tilesStr) + Number(droppedStr)).toBe(2);
+  });
+});
+
+describe('useLoadedTiles', () => {
+  it('reports loading: true while images are in flight, then false once settled', async () => {
+    const { result } = renderHook(() => useLoadedTiles(webcams));
+
+    // The effect kicks off a new load cycle synchronously; image loads
+    // themselves resolve on a later microtask, so loading must already be
+    // true immediately after mount.
+    expect(result.current.loading).toBe(true);
+    expect(result.current.tiles).toEqual([]);
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.tiles.length).toBe(webcams.length);
+    expect(result.current.skipped).toBe(0);
   });
 });

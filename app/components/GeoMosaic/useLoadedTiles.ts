@@ -40,6 +40,11 @@ export function useLoadedTiles(webcams: WindyWebcam[]): LoadedTilesResult {
       };
     }
 
+    // Starting a new load cycle: announce it (loading: true) and reset the
+    // accumulators so a stale previous cycle's tiles/byId/skipped don't leak
+    // into this one.
+    setResult({ tiles: [], byId: new Map(), skipped: 0, loading: true });
+
     let settled = 0;
     let skipped = 0;
     const tiles: TileInput[] = [];
