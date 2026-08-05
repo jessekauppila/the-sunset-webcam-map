@@ -2,7 +2,14 @@
 
 **Date:** 2026-08-05
 **Purpose:** Portable context for troubleshooting the kiosk's cellular router and/or
-switching data providers in another conversation. Everything another session needs is here.
+switching data providers in another conversation.
+
+> **Superseded (later the same day):** the current operational handoff — confirmed SIM
+> slot contents, the ICCID-mismatch hypothesis for "SIM card not registered," and the
+> Claude Code tooling plan — lives **outside this public repo** (local notes +
+> password manager). The router tooling itself is in `scripts/router/`. Some hardware
+> facts below were corrected there (e.g., slot 2 is no longer empty; the modem is a
+> Quectel RM520N-GL with no eSIM support).
 
 ## The hardware
 
@@ -11,10 +18,10 @@ switching data providers in another conversation. Everything another session nee
   (12V barrel; can run from USB-C PD with a converter cable). Bought new on Amazon
   ~2026-08-01, sold by GL Technologies, 2-yr warranty, 30-day return window.
 - Admin panel: **http://192.168.8.1** (browser, from any device on its wifi).
-  Admin password: the one Jesse set (street address of the Vermont place + `!`).
+  Admin password: in the password manager (not recorded here — this repo is public).
 - Wifi SSIDs: `GL-X3000-ced` (2.4G) and `GL-X3000-ced-5G` — still factory names.
-  Wifi password: factory, printed on the router's bottom label (`Z43Q9T7PCT`),
-  also saved in Jesse's Mac keychain.
+  Wifi password: factory, printed on the router's bottom label; also saved in
+  Jesse's Mac keychain. **No credentials belong in this file.**
 
 ## The SIM / plan (current)
 
@@ -61,11 +68,11 @@ NetworkManager profile `spitz` (bound to SSID `GL-X3000-ced`).
   The planned dress rehearsal was to switch this US Mobile line from Dark Star
   (AT&T) to **Light Speed (T-Mobile)** in the US Mobile app (free network transfer)
   and live on it a while at the studio before committing to Calyx.
-- **Locations that matter for coverage**: Bellingham WA 98225 (home),
-  3273 Blanchard Rd, Bow WA 98232 / downtown Edison (studio/venue — flat Skagit
-  farmland but near Blanchard Mountain shadow), 68 West Main St, West Barnet VT
-  (future; rural Caledonia County — statewide data says Verizon strongest there,
-  T-Mobile thin in rural VT).
+- **Locations that matter for coverage**: Bellingham WA (test bench), Bow WA /
+  downtown Edison (studio/venue — flat Skagit farmland but in Blanchard Mountain's
+  RF shadow), West Barnet VT (future; rural Caledonia County — statewide data says
+  Verizon strongest there, T-Mobile thin in rural VT). Coverage measured at one
+  site does not predict another; go/no-go must be measured on-site.
 - **Router is carrier-agnostic**: unlocked, AT&T & T-Mobile certified, works with
   Verizon-network MVNOs with settings effort. Dual-SIM means two carriers at once
   with failover — e.g., Calyx T-Mobile in slot 1 + small prepaid Verizon-network
