@@ -1,0 +1,66 @@
+# Files excluded from the `vercel` CLI upload.
+#
+# NOTE: when this file exists the Vercel CLI uses it *instead of* .gitignore,
+# so anything .gitignore was quietly keeping out of the upload has to be
+# repeated here. Keep the two lists in sync when you add a big directory.
+
+# ---------------------------------------------------------------------------
+# Build output / deps (Vercel rebuilds these; uploading them is pure waste)
+# ---------------------------------------------------------------------------
+node_modules
+.next
+**/.next
+out
+build
+coverage
+*.tsbuildinfo
+
+# ---------------------------------------------------------------------------
+# Local tooling state
+# ---------------------------------------------------------------------------
+.git
+.vercel
+.claude
+.superpowers
+.worktrees
+.compound-engineering
+.venv
+**/__pycache__
+.DS_Store
+
+# ---------------------------------------------------------------------------
+# ML artifacts — the reason this file exists.
+#
+# ml/ is 2.1 GB on disk but the build only needs the two v4 ONNX models that
+# next.config.ts pins via outputFileTracingIncludes (86 MB total). Everything
+# else is training-time data that has no business in a deploy upload.
+#
+# Do NOT collapse this to a blanket `ml/artifacts/models/` exclude: gitignore
+# semantics can't re-include a path underneath an excluded directory, so the
+# `dir/*` + `!dir/keep` shape below is load-bearing. If the models move, update
+# next.config.ts and these four lines together — next.config.test.ts guards the
+# config side, but nothing guards this file, and a missing model degrades
+# silently to the baseline heuristic instead of failing the build.
+# ---------------------------------------------------------------------------
+ml/.venv
+ml/artifacts/image_cache
+ml/artifacts/experiments
+ml/artifacts/llm_ratings
+ml/artifacts/llm_comparisons
+ml/artifacts/scraper_runs
+ml/artifacts/reports
+ml/artifacts/datasets
+ml/artifacts/datasets_regression
+
+ml/artifacts/models/regression_resnet18/*
+!ml/artifacts/models/regression_resnet18/20260513_113243_v4_regression_llm_with_flickr
+
+ml/artifacts/models/binary_resnet18/*
+!ml/artifacts/models/binary_resnet18/20260601_063518_v4_binary_llm_with_flickr
+
+# ---------------------------------------------------------------------------
+# Docs / scratch — not needed to build or serve
+# ---------------------------------------------------------------------------
+docs
+Supporting Text
+art-grant-skill

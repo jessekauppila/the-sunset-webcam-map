@@ -33,6 +33,27 @@ const PROVENANCE: Record<Provenance, { label: string; bg: string }> = {
   archive_new: { label: 'Archive · new', bg: 'rgba(5,150,105,0.95)' },
 };
 
+// The server recomputes `counts` only when a batch is fetched (every BATCH
+// frames), so the bar would sit frozen while you rate. Adjust it locally per
+// label and let the next batch resync it.
+const COUNT_KEY: Record<Provenance, keyof Counts> = {
+  flickr: 'flickr',
+  archive_trained: 'archiveTrained',
+  archive_new: 'archiveNew',
+};
+
+// The condensed rating rubric, kept on-screen so the scale doesn't drift
+// between sessions. Labels normalize to (rating - 1) / 4, and the binary head
+// trains on >= 0.75 — so the 3/4 line is the only boundary the model sees.
+const RUBRIC: { key: string; text: string; positive?: boolean }[] = [
+  { key: 'N', text: 'not a sunset at all — day, night, fully obstructed' },
+  { key: '1', text: 'sunset, but zero color — flat gray' },
+  { key: '2', text: 'trace of color, washed out' },
+  { key: '3', text: 'real color, unremarkable' },
+  { key: '4', text: "vivid — you'd stop and look", positive: true },
+  { key: '5', text: 'spectacular — keep it rare', positive: true },
+];
+
 const WHY: Record<string, string> = {
   model_low_claude_sunset:
     'Model rated this low — Claude calls it a sunset. Likely a miss.',
@@ -112,13 +133,44 @@ export function HardExamplesQueue({
   const [source, setSource] = useState<'all' | 'webcam' | 'flickr'>('all');
 
   const [snapshots, setSnapshots] = useState<QueuedSnapshot[]>([]);
-  const [total, setTotal] = useState(0);
   const [counts, setCounts] = useState<Counts>({ archiveTrained: 0, archiveNew: 0, flickr: 0 });
   const [idx, setIdx] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
+  // Last write the database confirmed: its own row count and timestamp, never
+  // computed here. This is the "yes, it's recording" readout.
+  const [saved, setSaved] = useState<{ total: number | null; at: string | null }>({
+    total: null,
+    at: null,
+  });
+  // Set when the server hands back a short page (or nothing new), which is the
+  // only reliable end-of-queue signal: `total` shrinks as you label, so
+  // comparing it against a growing loaded list stops paging halfway through.
+  const [exhausted, setExhausted] = useState(false);
   const loadingRef = useRef(false);
+  // Frames this session actually wrote a label for — distinguishes a rated
+  // frame from a skipped one when stepping backwards.
+  const labeledRef = useRef<Set<string>>(new Set());
+  // Keys of every frame currently loaded, so an appended page can be deduped
+  // without reading `snapshots` inside a state updater.
+  const loadedRef = useRef<Set<string>>(new Set());
+  // The cursor and the list, mirrored so a keypress reads where the queue
+  // actually is rather than where the last render left it. Two keydowns
+  // delivered before React commits would otherwise both resolve to the same
+  // frame — one row written twice, the frame after it advanced past unrated.
+  const idxRef = useRef(0);
+  const snapshotsRef = useRef<QueuedSnapshot[]>([]);
+
+  const setCursor = useCallback((next: number) => {
+    idxRef.current = next;
+    setIdx(next);
+  }, []);
+
+  const setFrames = useCallback((next: QueuedSnapshot[]) => {
+    snapshotsRef.current = next;
+    setSnapshots(next);
+  }, []);
 
   const fetchBatch = useCallback(
     async (offset: number, replace: boolean) => {
@@ -139,13 +191,23 @@ export function HardExamplesQueue({
           );
         const d = await r.json();
         const incoming: QueuedSnapshot[] = d.snapshots ?? [];
-        setTotal(d.total ?? 0);
         if (d.counts) setCounts(d.counts);
-        setSnapshots((prev) => {
-          if (replace) return incoming;
-          const seen = new Set(prev.map(keyOf));
-          return [...prev, ...incoming.filter((s) => !seen.has(keyOf(s)))];
-        });
+        if (replace) {
+          // Reset the session refs with the list, not ahead of it — a failed
+          // reload would otherwise leave the old frames with an empty label set
+          // and throw the offset off.
+          labeledRef.current = new Set();
+          loadedRef.current = new Set(incoming.map(keyOf));
+          setFrames(incoming);
+          setExhausted(incoming.length < BATCH);
+        } else {
+          const fresh = incoming.filter((s) => !loadedRef.current.has(keyOf(s)));
+          fresh.forEach((s) => loadedRef.current.add(keyOf(s)));
+          if (fresh.length) setFrames([...snapshotsRef.current, ...fresh]);
+          // A page that adds nothing new would otherwise re-trip the prefetch
+          // effect forever, so treat it as the end of the queue too.
+          setExhausted(incoming.length < BATCH || fresh.length === 0);
+        }
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Failed to load');
       } finally {
@@ -153,28 +215,43 @@ export function HardExamplesQueue({
         setLoading(false);
       }
     },
-    [source],
+    [source, setFrames],
   );
 
   useEffect(() => {
-    setIdx(0);
+    setCursor(0);
+    setExhausted(false);
     void fetchBatch(0, true);
-  }, [fetchBatch]);
+  }, [fetchBatch, setCursor]);
 
   useEffect(() => {
-    if (idx >= snapshots.length - 2 && snapshots.length < total && !loadingRef.current) {
-      void fetchBatch(snapshots.length, false);
-    }
-  }, [idx, snapshots.length, total, fetchBatch]);
+    if (exhausted || loadingRef.current) return;
+    if (snapshots.length === 0 || idx < snapshots.length - 2) return;
+    // The server excludes labeled frames, so paging by `snapshots.length` walks
+    // past that many frames we never saw. Only the frames we loaded but didn't
+    // label are still in the server's set ahead of the cursor — offset by those.
+    void fetchBatch(snapshots.length - labeledRef.current.size, false);
+  }, [idx, snapshots.length, exhausted, fetchBatch]);
 
   const current = snapshots[idx];
 
+  const adjustCount = useCallback((p: Provenance, delta: number) => {
+    setCounts((c) => {
+      const key = COUNT_KEY[p];
+      const next = { ...c };
+      next[key] = Math.max(0, next[key] + delta);
+      return next;
+    });
+  }, []);
+
   const rate = useCallback(
     async (rating: number, isSunset: boolean) => {
-      const s = snapshots[idx];
+      const i = idxRef.current;
+      const s = snapshotsRef.current[i];
       if (!s) return;
       setSaveError(null);
-      setIdx((i) => i + 1); // optimistic advance for fast rating
+      setCursor(i + 1); // optimistic advance for fast rating
+      labeledRef.current.add(keyOf(s));
       try {
         const r = await fetch('/api/manual-labels', {
           method: 'POST',
@@ -187,23 +264,38 @@ export function HardExamplesQueue({
           }),
         });
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        const d = await r.json();
+        if (!d?.saved?.id) throw new Error('no row returned');
+        // The bucket only moves once the row is on record, so a falling count
+        // is evidence the label persisted — not just that the click landed.
+        adjustCount(s.provenance, -1);
+        setSaved({ total: d.labeledTotal ?? null, at: d.saved.labeledAt ?? null });
       } catch (e) {
         // Never fail silently: the frame wasn't saved, so it stays in the queue.
+        labeledRef.current.delete(keyOf(s));
         setSaveError(
           `Couldn't save "${s.title || 'frame'}" (${e instanceof Error ? e.message : 'error'}). It's still in the queue — refresh to revisit it.`,
         );
       }
     },
-    [snapshots, idx],
+    [adjustCount, setCursor],
   );
 
-  const skip = useCallback(() => setIdx((i) => Math.min(i + 1, snapshots.length)), [snapshots.length]);
+  const skip = useCallback(
+    () => setCursor(Math.min(idxRef.current + 1, snapshotsRef.current.length)),
+    [setCursor],
+  );
 
   const undo = useCallback(async () => {
-    const prev = snapshots[idx - 1];
+    const i = idxRef.current;
+    const prev = snapshotsRef.current[i - 1];
     if (!prev) return;
     setSaveError(null);
-    setIdx((i) => Math.max(0, i - 1));
+    setCursor(Math.max(0, i - 1));
+    // Stepping back over a skipped frame moves the cursor only — there is no
+    // label to delete and nothing to add back to the counts.
+    if (!labeledRef.current.has(keyOf(prev))) return;
+    labeledRef.current.delete(keyOf(prev));
     try {
       const r = await fetch('/api/manual-labels', {
         method: 'DELETE',
@@ -211,10 +303,15 @@ export function HardExamplesQueue({
         body: JSON.stringify({ source: labelSource(prev), imageId: prev.snapshot.id }),
       });
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const d = await r.json();
+      // Same rule in reverse: the bucket goes back up only once the row is gone.
+      adjustCount(prev.provenance, +1);
+      setSaved({ total: d?.labeledTotal ?? null, at: null });
     } catch (e) {
+      labeledRef.current.add(keyOf(prev));
       setSaveError(`Undo failed (${e instanceof Error ? e.message : 'error'}).`);
     }
-  }, [snapshots, idx]);
+  }, [adjustCount, setCursor]);
 
   // Hotkeys: 1-5 = sunset + quality, N/0 = not a sunset, space = skip, z = undo.
   useEffect(() => {
@@ -289,6 +386,18 @@ export function HardExamplesQueue({
         <ToggleButton value="flickr">Flickr</ToggleButton>
       </ToggleButtonGroup>
       <Box sx={{ flex: 1 }} />
+      {saved.total != null && (
+        <Box
+          data-testid="saved-readout"
+          sx={{ display: 'flex', gap: 0.75, fontSize: 12, alignItems: 'center', color: '#6ee7b7' }}
+        >
+          <span>✓ saved</span>
+          <b>{saved.total}</b>
+          <span style={{ color: '#94a3b8' }}>
+            on record{saved.at ? ` · ${new Date(saved.at).toLocaleTimeString()}` : ''}
+          </span>
+        </Box>
+      )}
       <Box sx={{ display: 'flex', gap: 1.5, fontSize: 12, alignItems: 'center' }}>
         <span style={{ color: '#94a3b8' }}>left to rate:</span>
         <span style={{ color: '#cbd5e1' }}>Archive·trained <b>{counts.archiveTrained}</b></span>
@@ -401,6 +510,46 @@ export function HardExamplesQueue({
             <Box sx={{ display: 'flex', gap: 1, justifyContent: 'center', mt: 0.5 }}>
               <Button size="small" onClick={skip} sx={{ color: '#9ca3af', fontSize: 11 }}>Skip (␣)</Button>
               <Button size="small" onClick={() => void undo()} disabled={idx === 0} sx={{ color: '#9ca3af', fontSize: 11 }}>Undo (z)</Button>
+            </Box>
+
+            {/* Rubric legend — the scale lives on-glass so it stays consistent
+                across sessions. See docs/ml/rating-rubric.md for the long form. */}
+            <Box
+              sx={{
+                mt: 1,
+                p: 1,
+                borderRadius: 1,
+                border: '1px solid rgba(255,255,255,0.08)',
+                background: 'rgba(255,255,255,0.02)',
+              }}
+            >
+              {RUBRIC.map((r) => (
+                <Box key={r.key} sx={{ display: 'flex', gap: 0.75, alignItems: 'baseline' }}>
+                  <Box
+                    component="span"
+                    sx={{
+                      flexShrink: 0,
+                      width: 14,
+                      textAlign: 'center',
+                      fontSize: 9,
+                      fontWeight: 700,
+                      fontFamily: 'monospace',
+                      color: r.positive ? '#60a5fa' : '#94a3b8',
+                    }}
+                  >
+                    {r.key}
+                  </Box>
+                  <Typography sx={{ fontSize: 9.5, lineHeight: 1.45, color: r.positive ? '#dbeafe' : '#9ca3af' }}>
+                    {r.text}
+                  </Typography>
+                </Box>
+              ))}
+              <Typography sx={{ mt: 0.75, fontSize: 9, lineHeight: 1.4, color: '#64748b' }}>
+                4–5 = positive class for training; judge the sky, not the framing.
+              </Typography>
+              <Typography sx={{ fontSize: 9, lineHeight: 1.4, color: '#64748b' }}>
+                keys: <b>N</b>/<b>1</b>–<b>5</b> rate · <b>␣</b> skip · <b>z</b> undo
+              </Typography>
             </Box>
           </Box>
 

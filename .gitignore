@@ -62,7 +62,7 @@ ml/.venv/
 /.venv*/
 
 # Python bytecode caches
-ml/**/__pycache__/
+**/__pycache__/
 
 # local compound-engineering tool state
 .compound-engineering/
