@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import HardExamplesQueue from './HardExamplesQueue';
 
@@ -338,6 +338,43 @@ describe('HardExamplesQueue pagination', () => {
     await user.keyboard('4'.repeat(3));
     await new Promise((r) => setTimeout(r, 0));
     expect(calls.length).toBe(1);
+  });
+});
+
+describe('HardExamplesQueue rapid rating', () => {
+  it('writes a distinct row per keypress when presses outrun a render', async () => {
+    const posted: unknown[] = [];
+    let n = 0;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string, init?: RequestInit) => {
+        if (String(url).startsWith('/api/snapshots')) {
+          return {
+            ok: true,
+            json: async () => ({ snapshots: makePage('burst'), total: 500, counts: COUNTS }),
+          } as Response;
+        }
+        posted.push(JSON.parse(String(init?.body ?? '{}')).imageId);
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ ok: true, saved: { id: ++n, labeledAt: 'x' }, labeledTotal: n }),
+        } as Response;
+      }),
+    );
+    render(<HardExamplesQueue />);
+    await waitFor(() => expect(screen.getByText('burst frame 0')).toBeTruthy());
+
+    // Five keydowns in one tick — the worst case a blocked main thread can
+    // deliver between a keypress and React committing the next frame. Reading
+    // the cursor from render state instead of the ref rates frame 0 five times
+    // and advances past frames 1-4 with no label written.
+    await act(async () => {
+      for (let i = 0; i < 5; i++) fireEvent.keyDown(window, { key: '4' });
+    });
+
+    await waitFor(() => expect(posted.length).toBe(5));
+    expect(new Set(posted).size).toBe(5);
   });
 });
 

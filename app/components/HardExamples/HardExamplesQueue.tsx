@@ -155,6 +155,22 @@ export function HardExamplesQueue({
   // Keys of every frame currently loaded, so an appended page can be deduped
   // without reading `snapshots` inside a state updater.
   const loadedRef = useRef<Set<string>>(new Set());
+  // The cursor and the list, mirrored so a keypress reads where the queue
+  // actually is rather than where the last render left it. Two keydowns
+  // delivered before React commits would otherwise both resolve to the same
+  // frame — one row written twice, the frame after it advanced past unrated.
+  const idxRef = useRef(0);
+  const snapshotsRef = useRef<QueuedSnapshot[]>([]);
+
+  const setCursor = useCallback((next: number) => {
+    idxRef.current = next;
+    setIdx(next);
+  }, []);
+
+  const setFrames = useCallback((next: QueuedSnapshot[]) => {
+    snapshotsRef.current = next;
+    setSnapshots(next);
+  }, []);
 
   const fetchBatch = useCallback(
     async (offset: number, replace: boolean) => {
@@ -182,12 +198,12 @@ export function HardExamplesQueue({
           // and throw the offset off.
           labeledRef.current = new Set();
           loadedRef.current = new Set(incoming.map(keyOf));
-          setSnapshots(incoming);
+          setFrames(incoming);
           setExhausted(incoming.length < BATCH);
         } else {
           const fresh = incoming.filter((s) => !loadedRef.current.has(keyOf(s)));
           fresh.forEach((s) => loadedRef.current.add(keyOf(s)));
-          if (fresh.length) setSnapshots((prev) => [...prev, ...fresh]);
+          if (fresh.length) setFrames([...snapshotsRef.current, ...fresh]);
           // A page that adds nothing new would otherwise re-trip the prefetch
           // effect forever, so treat it as the end of the queue too.
           setExhausted(incoming.length < BATCH || fresh.length === 0);
@@ -199,14 +215,14 @@ export function HardExamplesQueue({
         setLoading(false);
       }
     },
-    [source],
+    [source, setFrames],
   );
 
   useEffect(() => {
-    setIdx(0);
+    setCursor(0);
     setExhausted(false);
     void fetchBatch(0, true);
-  }, [fetchBatch]);
+  }, [fetchBatch, setCursor]);
 
   useEffect(() => {
     if (exhausted || loadingRef.current) return;
@@ -230,10 +246,11 @@ export function HardExamplesQueue({
 
   const rate = useCallback(
     async (rating: number, isSunset: boolean) => {
-      const s = snapshots[idx];
+      const i = idxRef.current;
+      const s = snapshotsRef.current[i];
       if (!s) return;
       setSaveError(null);
-      setIdx((i) => i + 1); // optimistic advance for fast rating
+      setCursor(i + 1); // optimistic advance for fast rating
       labeledRef.current.add(keyOf(s));
       try {
         const r = await fetch('/api/manual-labels', {
@@ -261,16 +278,20 @@ export function HardExamplesQueue({
         );
       }
     },
-    [snapshots, idx, adjustCount],
+    [adjustCount, setCursor],
   );
 
-  const skip = useCallback(() => setIdx((i) => Math.min(i + 1, snapshots.length)), [snapshots.length]);
+  const skip = useCallback(
+    () => setCursor(Math.min(idxRef.current + 1, snapshotsRef.current.length)),
+    [setCursor],
+  );
 
   const undo = useCallback(async () => {
-    const prev = snapshots[idx - 1];
+    const i = idxRef.current;
+    const prev = snapshotsRef.current[i - 1];
     if (!prev) return;
     setSaveError(null);
-    setIdx((i) => Math.max(0, i - 1));
+    setCursor(Math.max(0, i - 1));
     // Stepping back over a skipped frame moves the cursor only — there is no
     // label to delete and nothing to add back to the counts.
     if (!labeledRef.current.has(keyOf(prev))) return;
@@ -290,7 +311,7 @@ export function HardExamplesQueue({
       labeledRef.current.add(keyOf(prev));
       setSaveError(`Undo failed (${e instanceof Error ? e.message : 'error'}).`);
     }
-  }, [snapshots, idx, adjustCount]);
+  }, [adjustCount, setCursor]);
 
   // Hotkeys: 1-5 = sunset + quality, N/0 = not a sunset, space = skip, z = undo.
   useEffect(() => {
