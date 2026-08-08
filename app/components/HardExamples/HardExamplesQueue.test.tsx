@@ -32,7 +32,7 @@ const FRAMES = [
 const COUNTS = { archiveTrained: 10, archiveNew: 5, flickr: 7 };
 
 function mockFetch({ saveOk = true }: { saveOk?: boolean } = {}) {
-  return vi.fn(async (url: string, init?: RequestInit) => {
+  return vi.fn(async (url: string) => {
     if (String(url).startsWith('/api/snapshots')) {
       return {
         ok: true,

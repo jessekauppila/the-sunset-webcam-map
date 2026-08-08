@@ -8,6 +8,15 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: ['./vitest.setup.ts'],
     globals: true,
+    // Nested checkouts carry a full copy of the suite, so anything left under
+    // .claude/worktrees/ or .worktrees/ makes every test run twice.
+    exclude: [
+      '**/node_modules/**',
+      '**/dist/**',
+      '**/.next/**',
+      '**/.claude/worktrees/**',
+      '**/.worktrees/**',
+    ],
   },
   resolve: {
     alias: {
