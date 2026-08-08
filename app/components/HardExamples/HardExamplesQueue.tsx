@@ -459,14 +459,14 @@ export function HardExamplesQueue({
               }}
             >
               {RUBRIC.map((r) => (
-                <Box key={r.key} sx={{ display: 'flex', gap: 0.75, alignItems: 'baseline', mb: 0.25 }}>
+                <Box key={r.key} sx={{ display: 'flex', gap: 0.75, alignItems: 'baseline' }}>
                   <Box
                     component="span"
                     sx={{
                       flexShrink: 0,
-                      width: 16,
+                      width: 14,
                       textAlign: 'center',
-                      fontSize: 10,
+                      fontSize: 9,
                       fontWeight: 700,
                       fontFamily: 'monospace',
                       color: r.positive ? '#60a5fa' : '#94a3b8',
@@ -474,13 +474,16 @@ export function HardExamplesQueue({
                   >
                     {r.key}
                   </Box>
-                  <Typography sx={{ fontSize: 10.5, lineHeight: 1.35, color: r.positive ? '#dbeafe' : '#9ca3af' }}>
+                  <Typography sx={{ fontSize: 9.5, lineHeight: 1.45, color: r.positive ? '#dbeafe' : '#9ca3af' }}>
                     {r.text}
                   </Typography>
                 </Box>
               ))}
-              <Typography sx={{ mt: 0.5, fontSize: 9.5, lineHeight: 1.35, color: '#64748b' }}>
-                4–5 = positive class for training; rate blind and judge the sky, not the framing.
+              <Typography sx={{ mt: 0.75, fontSize: 9, lineHeight: 1.4, color: '#64748b' }}>
+                4–5 = positive class for training; judge the sky, not the framing.
+              </Typography>
+              <Typography sx={{ fontSize: 9, lineHeight: 1.4, color: '#64748b' }}>
+                keys: <b>N</b>/<b>1</b>–<b>5</b> rate · <b>␣</b> skip · <b>z</b> undo
               </Typography>
             </Box>
           </Box>

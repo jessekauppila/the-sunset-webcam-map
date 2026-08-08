@@ -150,4 +150,16 @@ describe('HardExamplesQueue rubric legend', () => {
     expect(screen.getByText(/spectacular/)).toBeTruthy();
     expect(screen.getByText(/positive class for training/)).toBeTruthy();
   });
+
+  it('lists the hotkeys, including the two with no on-card button', async () => {
+    render(<HardExamplesQueue />);
+    await waitFor(() => expect(screen.getByText('Frame one')).toBeTruthy());
+
+    const keys = screen.getByText(/keys:/);
+    expect(keys.textContent).toContain('rate');
+    expect(keys.textContent).toContain('skip');
+    expect(keys.textContent).toContain('undo');
+    expect(keys.textContent).toContain('z');
+    expect(keys.textContent).toContain('␣');
+  });
 });
