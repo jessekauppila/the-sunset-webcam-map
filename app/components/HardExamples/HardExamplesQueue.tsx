@@ -33,6 +33,27 @@ const PROVENANCE: Record<Provenance, { label: string; bg: string }> = {
   archive_new: { label: 'Archive · new', bg: 'rgba(5,150,105,0.95)' },
 };
 
+// The server recomputes `counts` only when a batch is fetched (every BATCH
+// frames), so the bar would sit frozen while you rate. Adjust it locally per
+// label and let the next batch resync it.
+const COUNT_KEY: Record<Provenance, keyof Counts> = {
+  flickr: 'flickr',
+  archive_trained: 'archiveTrained',
+  archive_new: 'archiveNew',
+};
+
+// The condensed rating rubric, kept on-screen so the scale doesn't drift
+// between sessions. Labels normalize to (rating - 1) / 4, and the binary head
+// trains on >= 0.75 — so the 3/4 line is the only boundary the model sees.
+const RUBRIC: { key: string; text: string; positive?: boolean }[] = [
+  { key: 'N', text: 'not a sunset at all — day, night, fully obstructed' },
+  { key: '1', text: 'sunset, but zero color — flat gray' },
+  { key: '2', text: 'trace of color, washed out' },
+  { key: '3', text: 'real color, unremarkable' },
+  { key: '4', text: "vivid — you'd stop and look", positive: true },
+  { key: '5', text: 'spectacular — keep it rare', positive: true },
+];
+
 const WHY: Record<string, string> = {
   model_low_claude_sunset:
     'Model rated this low — Claude calls it a sunset. Likely a miss.',
@@ -119,6 +140,9 @@ export function HardExamplesQueue({
   const [error, setError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const loadingRef = useRef(false);
+  // Frames this session actually wrote a label for — distinguishes a rated
+  // frame from a skipped one when stepping backwards.
+  const labeledRef = useRef<Set<string>>(new Set());
 
   const fetchBatch = useCallback(
     async (offset: number, replace: boolean) => {
@@ -169,12 +193,23 @@ export function HardExamplesQueue({
 
   const current = snapshots[idx];
 
+  const adjustCount = useCallback((p: Provenance, delta: number) => {
+    setCounts((c) => {
+      const key = COUNT_KEY[p];
+      const next = { ...c };
+      next[key] = Math.max(0, next[key] + delta);
+      return next;
+    });
+  }, []);
+
   const rate = useCallback(
     async (rating: number, isSunset: boolean) => {
       const s = snapshots[idx];
       if (!s) return;
       setSaveError(null);
       setIdx((i) => i + 1); // optimistic advance for fast rating
+      adjustCount(s.provenance, -1);
+      labeledRef.current.add(keyOf(s));
       try {
         const r = await fetch('/api/manual-labels', {
           method: 'POST',
@@ -189,12 +224,14 @@ export function HardExamplesQueue({
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
       } catch (e) {
         // Never fail silently: the frame wasn't saved, so it stays in the queue.
+        adjustCount(s.provenance, +1);
+        labeledRef.current.delete(keyOf(s));
         setSaveError(
           `Couldn't save "${s.title || 'frame'}" (${e instanceof Error ? e.message : 'error'}). It's still in the queue — refresh to revisit it.`,
         );
       }
     },
-    [snapshots, idx],
+    [snapshots, idx, adjustCount],
   );
 
   const skip = useCallback(() => setIdx((i) => Math.min(i + 1, snapshots.length)), [snapshots.length]);
@@ -204,6 +241,11 @@ export function HardExamplesQueue({
     if (!prev) return;
     setSaveError(null);
     setIdx((i) => Math.max(0, i - 1));
+    // Stepping back over a skipped frame moves the cursor only — there is no
+    // label to delete and nothing to add back to the counts.
+    if (!labeledRef.current.has(keyOf(prev))) return;
+    labeledRef.current.delete(keyOf(prev));
+    adjustCount(prev.provenance, +1);
     try {
       const r = await fetch('/api/manual-labels', {
         method: 'DELETE',
@@ -212,9 +254,11 @@ export function HardExamplesQueue({
       });
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
     } catch (e) {
+      labeledRef.current.add(keyOf(prev));
+      adjustCount(prev.provenance, -1);
       setSaveError(`Undo failed (${e instanceof Error ? e.message : 'error'}).`);
     }
-  }, [snapshots, idx]);
+  }, [snapshots, idx, adjustCount]);
 
   // Hotkeys: 1-5 = sunset + quality, N/0 = not a sunset, space = skip, z = undo.
   useEffect(() => {
@@ -401,6 +445,43 @@ export function HardExamplesQueue({
             <Box sx={{ display: 'flex', gap: 1, justifyContent: 'center', mt: 0.5 }}>
               <Button size="small" onClick={skip} sx={{ color: '#9ca3af', fontSize: 11 }}>Skip (␣)</Button>
               <Button size="small" onClick={() => void undo()} disabled={idx === 0} sx={{ color: '#9ca3af', fontSize: 11 }}>Undo (z)</Button>
+            </Box>
+
+            {/* Rubric legend — the scale lives on-glass so it stays consistent
+                across sessions. See docs/ml/rating-rubric.md for the long form. */}
+            <Box
+              sx={{
+                mt: 1,
+                p: 1,
+                borderRadius: 1,
+                border: '1px solid rgba(255,255,255,0.08)',
+                background: 'rgba(255,255,255,0.02)',
+              }}
+            >
+              {RUBRIC.map((r) => (
+                <Box key={r.key} sx={{ display: 'flex', gap: 0.75, alignItems: 'baseline', mb: 0.25 }}>
+                  <Box
+                    component="span"
+                    sx={{
+                      flexShrink: 0,
+                      width: 16,
+                      textAlign: 'center',
+                      fontSize: 10,
+                      fontWeight: 700,
+                      fontFamily: 'monospace',
+                      color: r.positive ? '#60a5fa' : '#94a3b8',
+                    }}
+                  >
+                    {r.key}
+                  </Box>
+                  <Typography sx={{ fontSize: 10.5, lineHeight: 1.35, color: r.positive ? '#dbeafe' : '#9ca3af' }}>
+                    {r.text}
+                  </Typography>
+                </Box>
+              ))}
+              <Typography sx={{ mt: 0.5, fontSize: 9.5, lineHeight: 1.35, color: '#64748b' }}>
+                4–5 = positive class for training; rate blind and judge the sky, not the framing.
+              </Typography>
             </Box>
           </Box>
 
