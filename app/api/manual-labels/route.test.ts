@@ -5,6 +5,7 @@ import { NextResponse } from 'next/server';
 const requireOwnerMock = vi.fn();
 const upsertMock = vi.fn();
 const deleteMock = vi.fn();
+const countMock = vi.fn();
 
 vi.mock('@/app/lib/owner', () => ({
   requireOwner: (...a: unknown[]) => requireOwnerMock(...a),
@@ -12,7 +13,10 @@ vi.mock('@/app/lib/owner', () => ({
 vi.mock('@/app/lib/manualLabels', () => ({
   upsertManualLabel: (...a: unknown[]) => upsertMock(...a),
   deleteManualLabel: (...a: unknown[]) => deleteMock(...a),
+  countManualLabels: (...a: unknown[]) => countMock(...a),
 }));
+
+const SAVED = { id: 42, labeledAt: '2026-08-08T02:35:24.017Z' };
 
 import { POST, DELETE } from './route';
 
@@ -24,8 +28,9 @@ const post = (body: unknown) =>
 
 beforeEach(() => {
   requireOwnerMock.mockReset().mockResolvedValue(null);
-  upsertMock.mockReset().mockResolvedValue(undefined);
-  deleteMock.mockReset().mockResolvedValue(undefined);
+  upsertMock.mockReset().mockResolvedValue(SAVED);
+  deleteMock.mockReset().mockResolvedValue(1);
+  countMock.mockReset().mockResolvedValue(113);
 });
 
 describe('POST /api/manual-labels', () => {
@@ -39,6 +44,16 @@ describe('POST /api/manual-labels', () => {
     const res = await POST(post({ source: 'flickr', imageId: 7, isSunset: true, rating: 4 }));
     expect(res.status).toBe(200);
     expect(upsertMock).toHaveBeenCalledWith({ source: 'flickr', imageId: 7, isSunset: true, rating: 4 });
+  });
+  it('returns the stored row and the table total as proof of the write', async () => {
+    const res = await POST(post({ source: 'flickr', imageId: 7, isSunset: true, rating: 4 }));
+    await expect(res.json()).resolves.toEqual({ ok: true, saved: SAVED, labeledTotal: 113 });
+  });
+  it('fails loudly when the insert stores no row', async () => {
+    // A 200 here would let the queue count an unsaved frame as saved.
+    upsertMock.mockResolvedValue(null);
+    const res = await POST(post({ source: 'webcam', imageId: 7, isSunset: true, rating: 4 }));
+    expect(res.status).toBe(500);
   });
   it('rejects a bad source', async () => {
     const res = await POST(post({ source: 'nope', imageId: 1, isSunset: true }));
@@ -64,5 +79,6 @@ describe('DELETE /api/manual-labels', () => {
     const res = await DELETE(req);
     expect(res.status).toBe(200);
     expect(deleteMock).toHaveBeenCalledWith('webcam', 9);
+    await expect(res.json()).resolves.toEqual({ ok: true, removed: 1, labeledTotal: 113 });
   });
 });

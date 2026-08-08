@@ -133,16 +133,28 @@ export function HardExamplesQueue({
   const [source, setSource] = useState<'all' | 'webcam' | 'flickr'>('all');
 
   const [snapshots, setSnapshots] = useState<QueuedSnapshot[]>([]);
-  const [total, setTotal] = useState(0);
   const [counts, setCounts] = useState<Counts>({ archiveTrained: 0, archiveNew: 0, flickr: 0 });
   const [idx, setIdx] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
+  // Last write the database confirmed: its own row count and timestamp, never
+  // computed here. This is the "yes, it's recording" readout.
+  const [saved, setSaved] = useState<{ total: number | null; at: string | null }>({
+    total: null,
+    at: null,
+  });
+  // Set when the server hands back a short page (or nothing new), which is the
+  // only reliable end-of-queue signal: `total` shrinks as you label, so
+  // comparing it against a growing loaded list stops paging halfway through.
+  const [exhausted, setExhausted] = useState(false);
   const loadingRef = useRef(false);
   // Frames this session actually wrote a label for — distinguishes a rated
   // frame from a skipped one when stepping backwards.
   const labeledRef = useRef<Set<string>>(new Set());
+  // Keys of every frame currently loaded, so an appended page can be deduped
+  // without reading `snapshots` inside a state updater.
+  const loadedRef = useRef<Set<string>>(new Set());
 
   const fetchBatch = useCallback(
     async (offset: number, replace: boolean) => {
@@ -163,13 +175,23 @@ export function HardExamplesQueue({
           );
         const d = await r.json();
         const incoming: QueuedSnapshot[] = d.snapshots ?? [];
-        setTotal(d.total ?? 0);
         if (d.counts) setCounts(d.counts);
-        setSnapshots((prev) => {
-          if (replace) return incoming;
-          const seen = new Set(prev.map(keyOf));
-          return [...prev, ...incoming.filter((s) => !seen.has(keyOf(s)))];
-        });
+        if (replace) {
+          // Reset the session refs with the list, not ahead of it — a failed
+          // reload would otherwise leave the old frames with an empty label set
+          // and throw the offset off.
+          labeledRef.current = new Set();
+          loadedRef.current = new Set(incoming.map(keyOf));
+          setSnapshots(incoming);
+          setExhausted(incoming.length < BATCH);
+        } else {
+          const fresh = incoming.filter((s) => !loadedRef.current.has(keyOf(s)));
+          fresh.forEach((s) => loadedRef.current.add(keyOf(s)));
+          if (fresh.length) setSnapshots((prev) => [...prev, ...fresh]);
+          // A page that adds nothing new would otherwise re-trip the prefetch
+          // effect forever, so treat it as the end of the queue too.
+          setExhausted(incoming.length < BATCH || fresh.length === 0);
+        }
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Failed to load');
       } finally {
@@ -182,14 +204,18 @@ export function HardExamplesQueue({
 
   useEffect(() => {
     setIdx(0);
+    setExhausted(false);
     void fetchBatch(0, true);
   }, [fetchBatch]);
 
   useEffect(() => {
-    if (idx >= snapshots.length - 2 && snapshots.length < total && !loadingRef.current) {
-      void fetchBatch(snapshots.length, false);
-    }
-  }, [idx, snapshots.length, total, fetchBatch]);
+    if (exhausted || loadingRef.current) return;
+    if (snapshots.length === 0 || idx < snapshots.length - 2) return;
+    // The server excludes labeled frames, so paging by `snapshots.length` walks
+    // past that many frames we never saw. Only the frames we loaded but didn't
+    // label are still in the server's set ahead of the cursor — offset by those.
+    void fetchBatch(snapshots.length - labeledRef.current.size, false);
+  }, [idx, snapshots.length, exhausted, fetchBatch]);
 
   const current = snapshots[idx];
 
@@ -208,7 +234,6 @@ export function HardExamplesQueue({
       if (!s) return;
       setSaveError(null);
       setIdx((i) => i + 1); // optimistic advance for fast rating
-      adjustCount(s.provenance, -1);
       labeledRef.current.add(keyOf(s));
       try {
         const r = await fetch('/api/manual-labels', {
@@ -222,9 +247,14 @@ export function HardExamplesQueue({
           }),
         });
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        const d = await r.json();
+        if (!d?.saved?.id) throw new Error('no row returned');
+        // The bucket only moves once the row is on record, so a falling count
+        // is evidence the label persisted — not just that the click landed.
+        adjustCount(s.provenance, -1);
+        setSaved({ total: d.labeledTotal ?? null, at: d.saved.labeledAt ?? null });
       } catch (e) {
         // Never fail silently: the frame wasn't saved, so it stays in the queue.
-        adjustCount(s.provenance, +1);
         labeledRef.current.delete(keyOf(s));
         setSaveError(
           `Couldn't save "${s.title || 'frame'}" (${e instanceof Error ? e.message : 'error'}). It's still in the queue — refresh to revisit it.`,
@@ -245,7 +275,6 @@ export function HardExamplesQueue({
     // label to delete and nothing to add back to the counts.
     if (!labeledRef.current.has(keyOf(prev))) return;
     labeledRef.current.delete(keyOf(prev));
-    adjustCount(prev.provenance, +1);
     try {
       const r = await fetch('/api/manual-labels', {
         method: 'DELETE',
@@ -253,9 +282,12 @@ export function HardExamplesQueue({
         body: JSON.stringify({ source: labelSource(prev), imageId: prev.snapshot.id }),
       });
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const d = await r.json();
+      // Same rule in reverse: the bucket goes back up only once the row is gone.
+      adjustCount(prev.provenance, +1);
+      setSaved({ total: d?.labeledTotal ?? null, at: null });
     } catch (e) {
       labeledRef.current.add(keyOf(prev));
-      adjustCount(prev.provenance, -1);
       setSaveError(`Undo failed (${e instanceof Error ? e.message : 'error'}).`);
     }
   }, [snapshots, idx, adjustCount]);
@@ -333,6 +365,18 @@ export function HardExamplesQueue({
         <ToggleButton value="flickr">Flickr</ToggleButton>
       </ToggleButtonGroup>
       <Box sx={{ flex: 1 }} />
+      {saved.total != null && (
+        <Box
+          data-testid="saved-readout"
+          sx={{ display: 'flex', gap: 0.75, fontSize: 12, alignItems: 'center', color: '#6ee7b7' }}
+        >
+          <span>✓ saved</span>
+          <b>{saved.total}</b>
+          <span style={{ color: '#94a3b8' }}>
+            on record{saved.at ? ` · ${new Date(saved.at).toLocaleTimeString()}` : ''}
+          </span>
+        </Box>
+      )}
       <Box sx={{ display: 'flex', gap: 1.5, fontSize: 12, alignItems: 'center' }}>
         <span style={{ color: '#94a3b8' }}>left to rate:</span>
         <span style={{ color: '#cbd5e1' }}>Archive·trained <b>{counts.archiveTrained}</b></span>
