@@ -23,6 +23,9 @@ type QueuedSnapshot = Snapshot & {
 
 type Counts = { archiveTrained: number; archiveNew: number; flickr: number };
 
+/** A label this session wrote. `rating` is null when the frame isn't a sunset. */
+type MyLabel = { rating: number | null; isSunset: boolean };
+
 const BATCH = 120;
 const SIDE = 2; // thumbs each side (symmetric)
 const THUMB_W = 104;
@@ -77,6 +80,12 @@ const claudeText = (s: QueuedSnapshot): string => {
 };
 const modelText = (s: QueuedSnapshot): string =>
   s.aiRegressionScore == null ? 'Model —' : `Model ${(1 + s.aiRegressionScore * 4).toFixed(1)}★`;
+
+// The model score and Claude's verdict are fixed properties of the frame, so
+// neither moves when you rate. Your own label is the only line on the card that
+// reflects what you did — without it a rating, and its undo, are invisible.
+const myText = (l: MyLabel): string =>
+  l.isSunset ? `you: ${l.rating}★` : 'you: not a sunset';
 
 // Standardized rating button — neutral with one blue accent on hover.
 const stdBtn = {
@@ -148,10 +157,22 @@ export function HardExamplesQueue({
   // only reliable end-of-queue signal: `total` shrinks as you label, so
   // comparing it against a growing loaded list stops paging halfway through.
   const [exhausted, setExhausted] = useState(false);
+  // The rating just cleared by an undo, so stepping back reads as "that 4 is
+  // gone, rate it again" rather than as nothing happening.
+  const [undone, setUndone] = useState<{ key: string; label: MyLabel } | null>(null);
   const loadingRef = useRef(false);
-  // Frames this session actually wrote a label for — distinguishes a rated
-  // frame from a skipped one when stepping backwards.
-  const labeledRef = useRef<Set<string>>(new Set());
+  // Frames this session wrote a label for, and what the label was —
+  // distinguishes a rated frame from a skipped one when stepping backwards, and
+  // gives the queue something to render. A set of keys can't be shown on screen,
+  // which is why your own rating never appeared next to the judges'.
+  const labeledRef = useRef<Map<string, MyLabel>>(new Map());
+  // Render mirror; the ref stays the synchronous source of truth for the same
+  // reason the cursor is mirrored — a keypress must not read stale state.
+  const [labels, setLabels] = useState<Map<string, MyLabel>>(new Map());
+  // POSTs still in flight, by key. Undo has to wait on the save it is undoing:
+  // a DELETE that lands first removes nothing, the insert then wins, and the
+  // label stays on record while the queue reports it undone.
+  const pendingRef = useRef<Map<string, Promise<void>>>(new Map());
   // Keys of every frame currently loaded, so an appended page can be deduped
   // without reading `snapshots` inside a state updater.
   const loadedRef = useRef<Set<string>>(new Set());
@@ -170,6 +191,13 @@ export function HardExamplesQueue({
   const setFrames = useCallback((next: QueuedSnapshot[]) => {
     snapshotsRef.current = next;
     setSnapshots(next);
+  }, []);
+
+  // Write a label to the ref and the render mirror together; `null` removes it.
+  const setLabel = useCallback((key: string, label: MyLabel | null) => {
+    if (label) labeledRef.current.set(key, label);
+    else labeledRef.current.delete(key);
+    setLabels(new Map(labeledRef.current));
   }, []);
 
   const fetchBatch = useCallback(
@@ -196,7 +224,10 @@ export function HardExamplesQueue({
           // Reset the session refs with the list, not ahead of it — a failed
           // reload would otherwise leave the old frames with an empty label set
           // and throw the offset off.
-          labeledRef.current = new Set();
+          labeledRef.current = new Map();
+          pendingRef.current = new Map();
+          setLabels(new Map());
+          setUndone(null);
           loadedRef.current = new Set(incoming.map(keyOf));
           setFrames(incoming);
           setExhausted(incoming.length < BATCH);
@@ -249,53 +280,71 @@ export function HardExamplesQueue({
       const i = idxRef.current;
       const s = snapshotsRef.current[i];
       if (!s) return;
+      const key = keyOf(s);
       setSaveError(null);
+      setUndone(null);
       setCursor(i + 1); // optimistic advance for fast rating
-      labeledRef.current.add(keyOf(s));
-      try {
-        const r = await fetch('/api/manual-labels', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({
-            source: labelSource(s),
-            imageId: s.snapshot.id,
-            isSunset,
-            rating: isSunset ? rating : null,
-          }),
-        });
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        const d = await r.json();
-        if (!d?.saved?.id) throw new Error('no row returned');
-        // The bucket only moves once the row is on record, so a falling count
-        // is evidence the label persisted — not just that the click landed.
-        adjustCount(s.provenance, -1);
-        setSaved({ total: d.labeledTotal ?? null, at: d.saved.labeledAt ?? null });
-      } catch (e) {
-        // Never fail silently: the frame wasn't saved, so it stays in the queue.
-        labeledRef.current.delete(keyOf(s));
-        setSaveError(
-          `Couldn't save "${s.title || 'frame'}" (${e instanceof Error ? e.message : 'error'}). It's still in the queue — refresh to revisit it.`,
-        );
-      }
+      setLabel(key, { rating: isSunset ? rating : null, isSunset });
+      // Kept as a promise so an undo arriving mid-flight can wait for it.
+      const write = (async () => {
+        try {
+          const r = await fetch('/api/manual-labels', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({
+              source: labelSource(s),
+              imageId: s.snapshot.id,
+              isSunset,
+              rating: isSunset ? rating : null,
+            }),
+          });
+          if (!r.ok) throw new Error(`HTTP ${r.status}`);
+          const d = await r.json();
+          if (!d?.saved?.id) throw new Error('no row returned');
+          // The bucket only moves once the row is on record, so a falling count
+          // is evidence the label persisted — not just that the click landed.
+          adjustCount(s.provenance, -1);
+          setSaved({ total: d.labeledTotal ?? null, at: d.saved.labeledAt ?? null });
+        } catch (e) {
+          // Never fail silently: the frame wasn't saved, so it stays in the queue.
+          setLabel(key, null);
+          setSaveError(
+            `Couldn't save "${s.title || 'frame'}" (${e instanceof Error ? e.message : 'error'}). It's still in the queue — refresh to revisit it.`,
+          );
+        }
+      })();
+      pendingRef.current.set(key, write);
+      await write;
+      // Only clear the slot this call owns — a re-rate of the same frame may
+      // already have replaced it.
+      if (pendingRef.current.get(key) === write) pendingRef.current.delete(key);
     },
-    [adjustCount, setCursor],
+    [adjustCount, setCursor, setLabel],
   );
 
-  const skip = useCallback(
-    () => setCursor(Math.min(idxRef.current + 1, snapshotsRef.current.length)),
-    [setCursor],
-  );
+  const skip = useCallback(() => {
+    setUndone(null);
+    setCursor(Math.min(idxRef.current + 1, snapshotsRef.current.length));
+  }, [setCursor]);
 
   const undo = useCallback(async () => {
     const i = idxRef.current;
     const prev = snapshotsRef.current[i - 1];
     if (!prev) return;
+    const key = keyOf(prev);
     setSaveError(null);
+    setUndone(null);
     setCursor(Math.max(0, i - 1));
     // Stepping back over a skipped frame moves the cursor only — there is no
     // label to delete and nothing to add back to the counts.
-    if (!labeledRef.current.has(keyOf(prev))) return;
-    labeledRef.current.delete(keyOf(prev));
+    if (!labeledRef.current.has(key)) return;
+    // The rating's POST may still be open. Deleting first would remove nothing,
+    // the insert would land afterwards, and the row would survive the undo.
+    await pendingRef.current.get(key);
+    const label = labeledRef.current.get(key);
+    if (!label) return; // the save failed while we waited — nothing on record
+    setLabel(key, null);
+    setUndone({ key, label });
     try {
       const r = await fetch('/api/manual-labels', {
         method: 'DELETE',
@@ -304,14 +353,20 @@ export function HardExamplesQueue({
       });
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       const d = await r.json();
-      // Same rule in reverse: the bucket goes back up only once the row is gone.
+      // Same rule as saving, in reverse: the database's own row count is the
+      // proof. A delete that removed nothing is a failed undo, not a quiet
+      // success — reporting it as one is how a label outlives its undo.
+      if (!d?.removed) throw new Error('no row removed');
       adjustCount(prev.provenance, +1);
-      setSaved({ total: d?.labeledTotal ?? null, at: null });
+      setSaved({ total: d.labeledTotal ?? null, at: null });
     } catch (e) {
-      labeledRef.current.add(keyOf(prev));
-      setSaveError(`Undo failed (${e instanceof Error ? e.message : 'error'}).`);
+      setLabel(key, label);
+      setUndone(null);
+      setSaveError(
+        `Undo failed (${e instanceof Error ? e.message : 'error'}). The label is still on record.`,
+      );
     }
-  }, [adjustCount, setCursor]);
+  }, [adjustCount, setCursor, setLabel]);
 
   // Hotkeys: 1-5 = sunset + quality, N/0 = not a sunset, space = skip, z = undo.
   useEffect(() => {
@@ -343,6 +398,7 @@ export function HardExamplesQueue({
           }}
         />
       ); // visible empty slot → symmetric layout even before frames fill in
+    const mine = labels.get(keyOf(s));
     return (
       <Box sx={{ width: THUMB_W, flexShrink: 0, opacity: rated ? 0.85 : 0.6 }}>
         <Box sx={{ position: 'relative', borderRadius: 1, overflow: 'hidden', filter: rated ? 'none' : 'grayscale(0.3)' }}>
@@ -355,6 +411,14 @@ export function HardExamplesQueue({
             {modelText(s)}
             <br />
             {claudeText(s)}
+            {mine && (
+              <>
+                <br />
+                <Box component="span" sx={{ color: '#6ee7b7', fontWeight: 700 }}>
+                  {myText(mine)}
+                </Box>
+              </>
+            )}
           </Typography>
         )}
       </Box>
@@ -507,6 +571,28 @@ export function HardExamplesQueue({
                 {modelText(current)} · {claudeText(current)} (inspect)
               </Typography>
             )}
+            {/* Your own label on the frame in front of you — after an undo this
+                is the only thing that says the old rating is gone. */}
+            {(() => {
+              const mine = labels.get(keyOf(current));
+              const cleared = undone?.key === keyOf(current) ? undone.label : null;
+              if (!mine && !cleared) return null;
+              return (
+                <Typography
+                  data-testid="your-label"
+                  sx={{
+                    textAlign: 'center',
+                    fontSize: 12,
+                    fontWeight: 700,
+                    color: mine ? '#6ee7b7' : '#fbbf24',
+                  }}
+                >
+                  {mine
+                    ? `your rating: ${mine.isSunset ? `${mine.rating}★` : 'not a sunset'}`
+                    : `cleared your ${cleared!.isSunset ? `${cleared!.rating}★` : 'not a sunset'} — rate it again`}
+                </Typography>
+              );
+            })()}
             <Box sx={{ display: 'flex', gap: 1, justifyContent: 'center', mt: 0.5 }}>
               <Button size="small" onClick={skip} sx={{ color: '#9ca3af', fontSize: 11 }}>Skip (␣)</Button>
               <Button size="small" onClick={() => void undo()} disabled={idx === 0} sx={{ color: '#9ca3af', fontSize: 11 }}>Undo (z)</Button>
