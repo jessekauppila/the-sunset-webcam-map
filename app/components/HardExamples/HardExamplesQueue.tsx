@@ -125,8 +125,13 @@ const Badge = ({ p, small }: { p: Provenance; small?: boolean }) => (
 
 export function HardExamplesQueue({
   hotkeysEnabled = true,
+  // Page size. Overridable so the paging tests can reach the prefetch boundary
+  // in a handful of ratings instead of 118 — at the default they took ~0.5s of
+  // real renders each, which flaked against the 5s timeout under suite load.
+  batchSize = BATCH,
 }: {
   hotkeysEnabled?: boolean;
+  batchSize?: number;
 }) {
   const [blind, setBlind] = useState(true);
   const [view, setView] = useState<'queue' | 'grid'>('queue');
@@ -181,7 +186,7 @@ export function HardExamplesQueue({
       try {
         const srcParam = source === 'all' ? '' : `&source=${source}`;
         const r = await fetch(
-          `/api/snapshots?mode=verification&disagreements_only=true&limit=${BATCH}&offset=${offset}${srcParam}`,
+          `/api/snapshots?mode=verification&disagreements_only=true&limit=${batchSize}&offset=${offset}${srcParam}`,
         );
         if (!r.ok)
           throw new Error(
@@ -199,14 +204,14 @@ export function HardExamplesQueue({
           labeledRef.current = new Set();
           loadedRef.current = new Set(incoming.map(keyOf));
           setFrames(incoming);
-          setExhausted(incoming.length < BATCH);
+          setExhausted(incoming.length < batchSize);
         } else {
           const fresh = incoming.filter((s) => !loadedRef.current.has(keyOf(s)));
           fresh.forEach((s) => loadedRef.current.add(keyOf(s)));
           if (fresh.length) setFrames([...snapshotsRef.current, ...fresh]);
           // A page that adds nothing new would otherwise re-trip the prefetch
           // effect forever, so treat it as the end of the queue too.
-          setExhausted(incoming.length < BATCH || fresh.length === 0);
+          setExhausted(incoming.length < batchSize || fresh.length === 0);
         }
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Failed to load');
@@ -215,7 +220,7 @@ export function HardExamplesQueue({
         setLoading(false);
       }
     },
-    [source, setFrames],
+    [source, setFrames, batchSize],
   );
 
   useEffect(() => {

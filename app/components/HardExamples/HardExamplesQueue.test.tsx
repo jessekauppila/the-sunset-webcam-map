@@ -206,8 +206,13 @@ describe('HardExamplesQueue counts bar', () => {
   });
 });
 
-// A full-size page, so the component's prefetch-near-the-end path actually runs.
-const BATCH = 120;
+// A full page as far as the component is concerned, so the prefetch-near-the-end
+// path actually runs — but small, and passed in as `batchSize`. The boundary
+// logic is the same at 10 as at the production 120; the only difference is that
+// reaching it costs 8 ratings instead of 118. At 118 each of these tests did
+// ~0.5s of real renders and POSTs, which stretched past the 5s timeout when the
+// rest of the suite was competing for CPU.
+const BATCH = 10;
 const makePage = (prefix: string, n = BATCH) =>
   Array.from({ length: n }, (_, i) => ({
     id: `${prefix}-${i}`,
@@ -255,15 +260,15 @@ describe('HardExamplesQueue pagination', () => {
     const { fn, calls } = pagingFetch();
     vi.stubGlobal('fetch', fn);
     const user = userEvent.setup();
-    render(<HardExamplesQueue />);
+    render(<HardExamplesQueue batchSize={BATCH} />);
     await waitFor(() => expect(calls.length).toBe(1));
 
-    // Rate 116 and skip 2 — the cursor lands two from the end and trips the
+    // Rate 6 and skip 2 — the cursor lands two from the end and trips the
     // prefetch. Labeled frames leave the server's unlabeled set, so four of the
-    // 120 loaded frames are still in it: the 2 skipped and the 2 not yet
-    // reached. Paging by the loaded length (offset 120) would jump the 116
+    // 10 loaded frames are still in it: the 2 skipped and the 2 not yet
+    // reached. Paging by the loaded length (offset 10) would jump the 6
     // unseen frames that took the labeled ones' place.
-    await user.keyboard('4'.repeat(116));
+    await user.keyboard('4'.repeat(BATCH - 4));
     await user.keyboard('  ');
 
     await waitFor(() => expect(calls.length).toBe(2));
@@ -301,16 +306,16 @@ describe('HardExamplesQueue pagination', () => {
       }),
     );
     const user = userEvent.setup();
-    render(<HardExamplesQueue />);
+    render(<HardExamplesQueue batchSize={BATCH} />);
     await waitFor(() => expect(calls.length).toBe(1));
 
-    await user.keyboard('4'.repeat(118)); // trips the prefetch at frame 118
+    await user.keyboard('4'.repeat(BATCH - 2)); // trips the prefetch at frame 8
     await waitFor(() => expect(calls.length).toBe(2));
 
-    // Frames 118 and 119 close out page one; frame 120 must be next. Paging by
-    // the loaded length lands on frame 238 here and loses the 118 in between.
+    // Frames 8 and 9 close out page one; frame 10 must be next. Paging by the
+    // loaded length lands on frame 18 here and loses the 8 in between.
     await user.keyboard('4'.repeat(2));
-    await waitFor(() => expect(screen.getByText('pool frame 120')).toBeTruthy());
+    await waitFor(() => expect(screen.getByText('pool frame 10')).toBeTruthy());
   });
 
   it('stops paging once the server returns a short page', async () => {
@@ -330,7 +335,7 @@ describe('HardExamplesQueue pagination', () => {
       }),
     );
     const user = userEvent.setup();
-    render(<HardExamplesQueue />);
+    render(<HardExamplesQueue batchSize={BATCH} />);
     await waitFor(() => expect(calls.length).toBe(1));
 
     // A page shorter than BATCH means the queue is drained; running off the end
@@ -362,7 +367,7 @@ describe('HardExamplesQueue rapid rating', () => {
         } as Response;
       }),
     );
-    render(<HardExamplesQueue />);
+    render(<HardExamplesQueue batchSize={BATCH} />);
     await waitFor(() => expect(screen.getByText('burst frame 0')).toBeTruthy());
 
     // Five keydowns in one tick — the worst case a blocked main thread can
