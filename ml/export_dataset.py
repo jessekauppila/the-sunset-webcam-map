@@ -77,6 +77,34 @@ def load_llm_overrides(csv_path: str) -> dict[int, float]:
     return overrides
 
 
+def fetch_llm_labels_from_db(
+    conn: psycopg2.extensions.connection,
+) -> dict[int, dict[str, Any]]:
+    """Current LLM labels for webcam snapshots, straight from the database.
+
+    v4 was bound to a frozen CSV (ml/artifacts/llm_ratings/initial_ratings.csv,
+    29,605 rows) while the DB now holds 46,079 rated webcam frames — and the
+    CSV path cannot supply llm_is_sunset at all.
+
+    llm_is_sunset is populated on 100% of rated rows across both judge
+    campaigns (claude-sonnet-4-5 and claude-sonnet-5) as of 2026-08-28.
+    """
+    query = """
+    SELECT id, llm_quality, llm_is_sunset
+    FROM webcam_snapshots
+    WHERE llm_quality IS NOT NULL AND firebase_url IS NOT NULL
+    """
+    with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+        cur.execute(query)
+        return {
+            int(r["id"]): {
+                "quality": float(r["llm_quality"]),
+                "is_sunset": r["llm_is_sunset"],
+            }
+            for r in cur.fetchall()
+        }
+
+
 def merge_label(
     snapshot_id: int,
     human_value: float | None,
@@ -186,6 +214,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--llm-weight", type=float, default=0.7,
         help="LLM weight in weighted_average strategy (human gets 1 - this)",
+    )
+    parser.add_argument(
+        "--llm-label-source",
+        choices=["csv", "db"],
+        default="csv",
+        help="Where LLM labels come from. csv reads --llm-ratings-csv (v4 "
+             "behavior, quality only, frozen at 29,605 rows). db reads "
+             "webcam_snapshots.llm_* live and can supply llm_is_sunset.",
     )
     parser.add_argument("--no-progress", action="store_true")
 
@@ -404,6 +440,7 @@ def fetch_external_rows(
       CASE WHEN category = 'sunset' THEN 'sunset' ELSE 'other' END AS phase,
       scraped_at AS captured_at,
       llm_quality AS label_value,
+      llm_is_sunset AS is_sunset,
       0 AS rating_count,
       source AS data_source
     FROM external_images
@@ -474,7 +511,8 @@ def main() -> None:
     )
 
     llm_overrides: dict[int, float] = {}
-    if args.llm_ratings_csv:
+    llm_is_sunset_by_id: dict[int, bool] = {}
+    if args.llm_label_source == "csv" and args.llm_ratings_csv:
         llm_overrides = load_llm_overrides(args.llm_ratings_csv)
         print(f"  Loaded {len(llm_overrides)} LLM ratings from {args.llm_ratings_csv}")
 
@@ -483,6 +521,21 @@ def main() -> None:
     skipped_no_rating = 0
 
     with psycopg2.connect(database_url) as conn:
+        if args.llm_label_source == "db" and args.label_source != "gold":
+            db_labels = fetch_llm_labels_from_db(conn)
+            llm_overrides = {k: v["quality"] for k, v in db_labels.items()}
+            llm_is_sunset_by_id = {
+                k: v["is_sunset"] for k, v in db_labels.items()
+                if v["is_sunset"] is not None
+            }
+            use_llm_labels = (
+                bool(llm_overrides) and args.label_merge_strategy != "human_only"
+            )
+            print(
+                f"  Loaded {len(llm_overrides)} LLM ratings from the database "
+                f"({len(llm_is_sunset_by_id)} with llm_is_sunset)"
+            )
+
         # The gold path is self-contained: manual_labels supplies both sources
         # and its own labels, so the crowd-vote/LLM queries are skipped.
         if args.label_source == "gold":
@@ -520,8 +573,14 @@ def main() -> None:
 
             split = assign_split(int(row["webcam_id"]), split_cfg)
             if label_policy.target_type == "binary":
+                # The DB LLM source supplies llm_is_sunset; the CSV source
+                # cannot, so is_sunset mode raises there rather than
+                # silently labelling everything negative.
+                row_is_sunset = llm_is_sunset_by_id.get(
+                    row["snapshot_id"], row.get("is_sunset")
+                )
                 mapped_label = resolve_binary_label(
-                    final_value, row.get("is_sunset"), label_policy
+                    final_value, row_is_sunset, label_policy
                 )
             else:
                 mapped_label = map_label(float(final_value), label_policy)
@@ -607,6 +666,7 @@ def main() -> None:
             "label_source": args.label_source,
             "label_merge_strategy": args.label_merge_strategy,
             "llm_ratings_csv": args.llm_ratings_csv or None,
+            "llm_label_source": args.llm_label_source,
             "llm_overrides_count": len(llm_overrides),
             "target_type": args.target_type,
             "binary_threshold": args.binary_threshold,

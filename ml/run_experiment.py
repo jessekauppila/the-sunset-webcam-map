@@ -130,6 +130,14 @@ def main() -> None:
     if llm_weight is not None:
         export_cmd.extend(["--llm-weight", str(llm_weight)])
 
+    llm_label_source = str(cfg_get(data_cfg, "llm_label_source", ""))
+    if llm_label_source:
+        export_cmd.extend(["--llm-label-source", llm_label_source])
+
+    binary_label_from = str(cfg_get(data_cfg, "binary_label_from", ""))
+    if binary_label_from:
+        export_cmd.extend(["--binary-label-from", binary_label_from])
+
     if args.no_progress:
         export_cmd.append("--no-progress")
     run_cmd(export_cmd)
