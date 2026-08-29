@@ -419,7 +419,85 @@ production actually sees is 0.574.
 
 ---
 
-## 11. Environment state
+## 11. The real cause: `is_sunset` is the wrong target (2026-08-29)
+
+§10 concluded v5 over-fires on ordinary frames. This section identifies why,
+and it is **not** what §10 assumed.
+
+### The model learned the rubric correctly
+
+v5's score on the gold test split, by operator rating:
+
+| operator rating | n | mean score | % ≥ 0.5 |
+|---|---|---|---|
+| **N** (not a sunset) | 682 | 0.437 | **43%** |
+| 1 | 57 | 0.658 | 67% |
+| 2 | 100 | 0.812 | 83% |
+| 3 | 137 | 0.936 | 97% |
+| 4 | 135 | 0.974 | 99% |
+| 5 | 54 | 0.983 | 100% |
+
+Monotonic, and near-certain on 4s and 5s. **The model is not confused about
+quality — it ranks frames the way the operator does.**
+
+### The target definition is the defect
+
+The operator rubric (`docs/ml/rating-rubric.md`) defines **1** as "a sunset
+event is occurring and there is nothing to see" — dusk light over a field, a
+faint warm line on the horizon. Pressing `1` writes `is_sunset = true`.
+
+So training the binary head on `is_sunset` teaches it that **dim,
+near-colourless scenes are positives.** It then generalizes that to ordinary
+frames, where most dim scenes are simply blue hour with no sunset at all. That
+is precisely the observed failure: flat blue-hour twilight over snow, scored
+1.000.
+
+The rubric document already stated the product question — *"would I want this
+surfaced on the map?"* — and answered it as **rating ≥ 4**, not `is_sunset`.
+The v5 binary head was trained on the wrong end of its own scale.
+
+### Threshold tuning cannot fix it
+
+Ordinary-frame sweep: precision climbs only 0.574 → 0.637 across thresholds
+0.5 → 0.90 while recall falls 0.731 → 0.526, and balanced accuracy stays flat
+in 0.65–0.66. There is no operating point that recovers precision, because the
+model is faithfully reporting a definition that is too permissive.
+
+### Consequence: no relabeling and no Claude re-run are required
+
+The 1–5 ratings already encode the distinction. Only the **label derivation**
+has to change — a rating-threshold mode in `ml/export_dataset.py` alongside the
+existing `--binary-label-from {quality_threshold, is_sunset}`.
+
+Candidate positive classes, with gold-set counts (webcam + Flickr):
+
+| positive class | positives | negatives | operator meaning |
+|---|---|---|---|
+| `is_sunset` (rating ≥ 1) | 3,546 | 5,018 | current — includes "nothing to see" |
+| rating ≥ 2 | 3,020 | 5,544 | excludes colourless dusk |
+| **rating ≥ 3** | **2,370** | **6,194** | "clear it was a sunset" |
+| rating ≥ 4 | 1,375 | 7,189 | "would I show this" (the v4 intent) |
+
+Rating ≥ 3 or ≥ 4 is the natural product target. This is a cheap experiment —
+the same 40-minute training run with one config value changed — and it should
+be tried **before** the multi-hour LLM pretrain.
+
+### `llm_is_sunset` and operator `is_sunset` are different measurements
+
+Claude's `RATING_PROMPT` asks `is_sunset: <boolean — sunset OR sunrise
+visible?>` with `0.00 = no sunset/sunrise visible at all`. A colourless dusk is
+a **1** to the operator and plausibly `false / 0.0` to Claude. On the 1,096
+frames the operator marked not-a-sunset, Claude called 141 sunsets; across the
+1,224-frame overlap they disagreed 211 times.
+
+So §10's ordinary-frame score is measured against a **different question** than
+the model was trained on. The failure is real — three inspected false positives
+were genuinely not sunsets by either definition — but the magnitude is
+confounded, and the honest way to settle it is Task 5 below.
+
+---
+
+## 12. Environment state
 
 `.venv/bin/python3.11` symlinks to `/usr/local/opt/python@3.11/bin/python3.11`,
 which no longer exists — the Intel Homebrew prefix is gone (there is a
