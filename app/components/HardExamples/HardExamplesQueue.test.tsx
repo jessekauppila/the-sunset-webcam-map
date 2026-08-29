@@ -502,3 +502,112 @@ describe('HardExamplesQueue random-sample queue', () => {
     expect(screen.queryByText(/Judges disagree/)).toBeNull();
   });
 });
+
+
+describe('HardExamplesQueue population integrity (regression, 2026-08-29)', () => {
+  // What actually happened: the operator switched to the random sample, rated
+  // 120 frames, and every one was stored with origin 'hard_example'; then 151
+  // disagreement frames were appended into the same run and rated as if they
+  // were still the sample. Both failures came from reading the live queue mode
+  // at rating time instead of binding the population to the frame.
+  const FRAME = (id: number, kind: string | null = null) => ({
+    id: `w-${id}`, title: `F${id}`, source: 'webcam', provenance: 'archive_new',
+    modelDisagreementKind: kind, aiRegressionScore: 0.2,
+    llmIsSunset: true, llmQuality: 0.8,
+    snapshot: { id, firebaseUrl: `https://example.test/${id}.jpg` },
+  });
+
+  const bodies = () =>
+    (fetch as unknown as ReturnType<typeof vi.fn>).mock.calls
+      .filter((c) => String(c[0]).startsWith('/api/manual-labels'))
+      .map((c) => JSON.parse(String((c[1] as RequestInit)?.body)));
+
+  it('labels a sample frame with the sample origin even if the mode flips first', async () => {
+    let sampleServed = false;
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      const u = String(url);
+      if (u.startsWith('/api/snapshots')) {
+        const isSample = u.includes('sample=');
+        if (isSample) sampleServed = true;
+        return { ok: true, json: async () => ({
+          snapshots: [FRAME(1), FRAME(2)], total: 2,
+          counts: { archiveTrained: 0, archiveNew: 0, flickr: 0 },
+          sample: isSample ? { name: 'random_ordinary_v1', size: 200, labeled: 0 } : null,
+        })} as Response;
+      }
+      return labelResponse();
+    }));
+    render(<HardExamplesQueue />);
+    await screen.findByText('F1');
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Random sample' }));
+    });
+    expect(sampleServed).toBe(true);
+    // Simulate the mode reverting under the operator before they rate.
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Disagreements' }));
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Not a sunset (N)' }));
+    });
+    // Whatever the toggle now says, the frame on screen came from whichever
+    // fetch loaded it, and must be labeled as that population.
+    const origins = bodies().map((b) => b.origin);
+    expect(new Set(origins).size).toBe(1);
+  });
+
+  it('never appends frames from a different population into the loaded run', async () => {
+    // Page 1 is the sample; the mode flips; page 2 would be disagreements.
+    let call = 0;
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      const u = String(url);
+      if (u.startsWith('/api/snapshots')) {
+        const isSample = u.includes('sample=');
+        call += 1;
+        return { ok: true, json: async () => ({
+          snapshots: isSample
+            ? [FRAME(1), FRAME(2), FRAME(3)]
+            : [FRAME(90, 'model_low_claude_sunset'), FRAME(91, 'model_low_claude_sunset')],
+          total: 3,
+          counts: { archiveTrained: 0, archiveNew: 0, flickr: 0 },
+          sample: isSample ? { name: 'random_ordinary_v1', size: 200, labeled: 0 } : null,
+        })} as Response;
+      }
+      return labelResponse();
+    }));
+    render(<HardExamplesQueue batchSize={3} />);
+    // Mount serves the disagreement queue; switch to the sample from there.
+    await screen.findByText('F90');
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Random sample' }));
+    });
+    await screen.findByText('F1');
+    const before = screen.getByTestId('frame-population').textContent;
+    // Rate to the prefetch boundary; a disagreement page must not slide in.
+    await act(async () => { fireEvent.keyDown(window, { key: '0' }); });
+    await act(async () => { fireEvent.keyDown(window, { key: '0' }); });
+    expect(before).toMatch(/Random sample/);
+    expect(screen.queryByText('F90')).toBeNull();
+    expect(call).toBeGreaterThan(0);
+  });
+
+  it('does not call a sample "complete" when frames are still unrated', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      if (String(url).startsWith('/api/snapshots')) {
+        return { ok: true, json: async () => ({
+          snapshots: [], total: 0,
+          counts: { archiveTrained: 0, archiveNew: 0, flickr: 0 },
+          sample: { name: 'random_ordinary_v1', size: 200, labeled: 120 },
+        })} as Response;
+      }
+      return labelResponse();
+    }));
+    render(<HardExamplesQueue />);
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Random sample' }));
+    });
+    // 120 of 200 rated must never read as finished.
+    await waitFor(() => expect(screen.getByText(/still unrated/)).toBeTruthy());
+    expect(screen.queryByText(/Sample complete/)).toBeNull();
+  });
+});

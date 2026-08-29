@@ -19,6 +19,16 @@ type QueuedSnapshot = Snapshot & {
   provenance: Provenance;
   modelDisagreementKind: string | null;
   aiRegressionScore: number | null;
+  /** Which queue this frame was FETCHED from, stamped at fetch time.
+   *
+   *  Rating used to read the live `queue` state instead, which meant a frame
+   *  loaded from the sample could be written with the disagreement origin if
+   *  the mode changed in between — and on 2026-08-29 exactly that happened:
+   *  120 sample frames were stored as `hard_example`, and 151 disagreement
+   *  frames were then appended into the same run and rated as if they were
+   *  still the sample. A label's population is a property of the frame, not of
+   *  whatever the UI happens to be showing when the key is pressed. */
+  queueOrigin: string;
 };
 
 type Counts = { archiveTrained: number; archiveNew: number; flickr: number };
@@ -192,6 +202,10 @@ export function HardExamplesQueue({
       loadingRef.current = true;
       setLoading(true);
       setError(null);
+      // Read the mode ONCE, here, and carry it through this whole request. The
+      // request, the frames it returns and the origin they are labeled with all
+      // come from this single value, so they cannot disagree with each other.
+      const fetchOrigin = queue === 'sample' ? SAMPLE_NAME : 'hard_example';
       try {
         const srcParam = source === 'all' ? '' : `&source=${source}`;
         // The sample is a fixed set served in its own frozen order, so it takes
@@ -210,7 +224,11 @@ export function HardExamplesQueue({
               : `Failed to load (${r.status})`,
           );
         const d = await r.json();
-        const incoming: QueuedSnapshot[] = d.snapshots ?? [];
+        // Stamp the population onto every frame as it arrives, from the mode
+        // this request was actually issued with — not from state read later.
+        const incoming: QueuedSnapshot[] = (d.snapshots ?? []).map(
+          (s: QueuedSnapshot) => ({ ...s, queueOrigin: fetchOrigin }),
+        );
         if (d.counts) setCounts(d.counts);
         setSample(d.sample ?? null);
         if (replace) {
@@ -222,6 +240,13 @@ export function HardExamplesQueue({
           setFrames(incoming);
           setExhausted(incoming.length < batchSize);
         } else {
+          // Never blend populations into one list. If the mode changed between
+          // this page being requested and it arriving, drop the page: the
+          // reload effect owns the switch and will replace the list. Appending
+          // here is how 151 disagreement frames once got rated as if they were
+          // still part of the random sample.
+          const loadedOrigin = snapshotsRef.current[0]?.queueOrigin;
+          if (loadedOrigin && loadedOrigin !== fetchOrigin) return;
           const fresh = incoming.filter((s) => !loadedRef.current.has(keyOf(s)));
           fresh.forEach((s) => loadedRef.current.add(keyOf(s)));
           if (fresh.length) setFrames([...snapshotsRef.current, ...fresh]);
@@ -261,8 +286,8 @@ export function HardExamplesQueue({
   // the draw. Both are adjusted locally between batch fetches for the same
   // reason — the server only recomputes them per page.
   const adjustCount = useCallback(
-    (p: Provenance, delta: number) => {
-      if (queue === 'sample') {
+    (p: Provenance, delta: number, origin: string) => {
+      if (origin === SAMPLE_NAME) {
         setSample((s) =>
           s ? { ...s, labeled: Math.max(0, Math.min(s.size, s.labeled - delta)) } : s,
         );
@@ -275,7 +300,7 @@ export function HardExamplesQueue({
         return next;
       });
     },
-    [queue],
+    [],
   );
 
   const rate = useCallback(
@@ -295,10 +320,9 @@ export function HardExamplesQueue({
             imageId: s.snapshot.id,
             isSunset,
             rating: isSunset ? rating : null,
-            // Stamped on the row so the two populations stay separable after
-            // the fact — pooling hard cases with the random draw would undo
-            // exactly what the draw is for.
-            origin: queue === 'sample' ? SAMPLE_NAME : 'hard_example',
+            // From the FRAME, not from current state: the population is fixed
+            // when the frame is fetched and cannot drift before it is rated.
+            origin: s.queueOrigin,
           }),
         });
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
@@ -306,7 +330,7 @@ export function HardExamplesQueue({
         if (!d?.saved?.id) throw new Error('no row returned');
         // The bucket only moves once the row is on record, so a falling count
         // is evidence the label persisted — not just that the click landed.
-        adjustCount(s.provenance, -1);
+        adjustCount(s.provenance, -1, s.queueOrigin);
         setSaved({ total: d.labeledTotal ?? null, at: d.saved.labeledAt ?? null });
       } catch (e) {
         // Never fail silently: the frame wasn't saved, so it stays in the queue.
@@ -316,7 +340,7 @@ export function HardExamplesQueue({
         );
       }
     },
-    [adjustCount, setCursor, queue],
+    [adjustCount, setCursor],
   );
 
   const skip = useCallback(
@@ -343,7 +367,7 @@ export function HardExamplesQueue({
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       const d = await r.json();
       // Same rule in reverse: the bucket goes back up only once the row is gone.
-      adjustCount(prev.provenance, +1);
+      adjustCount(prev.provenance, +1, prev.queueOrigin);
       setSaved({ total: d?.labeledTotal ?? null, at: null });
     } catch (e) {
       labeledRef.current.add(keyOf(prev));
@@ -504,9 +528,14 @@ export function HardExamplesQueue({
         <Box sx={{ flex: 1, display: 'grid', placeItems: 'center', minHeight: '36vh' }}>
           <Typography sx={{ color: '#9ca3af' }}>
             {queue === 'sample'
-              ? sample && sample.size > 0
+              ? !sample || sample.size === 0
+                ? `No frames in sample "${SAMPLE_NAME}" — load it with ml/load_label_sample.py.`
+                : sample.labeled >= sample.size
                 ? `Sample complete — all ${sample.size} frames rated.`
-                : `No frames in sample "${SAMPLE_NAME}" — load it with ml/load_label_sample.py.`
+                : // Running out of LOADED frames is not the same as finishing
+                  // the sample. Saying "complete" here once hid 80 unrated
+                  // frames behind a green checkmark.
+                  `Paused at ${sample.labeled} of ${sample.size} — ${sample.size - sample.labeled} still unrated. Reload to continue.`
               : 'All caught up — no more flagged frames.'}
           </Typography>
         </Box>
@@ -559,8 +588,26 @@ export function HardExamplesQueue({
               </Box>
             </Box>
 
-            {/* text OUTSIDE the card */}
-            <Typography sx={{ textAlign: 'center', mt: 1, fontSize: 14, fontWeight: 600, color: '#f3f4f6' }}>
+            {/* Which population THIS frame belongs to, read off the frame.
+                The queue silently swapped populations mid-run once and the
+                only way to notice was reading the database afterwards. */}
+            <Typography
+              data-testid="frame-population"
+              sx={{
+                textAlign: 'center',
+                mt: 1,
+                fontSize: 10,
+                fontWeight: 700,
+                letterSpacing: 0.6,
+                textTransform: 'uppercase',
+                color: current.queueOrigin === SAMPLE_NAME ? '#6ee7b7' : '#94a3b8',
+              }}
+            >
+              {current.queueOrigin === SAMPLE_NAME
+                ? `Random sample${sample ? ` · ${sample.labeled} of ${sample.size}` : ''}`
+                : 'Disagreement queue'}
+            </Typography>
+            <Typography sx={{ textAlign: 'center', mt: 0.25, fontSize: 14, fontWeight: 600, color: '#f3f4f6' }}>
               {current.title || 'Untitled'}
               {current.owner ? ` · ${current.owner}` : ''}
             </Typography>
@@ -568,7 +615,7 @@ export function HardExamplesQueue({
               {/* Sample frames carry no disagreement — and saying one exists
                   would prime the rating, which is the one thing this set has
                   to avoid. */}
-              {queue === 'sample'
+              {current.queueOrigin === SAMPLE_NAME
                 ? 'Random ordinary frame — rate it on its own terms.'
                 : current.modelDisagreementKind
                 ? WHY[current.modelDisagreementKind] ?? 'Judges disagree on this frame.'
