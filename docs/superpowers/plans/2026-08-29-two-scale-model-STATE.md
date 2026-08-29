@@ -96,12 +96,32 @@ Full findings: `docs/superpowers/specs/2026-08-28-v5-gold-label-retrain-design.m
 | `v5_regression_gold` (all rows) | done, superseded | MAE 0.112, Pearson 0.854 |
 | `v5_binary_gold_r3` (rating ≥3) | done | F1 0.8354, balacc 0.8862, AUC 0.9559 |
 | `v5_binary_gold_r4` (rating ≥4) | **config written, not run** | — |
-| `v5_quality_sunsets_only` | **running** | — |
+| `v5_quality_sunsets_only` | done | MAE 0.180, Pearson **0.690** on 514 sunsets |
+
+**Quality-head result (2026-08-29).** Apples to apples on the identical 514
+sunset test frames:
+
+| | MAE | RMSE | Pearson |
+|---|---|---|---|
+| old head (all 8,564 rows) | 0.1828 | 0.2334 | 0.7249 |
+| new head (sunsets only) | 0.1799 | 0.2221 | 0.6900 |
+
+**A wash** — better MAE/RMSE, worse Pearson, n=514 on a single seed. The
+two-scale design is not a metrics win and must not be sold as one.
+
+**What it corrected:** the old head's headline Pearson of **0.854 was
+inflated.** That came from its full 1,212-row test set, 58% of which is
+non-sunsets pinned at 0.0 — trivially easy. On actual sunsets the same model
+scores 0.725. **Real quality discrimination sits near 0.70, not 0.85.**
+
+The design still stands: it separates two different questions, removes the
+N/rating-1 collision, composes at inference, reaches parity on 3.5x less data,
+and has the healthiest loss curve so far (val loss bottoms at epoch 10, not
+epoch 2). But the lever for improving it is **more quality labels** —
+Workstream 2 — not architecture.
 
 **Next steps, in order:**
-1. Read the `v5_quality_sunsets_only` result. Check the loss curve first — only
-   2,432 training images, so expect early overfitting.
-2. Run `v5_binary_gold_r4`.
+1. Run `v5_binary_gold_r4`.
 3. Export each detection variant to ONNX and score all of them on
    `ml/artifacts/datasets/holdout_ordinary/manifest_test.csv` via
    `ml/score_manifest.py`. **Read the precision trend across is_sunset → r3 →
