@@ -10,6 +10,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 
+from common.labels import LabelPolicy, resolve_binary_label  # noqa: E402
 from common.splits import SplitConfig  # noqa: E402
 from export_dataset import external_split  # noqa: E402
 
@@ -76,6 +77,57 @@ class TestExternalSplit(unittest.TestCase):
             1 for i in range(1, 500) if external_split(i, cfg) != assign_split(i, cfg)
         )
         self.assertGreater(differ, 100)
+
+
+class TestResolveBinaryLabel(unittest.TestCase):
+    """How the binary head's positive class gets decided.
+
+    v2-v4 used quality_threshold: positive means normalized llm_quality
+    cleared 0.75 ("rating >= 4"). Claude's quality scale tops out near 0.88
+    on webcam frames, so that fired on 90 of 46,079 webcam rows and left v4's
+    positive class 97.5% Flickr with 36 positive webcam training examples.
+    is_sunset takes the boolean directly, which is what the popup verdict
+    actually means.
+    """
+
+    QUALITY = LabelPolicy(target_type="binary", binary_threshold=0.75,
+                          binary_label_from="quality_threshold")
+    IS_SUNSET = LabelPolicy(target_type="binary", binary_threshold=0.75,
+                            binary_label_from="is_sunset")
+
+    def test_quality_mode_uses_the_score(self):
+        self.assertEqual(resolve_binary_label(0.80, None, self.QUALITY), 1)
+        self.assertEqual(resolve_binary_label(0.74, None, self.QUALITY), 0)
+
+    def test_quality_mode_is_inclusive_at_the_threshold(self):
+        self.assertEqual(resolve_binary_label(0.75, None, self.QUALITY), 1)
+
+    def test_quality_mode_ignores_is_sunset(self):
+        self.assertEqual(resolve_binary_label(0.10, True, self.QUALITY), 0)
+
+    def test_quality_mode_is_the_default(self):
+        # v4 configs set no binary_label_from, so the default must reproduce
+        # the old behavior or v4 stops being reproducible.
+        self.assertEqual(LabelPolicy().binary_label_from, "quality_threshold")
+
+    def test_is_sunset_mode_uses_the_boolean(self):
+        self.assertEqual(resolve_binary_label(0.10, True, self.IS_SUNSET), 1)
+        self.assertEqual(resolve_binary_label(0.90, False, self.IS_SUNSET), 0)
+
+    def test_is_sunset_mode_ignores_the_quality_score(self):
+        # The 13 operator-rated 4s and 5s that Claude scored at ~0.0 are
+        # exactly why: the boolean has to win outright.
+        self.assertEqual(resolve_binary_label(0.0, True, self.IS_SUNSET), 1)
+
+    def test_is_sunset_mode_rejects_a_missing_boolean(self):
+        # A row with no is_sunset must never silently become a negative —
+        # that is how a whole class quietly vanishes from a training set.
+        with self.assertRaises(ValueError):
+            resolve_binary_label(0.5, None, self.IS_SUNSET)
+
+    def test_quality_mode_rejects_a_missing_score(self):
+        with self.assertRaises(ValueError):
+            resolve_binary_label(None, True, self.QUALITY)
 
 
 if __name__ == "__main__":

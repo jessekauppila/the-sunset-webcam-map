@@ -25,7 +25,7 @@ from tqdm.auto import tqdm
 import pandas as pd
 
 from common.io import ensure_dir, env_required, utc_timestamp, write_csv, write_json
-from common.labels import LabelPolicy, map_label
+from common.labels import LabelPolicy, map_label, resolve_binary_label
 from common.splits import SplitConfig, assign_split, stable_bucket
 
 
@@ -136,6 +136,15 @@ def parse_args() -> argparse.Namespace:
     # NOT the raw 1-5 rating. (rating - 1) / 4 = 0.75 corresponds to
     # "rating >= 4". See ml/common/labels.py docstring.
     parser.add_argument("--binary-threshold", type=float, default=0.75)
+    parser.add_argument(
+        "--binary-label-from",
+        choices=["quality_threshold", "is_sunset"],
+        default="quality_threshold",
+        help="How the binary class is derived. quality_threshold reproduces "
+             "v2-v4 (normalized quality >= --binary-threshold). is_sunset "
+             "takes the boolean label directly, which needs a source that "
+             "supplies one (--label-source gold, or --llm-label-source db).",
+    )
     parser.add_argument("--min-rating-count", type=int, default=2)
     parser.add_argument("--seed", type=int, default=20260212)
     parser.add_argument("--train-pct", type=int, default=70)
@@ -336,6 +345,7 @@ def main() -> None:
     label_policy = LabelPolicy(
         target_type=args.target_type,
         binary_threshold=args.binary_threshold,
+        binary_label_from=args.binary_label_from,
     )
 
     llm_overrides: dict[int, float] = {}
@@ -377,7 +387,12 @@ def main() -> None:
                 effective_label_source = args.label_source
 
             split = assign_split(int(row["webcam_id"]), split_cfg)
-            mapped_label = map_label(float(final_value), label_policy)
+            if label_policy.target_type == "binary":
+                mapped_label = resolve_binary_label(
+                    final_value, row.get("is_sunset"), label_policy
+                )
+            else:
+                mapped_label = map_label(float(final_value), label_policy)
             manifest.append(
                 {
                     "snapshot_id": row["snapshot_id"],
@@ -406,7 +421,12 @@ def main() -> None:
                 # External images bucket in their own "ext_" namespace so they
                 # don't inherit the split of a like-numbered webcam.
                 split = external_split(int(row["snapshot_id"]), split_cfg)
-                mapped_label = map_label(float(row["label_value"]), label_policy)
+                if label_policy.target_type == "binary":
+                    mapped_label = resolve_binary_label(
+                        row["label_value"], row.get("is_sunset"), label_policy
+                    )
+                else:
+                    mapped_label = map_label(float(row["label_value"]), label_policy)
                 manifest.append(
                     {
                         "snapshot_id": row["snapshot_id"],
@@ -452,6 +472,7 @@ def main() -> None:
             "llm_overrides_count": len(llm_overrides),
             "target_type": args.target_type,
             "binary_threshold": args.binary_threshold,
+            "binary_label_from": args.binary_label_from,
             "min_rating_count": args.min_rating_count,
             "include_external": args.include_external,
             "split_config": asdict(split_cfg),
