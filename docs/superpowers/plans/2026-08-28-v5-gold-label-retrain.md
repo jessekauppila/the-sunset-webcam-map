@@ -2,6 +2,19 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+
+> **Status 2026-08-29: Tasks 1–8 complete** (commits `40127c510` … `0e9d6e8f3`
+> on `feat/kiosk-url-tuning`; all `ml/`-scoped and cherry-pickable onto a clean
+> branch). Results in design spec §8–§9. **Task 9 (LLM pretrain → gold
+> fine-tune) and Task 10 (deploy) are not started** — Task 9 is a multi-hour
+> 52k-image job, Task 10 needs env-var changes that are classifier-blocked in
+> Claude Code. An unplanned augmentation A/B was also run
+> (`ml/configs/v5_binary_gold_aug.yaml`): it did **not** fix the overfitting.
+>
+> Headline: v4 scores **F1 0.089** on operator-labeled webcam frames; v5 scores
+> **0.874** on the byte-identical split. But val loss bottoms at epoch 2 —
+> the model memorizes after that — so **do not ship on these runs alone.**
+
 **Goal:** Make the 8,564 operator gold labels usable by the training pipeline, measure what v4 actually does on them, and train a v5 is-sunset head and quality head on them.
 
 **Architecture:** `ml/export_dataset.py` gains a `gold` label source that reads `manual_labels`, a `--binary-label-from is_sunset` flag so the binary head can learn "is it a sunset" instead of "is `llm_quality >= 0.75`", and a DB-backed LLM label supply replacing the frozen CSV. Everything downstream of the dataset manifest (`train.py`, `evaluate.py`, `export_onnx*.py`, the production scorer) is unchanged — the ONNX output shape stays `[1,2]`, so deployment is a version bump.
@@ -46,7 +59,7 @@
 **Interfaces:**
 - Produces: a working `.venv` whose `python` imports `torch`, `torchvision`, `onnxruntime`, `psycopg2`.
 
-- [ ] **Step 1: Confirm the venv is actually broken**
+- [x] **Step 1: Confirm the venv is actually broken**
 
 ```bash
 ls -l .venv/bin/python3.11
@@ -55,7 +68,7 @@ ls -l /usr/local/opt/python@3.11/bin/python3.11 2>&1
 
 Expected: the symlink points at `/usr/local/opt/python@3.11/bin/python3.11`, and that target does not exist.
 
-- [ ] **Step 2: Move the dead venv aside and rebuild**
+- [x] **Step 2: Move the dead venv aside and rebuild**
 
 `.venv.intel.bak` already exists from a previous attempt — do not overwrite it.
 
@@ -65,7 +78,7 @@ mv .venv .venv.dead-intel-symlink
 .venv/bin/python -m pip install --upgrade pip
 ```
 
-- [ ] **Step 3: Install requirements**
+- [x] **Step 3: Install requirements**
 
 ```bash
 .venv/bin/python -m pip install -r ml/requirements.txt
@@ -77,7 +90,7 @@ cp311 wheels; only if that fails, move to `torch==2.5.1` +
 `torchvision==0.20.1`) and record the change in the commit message. Do not
 switch Python versions to keep the old pin.
 
-- [ ] **Step 4: Verify the stack imports and ONNX loads**
+- [x] **Step 4: Verify the stack imports and ONNX loads**
 
 ```bash
 .venv/bin/python -c "import torch, torchvision, onnxruntime, psycopg2; print(torch.__version__, torchvision.__version__, onnxruntime.__version__)"
@@ -86,7 +99,7 @@ switch Python versions to keep the old pin.
 
 Expected: versions print, and the ONNX session reports output shape `[1, 2]`.
 
-- [ ] **Step 5: Verify the existing Python tests still pass**
+- [x] **Step 5: Verify the existing Python tests still pass**
 
 ```bash
 .venv/bin/python -m unittest ml.test_publish_run ml.test_llm_rater_triage -v
@@ -95,7 +108,7 @@ Expected: versions print, and the ONNX session reports output shape `[1, 2]`.
 Expected: PASS. (`ml.test_generate_failure_gallery` may need matplotlib — if it
 errors on import rather than assertion, note it and move on.)
 
-- [ ] **Step 6: Clean up and commit**
+- [x] **Step 6: Clean up and commit**
 
 ```bash
 rm -rf .venv.dead-intel-symlink
@@ -122,7 +135,7 @@ Measured impact: comparing the two v4 runs' saved manifests, **2,718 of 5,767 Fl
 - Consumes: `ml.common.splits.stable_bucket(group_key: str, seed: int) -> int`, `SplitConfig`
 - Produces: `external_split(external_id: int, config: SplitConfig) -> str`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `ml/test_export_dataset.py`:
 
@@ -162,7 +175,7 @@ if __name__ == "__main__":
     unittest.main()
 ```
 
-- [ ] **Step 2: Run it to confirm it fails**
+- [x] **Step 2: Run it to confirm it fails**
 
 ```bash
 .venv/bin/python -m unittest ml.test_export_dataset -v
@@ -170,7 +183,7 @@ if __name__ == "__main__":
 
 Expected: `ImportError: cannot import name 'external_split'`.
 
-- [ ] **Step 3: Implement `external_split`**
+- [x] **Step 3: Implement `external_split`**
 
 In `ml/export_dataset.py`, add after the imports:
 
@@ -199,7 +212,7 @@ Update the import line to bring in `stable_bucket`:
 from common.splits import SplitConfig, assign_split, stable_bucket
 ```
 
-- [ ] **Step 4: Use it in the external branch**
+- [x] **Step 4: Use it in the external branch**
 
 Replace:
 
@@ -216,7 +229,7 @@ with:
                 split = external_split(int(row["snapshot_id"]), split_cfg)
 ```
 
-- [ ] **Step 5: Run the tests**
+- [x] **Step 5: Run the tests**
 
 ```bash
 .venv/bin/python -m unittest ml.test_export_dataset -v
@@ -224,7 +237,7 @@ with:
 
 Expected: PASS (4 tests).
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git rev-parse --abbrev-ref HEAD
@@ -251,7 +264,7 @@ Today the binary head's label is `llm_quality >= 0.75`. On webcam frames that fi
 - Consumes: `external_split` (Task 2)
 - Produces: CLI flag `--binary-label-from {quality_threshold,is_sunset}` (default `quality_threshold`); `ml.common.labels.resolve_binary_label(label_value: float | None, is_sunset: bool | None, policy: LabelPolicy) -> int`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append to `ml/test_export_dataset.py`:
 
@@ -286,7 +299,7 @@ class TestResolveBinaryLabel(unittest.TestCase):
             resolve_binary_label(0.5, None, policy)
 ```
 
-- [ ] **Step 2: Run it to confirm it fails**
+- [x] **Step 2: Run it to confirm it fails**
 
 ```bash
 .venv/bin/python -m unittest ml.test_export_dataset -v
@@ -294,7 +307,7 @@ class TestResolveBinaryLabel(unittest.TestCase):
 
 Expected: `ImportError: cannot import name 'resolve_binary_label'`.
 
-- [ ] **Step 3: Implement in `ml/common/labels.py`**
+- [x] **Step 3: Implement in `ml/common/labels.py`**
 
 Add the field to `LabelPolicy`:
 
@@ -334,7 +347,7 @@ def resolve_binary_label(
     return to_binary(float(label_value), policy.binary_threshold)
 ```
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
 
 ```bash
 .venv/bin/python -m unittest ml.test_export_dataset -v
@@ -342,7 +355,7 @@ def resolve_binary_label(
 
 Expected: PASS (8 tests).
 
-- [ ] **Step 5: Wire the flag into `ml/export_dataset.py`**
+- [x] **Step 5: Wire the flag into `ml/export_dataset.py`**
 
 In `parse_args`:
 
@@ -384,7 +397,7 @@ Import it: `from common.labels import LabelPolicy, map_label, resolve_binary_lab
 Add `"binary_label_from": args.binary_label_from` to the `meta` dict so every
 export records which rule produced its labels.
 
-- [ ] **Step 6: Verify v4 is still reproducible**
+- [x] **Step 6: Verify v4 is still reproducible**
 
 The existing v4 config sets no `binary_label_from`, so it must default to the
 old behavior and produce the same class counts as the shipped run.
@@ -408,7 +421,7 @@ git commit -m "feat(ml): add --binary-label-from so the binary head can learn is
 - Consumes: `resolve_binary_label` (Task 3), `external_split` (Task 2)
 - Produces: `--label-source gold`; `fetch_gold_rows(conn) -> list[dict]` returning rows with keys `snapshot_id, webcam_id, image_path_or_url, phase, captured_at, label_value, is_sunset, rating_count, data_source`
 
-- [ ] **Step 1: Write the failing test for the gold label mapping**
+- [x] **Step 1: Write the failing test for the gold label mapping**
 
 The SQL needs a live DB, so unit-test the pure mapping and cover the SQL in Step 6's real export. Append to `ml/test_export_dataset.py`:
 
@@ -434,7 +447,7 @@ class TestGoldLabelValue(unittest.TestCase):
         self.assertIsNone(gold_label_value(is_sunset=True, rating=None))
 ```
 
-- [ ] **Step 2: Run it to confirm it fails**
+- [x] **Step 2: Run it to confirm it fails**
 
 ```bash
 .venv/bin/python -m unittest ml.test_export_dataset -v
@@ -442,7 +455,7 @@ class TestGoldLabelValue(unittest.TestCase):
 
 Expected: `ImportError: cannot import name 'gold_label_value'`.
 
-- [ ] **Step 3: Implement `gold_label_value`**
+- [x] **Step 3: Implement `gold_label_value`**
 
 ```python
 def gold_label_value(is_sunset: bool, rating: int | None) -> float | None:
@@ -459,7 +472,7 @@ def gold_label_value(is_sunset: bool, rating: int | None) -> float | None:
     return max(0.0, min(1.0, (float(rating) - 1.0) / 4.0))
 ```
 
-- [ ] **Step 4: Implement `fetch_gold_rows`**
+- [x] **Step 4: Implement `fetch_gold_rows`**
 
 ```python
 def fetch_gold_rows(
@@ -505,7 +518,7 @@ def fetch_gold_rows(
         return [dict(row) for row in cur.fetchall()]
 ```
 
-- [ ] **Step 5: Branch on it in `main`**
+- [x] **Step 5: Branch on it in `main`**
 
 Add `"gold"` to the `--label-source` choices, then at the top of the `with
 psycopg2.connect(...)` block:
@@ -553,7 +566,7 @@ psycopg2.connect(...)` block:
 
 Add `"skipped_no_rating": skipped_no_rating` to `meta` when the gold path ran.
 
-- [ ] **Step 6: Run a real gold export and check the counts against the spec**
+- [x] **Step 6: Run a real gold export and check the counts against the spec**
 
 ```bash
 .venv/bin/python -m unittest ml.test_export_dataset -v
@@ -573,7 +586,7 @@ Expected, cross-checked against the design spec §1:
 
 If the totals differ, stop and reconcile against the spec's SQL before training anything.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git rev-parse --abbrev-ref HEAD
@@ -593,7 +606,7 @@ v4 was bound to `ml/artifacts/llm_ratings/initial_ratings.csv` (29,605 rows) whi
 **Interfaces:**
 - Produces: `--llm-label-source {csv,db}` (default `csv`); `fetch_llm_labels_from_db(conn) -> dict[int, dict]` keyed by snapshot_id with `{"quality": float, "is_sunset": bool}`
 
-- [ ] **Step 1: Implement the fetch**
+- [x] **Step 1: Implement the fetch**
 
 ```python
 def fetch_llm_labels_from_db(
@@ -621,7 +634,7 @@ def fetch_llm_labels_from_db(
         }
 ```
 
-- [ ] **Step 2: Add the flag and use it**
+- [x] **Step 2: Add the flag and use it**
 
 ```python
     parser.add_argument(
@@ -642,7 +655,7 @@ rec["is_sunset"]}`. In the webcam manifest loop, pass
 
 Record `"llm_label_source": args.llm_label_source` and the row count in `meta`.
 
-- [ ] **Step 3: Add the passthrough in `ml/run_experiment.py`**
+- [x] **Step 3: Add the passthrough in `ml/run_experiment.py`**
 
 Alongside the existing `llm_ratings_csv` handling:
 
@@ -656,7 +669,7 @@ Alongside the existing `llm_ratings_csv` handling:
         export_cmd.extend(["--binary-label-from", binary_label_from])
 ```
 
-- [ ] **Step 4: Verify against the spec's counts**
+- [x] **Step 4: Verify against the spec's counts**
 
 ```bash
 set -a; . ./.env.local; set +a
@@ -671,7 +684,7 @@ Expected: ~46,079 webcam rows; webcam positive count near **21,061** (the
 `llm_is_sunset = true` count in the spec) rather than the 90 the quality
 threshold would give.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git rev-parse --abbrev-ref HEAD
@@ -693,7 +706,7 @@ v4's published F1 0.836 was measured on a test set with 4 positive webcam frames
 - Consumes: a manifest CSV (`image_path_or_url`, `target_label`, `source`) and an ONNX path
 - Produces: `binary_metrics(y_true: list[int], y_score: list[float], threshold: float) -> dict` with keys `precision, recall, f1, balanced_accuracy, confusion{tn,fp,fn,tp}`; a JSON report at `--output`
 
-- [ ] **Step 1: Write the failing metrics test**
+- [x] **Step 1: Write the failing metrics test**
 
 Create `ml/test_score_manifest.py`:
 
@@ -730,7 +743,7 @@ if __name__ == "__main__":
     unittest.main()
 ```
 
-- [ ] **Step 2: Run it to confirm it fails**
+- [x] **Step 2: Run it to confirm it fails**
 
 ```bash
 .venv/bin/python -m unittest ml.test_score_manifest -v
@@ -738,7 +751,7 @@ if __name__ == "__main__":
 
 Expected: `ModuleNotFoundError: No module named 'ml.score_manifest'`.
 
-- [ ] **Step 3: Implement `ml/score_manifest.py`**
+- [x] **Step 3: Implement `ml/score_manifest.py`**
 
 ```python
 #!/usr/bin/env python3
@@ -865,7 +878,7 @@ if __name__ == "__main__":
     main()
 ```
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
 
 ```bash
 .venv/bin/python -m unittest ml.test_score_manifest -v
@@ -873,7 +886,7 @@ if __name__ == "__main__":
 
 Expected: PASS (4 tests).
 
-- [ ] **Step 5: Export the gold test split and score v4 against it**
+- [x] **Step 5: Export the gold test split and score v4 against it**
 
 ```bash
 set -a; . ./.env.local; set +a
@@ -894,14 +907,14 @@ Then, using the timestamped folder it printed:
 This downloads images not yet cached — expect it to be slow the first time
 (most of the 8,564 gold images are uncached).
 
-- [ ] **Step 6: Record the baseline in the spec**
+- [x] **Step 6: Record the baseline in the spec**
 
 Append the resulting overall and per-source F1 / precision / recall to
 `docs/superpowers/specs/2026-08-28-v5-gold-label-retrain-design.md` under a new
 `## 8. Measured v4 baseline on gold` heading. **This is the number every v5 run
 gets compared against** — state it plainly, whatever it is.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git rev-parse --abbrev-ref HEAD
@@ -921,7 +934,7 @@ git commit -m "feat(ml): score any manifest with any ONNX; record v4 gold baseli
 **Interfaces:**
 - Consumes: `--label-source gold`, `--binary-label-from is_sunset`, `binary_label_from` passthrough (Tasks 3–5)
 
-- [ ] **Step 1: Write the config**
+- [x] **Step 1: Write the config**
 
 ```yaml
 run:
@@ -999,7 +1012,7 @@ metrics:
   threshold_sweep_step: 0.05
 ```
 
-- [ ] **Step 2: Run it**
+- [x] **Step 2: Run it**
 
 ```bash
 set -a; . ./.env.local; set +a
@@ -1009,7 +1022,7 @@ set -a; . ./.env.local; set +a
 Expect ~35–45 min once images are cached, plus a first-run download of roughly
 7,956 images.
 
-- [ ] **Step 3: Sanity-check the class counts before trusting the metrics**
+- [x] **Step 3: Sanity-check the class counts before trusting the metrics**
 
 ```bash
 R=$(ls -dt ml/artifacts/experiments/*_v5_binary_gold | head -1)
@@ -1022,7 +1035,7 @@ Expected: `target_distribution.full` shows ~3,546 positive / ~5,018 negative —
 `binary_label_from` passthrough is not reaching the export; stop and fix Task 5
 Step 3 before reading any metric.
 
-- [ ] **Step 4: Compare against the v4 gold baseline**
+- [x] **Step 4: Compare against the v4 gold baseline**
 
 ```bash
 .venv/bin/python ml/compare_experiments.py \
@@ -1032,7 +1045,7 @@ Step 3 before reading any metric.
 The number that matters is v5's test F1 **versus the Task 6 baseline**, not
 versus v4's self-reported 0.836.
 
-- [ ] **Step 5: Inspect the diagnostic plots**
+- [x] **Step 5: Inspect the diagnostic plots**
 
 ```bash
 open $R/plots/label_distribution.png $R/plots/loss_curves.png
@@ -1042,7 +1055,7 @@ Check for the v4 overfitting signature (train loss → ~0.002 while val loss
 climbs). With 6k training images this is a real risk; if it appears, note it
 for a follow-up run with stronger augmentation rather than more epochs.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git rev-parse --abbrev-ref HEAD
@@ -1057,7 +1070,7 @@ git commit -m "feat(ml): v5 gold-only is-sunset head"
 **Files:**
 - Create: `ml/configs/v5_regression_gold.yaml`
 
-- [ ] **Step 1: Write the config**
+- [x] **Step 1: Write the config**
 
 Copy `v5_binary_gold.yaml` with these changes:
 
@@ -1090,14 +1103,14 @@ metrics:
   threshold_sweep_step: 0.05
 ```
 
-- [ ] **Step 2: Run it**
+- [x] **Step 2: Run it**
 
 ```bash
 set -a; . ./.env.local; set +a
 .venv/bin/python ml/run_training.py --config ml/configs/v5_regression_gold.yaml
 ```
 
-- [ ] **Step 3: Check the label distribution is what you expect**
+- [x] **Step 3: Check the label distribution is what you expect**
 
 ```bash
 R=$(ls -dt ml/artifacts/experiments/*_v5_regression_gold | head -1)
@@ -1106,7 +1119,7 @@ cat $R/dataset/*/export_meta.json | python3 -c "import json,sys; print(json.load
 
 Expected: mean well below 0.5 (5,018 of 8,564 rows are 0.0), max 1.0.
 
-- [ ] **Step 4: Read the metrics and plots**
+- [x] **Step 4: Read the metrics and plots**
 
 ```bash
 cat $R/eval/eval_report.json
@@ -1118,7 +1131,7 @@ Compare Pearson/MAE against the v4 regression run
 the two are measured against **different label sets** and so are not directly
 comparable — the gold number is the one that describes operator agreement.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git rev-parse --abbrev-ref HEAD

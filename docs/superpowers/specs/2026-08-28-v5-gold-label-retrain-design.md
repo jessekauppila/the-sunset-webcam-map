@@ -299,7 +299,66 @@ positive webcam frames.
 
 ---
 
-## 9. Environment state (blocker)
+## 9. v5 results (2026-08-29)
+
+All three runs export from `--label-source gold` with seed 20260212, so they
+share a byte-identical test split (1,212 rows; verified symmetric difference
+0 against the v4 baseline manifest). Every number below is therefore directly
+comparable to §8.
+
+### is-sunset head
+
+| | v4 | v5 gold-only | v5 + medium aug |
+|---|---|---|---|
+| precision | 0.304 | 0.913 | 0.934 |
+| recall | 0.066 | 0.839 | 0.831 |
+| **F1** | **0.109** | **0.874** | **0.880** |
+| balanced acc | 0.477 | 0.890 | 0.894 |
+| AUC | — | 0.963 | 0.966 |
+| sunsets found | 34 / 514 | 431 / 514 | 427 / 514 |
+
+v4 found 34 of 514 operator-confirmed sunsets; v5 finds 431. Runs:
+`20260829_062437_v5_binary_gold`, `20260829_073754_v5_binary_gold_aug`.
+
+### quality head
+
+`20260829_070702_v5_regression_gold` — MAE 0.112 (≈ ±0.45 rating points),
+RMSE 0.174, Pearson 0.854, Spearman 0.780, R² 0.724.
+
+Not comparable to v4 regression's Pearson: that was measured against LLM
+labels, this against operator labels.
+
+**Two heads beat one.** The regression head's derived binary sweep peaks at
+F1 0.840 (threshold 0.30), below the dedicated is-sunset head's 0.874. The
+v2–v4 approach of thresholding a single quality score is measurably worse
+than predicting the two things separately.
+
+### The overfitting is real and augmentation did not fix it
+
+The +0.005 F1 from `medium` augmentation is 4 true positives and 11 false
+positives on 1,212 rows from a single seed — inside run-to-run noise, not a
+result.
+
+The diagnostic worth keeping: **validation loss bottoms at epoch 2 in both
+runs**, then climbs (0.325 → 0.630 light, 0.317 → 0.674 medium) while train
+loss falls to ~0.014. Everything after epoch 2 is memorization. Early
+stopping watches val F1, which keeps improving to ~epoch 11, so it never
+catches this.
+
+Doubling ColorJitter was never likely to help, and colour is the signal for
+sunset detection. The binding constraint is 5,897 training images against a
+ResNet-18 fine-tune. **This argues for Task 9 (LLM pretrain → gold
+fine-tune) — more data — rather than further augmentation tuning.** Other
+untried knobs: freezing more backbone layers, weight decay, or widening
+`cropping.scale_min` from its current 0.95 (near-zero crop).
+
+**Recommendation: do not ship v5 on these runs alone.** 0.874 with a clear
+memorization signature may not hold up on cameras outside the gold set.
+Run Task 9 first, and compare on this same split.
+
+---
+
+## 10. Environment state
 
 `.venv/bin/python3.11` symlinks to `/usr/local/opt/python@3.11/bin/python3.11`,
 which no longer exists — the Intel Homebrew prefix is gone (there is a
