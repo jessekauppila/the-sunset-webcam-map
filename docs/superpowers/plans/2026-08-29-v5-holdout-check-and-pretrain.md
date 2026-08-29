@@ -29,6 +29,22 @@
 > Report: `ml/artifacts/reports/v5_binary_on_ordinary_holdout.json`. Detail in
 > design spec §10.
 
+> **UPDATE 2026-08-29 (later): root cause found — START AT TASK 0, NOT TASK 2.**
+>
+> §10's "distribution gap" reading was incomplete. v5's score on the gold test
+> split rises monotonically with the operator rating (N 0.437 → 1: 0.658 →
+> 2: 0.812 → 3: 0.936 → 4: 0.974 → 5: 0.983). **The model learned the rubric.**
+>
+> The defect is the *target*. Operator rating **1** means "a sunset is happening
+> and there is nothing to see" (dusk over a field) and it writes
+> `is_sunset = true`. Training the binary head on `is_sunset` teaches that dim,
+> colourless scenes are positives — which it then applies to ordinary blue-hour
+> frames. `docs/ml/rating-rubric.md` already said the product question is
+> "would I want this surfaced" = **rating ≥ 4**, not `is_sunset`.
+>
+> **Task 0 below is a 40-minute config change that may resolve this without the
+> multi-hour pretrain. Do it first.** Detail: design spec §11.
+
 **Goal:** Find out whether the gold-trained v5 is-sunset head behaves sanely on *ordinary* frames (not just the hard cases it was trained on), then decide — against criteria fixed in advance — whether to run the 52k LLM-pretrain variant.
 
 **Architecture:** No new training code. Task 1 scores the existing v5 ONNX against a random sample of ordinary frames using `ml/score_manifest.py` + `ml/build_holdout_manifest.py`, both already built. Tasks 2–4 branch on that result. The pretrain reuses `--llm-label-source db` + `--binary-label-from is_sunset` and `train.py --init-checkpoint`, all already shipped.
@@ -122,6 +138,152 @@ Run Python tests with `unittest` from the repo root:
 - **Never let an ML fallback masquerade as real model output.** Verify deploys by smoke `latencyMs` (real ONNX 100–500 ms, baseline 10–20 ms) and a near-zero `fallbacks` count.
 - **`vercel env add/rm` is classifier-blocked in Claude Code** — hand those to Jesse. Env vars bake in at deploy time; use `vercel redeploy`, not `vercel --prod`.
 - Long training runs: use `.venv/bin/python -u` so epoch lines reach the log unbuffered.
+
+---
+
+## Task 0: Retrain the binary head on a rating threshold (DO THIS FIRST)
+
+~40 minutes. No relabeling, no Claude re-run — the 1–5 ratings already encode
+the distinction, so only the label derivation changes.
+
+**Files:**
+- Modify: `ml/export_dataset.py` (`--binary-label-from`, `build_gold_manifest`)
+- Modify: `ml/common/labels.py` (`resolve_binary_label`)
+- Modify: `ml/test_export_dataset.py`
+- Create: `ml/configs/v5_binary_gold_r3.yaml`, `ml/configs/v5_binary_gold_r4.yaml`
+
+Verified gold-set class counts:
+
+| positive class | positives | negatives |
+|---|---|---|
+| `is_sunset` (rating ≥ 1) — current | 3,546 | 5,018 |
+| rating ≥ 2 | 3,020 | 5,544 |
+| **rating ≥ 3** | **2,370** | **6,194** |
+| rating ≥ 4 | 1,375 | 7,189 |
+
+- [ ] **Step 1: Write the failing test**
+
+Add to `ml/test_export_dataset.py`:
+
+```python
+class TestMinRatingBinaryLabel(unittest.TestCase):
+    """rating>=N mode: a sunset only counts if it cleared the bar.
+
+    Operator rating 1 means "a sunset is happening and there is nothing to
+    see", so is_sunset=true is too permissive a positive class for the
+    product. See docs/ml/rating-rubric.md.
+    """
+
+    def policy(self, n):
+        return LabelPolicy(target_type="binary", binary_label_from="min_rating",
+                           min_positive_rating=n)
+
+    def test_rating_below_the_bar_is_negative(self):
+        self.assertEqual(
+            resolve_binary_label(None, True, self.policy(3), rating=1), 0)
+        self.assertEqual(
+            resolve_binary_label(None, True, self.policy(3), rating=2), 0)
+
+    def test_rating_at_or_above_the_bar_is_positive(self):
+        self.assertEqual(
+            resolve_binary_label(None, True, self.policy(3), rating=3), 1)
+        self.assertEqual(
+            resolve_binary_label(None, True, self.policy(3), rating=5), 1)
+
+    def test_not_a_sunset_is_negative_regardless(self):
+        self.assertEqual(
+            resolve_binary_label(None, False, self.policy(3), rating=None), 0)
+
+    def test_a_sunset_with_no_rating_raises(self):
+        # Never silently treat a missing rating as below the bar.
+        with self.assertRaises(ValueError):
+            resolve_binary_label(None, True, self.policy(3), rating=None)
+```
+
+- [ ] **Step 2: Run it, confirm it fails**
+
+`.venv/bin/python -m unittest ml.test_export_dataset -v`
+
+- [ ] **Step 3: Implement**
+
+Add `min_positive_rating: int = 4` to `LabelPolicy`; add `"min_rating"` to the
+`--binary-label-from` choices and a `--min-positive-rating` int flag (default 4);
+give `resolve_binary_label` a `rating: int | None = None` keyword and this branch:
+
+```python
+    if policy.binary_label_from == "min_rating":
+        if not is_sunset:
+            return 0
+        if rating is None:
+            raise ValueError(
+                "binary_label_from=min_rating requires a rating for a sunset; "
+                "refusing to treat a missing rating as below the bar"
+            )
+        return 1 if int(rating) >= policy.min_positive_rating else 0
+```
+
+In `build_gold_manifest`, pass `rating=row["rating"]` through. Add the
+passthrough in `ml/run_experiment.py` for `data.min_positive_rating`.
+
+- [ ] **Step 4: Train both variants**
+
+Copy `ml/configs/v5_binary_gold.yaml` twice, changing only `run.name`,
+`data.binary_label_from: min_rating`, and `data.min_positive_rating` (3, then 4).
+Consider `imbalance.class_weighting: balanced` for the r4 variant — 1,375 vs
+7,189 is a 5:1 imbalance, unlike the near-balanced `is_sunset` split.
+
+```bash
+.venv/bin/python -u ml/run_training.py --config ml/configs/v5_binary_gold_r3.yaml --no-progress
+.venv/bin/python -u ml/run_training.py --config ml/configs/v5_binary_gold_r4.yaml --no-progress
+```
+
+- [ ] **Step 5: Export each to ONNX and re-run the ordinary-frame check**
+
+This is the decisive number. **Caveat: `llm_is_sunset` is a different question
+than a rating threshold** (spec §11), so it will understate an r3/r4 model even
+more than it understated the `is_sunset` one. Read `precision` and the
+predicted-positive-rate trend across the three models rather than any absolute
+value — if precision climbs from 0.574 as the bar rises, the diagnosis is
+confirmed.
+
+- [ ] **Step 6: If precision improves, go to Task 5 (operator spot-check) to get
+      an unconfounded number. If it does not, the distribution reading was right
+      after all — go to Task 2.**
+
+---
+
+## Task 5: Operator spot-check — the only unconfounded measurement
+
+~10 minutes of Jesse's time; nothing else resolves the definitional confound.
+
+- [ ] **Step 1: Sample 50 frames the model calls sunset and Claude calls not**
+
+```bash
+.venv/bin/python -c "
+import csv, sys, json
+import numpy as np, onnxruntime as ort
+from pathlib import Path
+sys.path.insert(0,'ml')
+from score_manifest import load_image, softmax_positive
+sess = ort.InferenceSession('<MODEL>.onnx'); name = sess.get_inputs()[0].name
+rows = list(csv.DictReader(open('ml/artifacts/datasets/holdout_ordinary/manifest_test.csv')))
+out = []
+for r in rows:
+    a = load_image(r['image_path_or_url'], Path('ml/artifacts/image_cache'))
+    if a is None: continue
+    s = softmax_positive(np.asarray(sess.run(None, {name: a})[0][0], dtype=np.float32))
+    if int(r['target_label']) == 0 and s >= 0.5:
+        out.append({'url': r['image_path_or_url'], 'model': round(s,3)})
+print(json.dumps(out[:50], indent=2))
+" > ml/artifacts/reports/spot_check_frames.json
+```
+
+- [ ] **Step 2: Have Jesse rate those 50 on the same N/1–5 scale.**
+
+- [ ] **Step 3: Recompute precision against HIS labels, not Claude's.**
+      If most are 1s → definitional mismatch, and a rating threshold fixes it.
+      If most are N → genuine error, and the pretrain (Task 2) is the fix.
+      Record the answer in spec §11; it decides everything downstream.
 
 ---
 
