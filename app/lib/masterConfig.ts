@@ -1,3 +1,5 @@
+import type { CompositionConfig } from '@/app/components/GeoMosaic/engine/types';
+
 // Master configuration constants - single source of truth for runtime tuning.
 // This file can be imported by both server and client code.
 //
@@ -194,29 +196,6 @@ export const WINDY_FETCH_DELAY_BETWEEN_BATCHES_MS = 1000;
 export const WINDY_FETCH_STAGGER_WITHIN_BATCH_MS = 200;
 
 // ---------------------------------------------------------------------------
-// Mosaic sizing behavior
-// ---------------------------------------------------------------------------
-// Largest image height in mosaic. Set to popup image height parity.
-export const MOSAIC_MAX_IMAGE_HEIGHT_PX = 128;
-// Smallest image height in mosaic.
-export const MOSAIC_MIN_IMAGE_HEIGHT_PX = 26;
-// Global scaling strength (1 = baseline behavior).
-export const MOSAIC_SIZE_SCALE_STRENGTH = 1;
-// Scaling mode for converting score -> size.
-// Current supported: 'linear'
-export const MOSAIC_SIZE_SCALE_MODE = 'linear';
-
-// ---------------------------------------------------------------------------
-// Kiosk display settings (portrait 1080×1920, gallery installation)
-// ---------------------------------------------------------------------------
-// Tile heights are larger than the default mosaic to fill the taller display.
-// Tune these visually using Chrome DevTools at 1080×1920.
-export const KIOSK_MOSAIC_MAX_IMAGE_HEIGHT_PX = 180;
-export const KIOSK_MOSAIC_MIN_IMAGE_HEIGHT_PX = 100;
-// More images than default (90) to fill the extra vertical height.
-export const KIOSK_CANVAS_MAX_IMAGES = 120;
-
-// ---------------------------------------------------------------------------
 // YouTube cron fetch behavior
 // ---------------------------------------------------------------------------
 export const YOUTUBE_FETCH_BATCH_SIZE = 5;
@@ -263,3 +242,23 @@ export const KIOSK_QUIET_DEFAULT = '1-8';
 export const KIOSK_WAKE_MINUTES = 30;
 // Poll cadences (tick + doze-state check). Two cheap requests per minute.
 export const KIOSK_TICK_INTERVAL_MS = 60_000;
+
+// ---------------------------------------------------------------------------
+// Geographic mosaic composition engine
+// ---------------------------------------------------------------------------
+export const COMPOSITION_TILE_FLOOR_PX = 100;
+export const COMPOSITION_TILE_CEIL_PX = 300;
+export const COMPOSITION_UPSCALE_MAX = 1.5;
+export const COMPOSITION_LAT_WINDOW: [number, number] = [70, -60];
+export const COMPOSITION_MAX_GROWTH = 2.0;
+export const COMPOSITION_CULL_OVERFLOW = true;
+
+export const COMPOSITION_CONFIG = {
+  floorPx: COMPOSITION_TILE_FLOOR_PX,
+  ceilPx: COMPOSITION_TILE_CEIL_PX,
+  upscaleMax: COMPOSITION_UPSCALE_MAX,
+  latWindow: COMPOSITION_LAT_WINDOW,
+  maxGrowth: COMPOSITION_MAX_GROWTH,
+  cullOverflow: COMPOSITION_CULL_OVERFLOW,
+  padding: 2,
+} satisfies CompositionConfig;

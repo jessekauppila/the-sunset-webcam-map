@@ -4,10 +4,14 @@ import { useTerminatorStore } from '@/app/store/useTerminatorStore';
 import { useLoadTerminatorWebcams } from '@/app/store/useLoadTerminatorWebcams';
 import SunriseKioskPage from './page';
 
-// MosaicCanvas uses HTMLCanvasElement which jsdom doesn't support — mock it
-vi.mock('@/app/components/MosaicCanvas', () => ({
-  MosaicCanvas: ({ webcams }: { webcams: unknown[] }) => (
-    <div data-testid="mosaic-canvas" data-count={webcams.length} />
+// GeoMosaic uses HTMLCanvasElement which jsdom doesn't support — mock it
+vi.mock('@/app/components/GeoMosaic/GeoMosaic', () => ({
+  GeoMosaic: (props: Record<string, unknown>) => (
+    <div
+      data-testid="geo-mosaic"
+      data-props={JSON.stringify(props)}
+      data-count={(props.webcams as unknown[]).length}
+    />
   ),
 }));
 
@@ -28,26 +32,54 @@ vi.mock('../useKioskRuntime', () => ({
   useKioskRuntime: () => useKioskRuntimeMock(),
 }));
 
+const useSearchParamsMock = vi.fn(() => new URLSearchParams());
+vi.mock('next/navigation', () => ({
+  useSearchParams: () => useSearchParamsMock(),
+}));
+
+function getMosaicProps() {
+  const el = screen.getByTestId('geo-mosaic');
+  return JSON.parse(el.getAttribute('data-props') as string);
+}
+
 describe('SunriseKioskPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     useKioskRuntimeMock.mockReturnValue({ dozing: false });
+    useSearchParamsMock.mockReturnValue(new URLSearchParams());
   });
 
-  it('renders MosaicCanvas', () => {
+  it('renders GeoMosaic', () => {
     render(<SunriseKioskPage />);
-    expect(screen.getByTestId('mosaic-canvas')).toBeDefined();
+    expect(screen.getByTestId('geo-mosaic')).toBeDefined();
   });
 
-  it('passes sunrise webcams to MosaicCanvas', () => {
+  it('passes feed="sunrise" to GeoMosaic', () => {
+    render(<SunriseKioskPage />);
+    expect(getMosaicProps().feed).toBe('sunrise');
+  });
+
+  it('passes sunrise webcams to GeoMosaic', () => {
     vi.mocked(useTerminatorStore).mockImplementation(
       (selector: (state: { sunrise: unknown[] }) => unknown) =>
         selector({ sunrise: [{ webcamId: 1 }, { webcamId: 2 }] })
     );
 
     render(<SunriseKioskPage />);
-    const canvas = screen.getByTestId('mosaic-canvas');
+    const canvas = screen.getByTestId('geo-mosaic');
     expect(canvas.getAttribute('data-count')).toBe('2');
+  });
+
+  it('does not set setupMode without ?setup=1', () => {
+    useSearchParamsMock.mockReturnValue(new URLSearchParams());
+    render(<SunriseKioskPage />);
+    expect(getMosaicProps().setupMode).toBeFalsy();
+  });
+
+  it('sets setupMode true when ?setup=1', () => {
+    useSearchParamsMock.mockReturnValue(new URLSearchParams('setup=1'));
+    render(<SunriseKioskPage />);
+    expect(getMosaicProps().setupMode).toBe(true);
   });
 
   it('pauses the terminator-webcams poll when the kiosk is dozing', () => {

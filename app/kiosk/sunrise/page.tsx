@@ -1,21 +1,18 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { MosaicCanvas } from '@/app/components/MosaicCanvas';
+import { Suspense, useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { GeoMosaic } from '@/app/components/GeoMosaic/GeoMosaic';
 import { useTerminatorStore } from '@/app/store/useTerminatorStore';
 import { useLoadTerminatorWebcams } from '@/app/store/useLoadTerminatorWebcams';
 import { useKioskRuntime } from '../useKioskRuntime';
 import { KioskDozeOverlay } from '../KioskDozeOverlay';
-import {
-  KIOSK_MOSAIC_MAX_IMAGE_HEIGHT_PX,
-  KIOSK_MOSAIC_MIN_IMAGE_HEIGHT_PX,
-  KIOSK_CANVAS_MAX_IMAGES,
-} from '@/app/lib/masterConfig';
 
-export default function SunriseKioskPage() {
+function SunriseKioskContent() {
   const { dozing } = useKioskRuntime();
   useLoadTerminatorWebcams({ paused: dozing });
   const webcams = useTerminatorStore((t) => t.sunrise);
+  const searchParams = useSearchParams();
 
   const [dimensions, setDimensions] = useState({
     width: typeof window !== 'undefined' ? window.innerWidth : 1080,
@@ -35,19 +32,22 @@ export default function SunriseKioskPage() {
 
   return (
     <>
-      <MosaicCanvas
+      <GeoMosaic
         webcams={webcams}
         width={dimensions.width}
         height={dimensions.height}
-        maxImages={KIOSK_CANVAS_MAX_IMAGES}
-        padding={2}
-        ratingSizeEffect={0.75}
-        viewSizeEffect={0.1}
-        fillScreenHeight={true}
-        maxImageHeight={KIOSK_MOSAIC_MAX_IMAGE_HEIGHT_PX}
-        minImageHeight={KIOSK_MOSAIC_MIN_IMAGE_HEIGHT_PX}
+        feed="sunrise"
+        setupMode={searchParams.get('setup') === '1'}
       />
       <KioskDozeOverlay dozing={dozing} />
     </>
+  );
+}
+
+export default function SunriseKioskPage() {
+  return (
+    <Suspense fallback={null}>
+      <SunriseKioskContent />
+    </Suspense>
   );
 }
