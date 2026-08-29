@@ -1,0 +1,53 @@
+{
+  "label_source": "gold",
+  "label_merge_strategy": "human_only",
+  "llm_ratings_csv": null,
+  "llm_label_source": "csv",
+  "llm_overrides_count": 0,
+  "target_type": "binary",
+  "binary_threshold": 0.75,
+  "binary_label_from": "is_sunset",
+  "skipped_no_rating": 0,
+  "min_rating_count": 1,
+  "include_external": false,
+  "split_config": {
+    "seed": 20260212,
+    "train_pct": 70,
+    "val_pct": 15,
+    "test_pct": 15
+  },
+  "counts": {
+    "total": 8564,
+    "train": 5897,
+    "val": 1455,
+    "test": 1212,
+    "webcam": 8220,
+    "external": 344
+  },
+  "target_distribution": {
+    "full": {
+      "count": 8564,
+      "negative": 5018,
+      "positive": 3546,
+      "positive_rate": 0.41405885100420364
+    },
+    "train": {
+      "count": 5897,
+      "negative": 3465,
+      "positive": 2432,
+      "positive_rate": 0.412413091402408
+    },
+    "val": {
+      "count": 1455,
+      "negative": 855,
+      "positive": 600,
+      "positive_rate": 0.41237113402061853
+    },
+    "test": {
+      "count": 1212,
+      "negative": 698,
+      "positive": 514,
+      "positive_rate": 0.4240924092409241
+    }
+  }
+}
