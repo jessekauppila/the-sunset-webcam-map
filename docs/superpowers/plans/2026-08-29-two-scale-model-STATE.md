@@ -59,8 +59,31 @@ Full findings: `docs/superpowers/specs/2026-08-28-v5-gold-label-retrain-design.m
   by +0.005 (single-seed noise) and did not change the curve.
 - **The operator's labels are internally consistent.** 8,501 of 8,564 were made
   after the rubric doc was written; only 63 predate it. No re-rating needed.
-- **Claude is internally consistent.** One prompt (`v2_extended`) across all
-  51,846 ratings, webcam and Flickr, both judge versions.
+- **Claude's PROMPT is consistent; Claude's OUTPUT is not.** One prompt
+  (`v2_extended`) across all 51,846 ratings — but two judge models behind it,
+  and they are not the same instrument (measured 2026-08-29):
+
+  | judge | frames | mean quality | % called sunset |
+  |---|---|---|---|
+  | `claude-sonnet-4-5` | 29,705 (64%) | 0.166 | **35.9%** |
+  | `claude-sonnet-5` | 16,374 (36%) | 0.230 | **63.6%** |
+
+  On the 200-frame operator eval set, `sonnet-5` scores precision 0.737 /
+  Pearson 0.717 against `sonnet-4-5`'s 0.477 / 0.478. **Treat `llm_model` as a
+  covariate** — record it, stratify by it, never pool the two blindly. (This
+  does not overturn the ordinary-vs-hard-case finding: the hard-case overlap is
+  70% `sonnet-5`, the *better* judge, and still scored 0.243.)
+- **`llm_is_sunset` asks a different question than the operator rubric.**
+  Claude: "is a sunset OR sunrise **visible**"; operator `N`: "not a sunset
+  **event** at all", with rating 1 = "sunset is happening, frame has nothing".
+  They disagree by construction on ratings 1–2. Measured effect: v5 scores
+  F1 0.643 against Claude vs 0.533 against the operator on the same frames —
+  Claude-grading **flatters** the detection head.
+- **Claude's quality scale is monotonic but compressed.** Rubric anchors say
+  1≈0.05, 3≈0.50, 5≈0.95; measured means are 1: 0.257, 3: 0.441, 5: 0.600 —
+  squeezed into ~[0.09, 0.60]. Never threshold raw `llm_quality` against a
+  rubric-derived number; that is the mechanism behind the v4 bug (`≥ 0.75`
+  fired on 90 of 46,079 webcam rows).
 - **The legacy `webcam_snapshot_ratings` set (4,776 rows) is retired and
   incompatible** — its UI had no "not a sunset" button, so 62% are rated 1,
   absorbing both meanings. It fed v2 only. Never union it with `manual_labels`.
@@ -237,3 +260,14 @@ Blocked on Workstream 1 producing a model worth shipping. Scope:
   model that beats the ordinary-frame bar.
 
 Each session should re-read this file first and update it on the way out.
+
+
+---
+
+## Reference pages (Notion, 2026-08-29)
+
+- **Training Data & Raters** — the four label sets, and a prompt-integrity audit
+  of both raters: https://app.notion.com/p/3cbe8008221281bab70bc026d7830b6e
+- **What Each Model Was Trained On** — every model, its label source and target
+  definition, plus what the LLM pretrain is:
+  https://app.notion.com/p/3cbe800822128131b633ef9fab216e69
