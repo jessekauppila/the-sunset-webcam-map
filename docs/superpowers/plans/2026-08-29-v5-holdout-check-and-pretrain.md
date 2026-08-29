@@ -5,6 +5,30 @@
 > **This plan is self-contained.** It is written for a fresh session with no
 > prior context. Everything needed is below or in the two linked documents.
 
+
+> **RESULT IN — Task 1 is DONE. Verdict: YELLOW (narrowly). Start at Task 2.**
+>
+> | | gold test (hard) | ordinary holdout |
+> |---|---|---|
+> | precision | 0.913 | **0.574** |
+> | F1 | 0.874 | **0.643** |
+> | balanced accuracy | 0.890 | **0.661** (RED line is 0.65) |
+> | predicted positive rate | 0.424 | **0.547** (GREEN band 0.33–0.53) |
+>
+> Task 1b was run and **v5 is wrong, not Claude**: on the 466 false positives
+> Claude's quality is median 0.000 / max 0.100, and three inspected by eye were
+> flat blue-hour twilight over snow scored 1.000. No upward revision.
+>
+> v5 over-fires on ordinary non-sunsets because the gold set's negatives are all
+> *hard* negatives — it never saw a boring frame. Broad, not camera-specific
+> (236 of 625 cameras affected; top-10 = 23% of errors).
+>
+> **Do not ship v5 gold-only at any threshold** (precision 0.574 in production
+> conditions). Task 2's pretrain is now a repair for a diagnosed defect, and
+> Step 5 — re-running the ordinary-frame check — is the number that decides it.
+> Report: `ml/artifacts/reports/v5_binary_on_ordinary_holdout.json`. Detail in
+> design spec §10.
+
 **Goal:** Find out whether the gold-trained v5 is-sunset head behaves sanely on *ordinary* frames (not just the hard cases it was trained on), then decide — against criteria fixed in advance — whether to run the 52k LLM-pretrain variant.
 
 **Architecture:** No new training code. Task 1 scores the existing v5 ONNX against a random sample of ordinary frames using `ml/score_manifest.py` + `ml/build_holdout_manifest.py`, both already built. Tasks 2–4 branch on that result. The pretrain reuses `--llm-label-source db` + `--binary-label-from is_sunset` and `train.py --init-checkpoint`, all already shipped.
@@ -111,7 +135,7 @@ The manifest excludes anything in `manual_labels`, anything with a
 `model_disagreement_kind`, and every camera in the gold train/val splits. So a
 good score cannot come from memorized cameras or from re-seeing hard cases.
 
-- [ ] **Step 1: Run the scoring** (may already be done — check for the report first)
+- [x] **Step 1: Run the scoring** (may already be done — check for the report first)
 
 ```bash
 .venv/bin/python -u ml/score_manifest.py \
@@ -124,7 +148,7 @@ good score cannot come from memorized cameras or from re-seeing hard cases.
 2,000 images, most uncached — expect 20–40 minutes. Run it with
 `run_in_background: true`.
 
-- [ ] **Step 2: Read the result against the criteria in the next section**
+- [x] **Step 2: Read the result against the criteria in the next section**
 
 ```bash
 .venv/bin/python -c "
@@ -140,7 +164,7 @@ print('predicted positive rate %.3f vs Claude base rate 0.430' % pred_pos)
 "
 ```
 
-- [ ] **Step 3: Commit the report**
+- [x] **Step 3: Commit the report**
 
 ```bash
 git rev-parse --abbrev-ref HEAD

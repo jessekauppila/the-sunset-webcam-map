@@ -358,7 +358,68 @@ Run Task 9 first, and compare on this same split.
 
 ---
 
-## 10. Environment state
+## 10. Ordinary-frame holdout — v5 does NOT transfer (2026-08-29)
+
+**Verdict: YELLOW, narrowly.** Criteria were fixed before the run in
+`docs/superpowers/plans/2026-08-29-v5-holdout-check-and-pretrain.md`.
+
+The gold set is **99.3% hard cases** (8,162 of 8,220 webcam labels came from
+the disagreement queue), and only 8,281 of 55,414 imaged frames have ever been
+flagged hard. So §9's numbers describe the hardest ~15% of the corpus. This
+measures the other 85%.
+
+Sample: 2,000 ordinary frames (`ml/build_holdout_manifest.py`) — excluding
+`manual_labels`, anything with a `model_disagreement_kind`, and every camera in
+the gold train/val splits. 625 unseen cameras, 43.0% positive per Claude
+(vs the gold set's 41.4%, so base rates are comparable).
+
+| | gold test (hard) | ordinary holdout |
+|---|---|---|
+| precision | 0.913 | **0.574** |
+| recall | 0.839 | 0.731 |
+| F1 | 0.874 | **0.643** |
+| balanced accuracy | 0.890 | **0.661** |
+| predicted positive rate | 0.424 (actual 0.424) | **0.547** (actual 0.430) |
+
+**F1 0.874 does not transfer. On ordinary frames it is 0.643**, and when v5
+says "sunset" it is right 57% of the time rather than 91%.
+
+### The failure is real, not a Claude artifact
+
+The mandatory eyeball step (plan Task 1b) was run. On the **466 false
+positives**, Claude's quality is median **0.000**, mean 0.004, max 0.100 — 443
+of 466 sit at exactly zero. Claude is not hedging on these; it is emphatically
+certain, and confident negatives are where it is most reliable (its known blind
+spot is *under-rating real sunsets*, not over-rejecting non-sunsets).
+
+Three of the most confident false positives were opened and inspected. All were
+**flat blue-hour twilight over snow** (two from the same camera on consecutive
+days at ~08:30). Model score 1.000; not sunsets. **v5 is wrong, Claude is
+right** — no upward revision of the tier is warranted.
+
+### Why, and what it implies
+
+The gold set's negatives are *hard* negatives — frames that looked sunset-ish
+enough to trip the disagreement queue. An ordinary boring blue-hour frame never
+enters that queue, so **v5 never learned what "clearly nothing happening" looks
+like.** It appears to have learned "low-light coloured sky ⇒ sunset" without
+learning to separate sunset colour from blue hour.
+
+The failure is broad, not camera-specific: 236 of 625 sampled cameras produce
+at least one false positive and the top-10 account for only 23% of them. So the
+fix is training-data coverage, not per-camera handling.
+
+**This is the strongest argument yet for Task 9 / the pretrain** — and for the
+right reason. The 46,079 LLM-labeled frames include 25,018 negatives, mostly
+ordinary ones. The pretrain's value is *distribution coverage*, not volume, and
+not overfitting repair.
+
+**Do not ship v5 gold-only at any threshold.** Its precision on the frames
+production actually sees is 0.574.
+
+---
+
+## 11. Environment state
 
 `.venv/bin/python3.11` symlinks to `/usr/local/opt/python@3.11/bin/python3.11`,
 which no longer exists — the Intel Homebrew prefix is gone (there is a
