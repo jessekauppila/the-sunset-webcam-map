@@ -10,7 +10,7 @@ status: active
 running, what is open, and which of the three workstreams a given question
 belongs to.
 
-Branch: **`feat/kiosk-url-tuning`**, ~27 commits ahead of `main`, all `ml/`- and
+Branch: **`feat/kiosk-url-tuning`**, ~31 commits ahead of `main`, all `ml/`- and
 `docs/`-scoped and cherry-pickable onto a clean branch. **Do not switch
 branches** — parallel sessions share this one checkout. Verify with
 `git rev-parse --abbrev-ref HEAD` before any commit and **stage explicit paths,
@@ -122,12 +122,12 @@ Workstream 2 — not architecture.
 
 **Next steps, in order:**
 1. Run `v5_binary_gold_r4`.
-3. Export each detection variant to ONNX and score all of them on
+2. Export each detection variant to ONNX and score all of them on
    `ml/artifacts/datasets/holdout_ordinary/manifest_test.csv` via
    `ml/score_manifest.py`. **Read the precision trend across is_sunset → r3 →
    r4, not absolute values** — `llm_is_sunset` understates a rating-threshold
    model (see open question 1).
-4. Only then decide on the LLM pretrain.
+3. Only then decide on the LLM pretrain.
 
 **Do not compare F1 across different label definitions.** is_sunset, r3 and r4
 produce different test sets. The ordinary-frame holdout is the only common
