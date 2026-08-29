@@ -69,17 +69,41 @@ Full findings: `docs/superpowers/specs/2026-08-28-v5-gold-label-retrain-design.m
 
 ## Open questions
 
-1. **How much of the ordinary-frame failure is real?** The v5 `is_sunset` head
-   scored F1 0.643 / precision 0.574 on 2,000 ordinary frames, but graded
-   against `llm_is_sunset`, which asks a different question. **Only operator
-   labels on ordinary frames can settle this** → Workstream 2.
-2. **Is Claude's quality scale usable at all?** On the 1,224 comparable frames,
-   Pearson vs operator ratings is **0.243** and Claude's mean quality is flat
-   across operator ratings 1–5. But all 1,224 are hard cases, where Claude is
-   least reliable by construction. Unmeasurable without → Workstream 2.
-3. **Does the LLM pretrain help?** Not started. ~52k images, 2–4 hours.
-   Justification is distribution coverage (25,018 ordinary negatives), not
-   volume.
+**Questions 1 and 2 were SETTLED on 2026-08-29** by 200 operator labels on the
+random ordinary sample (`random_ordinary_v1`). Measurements below.
+
+1. ~~How much of the ordinary-frame failure is real?~~ **All of it, and the
+   proxy label was flattering the model.** Graded against operator truth on the
+   200, the v5 `is_sunset` head scores **precision 0.393 / recall 0.830 /
+   F1 0.533**, balanced accuracy 0.684 — against `llm_is_sunset` on the same
+   distribution it scored precision 0.574 / F1 0.643. This doc previously
+   predicted Claude-grading would *understate* the model; for the is_sunset
+   head it **overstates** it. 68 false positives against 147 true negatives:
+   it fires on 46% of the frames the operator calls not-a-sunset.
+   On the actual product question (rating ≥ 4, base rate 8/200) it is
+   **precision 0.0625 / recall 0.875 / F1 0.117** — 105 false positives for 7
+   true positives. Unusable as a surfacing gate at threshold 0.5.
+2. ~~Is Claude's quality scale usable at all?~~ **Yes — far more than the
+   hard-case number implied.** Pearson vs operator on the 53 operator-confirmed
+   sunsets is **0.560**, against 0.243 on the 1,224 hard-case overlap. And the
+   "flat across ratings 1–5" claim was an artifact of hard cases: on ordinary
+   frames Claude's mean quality is **monotonic** — N 0.090, 1: 0.257, 2: 0.406,
+   3: 0.441, 4: 0.493, 5: 0.600. Claude's detection on ordinary frames is
+   precision 0.598 / recall 0.925 / **F1 0.726**, agreement 0.815.
+3. **Does the LLM pretrain help?** Not started — and now better motivated.
+   **Claude beats v5 on the production distribution** (F1 0.726 vs 0.533,
+   precision 0.598 vs 0.393). The ~52k LLM labels are a stronger detector than
+   the gold-only model where it counts. Justification remains distribution
+   coverage (25,018 ordinary negatives), not volume.
+
+**Caveats on the 200.** Drawn from LLM-rated frames on cameras absent from the
+gold train/val splits, so it measures the ordinary distribution on unseen
+cameras, not literally every frame. n=53 for the quality Pearson and n=8 for
+rating ≥ 4 — the r4 precision figure is directionally right but noisy.
+Operator base rates: 26.5% sunsets, 4% rating ≥ 4.
+
+Reports: `ml/artifacts/reports/v5_binary_on_operator_random200.json` and
+`..._r4.json`. Manifests: `ml/artifacts/datasets/random_ordinary_v1/`.
 
 ---
 
@@ -91,7 +115,7 @@ Full findings: `docs/superpowers/specs/2026-08-28-v5-gold-label-retrain-design.m
 
 | run | status | result |
 |---|---|---|
-| `v5_binary_gold` (is_sunset) | done | F1 0.874 gold / **0.643 ordinary** |
+| `v5_binary_gold` (is_sunset) | done | F1 0.874 gold / 0.643 vs Claude / **0.533 vs operator** |
 | `v5_binary_gold_aug` | done | +0.005, noise |
 | `v5_regression_gold` (all rows) | done, superseded | MAE 0.112, Pearson 0.854 |
 | `v5_binary_gold_r3` (rating ≥3) | done | F1 0.8354, balacc 0.8862, AUC 0.9559 |
@@ -122,11 +146,13 @@ Workstream 2 — not architecture.
 
 **Next steps, in order:**
 1. Run `v5_binary_gold_r4`.
-2. Export each detection variant to ONNX and score all of them on
-   `ml/artifacts/datasets/holdout_ordinary/manifest_test.csv` via
-   `ml/score_manifest.py`. **Read the precision trend across is_sunset → r3 →
-   r4, not absolute values** — `llm_is_sunset` understates a rating-threshold
-   model (see open question 1).
+2. Export each detection variant to ONNX and score all of them against
+   **operator truth** on `ml/artifacts/datasets/random_ordinary_v1/` via
+   `ml/score_manifest.py` — that is now the honest bar, and absolute values are
+   readable. Use the `..._r4.csv` manifest for the product question. The old
+   `holdout_ordinary` manifest is graded by `llm_is_sunset`, which measurably
+   **flatters** the is_sunset head (0.643 vs 0.533 real); keep it only as the
+   2,000-frame wide check, never as the headline.
 3. Only then decide on the LLM pretrain.
 
 **Do not compare F1 across different label definitions.** is_sunset, r3 and r4
@@ -147,8 +173,10 @@ It unblocks three things at once:
 - the first **unbiased evaluation set** any model has had
 - unbiased training data covering the ordinary-frame majority
 
-**The UI is built and the sample is drawn (2026-08-29). Rating is the only
-remaining step.**
+**DONE (2026-08-29): all 200 rated.** Distribution: N 147, 1: 14, 2: 17,
+3: 14, 4: 7, 5: 1. Results are in "Open questions" above. The sampler, queue
+UI and `label_samples` table remain in place for the next draw — see the
+mechanics below, and `random_ordinary_v2` if more ordinary labels are wanted.
 
 Open the Hard Examples queue and switch the new **Disagreements | Random
 sample** toggle to *Random sample*. Progress reads `n / 200` and the sample is
