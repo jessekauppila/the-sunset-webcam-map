@@ -1,0 +1,7 @@
+{
+  "config_input": "ml/artifacts/experiments/20260829_204127_v5_quality_sunsets_only/config.input.yaml",
+  "config_resolved": "ml/artifacts/experiments/20260829_204127_v5_quality_sunsets_only/config.resolved.json",
+  "dataset_meta": "ml/artifacts/experiments/20260829_204127_v5_quality_sunsets_only/dataset/20260829_204129/export_meta.json",
+  "train_summary": "ml/artifacts/experiments/20260829_204127_v5_quality_sunsets_only/train/train_summary.json",
+  "eval_report": "ml/artifacts/experiments/20260829_204127_v5_quality_sunsets_only/eval/eval_report.json"
+}
