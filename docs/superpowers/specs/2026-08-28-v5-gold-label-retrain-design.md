@@ -497,7 +497,117 @@ confounded, and the honest way to settle it is Task 5 below.
 
 ---
 
-## 12. Environment state
+## 12. Product framing correction + scale alignment (2026-08-29)
+
+### The product wants six categories, not a binary gate
+
+Earlier sections framed the goal as a yes/no "would I surface this" verdict.
+**That is wrong.** The intended map behaviour: *show every webcam image, and
+size each one by how good its sunset is* — a bigger tile for a better sunset.
+The six operator categories (`N`, 1–5) are meant to stay intact so they can be
+recombined however the map wants.
+
+Consequences:
+
+1. **The quality/regression head is the primary model, not the binary head.**
+   v5 regression (MAE 0.112, Pearson 0.854 vs operator labels) is the one that
+   drives display; the binary head is at most an "is anything happening" gate.
+2. The `is_sunset` vs rating-threshold argument in §11 still holds for the
+   binary head, but it is **no longer the main event**.
+
+### BUG: the current target collapses `N` and rating 1
+
+`gold_label_value` normalizes `(rating-1)/4`, and a non-sunset to 0.0:
+
+| operator | normalized target |
+|---|---|
+| **N** | **0.0** |
+| **1** | **0.0** ← same value |
+| 2 | 0.25 |
+| 3 | 0.50 |
+| 4 | 0.75 |
+| 5 | 1.00 |
+
+**`N` and `1` are indistinguishable to the regression head.** For a six-category
+product that is a defect: "no sunset happening" and "a sunset is happening with
+nothing to see" are different states and the map may want to treat them
+differently.
+
+Fix for a six-level target — spread all six evenly:
+
+| operator | N | 1 | 2 | 3 | 4 | 5 |
+|---|---|---|---|---|---|---|
+| target | 0.0 | 0.2 | 0.4 | 0.6 | 0.8 | 1.0 |
+
+This changes the meaning of the model output, so `normalizeOnnxOutput` /
+`ratingFromRaw` in `app/lib/aiScoring.ts` and `customBackfill.ts` must change
+with it (§6). Do not ship a six-level model against the five-level inverse
+`1 + rawScore * 4`.
+
+### Claude's quality scale does NOT track the operator's
+
+Claude is internally consistent — one prompt (`v2_extended`) across all 51,846
+ratings, webcam and Flickr, both judge versions (`docs/ml/label-provenance.md`).
+The question is whether its scale means the same thing as the operator's.
+
+On the 1,224 comparable webcam frames, normalizing operator labels the way
+training does:
+
+**Pearson r = 0.243. MAE = 0.142.**
+
+Claude's mean quality, by operator category:
+
+| operator | N | 1 | 2 | 3 | 4 | 5 |
+|---|---|---|---|---|---|---|
+| n | 1,096 | 9 | 42 | 55 | 18 | 4 |
+| Claude mean | 0.120 | 0.419 | 0.297 | 0.372 | 0.289 | 0.368 |
+| Claude sd | 0.220 | 0.292 | 0.289 | 0.317 | 0.351 | 0.425 |
+
+**Flat and non-monotonic across 1–5.** Claude assigns roughly 0.3–0.4 to
+everything the operator called a sunset, whatever its rating. It separates only
+`N` from the rest. The rubric's claimed anchors (1 ≈ 0.0–0.10 … 5 ≈ 0.95) are
+**not** what Claude actually produces on these frames.
+
+Flickr is worse in a different way — same prompt, different image domain:
+
+| operator | N | 2 | 3 | 4 | 5 |
+|---|---|---|---|---|---|
+| n | 125 | 4 | 21 | 40 | 154 |
+| Claude mean | **0.572** | 0.685 | 0.634 | 0.717 | 0.811 |
+
+Roughly monotonic from 3 up, but Claude scores the operator's **non-sunsets at
+0.572** — higher than it scores real webcam sunsets. Claude's scale is shifted
+by domain, which is the same domain-shift problem that broke v4.
+
+### The critical caveat, and what it implies
+
+**Every frame in this comparison is a hard case** (99.3% came from the
+disagreement queue), so this is the sample where Claude is *least* reliable by
+construction. A weak correlation here is expected and does **not** prove
+Claude's ratings are broadly bad.
+
+But the reverse is also true: **there is currently no data on which to check
+Claude's quality scale against the operator's on ordinary frames**, because the
+operator has only ever labeled hard cases. That is the real gap.
+
+**Recommendation — do not re-rate 52k images yet.** A re-run costs ~$35–45 and
+a new `prompt_version`, and right now there is no measurement to justify a
+particular prompt change. Instead:
+
+1. **Have the operator rate ~200 randomly sampled ordinary frames** (one
+   sitting; 195 were labeled in a single session on 2026-08-07). Sample with
+   `ml/build_holdout_manifest.py`, which already excludes hard cases and
+   gold-set cameras.
+2. That yields three things at once: an **unbiased** operator-vs-Claude
+   correlation, an **unbiased** evaluation set for every model, and unbiased
+   training data covering the ordinary-frame majority.
+3. Only then decide whether Claude needs re-prompting, or whether Claude's
+   quality should be dropped from the quality head entirely in favour of a
+   model trained purely on operator labels.
+
+---
+
+## 13. Environment state
 
 `.venv/bin/python3.11` symlinks to `/usr/local/opt/python@3.11/bin/python3.11`,
 which no longer exists — the Intel Homebrew prefix is gone (there is a
