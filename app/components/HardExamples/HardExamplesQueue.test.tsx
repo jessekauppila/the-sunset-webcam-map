@@ -410,3 +410,95 @@ describe('HardExamplesQueue rubric legend', () => {
     expect(keys.textContent).toContain('␣');
   });
 });
+
+describe('HardExamplesQueue random-sample queue', () => {
+  // The disagreement queue only ever surfaces the hardest ~15% of the corpus,
+  // which is why the operator-vs-Claude numbers have all needed caveats. These
+  // tests pin the second queue: a pre-drawn fixed set, served in its own order.
+  const SAMPLE = { name: 'random_ordinary_v1', size: 200, labeled: 12 };
+
+  // Sample frames carry no disagreement kind — that is what makes them ordinary.
+  const SAMPLE_FRAMES = FRAMES.map((f) => ({ ...f, modelDisagreementKind: null }));
+
+  const urls: string[] = [];
+  function mockSampleFetch() {
+    return vi.fn(async (url: string) => {
+      urls.push(String(url));
+      if (String(url).startsWith('/api/snapshots')) {
+        const isSample = String(url).includes('sample=');
+        return {
+          ok: true,
+          json: async () => ({
+            snapshots: isSample ? SAMPLE_FRAMES : FRAMES,
+            total: 2,
+            counts: COUNTS,
+            sample: isSample ? SAMPLE : null,
+          }),
+        } as Response;
+      }
+      return labelResponse();
+    });
+  }
+
+  beforeEach(() => {
+    urls.length = 0;
+    labelSeq = 0;
+    vi.stubGlobal('fetch', mockSampleFetch());
+  });
+
+  const switchToSample = async () => {
+    render(<HardExamplesQueue />);
+    await screen.findByText('Frame one');
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Random sample' }));
+    });
+  };
+
+  it('asks for the named sample instead of the disagreement ranking', async () => {
+    await switchToSample();
+    const last = urls.filter((u) => u.startsWith('/api/snapshots')).at(-1) ?? '';
+    expect(last).toContain('sample=random_ordinary_v1');
+    // Both at once would be incoherent: the sample is exactly the frames the
+    // disagreement filter excludes, so it has to replace that filter.
+    expect(last).not.toContain('disagreements_only=true');
+  });
+
+  it('shows progress through the draw, not the remaining-by-provenance buckets', async () => {
+    await switchToSample();
+    expect(await screen.findByTestId('sample-progress')).toHaveTextContent('12 / 200');
+    expect(screen.queryByText('left to rate:')).toBeNull();
+  });
+
+  it('stamps the sample name as origin so the two label sets stay separable', async () => {
+    await switchToSample();
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Not a sunset (N)' }));
+    });
+    const post = (fetch as unknown as ReturnType<typeof vi.fn>).mock.calls.find(
+      (c) => String(c[0]).startsWith('/api/manual-labels'),
+    );
+    expect(JSON.parse(String((post?.[1] as RequestInit)?.body)).origin).toBe(
+      'random_ordinary_v1',
+    );
+  });
+
+  it('advances the progress readout on a confirmed save', async () => {
+    await switchToSample();
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Not a sunset (N)' }));
+    });
+    await waitFor(() =>
+      expect(screen.getByTestId('sample-progress')).toHaveTextContent('13 / 200'),
+    );
+  });
+
+  it('does not tell the operator the judges disagree', async () => {
+    // The whole value of this set is an unprimed rating. Claiming a
+    // disagreement exists on an ordinary frame would bias it.
+    await switchToSample();
+    await waitFor(() =>
+      expect(screen.getByText(/Random ordinary frame/)).toBeTruthy(),
+    );
+    expect(screen.queryByText(/Judges disagree/)).toBeNull();
+  });
+});

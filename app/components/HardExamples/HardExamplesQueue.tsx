@@ -22,6 +22,13 @@ type QueuedSnapshot = Snapshot & {
 };
 
 type Counts = { archiveTrained: number; archiveNew: number; flickr: number };
+type SampleProgress = { name: string; size: number; labeled: number };
+
+// The pre-drawn random sample of ordinary frames. The disagreement queue only
+// ever shows the hardest ~15% of the corpus, which is why every operator-vs-
+// Claude number so far has had to be caveated; this set is the unbiased one.
+// Name must match what `ml/load_label_sample.py --sample-name` wrote.
+const SAMPLE_NAME = 'random_ordinary_v1';
 
 const BATCH = 120;
 const SIDE = 2; // thumbs each side (symmetric)
@@ -136,9 +143,11 @@ export function HardExamplesQueue({
   const [blind, setBlind] = useState(true);
   const [view, setView] = useState<'queue' | 'grid'>('queue');
   const [source, setSource] = useState<'all' | 'webcam' | 'flickr'>('all');
+  const [queue, setQueue] = useState<'disagreements' | 'sample'>('disagreements');
 
   const [snapshots, setSnapshots] = useState<QueuedSnapshot[]>([]);
   const [counts, setCounts] = useState<Counts>({ archiveTrained: 0, archiveNew: 0, flickr: 0 });
+  const [sample, setSample] = useState<SampleProgress | null>(null);
   const [idx, setIdx] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -185,8 +194,14 @@ export function HardExamplesQueue({
       setError(null);
       try {
         const srcParam = source === 'all' ? '' : `&source=${source}`;
+        // The sample is a fixed set served in its own frozen order, so it takes
+        // the place of the disagreement ranking rather than layering on top.
+        const queueParam =
+          queue === 'sample'
+            ? `&sample=${encodeURIComponent(SAMPLE_NAME)}`
+            : '&disagreements_only=true';
         const r = await fetch(
-          `/api/snapshots?mode=verification&disagreements_only=true&limit=${batchSize}&offset=${offset}${srcParam}`,
+          `/api/snapshots?mode=verification${queueParam}&limit=${batchSize}&offset=${offset}${srcParam}`,
         );
         if (!r.ok)
           throw new Error(
@@ -197,6 +212,7 @@ export function HardExamplesQueue({
         const d = await r.json();
         const incoming: QueuedSnapshot[] = d.snapshots ?? [];
         if (d.counts) setCounts(d.counts);
+        setSample(d.sample ?? null);
         if (replace) {
           // Reset the session refs with the list, not ahead of it — a failed
           // reload would otherwise leave the old frames with an empty label set
@@ -220,7 +236,7 @@ export function HardExamplesQueue({
         setLoading(false);
       }
     },
-    [source, setFrames, batchSize],
+    [source, setFrames, batchSize, queue],
   );
 
   useEffect(() => {
@@ -240,14 +256,27 @@ export function HardExamplesQueue({
 
   const current = snapshots[idx];
 
-  const adjustCount = useCallback((p: Provenance, delta: number) => {
-    setCounts((c) => {
-      const key = COUNT_KEY[p];
-      const next = { ...c };
-      next[key] = Math.max(0, next[key] + delta);
-      return next;
-    });
-  }, []);
+  // Confirmed-write bookkeeping. In the disagreement queue the moving number is
+  // the remaining-by-provenance bucket; in a fixed sample it's progress through
+  // the draw. Both are adjusted locally between batch fetches for the same
+  // reason — the server only recomputes them per page.
+  const adjustCount = useCallback(
+    (p: Provenance, delta: number) => {
+      if (queue === 'sample') {
+        setSample((s) =>
+          s ? { ...s, labeled: Math.max(0, Math.min(s.size, s.labeled - delta)) } : s,
+        );
+        return;
+      }
+      setCounts((c) => {
+        const key = COUNT_KEY[p];
+        const next = { ...c };
+        next[key] = Math.max(0, next[key] + delta);
+        return next;
+      });
+    },
+    [queue],
+  );
 
   const rate = useCallback(
     async (rating: number, isSunset: boolean) => {
@@ -266,6 +295,10 @@ export function HardExamplesQueue({
             imageId: s.snapshot.id,
             isSunset,
             rating: isSunset ? rating : null,
+            // Stamped on the row so the two populations stay separable after
+            // the fact — pooling hard cases with the random draw would undo
+            // exactly what the draw is for.
+            origin: queue === 'sample' ? SAMPLE_NAME : 'hard_example',
           }),
         });
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
@@ -283,7 +316,7 @@ export function HardExamplesQueue({
         );
       }
     },
-    [adjustCount, setCursor],
+    [adjustCount, setCursor, queue],
   );
 
   const skip = useCallback(
@@ -390,6 +423,17 @@ export function HardExamplesQueue({
         <ToggleButton value="webcam">Archive</ToggleButton>
         <ToggleButton value="flickr">Flickr</ToggleButton>
       </ToggleButtonGroup>
+      <ToggleButtonGroup
+        size="small"
+        exclusive
+        value={queue}
+        onChange={(_, v) => v && setQueue(v)}
+        sx={toggleSx}
+        aria-label="queue source"
+      >
+        <ToggleButton value="disagreements">Disagreements</ToggleButton>
+        <ToggleButton value="sample">Random sample</ToggleButton>
+      </ToggleButtonGroup>
       <Box sx={{ flex: 1 }} />
       {saved.total != null && (
         <Box
@@ -403,12 +447,24 @@ export function HardExamplesQueue({
           </span>
         </Box>
       )}
-      <Box sx={{ display: 'flex', gap: 1.5, fontSize: 12, alignItems: 'center' }}>
-        <span style={{ color: '#94a3b8' }}>left to rate:</span>
-        <span style={{ color: '#cbd5e1' }}>Archive·trained <b>{counts.archiveTrained}</b></span>
-        <span style={{ color: '#6ee7b7' }}>Archive·new <b>{counts.archiveNew}</b></span>
-        <span style={{ color: '#c4b5fd' }}>Flickr <b>{counts.flickr}</b></span>
-      </Box>
+      {queue === 'sample' ? (
+        <Box
+          data-testid="sample-progress"
+          sx={{ display: 'flex', gap: 0.75, fontSize: 12, alignItems: 'center' }}
+        >
+          <span style={{ color: '#94a3b8' }}>sample:</span>
+          <span style={{ color: '#cbd5e1' }}>
+            <b>{sample?.labeled ?? 0}</b> / {sample?.size ?? 0} rated
+          </span>
+        </Box>
+      ) : (
+        <Box sx={{ display: 'flex', gap: 1.5, fontSize: 12, alignItems: 'center' }}>
+          <span style={{ color: '#94a3b8' }}>left to rate:</span>
+          <span style={{ color: '#cbd5e1' }}>Archive·trained <b>{counts.archiveTrained}</b></span>
+          <span style={{ color: '#6ee7b7' }}>Archive·new <b>{counts.archiveNew}</b></span>
+          <span style={{ color: '#c4b5fd' }}>Flickr <b>{counts.flickr}</b></span>
+        </Box>
+      )}
     </Box>
   );
 
@@ -446,7 +502,13 @@ export function HardExamplesQueue({
         </Box>
       ) : !current ? (
         <Box sx={{ flex: 1, display: 'grid', placeItems: 'center', minHeight: '36vh' }}>
-          <Typography sx={{ color: '#9ca3af' }}>All caught up — no more flagged frames.</Typography>
+          <Typography sx={{ color: '#9ca3af' }}>
+            {queue === 'sample'
+              ? sample && sample.size > 0
+                ? `Sample complete — all ${sample.size} frames rated.`
+                : `No frames in sample "${SAMPLE_NAME}" — load it with ml/load_label_sample.py.`
+              : 'All caught up — no more flagged frames.'}
+          </Typography>
         </Box>
       ) : (
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2 }}>
@@ -503,7 +565,12 @@ export function HardExamplesQueue({
               {current.owner ? ` · ${current.owner}` : ''}
             </Typography>
             <Typography sx={{ textAlign: 'center', fontSize: 12.5, color: '#cbd5e1', minHeight: 16 }}>
-              {current.modelDisagreementKind
+              {/* Sample frames carry no disagreement — and saying one exists
+                  would prime the rating, which is the one thing this set has
+                  to avoid. */}
+              {queue === 'sample'
+                ? 'Random ordinary frame — rate it on its own terms.'
+                : current.modelDisagreementKind
                 ? WHY[current.modelDisagreementKind] ?? 'Judges disagree on this frame.'
                 : 'Judges disagree on this frame.'}
             </Typography>

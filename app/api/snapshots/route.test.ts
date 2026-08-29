@@ -133,6 +133,50 @@ describe('GET /api/snapshots?mode=verification', () => {
     expect(text.some((q) => /from\s+external_images\s+e/i.test(q))).toBe(true);
     expect(text.some((q) => /from\s+webcam_snapshots\s+s\b/i.test(q))).toBe(false);
   });
+  it('sample=<name> restricts both legs to the pre-drawn set', async () => {
+    await GET(req('?mode=verification&sample=random_ordinary_v1'));
+    const text = allText();
+    expect(text.some((q) => /s\.id in\s*\(\s*select image_id from label_samples/i.test(q))).toBe(true);
+    expect(text.some((q) => /e\.id in\s*\(\s*select image_id from label_samples/i.test(q))).toBe(true);
+  });
+
+  it('sample mode overrides disagreements_only rather than stacking with it', async () => {
+    // The sample is drawn from the frames the disagreement filter excludes, so
+    // ANDing the two would return an empty queue.
+    await GET(req('?mode=verification&disagreements_only=true&sample=random_ordinary_v1'));
+    const text = allText();
+    expect(
+      text.some((q) => /model_disagreement_kind\s+is\s+not\s+null/i.test(q)),
+    ).toBe(false);
+  });
+
+  it('serves the sample in its frozen position order, not by rank or recency', async () => {
+    await GET(req('?mode=verification&sample=random_ordinary_v1'));
+    // The sort key is a nested sql`` fragment, so it is its own template call
+    // rather than inline text in the main query.
+    const text = allText();
+    expect(text.some((q) => /-\(SELECT ls\.position/i.test(q))).toBe(true);
+    expect(text.some((q) => /ls\.sample_name = \?/i.test(q))).toBe(true);
+  });
+
+  it('still excludes already-labeled frames so a sample resumes across sittings', async () => {
+    await GET(req('?mode=verification&sample=random_ordinary_v1'));
+    const text = allText();
+    expect(text.some((q) => /not in\s*\(\s*select image_id from manual_labels where source\s*=\s*'webcam'/i.test(q))).toBe(true);
+  });
+
+  it('reports sample progress against the draw, not against what is unrated', async () => {
+    sqlMock.mockResolvedValue([{ size: 200, labeled: 47 }]);
+    const res = await GET(req('?mode=verification&sample=random_ordinary_v1'));
+    const body = await res.json();
+    expect(body.sample).toEqual({ name: 'random_ordinary_v1', size: 200, labeled: 47 });
+  });
+
+  it('omits sample progress entirely when no sample was asked for', async () => {
+    const res = await GET(req('?mode=verification&disagreements_only=true'));
+    expect((await res.json()).sample).toBeNull();
+  });
+
   it('attaches a provenance field to each returned snapshot', async () => {
     sqlMock.mockResolvedValue([
       { snapshot_id: 1, source: 'flickr', firebase_url: 'x', captured_at: '2026-04-01', snapshot: {} },

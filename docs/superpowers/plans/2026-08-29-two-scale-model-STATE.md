@@ -147,10 +147,38 @@ It unblocks three things at once:
 - the first **unbiased evaluation set** any model has had
 - unbiased training data covering the ordinary-frame majority
 
-The sampler exists — `ml/build_holdout_manifest.py` already excludes hard cases
-and gold-set cameras. What is **not** built: a way to feed a fixed sample into
-the Hard Examples queue UI, which currently pulls from the disagreement queue.
-That is the first task of this workstream.
+**The UI is built and the sample is drawn (2026-08-29). Rating is the only
+remaining step.**
+
+Open the Hard Examples queue and switch the new **Disagreements | Random
+sample** toggle to *Random sample*. Progress reads `n / 200` and the sample is
+resumable across sittings — labeled frames drop out, order is frozen.
+
+How it works, and why:
+
+- `label_samples` (migration `database/migrations/20260829_label_samples.sql`,
+  **already applied**) holds the draw. It has to be written down before rating
+  starts: every filter the queue uses is self-erasing, so a sample computed per
+  request would drift as it was rated, and afterwards nothing would separate
+  its labels from the 8k hard-case labels.
+- `ml/load_label_sample.py` froze the draw as `random_ordinary_v1` — **200
+  frames, 140 cameras, seed 20260829**, a subset of the existing 2,000-frame
+  `holdout_ordinary` manifest. That subset choice is the point: those are the
+  exact frames the v5 detection heads were already scored on, so these labels
+  re-grade that run against real ground truth with no re-scoring.
+  Claude calls 82 of the 200 sunsets (41.0%) — do not look at that while rating.
+- `/api/snapshots?mode=verification&sample=<name>` serves it in frozen order.
+  Sample mode **replaces** `disagreements_only` rather than stacking with it —
+  ANDing them returns nothing, since the sample is drawn from what that filter
+  excludes.
+- Labels are stamped `origin = 'random_ordinary_v1'` in `manual_labels`, so the
+  two populations stay separable in raw SQL as well as by joining
+  `label_samples`. **Never pool them** — hard cases are the hardest ~15% of the
+  corpus; averaging them with a random draw destroys what the draw is for.
+- The queue shows no disagreement text and no judge scores in sample mode
+  (blind is on by default). Keep it that way; a primed rating is a wasted one.
+
+Once the 200 are rated, that unblocks all three of the open questions above.
 
 ### Workstream 3 — Map display integration (product thread)
 
