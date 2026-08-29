@@ -140,6 +140,9 @@ def main() -> None:
     if binary_label_from:
         export_cmd.extend(["--binary-label-from", binary_label_from])
 
+    if bool(cfg_get(data_cfg, "gold_sunsets_only", False)):
+        export_cmd.append("--gold-sunsets-only")
+
     min_positive_rating = cfg_get(data_cfg, "min_positive_rating", None)
     if min_positive_rating is not None:
         export_cmd.extend(["--min-positive-rating", str(int(min_positive_rating))])

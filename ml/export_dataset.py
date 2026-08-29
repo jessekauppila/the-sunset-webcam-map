@@ -193,6 +193,16 @@ def parse_args() -> argparse.Namespace:
              "frames; needs --label-source gold.",
     )
     parser.add_argument(
+        "--gold-sunsets-only", action="store_true",
+        help="Restrict --label-source gold to rows the operator marked as "
+             "sunsets. This is how the QUALITY head should be trained: 'is it "
+             "a sunset' and 'how good is it' are different questions, and the "
+             "quality head should only ever see actual sunsets. Without this "
+             "flag the quality head spends 59%% of its training data (5,018 of "
+             "8,564 rows) learning to predict 0.0 for non-sunsets, which is "
+             "the detection head's job.",
+    )
+    parser.add_argument(
         "--min-positive-rating", type=int, default=4,
         help="Rating bar for --binary-label-from min_rating. 3 == 'clearly a "
              "sunset', 4 == 'would I want this surfaced'. See "
@@ -377,14 +387,28 @@ def build_gold_manifest(
     split_cfg: SplitConfig,
     label_policy: LabelPolicy,
     no_progress: bool = False,
+    sunsets_only: bool = False,
 ) -> tuple[list[dict[str, Any]], int]:
     """Build manifest rows from the operator gold-label set.
+
+    The operator rates on two separate scales, and they are different
+    questions: *is this a sunset* (N vs yes) and, only if yes, *how good is
+    it* (1-5). ``sunsets_only`` restricts the export to the second question by
+    dropping non-sunsets entirely — the right input for a quality head, which
+    should never have to spend capacity on detection.
 
     Returns (rows, skipped_no_rating). Webcam rows split by webcam_id like
     every other webcam frame; Flickr rows split in the ext_ namespace.
     """
     gold_rows = fetch_gold_rows(conn)
     print(f"  Gold labels found: {len(gold_rows)}")
+    if sunsets_only:
+        before = len(gold_rows)
+        gold_rows = [r for r in gold_rows if r["is_sunset"]]
+        print(
+            f"  Restricted to operator sunsets: {len(gold_rows)} "
+            f"({before - len(gold_rows)} non-sunsets dropped)"
+        )
 
     manifest: list[dict[str, Any]] = []
     skipped_no_rating = 0
@@ -648,7 +672,8 @@ def main() -> None:
 
         if args.label_source == "gold":
             gold_manifest, skipped_no_rating = build_gold_manifest(
-                conn, split_cfg, label_policy, args.no_progress
+                conn, split_cfg, label_policy, args.no_progress,
+                sunsets_only=args.gold_sunsets_only,
             )
             manifest.extend(gold_manifest)
 
@@ -684,6 +709,7 @@ def main() -> None:
             "binary_threshold": args.binary_threshold,
             "binary_label_from": args.binary_label_from,
             "min_positive_rating": args.min_positive_rating,
+            "gold_sunsets_only": args.gold_sunsets_only,
             "skipped_no_rating": skipped_no_rating,
             "min_rating_count": args.min_rating_count,
             "include_external": args.include_external,
