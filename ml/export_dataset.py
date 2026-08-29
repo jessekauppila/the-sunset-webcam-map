@@ -51,6 +51,22 @@ def external_split(external_id: int, config: SplitConfig) -> str:
     return "test"
 
 
+def gold_label_value(is_sunset: bool, rating: int | None) -> float | None:
+    """Normalized [0,1] quality target for one operator gold label.
+
+    A non-sunset is 0.0 whatever its rating column says. A sunset uses
+    (rating-1)/4, the normalization the rest of the pipeline assumes — so a
+    rating of 4 lands exactly on the 0.75 binary threshold. A sunset with no
+    rating returns None so the caller skips the row instead of inventing a
+    target for it.
+    """
+    if not is_sunset:
+        return 0.0
+    if rating is None:
+        return None
+    return max(0.0, min(1.0, (float(rating) - 1.0) / 4.0))
+
+
 def load_llm_overrides(csv_path: str) -> dict[int, float]:
     """Load LLM ratings CSV and return {record_id: llm_quality} mapping."""
     df = pd.read_csv(csv_path)
@@ -128,7 +144,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--database-url", default=os.getenv("DATABASE_URL"))
     parser.add_argument(
         "--label-source",
-        choices=["manual_only", "public_aggregate"],
+        choices=["manual_only", "public_aggregate", "gold"],
         default="manual_only",
     )
     parser.add_argument("--target-type", choices=["binary", "regression"], default="binary")
@@ -261,6 +277,115 @@ def fetch_rows(
         return [dict(row) for row in cur.fetchall()]
 
 
+def fetch_gold_rows(
+    conn: psycopg2.extensions.connection,
+) -> list[dict[str, Any]]:
+    """Fetch the operator gold-label set (manual_labels), webcam + Flickr.
+
+    manual_labels holds one adjudicated row per (source, image_id) from the
+    Hard Examples queue — the operator's verdict on a frame the model and
+    Claude disagreed about. is_sunset is always present; rating is present
+    iff is_sunset is true.
+
+    Webcam rows keep their webcam_id so they split by camera like everything
+    else; Flickr rows carry their external id for the ext_ namespace.
+    """
+    query = """
+    SELECT
+      s.id AS snapshot_id,
+      -- Cast to text so the UNION legs match: external_images.source is text
+      -- ('flickr'), webcam_snapshots.webcam_id is integer. Webcam rows stay
+      -- numeric strings, so they still int() cleanly for camera-grouped splits.
+      s.webcam_id::text AS webcam_id,
+      s.firebase_url AS image_path_or_url,
+      s.phase,
+      s.captured_at,
+      m.is_sunset,
+      m.rating,
+      0 AS rating_count,
+      'webcam' AS data_source
+    FROM manual_labels m
+    JOIN webcam_snapshots s ON s.id = m.image_id
+    WHERE m.source = 'webcam' AND s.firebase_url IS NOT NULL
+    UNION ALL
+    SELECT
+      e.id AS snapshot_id,
+      e.source AS webcam_id,
+      e.image_url AS image_path_or_url,
+      CASE WHEN e.category = 'sunset' THEN 'sunset' ELSE 'other' END AS phase,
+      e.scraped_at AS captured_at,
+      m.is_sunset,
+      m.rating,
+      0 AS rating_count,
+      e.source AS data_source
+    FROM manual_labels m
+    JOIN external_images e ON e.id = m.image_id
+    WHERE m.source = 'flickr' AND e.image_url IS NOT NULL
+    """
+    with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+        cur.execute(query)
+        return [dict(row) for row in cur.fetchall()]
+
+
+def build_gold_manifest(
+    conn: psycopg2.extensions.connection,
+    split_cfg: SplitConfig,
+    label_policy: LabelPolicy,
+    no_progress: bool = False,
+) -> tuple[list[dict[str, Any]], int]:
+    """Build manifest rows from the operator gold-label set.
+
+    Returns (rows, skipped_no_rating). Webcam rows split by webcam_id like
+    every other webcam frame; Flickr rows split in the ext_ namespace.
+    """
+    gold_rows = fetch_gold_rows(conn)
+    print(f"  Gold labels found: {len(gold_rows)}")
+
+    manifest: list[dict[str, Any]] = []
+    skipped_no_rating = 0
+    for row in tqdm(
+        gold_rows,
+        desc="Building gold manifest",
+        unit="row",
+        disable=no_progress,
+    ):
+        is_sunset = bool(row["is_sunset"])
+        value = gold_label_value(is_sunset, row["rating"])
+        if value is None:
+            skipped_no_rating += 1
+            continue
+
+        if row["data_source"] == "webcam":
+            split = assign_split(int(row["webcam_id"]), split_cfg)
+        else:
+            split = external_split(int(row["snapshot_id"]), split_cfg)
+
+        if label_policy.target_type == "binary":
+            mapped_label = resolve_binary_label(value, is_sunset, label_policy)
+        else:
+            mapped_label = map_label(float(value), label_policy)
+
+        manifest.append(
+            {
+                "snapshot_id": row["snapshot_id"],
+                "webcam_id": row["webcam_id"],
+                "label_source": "gold",
+                "label_value": value,
+                "target_label": mapped_label,
+                "split": split,
+                "image_path_or_url": row["image_path_or_url"],
+                "phase": row["phase"],
+                "captured_at": row["captured_at"],
+                "rating_count": row["rating_count"],
+                "source": row["data_source"],
+            }
+        )
+
+    if skipped_no_rating:
+        print(f"  Skipped {skipped_no_rating} sunset rows with no rating")
+    return manifest, skipped_no_rating
+
+
 def fetch_external_rows(
     conn: psycopg2.extensions.connection,
     categories: list[str],
@@ -355,13 +480,20 @@ def main() -> None:
 
     use_llm_labels = bool(llm_overrides) and args.label_merge_strategy != "human_only"
 
+    skipped_no_rating = 0
+
     with psycopg2.connect(database_url) as conn:
-        rows = fetch_rows(
-            conn,
-            args.label_source,
-            args.min_rating_count,
-            label_merge_strategy=args.label_merge_strategy,
-        )
+        # The gold path is self-contained: manual_labels supplies both sources
+        # and its own labels, so the crowd-vote/LLM queries are skipped.
+        if args.label_source == "gold":
+            rows: list[dict[str, Any]] = []
+        else:
+            rows = fetch_rows(
+                conn,
+                args.label_source,
+                args.min_rating_count,
+                label_merge_strategy=args.label_merge_strategy,
+            )
 
         manifest: list[dict[str, Any]] = []
         for row in tqdm(
@@ -443,6 +575,12 @@ def main() -> None:
                     }
                 )
 
+        if args.label_source == "gold":
+            gold_manifest, skipped_no_rating = build_gold_manifest(
+                conn, split_cfg, label_policy, args.no_progress
+            )
+            manifest.extend(gold_manifest)
+
         out_root = ensure_dir(Path(args.output_dir) / utc_timestamp())
         write_csv(out_root / "manifest_full.csv", manifest)
         write_csv(
@@ -473,6 +611,7 @@ def main() -> None:
             "target_type": args.target_type,
             "binary_threshold": args.binary_threshold,
             "binary_label_from": args.binary_label_from,
+            "skipped_no_rating": skipped_no_rating,
             "min_rating_count": args.min_rating_count,
             "include_external": args.include_external,
             "split_config": asdict(split_cfg),

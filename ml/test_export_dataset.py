@@ -12,7 +12,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from common.labels import LabelPolicy, resolve_binary_label  # noqa: E402
 from common.splits import SplitConfig  # noqa: E402
-from export_dataset import external_split  # noqa: E402
+from export_dataset import external_split, gold_label_value  # noqa: E402
 
 
 class TestExternalSplit(unittest.TestCase):
@@ -128,6 +128,43 @@ class TestResolveBinaryLabel(unittest.TestCase):
     def test_quality_mode_rejects_a_missing_score(self):
         with self.assertRaises(ValueError):
             resolve_binary_label(None, True, self.QUALITY)
+
+
+class TestGoldLabelValue(unittest.TestCase):
+    """Normalized quality target for one operator gold label.
+
+    The Hard Examples queue writes is_sunset always, and rating only when
+    is_sunset is true (measured 2026-08-28: 3,546 rated sunsets, 5,018
+    unrated non-sunsets, zero rows breaking that shape).
+    """
+
+    def test_non_sunset_is_zero(self):
+        self.assertEqual(gold_label_value(is_sunset=False, rating=None), 0.0)
+
+    def test_non_sunset_ignores_a_stray_rating(self):
+        self.assertEqual(gold_label_value(is_sunset=False, rating=3), 0.0)
+
+    def test_sunset_ratings_normalize_one_to_five(self):
+        self.assertEqual(gold_label_value(is_sunset=True, rating=1), 0.0)
+        self.assertEqual(gold_label_value(is_sunset=True, rating=2), 0.25)
+        self.assertEqual(gold_label_value(is_sunset=True, rating=3), 0.5)
+        self.assertEqual(gold_label_value(is_sunset=True, rating=4), 0.75)
+        self.assertEqual(gold_label_value(is_sunset=True, rating=5), 1.0)
+
+    def test_a_rating_four_sunset_clears_the_binary_threshold(self):
+        # Ties the normalization to the threshold convention: 0.75 is exactly
+        # "rating >= 4", the trap documented in ml/common/labels.py.
+        self.assertGreaterEqual(gold_label_value(is_sunset=True, rating=4), 0.75)
+
+    def test_sunset_without_a_rating_is_none(self):
+        # Skip the row rather than invent a target.
+        self.assertIsNone(gold_label_value(is_sunset=True, rating=None))
+
+    def test_stays_inside_the_unit_interval(self):
+        for r in range(1, 6):
+            v = gold_label_value(is_sunset=True, rating=r)
+            self.assertGreaterEqual(v, 0.0)
+            self.assertLessEqual(v, 1.0)
 
 
 if __name__ == "__main__":
