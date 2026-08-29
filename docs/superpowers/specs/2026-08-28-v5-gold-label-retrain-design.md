@@ -265,7 +265,41 @@ treated as unreliable.
 
 ---
 
-## 8. Environment state (blocker)
+## 8. Measured v4 baseline on gold (2026-08-28)
+
+`ml/score_manifest.py` scoring the shipped v4 binary ONNX
+(`20260601_063518_v4_binary_llm_with_flickr`) against the gold test split
+(1,212 frames, 0 unreadable). Report:
+`ml/artifacts/reports/v4_binary_on_gold_test.json`.
+
+At the production threshold (0.5):
+
+| slice | n | precision | recall | F1 | balanced acc | tp | fp | fn |
+|---|---|---|---|---|---|---|---|---|
+| overall | 1,212 | 0.304 | 0.066 | **0.109** | 0.477 | 34 | 78 | 480 |
+| webcam | 1,165 | 0.250 | 0.054 | **0.089** | 0.470 | 26 | 78 | 457 |
+| flickr | 47 | 1.000 | 0.258 | 0.410 | 0.629 | 8 | 0 | 23 |
+
+**v4 finds 26 of 483 operator-confirmed webcam sunsets — it misses 94.6% of
+them.** Its balanced accuracy on webcam frames is 0.470: below chance.
+
+**This is not miscalibration.** Across the full 0.10–0.90 threshold sweep,
+balanced accuracy never leaves the 0.466–0.509 band and best F1 is 0.234 at
+the most permissive threshold. There is no operating point at which the
+model is useful on operator-defined sunsets; the signal isn't there to
+recalibrate.
+
+The per-source split is the tell: precision 1.000 on Flickr versus 0.250 on
+webcam. The model learned to recognize Flickr photographs, exactly as §3
+predicted from its 36 positive webcam training examples.
+
+**This is the number v5 must beat.** v4's self-reported F1 of 0.836 is not
+a valid baseline — it was measured against LLM labels on a test set with 4
+positive webcam frames.
+
+---
+
+## 9. Environment state (blocker)
 
 `.venv/bin/python3.11` symlinks to `/usr/local/opt/python@3.11/bin/python3.11`,
 which no longer exists — the Intel Homebrew prefix is gone (there is a
