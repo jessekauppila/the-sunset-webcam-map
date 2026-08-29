@@ -140,6 +140,10 @@ def main() -> None:
     if binary_label_from:
         export_cmd.extend(["--binary-label-from", binary_label_from])
 
+    min_positive_rating = cfg_get(data_cfg, "min_positive_rating", None)
+    if min_positive_rating is not None:
+        export_cmd.extend(["--min-positive-rating", str(int(min_positive_rating))])
+
     if args.no_progress:
         export_cmd.append("--no-progress")
     run_cmd(export_cmd)

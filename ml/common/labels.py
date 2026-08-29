@@ -31,7 +31,11 @@ class LabelPolicy:
 
     target_type: str = "binary"  # binary | regression
     binary_threshold: float = 0.75  # normalized; was 4.0 before 2026-05-31
-    binary_label_from: str = "quality_threshold"  # quality_threshold | is_sunset
+    # quality_threshold | is_sunset | min_rating
+    binary_label_from: str = "quality_threshold"
+    # Only read when binary_label_from == "min_rating". 4 == "would I want this
+    # surfaced on the map?" — see docs/ml/rating-rubric.md.
+    min_positive_rating: int = 4
 
 
 def to_binary(label_value: float, threshold: float = 0.75) -> int:
@@ -46,6 +50,7 @@ def resolve_binary_label(
     label_value: float | None,
     is_sunset: bool | None,
     policy: LabelPolicy,
+    rating: int | None = None,
 ) -> int:
     """Resolve the binary class for one row.
 
@@ -60,6 +65,21 @@ def resolve_binary_label(
     mode: defaulting an absent value to 0 is how an entire class disappears
     from a training set without anything failing loudly.
     """
+    if policy.binary_label_from == "min_rating":
+        # Operator rating 1 means "a sunset is happening and there is nothing
+        # to see" — dusk over a field — yet it still writes is_sunset=true.
+        # Training on the boolean therefore teaches that dim, colourless
+        # scenes are positives, and the v5 head did exactly that: it fired on
+        # 54.7% of ordinary frames against a 43.0% base rate. A rating bar
+        # asks the question the product actually cares about.
+        if not is_sunset:
+            return 0
+        if rating is None:
+            raise ValueError(
+                "binary_label_from=min_rating requires a rating for a sunset; "
+                "refusing to treat a missing rating as below the bar"
+            )
+        return 1 if int(rating) >= policy.min_positive_rating else 0
     if policy.binary_label_from == "is_sunset":
         if is_sunset is None:
             raise ValueError(

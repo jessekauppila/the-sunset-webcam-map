@@ -167,5 +167,50 @@ class TestGoldLabelValue(unittest.TestCase):
             self.assertLessEqual(v, 1.0)
 
 
+class TestMinRatingBinaryLabel(unittest.TestCase):
+    """rating>=N mode: a sunset only counts if it cleared the bar.
+
+    Operator rating 1 means "a sunset is happening and there is nothing to
+    see" (dusk over a field) and still writes is_sunset=true, so is_sunset is
+    too permissive a positive class for the product. Measured: the v5 head
+    trained on is_sunset fired on 54.7% of ordinary frames against a 43.0%
+    base rate. See docs/ml/rating-rubric.md and design spec section 11.
+    """
+
+    def policy(self, n):
+        return LabelPolicy(target_type="binary", binary_label_from="min_rating",
+                           min_positive_rating=n)
+
+    def test_rating_below_the_bar_is_negative(self):
+        self.assertEqual(resolve_binary_label(None, True, self.policy(3), rating=1), 0)
+        self.assertEqual(resolve_binary_label(None, True, self.policy(3), rating=2), 0)
+
+    def test_rating_at_the_bar_is_positive(self):
+        self.assertEqual(resolve_binary_label(None, True, self.policy(3), rating=3), 1)
+
+    def test_rating_above_the_bar_is_positive(self):
+        self.assertEqual(resolve_binary_label(None, True, self.policy(3), rating=5), 1)
+
+    def test_the_bar_is_configurable(self):
+        self.assertEqual(resolve_binary_label(None, True, self.policy(4), rating=3), 0)
+        self.assertEqual(resolve_binary_label(None, True, self.policy(4), rating=4), 1)
+
+    def test_not_a_sunset_is_negative_regardless_of_rating(self):
+        self.assertEqual(resolve_binary_label(None, False, self.policy(3), rating=None), 0)
+        self.assertEqual(resolve_binary_label(None, False, self.policy(3), rating=5), 0)
+
+    def test_a_sunset_with_no_rating_raises(self):
+        # Never silently treat a missing rating as below the bar — that would
+        # quietly drop real positives out of the training set.
+        with self.assertRaises(ValueError):
+            resolve_binary_label(None, True, self.policy(3), rating=None)
+
+    def test_quality_and_is_sunset_modes_ignore_rating(self):
+        q = LabelPolicy(target_type="binary", binary_label_from="quality_threshold")
+        self.assertEqual(resolve_binary_label(0.9, None, q, rating=1), 1)
+        b = LabelPolicy(target_type="binary", binary_label_from="is_sunset")
+        self.assertEqual(resolve_binary_label(None, True, b, rating=1), 1)
+
+
 if __name__ == "__main__":
     unittest.main()

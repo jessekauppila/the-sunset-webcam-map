@@ -182,12 +182,21 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--binary-threshold", type=float, default=0.75)
     parser.add_argument(
         "--binary-label-from",
-        choices=["quality_threshold", "is_sunset"],
+        choices=["quality_threshold", "is_sunset", "min_rating"],
         default="quality_threshold",
         help="How the binary class is derived. quality_threshold reproduces "
              "v2-v4 (normalized quality >= --binary-threshold). is_sunset "
              "takes the boolean label directly, which needs a source that "
-             "supplies one (--label-source gold, or --llm-label-source db).",
+             "supplies one (--label-source gold, or --llm-label-source db). "
+             "min_rating requires an operator rating >= --min-positive-rating, "
+             "which excludes rating-1 'sunset happening but nothing to see' "
+             "frames; needs --label-source gold.",
+    )
+    parser.add_argument(
+        "--min-positive-rating", type=int, default=4,
+        help="Rating bar for --binary-label-from min_rating. 3 == 'clearly a "
+             "sunset', 4 == 'would I want this surfaced'. See "
+             "docs/ml/rating-rubric.md.",
     )
     parser.add_argument("--min-rating-count", type=int, default=2)
     parser.add_argument("--seed", type=int, default=20260212)
@@ -397,7 +406,9 @@ def build_gold_manifest(
             split = external_split(int(row["snapshot_id"]), split_cfg)
 
         if label_policy.target_type == "binary":
-            mapped_label = resolve_binary_label(value, is_sunset, label_policy)
+            mapped_label = resolve_binary_label(
+                value, is_sunset, label_policy, rating=row["rating"]
+            )
         else:
             mapped_label = map_label(float(value), label_policy)
 
@@ -508,6 +519,7 @@ def main() -> None:
         target_type=args.target_type,
         binary_threshold=args.binary_threshold,
         binary_label_from=args.binary_label_from,
+        min_positive_rating=args.min_positive_rating,
     )
 
     llm_overrides: dict[int, float] = {}
@@ -671,6 +683,7 @@ def main() -> None:
             "target_type": args.target_type,
             "binary_threshold": args.binary_threshold,
             "binary_label_from": args.binary_label_from,
+            "min_positive_rating": args.min_positive_rating,
             "skipped_no_rating": skipped_no_rating,
             "min_rating_count": args.min_rating_count,
             "include_external": args.include_external,
