@@ -26,7 +26,29 @@ import pandas as pd
 
 from common.io import ensure_dir, env_required, utc_timestamp, write_csv, write_json
 from common.labels import LabelPolicy, map_label
-from common.splits import SplitConfig, assign_split
+from common.splits import SplitConfig, assign_split, stable_bucket
+
+
+def external_split(external_id: int, config: SplitConfig) -> str:
+    """Deterministic train/val/test split for an external (Flickr) image.
+
+    Uses the same sha256 bucketing as the webcam path, namespaced with an
+    "ext_" prefix so external ids (1..5872) don't inherit the split of the
+    webcam that happens to share their number.
+
+    This replaced ``assign_split(hash(f"ext_{id}") % 10_000_000, ...)``.
+    Python salts ``hash()`` on str per process unless PYTHONHASHSEED is set,
+    so every export reshuffled external images: 2,718 of 5,767 Flickr images
+    (47.1%) landed in a different split between the two v4 runs, which made
+    no two Flickr-inclusive experiments comparable.
+    """
+    config.validate()
+    bucket = stable_bucket(f"ext_{external_id}", config.seed)
+    if bucket < config.train_pct:
+        return "train"
+    if bucket < config.train_pct + config.val_pct:
+        return "val"
+    return "test"
 
 
 def load_llm_overrides(csv_path: str) -> dict[int, float]:
@@ -381,12 +403,9 @@ def main() -> None:
                 unit="row",
                 disable=args.no_progress,
             ):
-                # External images use their source name as the split group key
-                # so they don't leak into webcam-based splits.
-                split = assign_split(
-                    hash(f"ext_{row['snapshot_id']}") % 10_000_000,
-                    split_cfg,
-                )
+                # External images bucket in their own "ext_" namespace so they
+                # don't inherit the split of a like-numbered webcam.
+                split = external_split(int(row["snapshot_id"]), split_cfg)
                 mapped_label = map_label(float(row["label_value"]), label_policy)
                 manifest.append(
                     {
