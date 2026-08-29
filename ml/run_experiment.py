@@ -130,6 +130,8 @@ def main() -> None:
     if llm_weight is not None:
         export_cmd.extend(["--llm-weight", str(llm_weight)])
 
+    init_checkpoint = str(cfg_get(model_cfg, "init_checkpoint", ""))
+
     llm_label_source = str(cfg_get(data_cfg, "llm_label_source", ""))
     if llm_label_source:
         export_cmd.extend(["--llm-label-source", llm_label_source])
@@ -184,6 +186,8 @@ def main() -> None:
         "--output-dir",
         str(train_dir),
     ]
+    if init_checkpoint:
+        train_cmd.extend(["--init-checkpoint", init_checkpoint])
     num_workers = int(cfg_get(perf_cfg, "num_workers", 0))
     train_cmd.extend(["--num-workers", str(num_workers)])
     train_cmd.extend(["--prefetch-factor", str(int(cfg_get(perf_cfg, "prefetch_factor", 2)))])

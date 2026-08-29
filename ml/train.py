@@ -206,6 +206,11 @@ def parse_args() -> argparse.Namespace:
                         help="Stop if val loss does not improve for N epochs (0 = disabled)")
     parser.add_argument("--head-dropout", type=float, default=0.0,
                         help="Dropout probability on classifier head (0.0 = disabled)")
+    parser.add_argument("--init-checkpoint", default="",
+                        help="Path to a best.pt to warm-start from, for "
+                             "LLM-pretrain -> gold-finetune. The architecture "
+                             "must match: same --model-name, --target-type and "
+                             "--head-dropout as the run that produced it.")
     parser.add_argument("--output-dir", default="ml/artifacts/models")
     parser.add_argument("--no-progress", action="store_true")
     args = parser.parse_args()
@@ -397,6 +402,14 @@ def main() -> None:
     )
 
     model = build_model(args.model_name, args.target_type, head_dropout=args.head_dropout).to(device)
+    if args.init_checkpoint:
+        # train.py saves a bare state_dict (torch.save(model.state_dict(), ...)),
+        # so it loads directly. strict=True on purpose: a silently partial load
+        # would look like a successful warm start and train from noise.
+        model.load_state_dict(
+            torch.load(args.init_checkpoint, map_location=device)
+        )
+        print(f"  Warm-started from {args.init_checkpoint}")
     class_counts = binary_class_counts(train_ds.df) if args.target_type == "binary" else {}
     class_weights = loss_class_weights(args, class_counts) if args.target_type == "binary" else None
     if args.target_type == "binary":
@@ -541,6 +554,7 @@ def main() -> None:
         "early_stopping_patience": args.early_stopping_patience,
         "lr_schedule": args.lr_schedule,
         "head_dropout": args.head_dropout,
+        "init_checkpoint": args.init_checkpoint or None,
         "batch_size": args.batch_size,
         "learning_rate": args.learning_rate,
         "seed": args.seed,
