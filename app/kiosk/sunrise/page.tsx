@@ -8,6 +8,8 @@ import { useLoadTerminatorWebcams } from '@/app/store/useLoadTerminatorWebcams';
 import { useKioskRuntime } from '../useKioskRuntime';
 import { KioskDozeOverlay } from '../KioskDozeOverlay';
 import { parseCompositionOverrides } from '../compositionOverrides';
+import { parsePanelPreview } from '../panelPreview';
+import { PanelFrame } from '../PanelFrame';
 
 function SunriseKioskContent() {
   const { dozing } = useKioskRuntime();
@@ -17,6 +19,10 @@ function SunriseKioskContent() {
   const queryString = searchParams.toString();
   const configOverrides = useMemo(
     () => parseCompositionOverrides(new URLSearchParams(queryString)),
+    [queryString]
+  );
+  const panel = useMemo(
+    () => parsePanelPreview(new URLSearchParams(queryString)),
     [queryString]
   );
 
@@ -36,12 +42,14 @@ function SunriseKioskContent() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  return (
+  const stage = panel ?? dimensions;
+
+  const mosaic = (
     <>
       <GeoMosaic
         webcams={webcams}
-        width={dimensions.width}
-        height={dimensions.height}
+        width={stage.width}
+        height={stage.height}
         feed="sunrise"
         setupMode={searchParams.get('setup') === '1'}
         config={configOverrides}
@@ -49,6 +57,8 @@ function SunriseKioskContent() {
       <KioskDozeOverlay dozing={dozing} />
     </>
   );
+
+  return panel ? <PanelFrame panel={panel}>{mosaic}</PanelFrame> : mosaic;
 }
 
 export default function SunriseKioskPage() {

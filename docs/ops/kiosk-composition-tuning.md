@@ -19,6 +19,8 @@ Both `/kiosk/sunrise` and `/kiosk/sunset` accept:
 | `cull` | `cullOverflow` | `0` or `1` | 1 |
 | `lat` | `latWindow` | `north,south`, each ±90, north > south | `70,-60` |
 | `setup` | (overlay) | `1` to show | off |
+| `panel` | preview size | `dell`, `ktc`, or `WxH` | off (fills window) |
+| `quiet` | doze hours | `H-H` or `off` | `1-8` |
 
 Out-of-range numbers clamp. Anything malformed is **ignored**, so the
 committed default survives — a typo degrades to normal rendering rather than
@@ -26,21 +28,34 @@ a blank screen.
 
 ## Loop
 
-Iterate on the Mac, where reload is instant:
+Iterate on a normal workstation, in a normal-sized window:
 
 ```
 npm run dev
 ```
 
-then open, at a window sized like the panel (1080×1920 portrait):
-
 ```
-localhost:3000/kiosk/sunset?setup=1&floor=120&ceil=340&growth=2.5
+localhost:3000/kiosk/sunset?panel=dell&setup=1&floor=120&ceil=340&growth=2.5
 ```
 
 `setup=1` captions each tile with lat/lng and percentile and counts
-tiles/dropped/skipped — so you can see *why* a value did what it did, not
-just the result.
+tiles/dropped/skipped — so you can see *why* a value did what it did, not just
+the result.
+
+### Why `panel=` and not just a small window
+
+The composition engine lays out against the viewport it is handed. Shrinking
+the browser window therefore produces a **different composition**, not a
+smaller view of the panel's composition — so it tells you nothing about what
+the glass will show.
+
+`panel=` composes at the panel's real dimensions and then scales the finished
+result down to fit the window. What you judge at your desk is what hangs on the
+wall. It auto-fits, never exceeds 1:1, and restores the mouse pointer that the
+kiosk layout hides.
+
+Omit `panel=` and the page behaves exactly as the live kiosk: full window, no
+scaling, pointer hidden.
 
 ## A note on panels
 
@@ -48,6 +63,15 @@ Tile sizes are absolute pixels. A 27" 1440p panel is denser than a 27" 1080p
 one, so the same `floor`/`ceil` render **physically smaller** on the KTCs than
 on the Dells — roughly 75%. Numbers tuned on one panel are a starting point on
 the other, not a transfer.
+
+This is what `panel=ktc` is for: work out KTC composition before the KTCs are
+hung, rather than discovering the shift after mounting them.
+
+## Dozing during a tuning session
+
+The kiosk dims itself to near-black between 1am and 8am local, and `d` toggles
+that dim by hand. If a preview goes dark mid-session, that is what happened —
+add `quiet=off`.
 
 ## On the Pi
 
