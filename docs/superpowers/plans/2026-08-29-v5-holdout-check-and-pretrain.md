@@ -52,6 +52,8 @@
 **Tech Stack:** Python 3.11 arm64 venv at `.venv` (already built), PyTorch 2.2.2, ONNX Runtime, Postgres (Neon) via `DATABASE_URL` in `.env.local`.
 
 **Spec:** `docs/superpowers/specs/2026-08-28-v5-gold-label-retrain-design.md`
+**Label provenance (read before touching any label set):** `docs/ml/label-provenance.md`
+**Operator rubric:** `docs/ml/rating-rubric.md`
 **Prior plan (Tasks 1–8 complete):** `docs/superpowers/plans/2026-08-28-v5-gold-label-retrain.md`
 
 ---
@@ -134,6 +136,7 @@ Run Python tests with `unittest` from the repo root:
 
 - **`binary_threshold` compares against normalized [0,1] labels, not raw 1–5 ratings.** 0.75 ≈ "rating ≥ 4".
 - **Splits group by `webcam_id`**, never by frame.
+- **Four label sets exist and they are NOT interchangeable** (`docs/ml/label-provenance.md`). In particular `webcam_snapshot_ratings` (4,776 legacy hand ratings, 62% of them rated 1 because the old UI had no "not a sunset" button) is **retired and incompatible** — never union it with `manual_labels`.
 - **`llm_is_sunset` is not ground truth.** On the 1,224 gold/LLM overlap frames Claude disagreed with the operator 211 times (141 Claude-yes/operator-no, 70 the reverse, 13 of those rated 4–5 and scored ~0.0). Use it for gross-failure detection only.
 - **Never let an ML fallback masquerade as real model output.** Verify deploys by smoke `latencyMs` (real ONNX 100–500 ms, baseline 10–20 ms) and a near-zero `fallbacks` count.
 - **`vercel env add/rm` is classifier-blocked in Claude Code** — hand those to Jesse. Env vars bake in at deploy time; use `vercel redeploy`, not `vercel --prod`.
