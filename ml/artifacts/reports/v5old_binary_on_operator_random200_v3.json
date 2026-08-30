@@ -1,0 +1,273 @@
+{
+  "manifest": "ml/artifacts/datasets/random_ordinary_v3/manifest_operator_is_sunset.csv",
+  "onnx": "ml/artifacts/models/binary_resnet18/20260829_062437_v5_binary_gold/model.onnx",
+  "threshold": 0.55,
+  "scored": 200,
+  "skipped_unreadable": 0,
+  "overall": {
+    "count": 200,
+    "precision": 0.85,
+    "recall": 0.7555555555555555,
+    "f1": 0.7999999999999998,
+    "balanced_accuracy": 0.8584229390681004,
+    "confusion": {
+      "tn": 149,
+      "fp": 6,
+      "fn": 11,
+      "tp": 34
+    }
+  },
+  "source::webcam": {
+    "count": 200,
+    "precision": 0.85,
+    "recall": 0.7555555555555555,
+    "f1": 0.7999999999999998,
+    "balanced_accuracy": 0.8584229390681004,
+    "confusion": {
+      "tn": 149,
+      "fp": 6,
+      "fn": 11,
+      "tp": 34
+    }
+  },
+  "threshold_sweep": [
+    {
+      "threshold": 0.1,
+      "count": 200,
+      "precision": 0.6101694915254238,
+      "recall": 0.8,
+      "f1": 0.6923076923076924,
+      "balanced_accuracy": 0.8258064516129032,
+      "confusion": {
+        "tn": 132,
+        "fp": 23,
+        "fn": 9,
+        "tp": 36
+      }
+    },
+    {
+      "threshold": 0.15,
+      "count": 200,
+      "precision": 0.6923076923076923,
+      "recall": 0.8,
+      "f1": 0.7422680412371134,
+      "balanced_accuracy": 0.8483870967741935,
+      "confusion": {
+        "tn": 139,
+        "fp": 16,
+        "fn": 9,
+        "tp": 36
+      }
+    },
+    {
+      "threshold": 0.2,
+      "count": 200,
+      "precision": 0.72,
+      "recall": 0.8,
+      "f1": 0.7578947368421052,
+      "balanced_accuracy": 0.8548387096774194,
+      "confusion": {
+        "tn": 141,
+        "fp": 14,
+        "fn": 9,
+        "tp": 36
+      }
+    },
+    {
+      "threshold": 0.25,
+      "count": 200,
+      "precision": 0.72,
+      "recall": 0.8,
+      "f1": 0.7578947368421052,
+      "balanced_accuracy": 0.8548387096774194,
+      "confusion": {
+        "tn": 141,
+        "fp": 14,
+        "fn": 9,
+        "tp": 36
+      }
+    },
+    {
+      "threshold": 0.3,
+      "count": 200,
+      "precision": 0.7608695652173914,
+      "recall": 0.7777777777777778,
+      "f1": 0.7692307692307693,
+      "balanced_accuracy": 0.853405017921147,
+      "confusion": {
+        "tn": 144,
+        "fp": 11,
+        "fn": 10,
+        "tp": 35
+      }
+    },
+    {
+      "threshold": 0.35,
+      "count": 200,
+      "precision": 0.7777777777777778,
+      "recall": 0.7777777777777778,
+      "f1": 0.7777777777777778,
+      "balanced_accuracy": 0.8566308243727598,
+      "confusion": {
+        "tn": 145,
+        "fp": 10,
+        "fn": 10,
+        "tp": 35
+      }
+    },
+    {
+      "threshold": 0.4,
+      "count": 200,
+      "precision": 0.813953488372093,
+      "recall": 0.7777777777777778,
+      "f1": 0.7954545454545455,
+      "balanced_accuracy": 0.8630824372759857,
+      "confusion": {
+        "tn": 147,
+        "fp": 8,
+        "fn": 10,
+        "tp": 35
+      }
+    },
+    {
+      "threshold": 0.45,
+      "count": 200,
+      "precision": 0.8292682926829268,
+      "recall": 0.7555555555555555,
+      "f1": 0.7906976744186047,
+      "balanced_accuracy": 0.8551971326164874,
+      "confusion": {
+        "tn": 148,
+        "fp": 7,
+        "fn": 11,
+        "tp": 34
+      }
+    },
+    {
+      "threshold": 0.5,
+      "count": 200,
+      "precision": 0.85,
+      "recall": 0.7555555555555555,
+      "f1": 0.7999999999999998,
+      "balanced_accuracy": 0.8584229390681004,
+      "confusion": {
+        "tn": 149,
+        "fp": 6,
+        "fn": 11,
+        "tp": 34
+      }
+    },
+    {
+      "threshold": 0.55,
+      "count": 200,
+      "precision": 0.85,
+      "recall": 0.7555555555555555,
+      "f1": 0.7999999999999998,
+      "balanced_accuracy": 0.8584229390681004,
+      "confusion": {
+        "tn": 149,
+        "fp": 6,
+        "fn": 11,
+        "tp": 34
+      }
+    },
+    {
+      "threshold": 0.6,
+      "count": 200,
+      "precision": 0.8717948717948718,
+      "recall": 0.7555555555555555,
+      "f1": 0.8095238095238095,
+      "balanced_accuracy": 0.8616487455197133,
+      "confusion": {
+        "tn": 150,
+        "fp": 5,
+        "fn": 11,
+        "tp": 34
+      }
+    },
+    {
+      "threshold": 0.65,
+      "count": 200,
+      "precision": 0.8717948717948718,
+      "recall": 0.7555555555555555,
+      "f1": 0.8095238095238095,
+      "balanced_accuracy": 0.8616487455197133,
+      "confusion": {
+        "tn": 150,
+        "fp": 5,
+        "fn": 11,
+        "tp": 34
+      }
+    },
+    {
+      "threshold": 0.7,
+      "count": 200,
+      "precision": 0.8947368421052632,
+      "recall": 0.7555555555555555,
+      "f1": 0.8192771084337349,
+      "balanced_accuracy": 0.8648745519713261,
+      "confusion": {
+        "tn": 151,
+        "fp": 4,
+        "fn": 11,
+        "tp": 34
+      }
+    },
+    {
+      "threshold": 0.75,
+      "count": 200,
+      "precision": 0.8947368421052632,
+      "recall": 0.7555555555555555,
+      "f1": 0.8192771084337349,
+      "balanced_accuracy": 0.8648745519713261,
+      "confusion": {
+        "tn": 151,
+        "fp": 4,
+        "fn": 11,
+        "tp": 34
+      }
+    },
+    {
+      "threshold": 0.8,
+      "count": 200,
+      "precision": 0.918918918918919,
+      "recall": 0.7555555555555555,
+      "f1": 0.8292682926829269,
+      "balanced_accuracy": 0.868100358422939,
+      "confusion": {
+        "tn": 152,
+        "fp": 3,
+        "fn": 11,
+        "tp": 34
+      }
+    },
+    {
+      "threshold": 0.85,
+      "count": 200,
+      "precision": 0.9142857142857143,
+      "recall": 0.7111111111111111,
+      "f1": 0.8,
+      "balanced_accuracy": 0.8458781362007168,
+      "confusion": {
+        "tn": 152,
+        "fp": 3,
+        "fn": 13,
+        "tp": 32
+      }
+    },
+    {
+      "threshold": 0.9,
+      "count": 200,
+      "precision": 0.9333333333333333,
+      "recall": 0.6222222222222222,
+      "f1": 0.7466666666666667,
+      "balanced_accuracy": 0.8046594982078853,
+      "confusion": {
+        "tn": 153,
+        "fp": 2,
+        "fn": 17,
+        "tp": 28
+      }
+    }
+  ]
+}

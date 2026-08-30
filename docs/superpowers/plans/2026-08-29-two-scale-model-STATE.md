@@ -248,7 +248,40 @@ confirmation data. Re-rating spend stays PARKED: the rate-money rule
 required detection AND quality to improve, and the quality head is
 unchanged at 0.697 — the detection win came from labels we already owned.
 
-**🏁 QUALITY HEAD TOO (2026-08-30, same day): the backbone warm start
+**⚠️ V3 CONFIRMATION REVERSES THE DETECTION VERDICT (2026-08-30 evening,
+all 200 `random_ordinary_v3` frames rated: N 155, 1:16, 2:9, 3:7, 4:9,
+5:4).** On fresh data neither warm-started head had been selected on:
+
+| v3 fresh, gate 0.55 | v6 warm-started pair | OLD detection + new quality (SHIPS) |
+|---|---|---|
+| detection F1 | **0.727** (from 0.821 on decision data) | **0.800** |
+| quality Pearson (n=45) | 0.680 | 0.680 (same head) |
+| composed Spearman | 0.710 | **0.800** |
+| false-shows | 11/155 (7.1%) | **6/155 (3.9%)** |
+| operator-≥4 shown | 12/13 | **13/13** |
+
+The old detection head is *stable* across four independent eval sets
+(0.816 → 0.776 → 0.797 → 0.800); the warm-started one cratered the moment
+it left the pooled 500 it was selected on — its +0.024 "win" was
+selection noise. Head-to-head on the 13 frames where they disagree, the
+old head is right on 10 (sign test p≈0.09; every composed metric agrees).
+The v3 sweep is FLAT (0.70–0.73 everywhere), so the pooled sweep's
+lower-threshold hint also does not replicate — **the gate stays 0.55.**
+
+**DECISION: detection ROLLS BACK to `20260829_062437_v5_binary_gold`;
+quality KEEPS the warm-started `20260830_190519_v5_quality_llm_backbone_finetune`**
+(its fresh-data edge held: Pearson 0.680 vs the old quality head's 0.653,
+same sign as its pooled win). Open question 3's honest final answer:
+**the pretrain pays for the QUALITY head only; for detection it was a
+wash-at-best that pre-registration + fresh confirmation caught before it
+cost anything.** This is the THIRD detection-head change that failed to
+replicate (retrain 2026-08-30, warm start 2026-08-30 v3) — treat any
+future detection "win" not confirmed on a fresh operator draw as noise.
+Reports: `ml/artifacts/reports/*_random200_v3.json` (v6pair / oldpair /
+mixedpair prefixes + `v6_binary_...` / `v5old_binary_...`).
+
+**🏁 QUALITY HEAD TOO (2026-08-30, same day — but see the v3 REVERSAL
+above: only the quality half survived confirmation): the backbone warm start
 clears the quality bar as well — the full pair is now warm-started.**
 Run `20260830_190519_v5_quality_llm_backbone_finetune`: identical recipe/
 data/seed as the shipping quality head, backbone warm-started from the
