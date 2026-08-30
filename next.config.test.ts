@@ -69,6 +69,34 @@ describe('next.config outputFileTracingIncludes (bundle-size guard)', () => {
     }
   });
 
+  it('re-includes exactly the shipping pair in .vercelignore (the upload gate tracing depends on)', () => {
+    // .vercelignore excludes ml/artifacts/models/<type>/* and re-includes
+    // pinned version dirs with `!` lines. outputFileTracingIncludes can only
+    // trace files that survived that gate — a stale whitelist ships a bundle
+    // with no model and scoring dies at runtime (2026-08-30 deploy).
+    const lines = fs
+      .readFileSync('.vercelignore', 'utf8')
+      .split('\n')
+      .map((l) => l.trim());
+    const unignored = new Set(
+      lines
+        .filter((l) => l.startsWith('!ml/artifacts/models/'))
+        .map((l) => l.slice(1).replace(/\/$/, '')),
+    );
+    for (const dir of SHIPPING_DIRS) {
+      expect(
+        unignored.has(dir),
+        `.vercelignore does not re-include shipping dir: !${dir}`,
+      ).toBe(true);
+    }
+    for (const dir of unignored) {
+      expect(
+        SHIPPING_DIRS.has(dir),
+        `.vercelignore re-includes a non-shipping model dir: !${dir}`,
+      ).toBe(true);
+    }
+  });
+
   it('keeps total bundled model weight under the size budget', () => {
     const seen = new Set<string>();
     let total = 0;
