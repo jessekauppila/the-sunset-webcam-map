@@ -133,7 +133,10 @@ random ordinary sample (`random_ordinary_v1`). Measurements below.
    The corrected quality head also beats Claude (Pearson 0.763 vs 0.560 on
    identical frames). The pretrain remains a possible marginal improvement,
    not a repair for a diagnosed defect — do not spend re-rating money on its
-   behalf without a pre-registered bar it must clear.
+   behalf without a pre-registered bar it must clear. **The bar is now set
+   (2026-08-30, on v1+v2 pooled): detection F1 > 0.797 AND quality Pearson
+   > 0.697, gains under +0.02 counting as a wash — see the PRETRAIN BAR
+   RESTATED block below.**
 
 **Corrected quality-head result (the real headline).** On the 53
 operator-rated ordinary sunsets: **MAE 0.170, Pearson 0.763** — better than
@@ -182,9 +185,26 @@ quality discrimination on ordinary sunsets sits near **0.63–0.70**, not 0.82.
 
 Eyeball item: top-8 composed tiles contain two N frames, both webcam
 **3656741** an hour apart (snapshots 85541 / 85789, tile 0.853) — one
-camera fools both heads twice. ⚠️ The pre-registered pretrain bar (beat
-0.816 detection / 0.820 quality) was set on v1's optimistic numbers —
-restate it against v1+v2 pooled before spending re-rating money.
+camera fools both heads twice.
+
+**📊 PRETRAIN BAR RESTATED (2026-08-30, v1+v2 pooled — supersedes the
+0.816/0.820 bar, which was set on v1's optimistic numbers).** The shipping
+pair on the full pooled 500-frame operator corpus (135 sunsets, 28 ≥4;
+manifests in `ml/artifacts/datasets/random_ordinary_pooled_v1v2/`, reports
+`ml/artifacts/reports/*_pooled500.json`):
+
+- detection @0.55: prec 0.862 / rec 0.741 / **F1 0.797** (sweep flat
+  0.789–0.805 across 0.30–0.70)
+- quality: **Pearson 0.697** / MAE 0.191 (n=135; Claude 0.514 on the same
+  frames)
+- composed @0.55: Spearman 0.788, false-shows 16/365 (4.4%), 27/28 ≥4 shown
+
+**Decision rule for the LLM pretrain (pre-registered):** rate-money is
+spent only if a pretrained candidate, scored on these exact pooled
+manifests through the same verified pipeline, exceeds **detection F1 0.797
+AND quality Pearson 0.697**. Gains under **+0.02** are within single-seed
+noise on this n and do not justify shipping (or the spend) on their own —
+a candidate inside that band is a wash, not a win.
 
 Reports: `ml/artifacts/reports/*_random300_v2.json`. Tooling now committed:
 `ml/build_operator_manifest.py` (sample → manifest CSVs, refuses partial
