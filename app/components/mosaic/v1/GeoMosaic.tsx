@@ -7,6 +7,7 @@ import { compose } from './engine/compose';
 import type { CompositionConfig } from './engine/types';
 import { useLoadedTiles } from './useLoadedTiles';
 import { SetupOverlay } from './SetupOverlay';
+import { ModelInfoOverlay } from './ModelInfoOverlay';
 
 interface HitRect {
   x: number;
@@ -22,6 +23,7 @@ export function GeoMosaic(props: {
   height: number;
   feed: 'sunrise' | 'sunset';
   setupMode?: boolean;
+  modelsMode?: boolean;
   onSelect?: (webcam: WindyWebcam) => void;
   config?: Partial<CompositionConfig>;
 }) {
@@ -31,6 +33,7 @@ export function GeoMosaic(props: {
     height,
     feed,
     setupMode = false,
+    modelsMode = false,
     onSelect,
     config,
   } = props;
@@ -134,6 +137,7 @@ export function GeoMosaic(props: {
       {setupMode && (
         <SetupOverlay layout={layout} feed={feed} skipped={skipped} />
       )}
+      {modelsMode && <ModelInfoOverlay layout={layout} byId={byId} />}
     </div>
   );
 }
