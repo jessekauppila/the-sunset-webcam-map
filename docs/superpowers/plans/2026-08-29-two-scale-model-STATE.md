@@ -76,9 +76,12 @@ Full findings: `docs/superpowers/specs/2026-08-28-v5-gold-label-retrain-design.m
 - **`llm_is_sunset` asks a different question than the operator rubric.**
   Claude: "is a sunset OR sunrise **visible**"; operator `N`: "not a sunset
   **event** at all", with rating 1 = "sunset is happening, frame has nothing".
-  They disagree by construction on ratings 1–2. Measured effect: v5 scores
-  F1 0.643 against Claude vs 0.533 against the operator on the same frames —
-  Claude-grading **flatters** the detection head.
+  They disagree by construction on ratings 1–2. Measured effect (CORRECTED
+  2026-08-30, fixed pipeline): Claude-grading **understates** the detection
+  head — F1 0.647 vs Claude on the holdout against its real 0.816 vs the
+  operator, because Claude calls ~2x as many frames sunsets (82 vs 53 on the
+  200) and punishes the model's correct negatives as misses. (The one-day-old
+  "flatters" claim was itself a broken-pipeline artifact.)
 - **Claude's quality scale is monotonic but compressed.** Rubric anchors say
   1≈0.05, 3≈0.50, 5≈0.95; measured means are 1: 0.257, 3: 0.441, 5: 0.600 —
   squeezed into ~[0.09, 0.60]. Never threshold raw `llm_quality` against a
@@ -138,6 +141,17 @@ its own hard-case number (0.690), beating Claude on the same frames, and
 calibrated almost linearly (rating 1→0.24, 2→0.42, 3→0.55, 4→0.69 against
 anchors 0/.25/.50/.75; rating 5 is n=1).
 
+**Composed two-scale system, end-to-end on the 200 (2026-08-30).** Detection
+gate 0.55 + quality head sizing: **5/147 operator-N frames wrongly shown
+(3.4%)**; every operator ≥4 frame shown; mean tile quality escalates with the
+operator rating (1→0.21, 2→0.42, 3→0.55, 4→0.69); **Spearman 0.829** between
+composed tile size and the operator's own N/1–5 ordering. Top-8 tiles: four
+operator-4s, three 3s, one N. Design note for Workstream 3: the gate hides
+10/14 of the operator's rating-1 frames — if product intent is "show every
+image, just small", below-gate frames should render minimal rather than
+hidden. Detection threshold recommendation from the corrected sweep: **0.55**
+(prec 0.891 / rec 0.774; F1 plateau 0.45–0.70, so not fragile).
+
 **Additional trained variant, corrected:** r3 head (≥3 positives) vs its own
 question: precision 0.621 / recall 0.818 / F1 0.706, 29 fires vs 22 true.
 r4 head: training in flight (first run with the eval-quarantined export).
@@ -165,7 +179,7 @@ Reports: `ml/artifacts/reports/v5_binary_on_operator_random200.json` and
 | `v5_binary_gold_aug` | done | +0.005, noise |
 | `v5_regression_gold` (all rows) | done, superseded | MAE 0.112, Pearson 0.854 |
 | `v5_binary_gold_r3` (rating ≥3) | done | F1 0.8354, balacc 0.8862, AUC 0.9559 |
-| `v5_binary_gold_r4` (rating ≥4) | training 2026-08-30 (eval-quarantined export) | — |
+| `v5_binary_gold_r4` (rating ≥4) | done 2026-08-30 (first quarantined export) | vs its own ≥4 question: prec 0.421 rec 1.000 @0.5, prec 0.571 @0.70 (n=8); vs ≥3: **F1 0.780** — beats the r3 head on r3's own question; fires 19/200 |
 | `v5_quality_sunsets_only` | done | Pearson 0.690 gold / **0.763 vs operator on ordinary** |
 
 **Quality-head result (2026-08-29).** Apples to apples on the identical 514
