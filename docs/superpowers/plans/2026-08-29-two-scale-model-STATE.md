@@ -288,6 +288,27 @@ Once the 200 are rated, that unblocks all three of the open questions above.
 
 ### Workstream 3 — Map display integration (product thread)
 
+**CODE COMPLETE on the branch (2026-08-30), awaiting deploy.** What changed:
+`imagePreprocess.ts` now matches training exactly (no ImageNet normalize —
+AND `fit:'fill'` squash instead of `'cover'` center-crop, a second silent
+mismatch found during the fix); masterConfig defaults pin the shipping pair
+and `AI_BINARY_DECISION_THRESHOLD = 0.55`; `next.config.ts` traces the pair
+into the three ONNX routes, with `next.config.test.ts` now deriving its
+guard from masterConfig so bundling and runtime cannot drift. Parity proven
+through the real `scoreImage` path on two eval frames (negative:
+p=0.0000/quality 0.26; operator-4: p=1.0000/quality 0.73 → aiRating 3.91),
+against the Python reference. 777 tests + production build pass.
+
+**To ship (Jesse):** (1) remove the v4 env overrides in Vercel — else they
+silently beat the new defaults: `AI_ONNX_BINARY_MODEL_PATH`,
+`AI_ONNX_REGRESSION_MODEL_PATH`, `AI_BINARY_MODEL_VERSION`,
+`AI_REGRESSION_MODEL_VERSION`, and `AI_BINARY_SUNSET_THRESHOLD` if set; keep
+`AI_BINARY_SCORING_ENABLED=true`. (2) merge the PR → deploy. (3) verify via
+`/api/debug/scoring-smoke`: `latencyMs` 100–500 ms, `modelVersion` strings =
+the two shipping tags, fallbacks ~0. Confirm the 0.55 gate on the v2 sample
+rating before trusting it long-term.
+
+
 Blocked on Workstream 1 producing a model worth shipping. Scope:
 
 - Tile sizing driven by the quality head; six categories addressable.

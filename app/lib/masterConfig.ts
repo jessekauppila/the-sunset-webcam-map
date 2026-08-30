@@ -71,8 +71,12 @@ export const SNAPSHOTS_ENABLED = false;
 export const SNAPSHOTS_ENABLED_ON_RATING = true;
 
 // Binary classifier threshold used when mapping probability/raw score to
-// positive vs negative decisions.
-export const AI_BINARY_DECISION_THRESHOLD = 0.5;
+// positive vs negative decisions. 0.55 was derived 2026-08-30 from the
+// 200-frame operator-labeled random sample (precision 0.891 / recall 0.774
+// for the v5 is_sunset head; the F1 plateau spans 0.45–0.70, so the choice
+// is not fragile). The old 0.5 was tuned for v4's quality-threshold head
+// under the pre-fix preprocessing — both of those are gone.
+export const AI_BINARY_DECISION_THRESHOLD = 0.55;
 
 // Minimum raw score required to treat a webcam as "capture-worthy" for
 // snapshot persistence during cron runs.
@@ -176,17 +180,28 @@ export const SNAPSHOT_QUEUE_PROGRESS_RATED_SCOPE =
 export const SNAPSHOT_QUEUE_UNRATED_SCOPE = 'session_specific';
 
 // ONNX creation/export workflow lives in `ml/README.md` ("Export ONNX and verify locally").
-// Defaults here are compatibility fallbacks; production/experiment usage should
-// set AI_ONNX_*_MODEL_PATH + AI_*_MODEL_VERSION env vars to versioned artifacts.
+// Defaults are the SHIPPING PAIR (decided 2026-08-30 on the operator-labeled
+// random sample — see docs/superpowers/plans/2026-08-29-two-scale-model-STATE.md):
+//   detection  = v5_binary_gold        (is_sunset head, F1 0.816 vs operator)
+//   quality    = v5_quality_sunsets_only retrain (Pearson 0.820 vs operator)
+// They compose: detection gates whether a frame counts as a sunset; quality
+// (trained ONLY on operator-confirmed sunsets) sizes/ranks it. The quality
+// score of a frame the gate rejects is extrapolation — display code must
+// check binaryIsSunset before treating aiRating as a sunset quality.
+// AI_ONNX_*_MODEL_PATH + AI_*_MODEL_VERSION env vars still override, but the
+// preferred deploy is to keep prod env UNSET and let these defaults pin the
+// pair (next.config.ts outputFileTracingIncludes must list the same dirs).
 export const AI_MODEL_VERSION_DEFAULT = 'baseline-v1';
 export const AI_ONNX_MODEL_PATH_DEFAULT =
   'ml/artifacts/models/model.onnx';
-export const AI_BINARY_MODEL_VERSION_DEFAULT = 'binary-v1';
-export const AI_REGRESSION_MODEL_VERSION_DEFAULT = 'regression-v1';
+export const AI_BINARY_MODEL_VERSION_DEFAULT =
+  '20260829_062437_v5_binary_gold';
+export const AI_REGRESSION_MODEL_VERSION_DEFAULT =
+  '20260830_003808_v5_quality_sunsets_only';
 export const AI_ONNX_BINARY_MODEL_PATH_DEFAULT =
-  'ml/artifacts/models/binary_resnet18/model.onnx';
+  'ml/artifacts/models/binary_resnet18/20260829_062437_v5_binary_gold/model.onnx';
 export const AI_ONNX_REGRESSION_MODEL_PATH_DEFAULT =
-  'ml/artifacts/models/regression_resnet18/model.onnx';
+  'ml/artifacts/models/regression_resnet18/20260830_003808_v5_quality_sunsets_only/model.onnx';
 
 // ---------------------------------------------------------------------------
 // Windy API fetch behavior
