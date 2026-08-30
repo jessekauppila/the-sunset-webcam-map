@@ -177,6 +177,9 @@ jq -r '.files[] | select(test("model.onnx"))' \
 
 If that prints model.onnx paths, your include is working. If empty, the route-key format is wrong.
 
+**Even a correct include can ship nothing** — tracing only sees files that
+survived the `.vercelignore` upload gate. See Trap 6.
+
 See `memory/feedback_vercel_nextjs_ml_bundling.md`.
 
 ### Trap 4: Bundle size approaches 250 MB
@@ -199,20 +202,65 @@ See `memory/feedback_vercel_nextjs_ml_bundling.md`.
    Saves ~86 MB. The `.pt` checkpoints remain for rollback via re-export.
 2. If still over, revisit the `outputFileTracingExcludes` in `next.config.ts` for onnxruntime-node — the existing excludes drop ~350 MB of unused platform binaries; if a newer version adds more, extend the list.
 
-### Trap 5: `CRON_SECRET` is wrong / unset between shells
+### Trap 5: `CRON_SECRET` cannot be pulled — it's a Sensitive env var
 
 **Symptom:** Smoke endpoint returns HTTP 401 plain text → `jq: parse error`.
+`vercel env pull` "succeeds" but writes `CRON_SECRET=""` — the variable is
+stored as **Sensitive** in Vercel, which means *nobody* can read it back, not
+the dashboard, not the CLI. An old `.env.production.local` may hold a stale
+pre-rotation value that also 401s (discovered 2026-08-30).
 
-**Fix:**
-```bash
-echo "len: ${#CRON_SECRET}"   # should be 23
-# if not 23, re-pull from Vercel
-npx vercel env pull --environment=production .env.production.tmp
-export CRON_SECRET=$(grep ^CRON_SECRET .env.production.tmp | cut -d= -f2- | tr -d '"')
-rm .env.production.tmp
+**Where real copies live:** the kiosk Pi's launch script
+(`ssh pi@sunsetdisplay`, URL has `secret=...`) — that's it. If the Pi is
+unreachable, you cannot recover the secret; you can only replace it
+(new value in Vercel **plus** redeploy — env vars bake in — plus updating the
+kiosk URL).
+
+**Don't block a deploy verification on it.** The DB gives stronger evidence
+than the smoke endpoint anyway — see "Verify without the secret" below.
+
+### Trap 6: `.vercelignore` whitelists model dirs BY VERSION — tracing can't include what was never uploaded
+
+**Symptom (2026-08-30, cost the v5 deploy):** build succeeds, functions come
+out ~78 MB instead of ~163 MB, every cron tick logs
+`Load model ... File doesn't exist`, frames are left unscored. The
+`outputFileTracingIncludes` entries are *correct*.
+
+**Why:** `.vercelignore` excludes `ml/artifacts/models/<type>/*` and
+re-includes pinned version dirs via `!` lines. Those lines name versions
+explicitly, so a model bump that updates `masterConfig` and `next.config.ts`
+but not `.vercelignore` strips the new ONNX from the upload before the
+tracer ever runs.
+
+**Fix:** a version bump touches **three** files together: `masterConfig`
+defaults, `next.config.ts` tracing includes, and the `.vercelignore` `!`
+lines. Since PR #83, `next.config.test.ts` derives all three checks from
+masterConfig and fails the build on drift.
+
+**Diagnosis signature:** `vercel inspect <deploy-url> --logs`, find
+"Serverless function size info". Healthy: `ml/artifacts/models: ~85 MB`
+listed as a contributor, functions ~163 MB. Broken: models absent, functions
+~78 MB.
+
+### Verify without the secret (DB model-version stamps)
+
+The live cron stamps `ai_model_version` / `ai_model_version_binary` on the
+**`webcams`** table (`webcam_snapshots` only gets rows conditionally), and
+the unscored path deliberately writes nothing — so fresh rows carrying the
+new tags are proof of real ONNX output, independent of the smoke endpoint:
+
+```sql
+SELECT ai_model_version, ai_model_version_binary, count(*),
+       max(updated_at)
+FROM webcams
+WHERE updated_at > now() - interval '20 minutes'
+GROUP BY 1, 2;
 ```
 
-If `len: 23` and STILL 401, the secret got rotated on Vercel — the env pull above already grabbed the new value, just retry.
+Cron runs `*/15`, so within ~18 minutes of a deploy going Ready you should
+see a batch stamped with both shipping tags. (Run it via a one-off script
+that reads `DATABASE_URL` from `.env.local`, like `scripts/usage-report.mjs`
+does.)
 
 ---
 
