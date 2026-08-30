@@ -141,7 +141,23 @@ its own hard-case number (0.690), beating Claude on the same frames, and
 calibrated almost linearly (rating 1→0.24, 2→0.42, 3→0.55, 4→0.69 against
 anchors 0/.25/.50/.75; rating 5 is n=1).
 
-**Composed two-scale system, end-to-end on the 200 (2026-08-30).** Detection
+**🚢 SHIPPING PAIR (decided 2026-08-30, retrain pass complete).** Both heads
+were retrained on the quarantined export (+151 newest hard-case labels).
+Verdict was split, so the pair is mixed:
+
+- **Detection: KEEP `20260829_062437_v5_binary_gold`** — the retrain scored
+  worse on the 200 (best F1 0.785 vs 0.828; single-seed noise or the extra
+  hard negatives shifting the boundary — either way the old head wins).
+- **Quality: TAKE the retrain `20260830_003808_v5_quality_sunsets_only`** —
+  Pearson **0.820** vs 0.763, MAE 0.167 vs 0.170 on the 53 ordinary sunsets.
+
+Composed (gate 0.55): Spearman **0.835**, still 5/147 false-shows and 8/8 of
+the operator's ≥4 frames shown, rating-5 tile rises 0.57→0.65, and the top-8
+tiles no longer contain an N frame — four operator-4s, four 3s. Confirm the
+pick on `random_ordinary_v2` (300 frames, drawn, awaiting rating) since it
+was made on v1.
+
+**Composed two-scale system, first pair, end-to-end on the 200 (2026-08-30).** Detection
 gate 0.55 + quality head sizing: **5/147 operator-N frames wrongly shown
 (3.4%)**; every operator ≥4 frame shown; mean tile quality escalates with the
 operator rating (1→0.21, 2→0.42, 3→0.55, 4→0.69); **Spearman 0.829** between
@@ -180,7 +196,9 @@ Reports: `ml/artifacts/reports/v5_binary_on_operator_random200.json` and
 | `v5_regression_gold` (all rows) | done, superseded | MAE 0.112, Pearson 0.854 |
 | `v5_binary_gold_r3` (rating ≥3) | done | F1 0.8354, balacc 0.8862, AUC 0.9559 |
 | `v5_binary_gold_r4` (rating ≥4) | done 2026-08-30 (first quarantined export) | vs its own ≥4 question: prec 0.421 rec 1.000 @0.5, prec 0.571 @0.70 (n=8); vs ≥3: **F1 0.780** — beats the r3 head on r3's own question; fires 19/200 |
-| `v5_quality_sunsets_only` | done | Pearson 0.690 gold / **0.763 vs operator on ordinary** |
+| `v5_quality_sunsets_only` | done | Pearson 0.690 gold / 0.763 vs operator on ordinary |
+| `v5_binary_gold` retrain (quarantined export) | done 2026-08-30 | worse on the 200 (best F1 0.785) — not shipped |
+| `v5_quality_sunsets_only` retrain (quarantined export) | done 2026-08-30 | **Pearson 0.820 vs operator — SHIPS** |
 
 **Quality-head result (2026-08-29).** Apples to apples on the identical 514
 sunset test frames:
