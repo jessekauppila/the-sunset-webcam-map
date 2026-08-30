@@ -10,9 +10,9 @@ status: active
 running, what is open, and which of the three workstreams a given question
 belongs to.
 
-Branch: **`feat/kiosk-url-tuning`**, ~31 commits ahead of `main`, all `ml/`- and
-`docs/`-scoped and cherry-pickable onto a clean branch. **Do not switch
-branches** — parallel sessions share this one checkout. Verify with
+Branch: the `feat/kiosk-url-tuning` work merged via PRs #81–#85; `main` is
+current. The pretrain experiment lives on `measure/llm-pretrain-detection`.
+Parallel sessions share this one checkout: verify with
 `git rev-parse --abbrev-ref HEAD` before any commit and **stage explicit paths,
 never `git add -A`.**
 
@@ -127,7 +127,10 @@ random ordinary sample (`random_ordinary_v1`). Measurements below.
    frames Claude's mean quality is **monotonic** — N 0.090, 1: 0.257, 2: 0.406,
    3: 0.441, 4: 0.493, 5: 0.600. Claude's detection on ordinary frames is
    precision 0.598 / recall 0.925 / **F1 0.726**, agreement 0.815.
-3. **Does the LLM pretrain help?** Largely **demotivated** by the corrected
+3. ~~Does the LLM pretrain help?~~ **ANSWERED 2026-08-30: YES — the
+   pretrained candidate clears the pre-registered bar. See the PRETRAIN
+   VERDICT block below.** (Original framing kept for the record:)
+   Largely **demotivated** by the corrected
    numbers: v5 now BEATS Claude on the production distribution (F1 0.816 vs
    0.726; the earlier "Claude beats v5" was the preprocessing artifact).
    The corrected quality head also beats Claude (Pearson 0.763 vs 0.560 on
@@ -206,6 +209,52 @@ AND quality Pearson 0.697**. Gains under **+0.02** are within single-seed
 noise on this n and do not justify shipping (or the spend) on their own —
 a candidate inside that band is a wash, not a win.
 
+**🏁 PRETRAIN VERDICT (2026-08-30): the candidate CLEARS the bar — open
+question 3 closes as "pretrain pays, with existing labels and zero API
+spend."** Two-stage run: `20260830_061333_v5_binary_llm_pretrain` (51,346
+LLM-labeled rows — 45,579 webcam + 5,767 Flickr, judge mix 68%
+sonnet-4-5 / 32% sonnet-5 recorded per-row via the new `llm_model` manifest
+column; best val F1 0.857 vs Claude's own labels) →
+`20260830_082004_v5_binary_gold_llm_finetune` (identical gold export,
+splits and seed as the shipping head — only the initialization differs;
+gold-test F1 0.8855). ONNX parity vs evaluate.py verified to 1.6e-6 on 20
+frames. Scored through the verified pipeline only, on the pooled 500:
+
+| pooled 500, gate 0.55 | shipping head (the bar) | pretrain→finetune candidate |
+|---|---|---|
+| precision / recall | 0.862 / 0.741 | **0.910 / 0.748** |
+| detection F1 | 0.797 | **0.821 (+0.024 — above the +0.02 wash band)** |
+| sweep plateau | 0.789–0.805 (0.30–0.70) | **0.802–0.823 (0.25–0.60)** — plateau, not a lucky point |
+| composed Spearman | 0.788 | **0.820** |
+| false-shows | 16/365 (4.4%) | **10/365 (2.7%)** |
+| operator-≥4 shown | 27/28 | 27/28 |
+| top-8 N frames | 2 (both webcam 3656741) | **0** (seven 4s, one 2) |
+| quality Pearson | 0.697 | 0.697 (same shipping quality head — untouched by design) |
+
+The win is narrow on the registered metric (+0.024 against a ±0.02 noise
+band) but corroborated by everything the bar did not require: the sweep sits
+above the shipping head's across the whole plateau, false-shows nearly
+halve, and the one named failure camera (3656741, both N frames at tile
+0.853 under the shipping pair) is now rejected at p=0.001. The eyeball item
+above is resolved by the candidate.
+
+**What this does and does not authorize.** The candidate detection head is
+the new ship candidate (Workstream 3 mechanics apply: bundle a new ONNX
+dir, masterConfig + next.config.ts + `.vercelignore` in one change, retire
+an old model dir, `vercel redeploy`, verify by DB version stamps). The gate
+stays **0.55** — the candidate's sweep peaks at lower thresholds (0.850 at
+0.10) but re-picking a threshold on the eval corpus would be tuning on
+confirmation data. Re-rating spend stays PARKED: the rate-money rule
+required detection AND quality to improve, and the quality head is
+unchanged at 0.697 — the detection win came from labels we already owned.
+
+Candidate reports: `ml/artifacts/reports/v5_llm_finetune_on_operator_pooled500.json`,
+`..._reports/composed_on_operator_llm_finetune_pooled500.json`. A
+quarantine hole was found and fixed on the way: the llm_only export leg
+did NOT exclude `label_samples` (all 500 eval frames are LLM-rated and
+would have entered the pretrain); `export_dataset.py` now applies the same
+NOT EXISTS guard as the gold leg, verified 0/500 present in the export.
+
 Reports: `ml/artifacts/reports/*_random300_v2.json`. Tooling now committed:
 `ml/build_operator_manifest.py` (sample → manifest CSVs, refuses partial
 exports) and `ml/eval_composed_operator.py` (quality + composed eval, reuses
@@ -253,6 +302,8 @@ Reports: `ml/artifacts/reports/v5_binary_on_operator_random200.json` and
 | `v5_quality_sunsets_only` | done | Pearson 0.690 gold / 0.763 vs operator on ordinary |
 | `v5_binary_gold` retrain (quarantined export) | done 2026-08-30 | worse on the 200 (best F1 0.785) — not shipped |
 | `v5_quality_sunsets_only` retrain (quarantined export) | done 2026-08-30 | **Pearson 0.820 vs operator — SHIPS** |
+| `v5_binary_llm_pretrain` (stage 1, 51,346 LLM labels) | done 2026-08-30 | F1 0.878 vs Claude's held-out labels; feeder for the finetune |
+| `v5_binary_gold_llm_finetune` (stage 2, warm start) | done 2026-08-30 | **F1 0.821 on pooled 500 — CLEARS the 0.797 bar; new ship candidate** |
 
 **Quality-head result (2026-08-29).** Apples to apples on the identical 514
 sunset test frames:

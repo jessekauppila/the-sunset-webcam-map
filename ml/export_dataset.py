@@ -90,7 +90,7 @@ def fetch_llm_labels_from_db(
     campaigns (claude-sonnet-4-5 and claude-sonnet-5) as of 2026-08-28.
     """
     query = """
-    SELECT id, llm_quality, llm_is_sunset
+    SELECT id, llm_quality, llm_is_sunset, llm_model
     FROM webcam_snapshots
     WHERE llm_quality IS NOT NULL AND firebase_url IS NOT NULL
     """
@@ -100,6 +100,10 @@ def fetch_llm_labels_from_db(
             int(r["id"]): {
                 "quality": float(r["llm_quality"]),
                 "is_sunset": r["llm_is_sunset"],
+                # sonnet-4-5 and sonnet-5 are different instruments (35.9%
+                # vs 63.6% sunset call rate on the same prompt); the judge
+                # rides along so exports stay stratifiable.
+                "model": r["llm_model"],
             }
             for r in cur.fetchall()
         }
@@ -165,6 +169,20 @@ def summarize_targets(rows: list[dict[str, Any]], target_type: str) -> dict[str,
         "max": max(numeric),
         "mean": sum(numeric) / len(numeric),
     }
+
+
+def summarize_judges(rows: list[dict[str, Any]]) -> dict[str, int]:
+    """Count manifest rows by the LLM judge that produced their label.
+
+    Rows with no judge (gold/human labels) count as "unlabeled". Kept as a
+    plain summary rather than a filter: the two judges are pooled for
+    training, but the mix has to be on the record for any later reading.
+    """
+    counts: dict[str, int] = {}
+    for r in rows:
+        key = r.get("llm_model") or "unlabeled"
+        counts[key] = counts.get(key, 0) + 1
+    return counts
 
 
 def parse_args() -> argparse.Namespace:
@@ -287,6 +305,11 @@ def fetch_rows(
           GROUP BY snapshot_id
         ) c ON c.snapshot_id = s.id
         WHERE s.firebase_url IS NOT NULL
+          -- EVAL QUARANTINE: same rule as the gold leg below. Every
+          -- label_samples frame is LLM-rated, so without this the LLM
+          -- pretrain trains on all 500 frames of the only unbiased eval set.
+          AND NOT EXISTS (SELECT 1 FROM label_samples ls
+                          WHERE ls.source = 'webcam' AND ls.image_id = s.id)
         """
     elif label_source == "public_aggregate":
         query = """
@@ -460,6 +483,8 @@ def build_gold_manifest(
                 "captured_at": row["captured_at"],
                 "rating_count": row["rating_count"],
                 "source": row["data_source"],
+                # Gold rows are operator-labeled; no LLM judge involved.
+                "llm_model": None,
             }
         )
 
@@ -487,6 +512,7 @@ def fetch_external_rows(
       scraped_at AS captured_at,
       llm_quality AS label_value,
       llm_is_sunset AS is_sunset,
+      llm_model,
       0 AS rating_count,
       source AS data_source
     FROM external_images
@@ -559,6 +585,7 @@ def main() -> None:
 
     llm_overrides: dict[int, float] = {}
     llm_is_sunset_by_id: dict[int, bool] = {}
+    llm_model_by_id: dict[int, str | None] = {}
     if args.llm_label_source == "csv" and args.llm_ratings_csv:
         llm_overrides = load_llm_overrides(args.llm_ratings_csv)
         print(f"  Loaded {len(llm_overrides)} LLM ratings from {args.llm_ratings_csv}")
@@ -575,6 +602,7 @@ def main() -> None:
                 k: v["is_sunset"] for k, v in db_labels.items()
                 if v["is_sunset"] is not None
             }
+            llm_model_by_id = {k: v["model"] for k, v in db_labels.items()}
             use_llm_labels = (
                 bool(llm_overrides) and args.label_merge_strategy != "human_only"
             )
@@ -644,6 +672,10 @@ def main() -> None:
                     "captured_at": row["captured_at"],
                     "rating_count": row["rating_count"],
                     "source": "webcam",
+                    "llm_model": (
+                        llm_model_by_id.get(row["snapshot_id"])
+                        if use_llm_labels else None
+                    ),
                 }
             )
 
@@ -678,6 +710,7 @@ def main() -> None:
                         "captured_at": row["captured_at"],
                         "rating_count": row["rating_count"],
                         "source": row["data_source"],
+                        "llm_model": row.get("llm_model"),
                     }
                 )
 
@@ -738,6 +771,12 @@ def main() -> None:
                 "train": summarize_targets(train_rows, args.target_type),
                 "val": summarize_targets(val_rows, args.target_type),
                 "test": summarize_targets(test_rows, args.target_type),
+            },
+            "llm_judge_mix": {
+                "full": summarize_judges(manifest),
+                "train": summarize_judges(train_rows),
+                "val": summarize_judges(val_rows),
+                "test": summarize_judges(test_rows),
             },
         }
         write_json(out_root / "export_meta.json", meta)

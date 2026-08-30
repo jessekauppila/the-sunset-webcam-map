@@ -12,7 +12,13 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from common.labels import LabelPolicy, resolve_binary_label  # noqa: E402
 from common.splits import SplitConfig  # noqa: E402
-from export_dataset import external_split, gold_label_value  # noqa: E402
+from export_dataset import (  # noqa: E402
+    external_split,
+    fetch_llm_labels_from_db,
+    fetch_rows,
+    gold_label_value,
+    summarize_judges,
+)
 
 
 class TestExternalSplit(unittest.TestCase):
@@ -210,6 +216,81 @@ class TestMinRatingBinaryLabel(unittest.TestCase):
         self.assertEqual(resolve_binary_label(0.9, None, q, rating=1), 1)
         b = LabelPolicy(target_type="binary", binary_label_from="is_sunset")
         self.assertEqual(resolve_binary_label(None, True, b, rating=1), 1)
+
+
+class _RecordingCursor:
+    """Captures executed SQL and returns canned rows, standing in for psycopg2."""
+
+    def __init__(self, rows):
+        self.rows = rows
+        self.executed = []
+
+    def execute(self, query, params=None):
+        self.executed.append(query)
+
+    def fetchall(self):
+        return self.rows
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+
+class _RecordingConn:
+    def __init__(self, rows):
+        self.cursor_obj = _RecordingCursor(rows)
+
+    def cursor(self, cursor_factory=None):
+        return self.cursor_obj
+
+
+class TestEvalQuarantine(unittest.TestCase):
+    """label_samples frames are evaluation ground truth, never training data.
+
+    The gold export has excluded them since the sample was drawn; the LLM
+    pretrain export (llm_only merge strategy) reads *every* imaged snapshot,
+    and all 500 eval frames are LLM-rated — without the same NOT EXISTS
+    guard the pretrain trains on the yardstick it is later measured with.
+    """
+
+    def test_llm_only_query_excludes_label_samples(self):
+        conn = _RecordingConn([])
+        fetch_rows(conn, "manual_only", 1, label_merge_strategy="llm_only")
+        query = conn.cursor_obj.executed[0]
+        self.assertIn("label_samples", query)
+        self.assertIn("NOT EXISTS", query)
+
+
+class TestLlmLabelsCarryTheJudge(unittest.TestCase):
+    """llm_model must ride along with every DB-sourced LLM label.
+
+    sonnet-4-5 and sonnet-5 are different instruments (measured 2026-08-29:
+    35.9% vs 63.6% sunset call rate on the same prompt). A pretrain export
+    that drops the judge column cannot be stratified after the fact.
+    """
+
+    def test_fetch_selects_and_returns_llm_model(self):
+        conn = _RecordingConn([
+            {"id": 7, "llm_quality": 0.4, "llm_is_sunset": True,
+             "llm_model": "claude-sonnet-5"},
+        ])
+        labels = fetch_llm_labels_from_db(conn)
+        self.assertIn("llm_model", conn.cursor_obj.executed[0])
+        self.assertEqual(labels[7]["model"], "claude-sonnet-5")
+
+    def test_judge_mix_counts_by_model(self):
+        rows = [
+            {"llm_model": "claude-sonnet-5"},
+            {"llm_model": "claude-sonnet-5"},
+            {"llm_model": "claude-sonnet-4-5"},
+            {"llm_model": None},
+        ]
+        self.assertEqual(
+            summarize_judges(rows),
+            {"claude-sonnet-5": 2, "claude-sonnet-4-5": 1, "unlabeled": 1},
+        )
 
 
 if __name__ == "__main__":

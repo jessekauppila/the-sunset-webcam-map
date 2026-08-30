@@ -1,0 +1,162 @@
+{
+  "schema_version": 1,
+  "slug": "v5_quality_sunsets_only",
+  "display_name": "v5_quality_sunsets_only",
+  "published_at": "2026-08-30T18:57:49+00:00",
+  "started_at": "2026-08-30T00:38:08+00:00",
+  "config_summary": {
+    "model": {
+      "name": "resnet18",
+      "epochs": 60,
+      "batch_size": 32,
+      "learning_rate": 0.0001,
+      "lr_schedule": "cosine",
+      "early_stopping_patience": 15,
+      "head_dropout": 0.3
+    },
+    "target_type": "regression",
+    "epochs_configured": 60,
+    "lr_schedule": "cosine",
+    "early_stopping_patience": 15,
+    "head_dropout": 0.3,
+    "class_weighting": "none",
+    "label_source": null
+  },
+  "metrics": {
+    "pearson_r": 0.6883213934697854,
+    "spearman_r": 0.700932036286662,
+    "r_squared": 0.47131479929969533,
+    "val_mse": 0.04901066516175548,
+    "best_f1": 0.8664921465968587,
+    "val_precision": 0.817283950617284,
+    "val_recall": 0.9220055710306406,
+    "val_accuracy": null,
+    "best_epoch": 13,
+    "epochs_completed": 28,
+    "early_stopped_epoch": 28
+  },
+  "diagnosis": {
+    "status": "healthy",
+    "note": "Train/val loss tracked together; no overfit signal."
+  },
+  "data": {
+    "train_samples": 2491,
+    "val_samples": 611,
+    "test_samples": null,
+    "class_balance": {
+      "negative": null,
+      "positive": null,
+      "ratio": null
+    },
+    "label_distribution": {
+      "train": {
+        "4": 691,
+        "1": 362,
+        "5": 298,
+        "3": 699,
+        "2": 441
+      },
+      "val": {
+        "2": 133,
+        "1": 117,
+        "3": 179,
+        "4": 137,
+        "5": 45
+      },
+      "test": null
+    }
+  },
+  "assets": {
+    "loss_curves_png": "plots/loss_curves.png",
+    "label_distribution_png": "plots/label_distribution.png",
+    "config_yaml": "config.yaml",
+    "failure_gallery_json": "failure_gallery.json"
+  },
+  "threshold_sweep": [
+    {
+      "threshold": 0.3,
+      "precision": 0.7669683257918553,
+      "recall": 0.9442896935933147,
+      "f1": 0.846441947565543
+    },
+    {
+      "threshold": 0.35,
+      "precision": 0.817283950617284,
+      "recall": 0.9220055710306406,
+      "f1": 0.8664921465968587
+    },
+    {
+      "threshold": 0.4,
+      "precision": 0.8490566037735849,
+      "recall": 0.8774373259052924,
+      "f1": 0.863013698630137
+    },
+    {
+      "threshold": 0.45,
+      "precision": 0.8858858858858859,
+      "recall": 0.8217270194986073,
+      "f1": 0.8526011560693642
+    },
+    {
+      "threshold": 0.5,
+      "precision": 0.912751677852349,
+      "recall": 0.7576601671309192,
+      "f1": 0.8280060882800608
+    },
+    {
+      "threshold": 0.55,
+      "precision": 0.7027027027027027,
+      "recall": 0.8310502283105022,
+      "f1": 0.7615062761506276
+    },
+    {
+      "threshold": 0.6,
+      "precision": 0.7511520737327189,
+      "recall": 0.7442922374429224,
+      "f1": 0.7477064220183486
+    },
+    {
+      "threshold": 0.65,
+      "precision": 0.791907514450867,
+      "recall": 0.6255707762557078,
+      "f1": 0.6989795918367347
+    },
+    {
+      "threshold": 0.7,
+      "precision": 0.8283582089552238,
+      "recall": 0.5068493150684932,
+      "f1": 0.6288951841359773
+    },
+    {
+      "threshold": 0.75,
+      "precision": 0.8631578947368421,
+      "recall": 0.3744292237442922,
+      "f1": 0.5222929936305732
+    },
+    {
+      "threshold": 0.8,
+      "precision": 0.49206349206349204,
+      "recall": 0.41333333333333333,
+      "f1": 0.4492753623188406
+    },
+    {
+      "threshold": 0.85,
+      "precision": 0.696969696969697,
+      "recall": 0.30666666666666664,
+      "f1": 0.42592592592592593
+    },
+    {
+      "threshold": 0.9,
+      "precision": 0.7894736842105263,
+      "recall": 0.2,
+      "f1": 0.3191489361702128
+    }
+  ],
+  "best_threshold": {
+    "threshold": 0.35,
+    "precision": 0.817283950617284,
+    "recall": 0.9220055710306406,
+    "f1": 0.8664921465968587
+  },
+  "decision_threshold": 0.3
+}

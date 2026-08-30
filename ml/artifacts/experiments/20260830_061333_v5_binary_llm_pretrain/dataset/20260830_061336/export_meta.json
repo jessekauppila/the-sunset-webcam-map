@@ -1,0 +1,73 @@
+{
+  "label_source": "manual_only",
+  "label_merge_strategy": "llm_only",
+  "llm_ratings_csv": null,
+  "llm_label_source": "db",
+  "llm_overrides_count": 46079,
+  "target_type": "binary",
+  "binary_threshold": 0.75,
+  "binary_label_from": "is_sunset",
+  "min_positive_rating": 4,
+  "gold_sunsets_only": false,
+  "skipped_no_rating": 0,
+  "min_rating_count": 1,
+  "include_external": true,
+  "split_config": {
+    "seed": 20260212,
+    "train_pct": 70,
+    "val_pct": 15,
+    "test_pct": 15
+  },
+  "counts": {
+    "total": 51346,
+    "train": 34543,
+    "val": 8508,
+    "test": 8295,
+    "webcam": 45579,
+    "external": 5767
+  },
+  "target_distribution": {
+    "full": {
+      "count": 51346,
+      "negative": 25884,
+      "positive": 25462,
+      "positive_rate": 0.4958906243913839
+    },
+    "train": {
+      "count": 34543,
+      "negative": 17257,
+      "positive": 17286,
+      "positive_rate": 0.5004197666676317
+    },
+    "val": {
+      "count": 8508,
+      "negative": 4179,
+      "positive": 4329,
+      "positive_rate": 0.5088152327221439
+    },
+    "test": {
+      "count": 8295,
+      "negative": 4448,
+      "positive": 3847,
+      "positive_rate": 0.46377335744424353
+    }
+  },
+  "llm_judge_mix": {
+    "full": {
+      "claude-sonnet-5": 16244,
+      "claude-sonnet-4-5": 35102
+    },
+    "train": {
+      "claude-sonnet-5": 10496,
+      "claude-sonnet-4-5": 24047
+    },
+    "val": {
+      "claude-sonnet-5": 2893,
+      "claude-sonnet-4-5": 5615
+    },
+    "test": {
+      "claude-sonnet-4-5": 5440,
+      "claude-sonnet-5": 2855
+    }
+  }
+}

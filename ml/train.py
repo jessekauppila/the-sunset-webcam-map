@@ -158,6 +158,34 @@ def _make_head(in_features: int, out_features: int, dropout: float) -> nn.Module
     return nn.Linear(in_features, out_features)
 
 
+def load_backbone_state(model: nn.Module, state: dict) -> int:
+    """Load a checkpoint's backbone into `model`, leaving the head fresh.
+
+    Head tensors live under `fc.` (resnet18) or `classifier.` (mobilenet)
+    and are the ONLY keys allowed to differ. Any other missing or
+    unexpected key raises — same fail-loud contract as the strict
+    --init-checkpoint path, because a silently partial load would look
+    like a successful warm start and train from noise.
+
+    Returns the number of head tensors dropped from the checkpoint.
+    """
+    head_prefixes = ("fc.", "classifier.")
+    backbone_state = {
+        k: v for k, v in state.items() if not k.startswith(head_prefixes)
+    }
+    result = model.load_state_dict(backbone_state, strict=False)
+    missing_nonhead = [
+        k for k in result.missing_keys if not k.startswith(head_prefixes)
+    ]
+    if result.unexpected_keys or missing_nonhead:
+        raise ValueError(
+            "Backbone warm start does not line up with this model: "
+            f"unexpected={list(result.unexpected_keys)} "
+            f"missing_nonhead={missing_nonhead}"
+        )
+    return len(state) - len(backbone_state)
+
+
 def build_model(model_name: str, target_type: str, head_dropout: float = 0.0) -> nn.Module:
     """Build pretrained backbone and replace final layer for target mode."""
     out_features = 1 if target_type == "regression" else 2
@@ -211,6 +239,13 @@ def parse_args() -> argparse.Namespace:
                              "LLM-pretrain -> gold-finetune. The architecture "
                              "must match: same --model-name, --target-type and "
                              "--head-dropout as the run that produced it.")
+    parser.add_argument("--init-backbone-checkpoint", default="",
+                        help="Like --init-checkpoint but loads only the "
+                             "backbone, leaving the head at its fresh init. "
+                             "For cross-head transfer (e.g. warm-starting the "
+                             "regression quality head from a binary detection "
+                             "pretrain). Mutually exclusive with "
+                             "--init-checkpoint.")
     parser.add_argument("--output-dir", default="ml/artifacts/models")
     parser.add_argument("--no-progress", action="store_true")
     args = parser.parse_args()
@@ -402,6 +437,11 @@ def main() -> None:
     )
 
     model = build_model(args.model_name, args.target_type, head_dropout=args.head_dropout).to(device)
+    if args.init_checkpoint and args.init_backbone_checkpoint:
+        raise SystemExit(
+            "--init-checkpoint and --init-backbone-checkpoint are mutually "
+            "exclusive; pick one."
+        )
     if args.init_checkpoint:
         # train.py saves a bare state_dict (torch.save(model.state_dict(), ...)),
         # so it loads directly. strict=True on purpose: a silently partial load
@@ -410,6 +450,15 @@ def main() -> None:
             torch.load(args.init_checkpoint, map_location=device)
         )
         print(f"  Warm-started from {args.init_checkpoint}")
+    if args.init_backbone_checkpoint:
+        dropped = load_backbone_state(
+            model,
+            torch.load(args.init_backbone_checkpoint, map_location=device),
+        )
+        print(
+            f"  Warm-started backbone from {args.init_backbone_checkpoint} "
+            f"({dropped} head tensors dropped, head kept fresh)"
+        )
     class_counts = binary_class_counts(train_ds.df) if args.target_type == "binary" else {}
     class_weights = loss_class_weights(args, class_counts) if args.target_type == "binary" else None
     if args.target_type == "binary":
@@ -555,6 +604,7 @@ def main() -> None:
         "lr_schedule": args.lr_schedule,
         "head_dropout": args.head_dropout,
         "init_checkpoint": args.init_checkpoint or None,
+        "init_backbone_checkpoint": args.init_backbone_checkpoint or None,
         "batch_size": args.batch_size,
         "learning_rate": args.learning_rate,
         "seed": args.seed,
