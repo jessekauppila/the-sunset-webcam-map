@@ -1,0 +1,84 @@
+run:
+  name: v5_binary_gold_r3
+  seed: 20260212
+  notes: >
+    Binary head trained on operator rating >= 3 instead of is_sunset —
+    "brighter colour, clearly a sunset". 2,370 positive / 6,194 negative.
+
+    Why: v5_binary_gold trained on is_sunset scored F1 0.874 on the gold
+    (hard-case) test split but only 0.643 on 2,000 ordinary frames, firing
+    on 54.7%% against a 43.0%% base rate. Root cause is the target, not the
+    data: operator rating 1 means "a sunset is happening and there is
+    nothing to see" and still writes is_sunset=true, so the head learned
+    that dim colourless scenes are positives and applied that to ordinary
+    blue hour. Its score is otherwise monotonic in the rating (N 0.437,
+    1: 0.658, 2: 0.812, 3: 0.936, 4: 0.974, 5: 0.983) — it learned the
+    rubric, it was pointed at the wrong end of it.
+
+    No relabeling and no Claude re-run: only the label derivation changes.
+
+    Caveat when evaluating: llm_is_sunset asks a different question than a
+    rating bar (docs/ml/label-provenance.md), so the ordinary-frame score
+    understates this model even more than it understated the is_sunset one.
+    Read the precision TREND across is_sunset / r3 / r4, not any absolute.
+  tags: [v5, binary, min_rating_3, gold_labels]
+
+data:
+  label_source: gold
+  target_type: binary
+  binary_label_from: min_rating
+  min_positive_rating: 3
+  # Unused in is_sunset mode; kept so export_meta records the convention.
+  binary_threshold: 0.75
+  min_rating_count: 1
+  # The gold source already carries its own Flickr rows from manual_labels.
+  include_external: false
+  splits:
+    seed: 20260212
+    train_pct: 70
+    val_pct: 15
+    test_pct: 15
+
+model:
+  name: resnet18
+  epochs: 60
+  batch_size: 32
+  learning_rate: 0.0001
+  lr_schedule: cosine
+  early_stopping_patience: 15
+  head_dropout: 0.3
+
+imbalance:
+  class_weighting: none
+  sampler: none
+  manual_weights: {}
+
+augmentation:
+  profile: light
+
+cropping:
+  strategy: random_resized
+  scale_min: 0.95
+  scale_max: 1.0
+
+performance:
+  num_workers: 0
+  pin_memory: false
+  prefetch_factor: 2
+  persistent_workers: false
+
+subset:
+  max_train_samples: 0
+  max_val_samples: 0
+
+image_cache:
+  enabled: true
+  cache_dir: ml/artifacts/image_cache
+  precache: true
+
+metrics:
+  decision_threshold: 0.5
+  threshold_sweep: true
+  threshold_sweep_start: 0.1
+  threshold_sweep_end: 0.9
+  threshold_sweep_step: 0.05
