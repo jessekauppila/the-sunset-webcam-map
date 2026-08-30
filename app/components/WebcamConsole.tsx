@@ -4,7 +4,64 @@ import Image from 'next/image';
 import { useState } from 'react';
 import type { WindyWebcam, Orientation } from '@/app/lib/types';
 import { useAllWebcamsStore } from '@/app/store/useAllWebcamsStore';
+import {
+  detectionReadout,
+  qualityReadout,
+  shortModelName,
+} from '@/app/lib/modelReadout';
 import StarRating from './console/StarRating';
+
+/**
+ * What the two model heads said about this cam, stated separately —
+ * detection (is a sunset happening?) and quality (how good is it?).
+ * Manual per-webcam rating controls were removed 2026-08-30: frame labels
+ * come from the Hard Examples / Random sample queues now, and this console
+ * reports the models' own judgments instead.
+ */
+function ModelReadout({ webcam }: { webcam: WindyWebcam }) {
+  const detection = detectionReadout(webcam);
+  const quality = qualityReadout(webcam);
+  const detectionModel = shortModelName(webcam.aiModelVersionBinary);
+  const qualityModel = shortModelName(webcam.aiModelVersionRegression);
+
+  return (
+    <div className="mt-1">
+      <p className="webcam-console-details">
+        Detection{detectionModel ? ` (${detectionModel})` : ''}:{' '}
+        {detection ? (
+          <span
+            className={
+              detection.verdict === 'sunset'
+                ? 'font-semibold text-orange-600'
+                : 'text-gray-500'
+            }
+          >
+            {detection.verdict} · {Math.round(detection.probability * 100)}%
+          </span>
+        ) : (
+          <span className="text-gray-400">not scored yet</span>
+        )}
+      </p>
+      <div className="webcam-console-details">
+        Quality{qualityModel ? ` (${qualityModel})` : ''}:{' '}
+        {quality !== null ? (
+          <>
+            <StarRating rating={quality} />
+            <span className="ml-1">{quality.toFixed(1)} / 5</span>
+            {detection && detection.verdict === 'not a sunset' && (
+              <span className="text-gray-400">
+                {' '}
+                (below gate — renders minimal)
+              </span>
+            )}
+          </>
+        ) : (
+          <span className="text-gray-400">not scored yet</span>
+        )}
+      </div>
+    </div>
+  );
+}
 
 export function WebcamConsole({
   webcams,
@@ -13,29 +70,10 @@ export function WebcamConsole({
   webcams: WindyWebcam[];
   title: string;
 }) {
-  const setRating = useAllWebcamsStore((s) => s.setRating);
   const setOrientation = useAllWebcamsStore((s) => s.setOrientation);
   const [updatingWebcams, setUpdatingWebcams] = useState<Set<number>>(
     new Set()
   );
-
-  const handleRatingChange = async (
-    webcamId: number,
-    rating: number
-  ) => {
-    setUpdatingWebcams((prev) => new Set(prev).add(webcamId));
-    try {
-      await setRating(webcamId, rating);
-    } catch (error) {
-      console.error('Failed to update rating:', error);
-    } finally {
-      setUpdatingWebcams((prev) => {
-        const newSet = new Set(prev);
-        newSet.delete(webcamId);
-        return newSet;
-      });
-    }
-  };
 
   const handleOrientationChange = async (
     webcamId: number,
@@ -121,45 +159,8 @@ export function WebcamConsole({
                 ID: {webcam.webcamId}
               </p>
 
-              {/* Rating */}
-              <div className="webcam-console-details">
-                Saved Rating:{' '}
-                {<StarRating rating={webcam.rating ?? 0} />}
-              </div>
-
-              {/* Rating Controls */}
-              <div className="rating-controls">
-                <label className="webcam-console-details">
-                  Set Rating:
-                </label>
-                <div className="flex gap-1">
-                  {[1, 2, 3, 4, 5].map((rating) => (
-                    <button
-                      key={rating}
-                      onClick={() =>
-                        handleRatingChange(webcam.webcamId, rating)
-                      }
-                      disabled={updatingWebcams.has(webcam.webcamId)}
-                      className={`rating-button ${
-                        webcam.rating === rating
-                          ? 'rating-button-active'
-                          : 'rating-button-inactive'
-                      } ${
-                        updatingWebcams.has(webcam.webcamId)
-                          ? 'rating-button-disabled'
-                          : ''
-                      }`}
-                    >
-                      {rating}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Rating */}
-              <p className="webcam-console-details">
-                Orientation: {webcam.orientation}
-              </p>
+              {/* Model judgments — detection head + quality head */}
+              <ModelReadout webcam={webcam} />
 
               {/* Orientation Controls */}
               <div className="mt-2">
