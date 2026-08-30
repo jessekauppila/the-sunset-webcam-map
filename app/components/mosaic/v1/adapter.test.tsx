@@ -44,6 +44,16 @@ describe('MosaicV1 adapter', () => {
     expect(renderedProps().config).toEqual({});
   });
 
+  it('enables modelsMode with ?models=1', () => {
+    render(<MosaicV1 {...base} search="models=1" />);
+    expect(renderedProps().modelsMode).toBe(true);
+  });
+
+  it('leaves modelsMode off by default and for other values', () => {
+    render(<MosaicV1 {...base} search="models=0" />);
+    expect(renderedProps().modelsMode).toBe(false);
+  });
+
   it('forwards the core mosaic props untouched', () => {
     render(<MosaicV1 {...base} setupMode search="" />);
     const props = renderedProps();

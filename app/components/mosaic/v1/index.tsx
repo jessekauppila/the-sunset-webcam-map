@@ -12,9 +12,13 @@ import { parseCompositionOverrides } from './compositionOverrides';
  * ideas go in a new version folder, not here.
  */
 export function MosaicV1({ search = '', ...rest }: MosaicProps) {
-  const overrides = useMemo(
-    () => parseCompositionOverrides(new URLSearchParams(search)),
-    [search]
-  );
-  return <GeoMosaic {...rest} config={overrides} />;
+  const { overrides, modelsMode } = useMemo(() => {
+    const params = new URLSearchParams(search);
+    return {
+      overrides: parseCompositionOverrides(params),
+      // ?models=1 — per-tile model-judgment chips, default off.
+      modelsMode: params.get('models') === '1',
+    };
+  }, [search]);
+  return <GeoMosaic {...rest} config={overrides} modelsMode={modelsMode} />;
 }
