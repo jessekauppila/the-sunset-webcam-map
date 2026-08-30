@@ -43,7 +43,9 @@ describe('POST /api/manual-labels', () => {
   it('upserts a valid label', async () => {
     const res = await POST(post({ source: 'flickr', imageId: 7, isSunset: true, rating: 4 }));
     expect(res.status).toBe(200);
-    expect(upsertMock).toHaveBeenCalledWith({ source: 'flickr', imageId: 7, isSunset: true, rating: 4 });
+    expect(upsertMock).toHaveBeenCalledWith({
+      source: 'flickr', imageId: 7, isSunset: true, rating: 4, origin: null,
+    });
   });
   it('returns the stored row and the table total as proof of the write', async () => {
     const res = await POST(post({ source: 'flickr', imageId: 7, isSunset: true, rating: 4 }));
@@ -64,10 +66,30 @@ describe('POST /api/manual-labels', () => {
     const res = await POST(post({ source: 'webcam', imageId: 1, isSunset: true, rating: 9 }));
     expect(res.status).toBe(400);
   });
+  it('passes origin through so sample labels stay separable from hard cases', async () => {
+    const res = await POST(
+      post({ source: 'webcam', imageId: 7, isSunset: true, rating: 4, origin: 'random_ordinary_v1' }),
+    );
+    expect(res.status).toBe(200);
+    expect(upsertMock).toHaveBeenCalledWith({
+      source: 'webcam', imageId: 7, isSunset: true, rating: 4, origin: 'random_ordinary_v1',
+    });
+  });
+  it('rejects an origin that is not a slug', async () => {
+    // origin is read back as a filter in the ML exports, so it must not become
+    // a free-text field the client controls.
+    const res = await POST(
+      post({ source: 'webcam', imageId: 1, isSunset: true, origin: "x'; DROP TABLE" }),
+    );
+    expect(res.status).toBe(400);
+    expect(upsertMock).not.toHaveBeenCalled();
+  });
   it('coerces a numeric-string imageId (Flickr BIGINT arrives as a string)', async () => {
     const res = await POST(post({ source: 'flickr', imageId: '5709', isSunset: true, rating: 3 }));
     expect(res.status).toBe(200);
-    expect(upsertMock).toHaveBeenCalledWith({ source: 'flickr', imageId: 5709, isSunset: true, rating: 3 });
+    expect(upsertMock).toHaveBeenCalledWith({
+      source: 'flickr', imageId: 5709, isSunset: true, rating: 3, origin: null,
+    });
   });
 });
 

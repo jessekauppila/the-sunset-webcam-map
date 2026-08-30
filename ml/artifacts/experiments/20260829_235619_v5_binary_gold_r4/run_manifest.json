@@ -1,0 +1,7 @@
+{
+  "config_input": "ml/artifacts/experiments/20260829_235619_v5_binary_gold_r4/config.input.yaml",
+  "config_resolved": "ml/artifacts/experiments/20260829_235619_v5_binary_gold_r4/config.resolved.json",
+  "dataset_meta": "ml/artifacts/experiments/20260829_235619_v5_binary_gold_r4/dataset/20260829_235621/export_meta.json",
+  "train_summary": "ml/artifacts/experiments/20260829_235619_v5_binary_gold_r4/train/train_summary.json",
+  "eval_report": "ml/artifacts/experiments/20260829_235619_v5_binary_gold_r4/eval/eval_report.json"
+}

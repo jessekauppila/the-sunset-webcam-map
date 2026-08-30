@@ -1,0 +1,80 @@
+run:
+  name: v5_regression_gold
+  seed: 20260212
+  notes: >
+    v5 quality head on operator gold ratings only. Non-sunsets target 0.0;
+    sunsets target (rating-1)/4, so a rating of 4 lands on 0.75.
+
+    Gold-only because Claude's quality scale is not calibrated to the
+    operator's. It compresses to <=0.88 on webcam frames (mean 0.405 even
+    among frames it calls sunsets), and on the 1,224 overlapping frames it
+    scored 13 operator-rated 4s and 5s at avg 0.018 and 0.000 — the
+    silhouette-sunset blind spot. Blending the two scales into one
+    regression target would bake that miscalibration in.
+
+    Calibrating llm_quality against gold ratings, so the ~46k LLM quality
+    labels become usable, is a separate experiment that needs this run's
+    number as its baseline.
+
+    Note the label distribution is heavily zero-weighted: 5,018 of 8,564
+    rows are exactly 0.0. Read MAE/Pearson with that in mind, and compare
+    against v4 regression only with the caveat that the two are measured
+    against different label sets.
+  tags: [v5, regression, gold_labels]
+
+data:
+  label_source: gold
+  target_type: regression
+  binary_label_from: is_sunset  # not read in regression mode
+  binary_threshold: 0.75
+  min_rating_count: 1
+  include_external: false
+  splits:
+    seed: 20260212
+    train_pct: 70
+    val_pct: 15
+    test_pct: 15
+
+model:
+  name: resnet18
+  epochs: 60
+  batch_size: 32
+  learning_rate: 0.0001
+  lr_schedule: cosine
+  early_stopping_patience: 15
+  head_dropout: 0.3
+
+imbalance:
+  class_weighting: none
+  sampler: none
+  manual_weights: {}
+
+augmentation:
+  profile: light
+
+cropping:
+  strategy: random_resized
+  scale_min: 0.95
+  scale_max: 1.0
+
+performance:
+  num_workers: 0
+  pin_memory: false
+  prefetch_factor: 2
+  persistent_workers: false
+
+subset:
+  max_train_samples: 0
+  max_val_samples: 0
+
+image_cache:
+  enabled: true
+  cache_dir: ml/artifacts/image_cache
+  precache: true
+
+metrics:
+  decision_threshold: 0.30
+  threshold_sweep: true
+  threshold_sweep_start: 0.3
+  threshold_sweep_end: 0.9
+  threshold_sweep_step: 0.05

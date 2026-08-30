@@ -1016,6 +1016,74 @@ pipeline supports several merge strategies via `--label-merge-strategy`:
 
 These are set in the YAML config under `data.label_merge_strategy`.
 
+### Label sources (`--label-source`)
+
+| Source | Reads |
+|--------|-------|
+| `manual_only` | `webcam_snapshots.calculated_rating` + `webcam_snapshot_ratings`. **Despite the name this is the retired crowd-vote path, not `manual_labels`.** Kept because v2–v4 used it. |
+| `public_aggregate` | Same, with a stricter rater-count gate. |
+| `gold` | **`manual_labels`** — the operator gold-label set from the Hard Examples queue, webcam + Flickr. Non-sunsets target 0.0; sunsets target `(rating-1)/4`. A sunset with no rating is skipped, not guessed at. |
+
+### Where the binary class comes from (`--binary-label-from`)
+
+Added 2026-08-28. Config key: `data.binary_label_from`.
+
+| Value | Behavior |
+|-------|----------|
+| `quality_threshold` (default) | v2–v4 behavior: positive means normalized quality ≥ `--binary-threshold`. |
+| `is_sunset` | Take the boolean label directly. Needs a source that supplies one (`--label-source gold`, or `--llm-label-source db`). |
+
+**The v4 binary head was never an is-sunset head**, despite its config
+comment saying so — it thresholded `llm_quality` at 0.75. Claude's quality
+scale tops out near 0.88 on webcam frames, so that fired on **90 of 46,079**
+webcam rows. Measured from the shipped v4 manifests:
+
+| split | webcam pos | flickr pos | webcam neg | flickr neg |
+|---|---|---|---|---|
+| train | **36** | 1,418 | 20,083 | 2,605 |
+| val | 8 | 317 | 4,792 | 534 |
+| test | **4** | 303 | 4,682 | 590 |
+
+Its published F1 of 0.836 was measured on a test set whose positives are 303
+Flickr photos and 4 webcam frames, so it largely measures "is this a Flickr
+photograph." See `docs/superpowers/specs/2026-08-28-v5-gold-label-retrain-design.md`.
+
+### Where LLM labels come from (`--llm-label-source`)
+
+Config key: `data.llm_label_source`.
+
+| Value | Behavior |
+|-------|----------|
+| `csv` (default) | Read `--llm-ratings-csv`. v4 behavior. Quality only — **cannot supply `llm_is_sunset`**. Frozen at 29,605 rows. |
+| `db` | Read `webcam_snapshots.llm_*` live: 46,079 rated webcam frames, all carrying `llm_is_sunset`. |
+
+`llm_is_sunset` is populated on 100% of rated rows (46,079 webcam, 5,767
+external) across both judge campaigns, and went unread by the export until
+this flag existed — roughly 52k unused labels.
+
+### Judging an old model against a new label set
+
+`ml/score_manifest.py` scores any manifest CSV with any exported ONNX,
+reporting overall metrics, a per-source breakdown, and a threshold sweep.
+This is the only way to compare a previously trained model against labels it
+never saw:
+
+```bash
+python ml/score_manifest.py \
+  --manifest ml/artifacts/datasets/gold_baseline/<ts>/manifest_test.csv \
+  --onnx ml/artifacts/models/binary_resnet18/<tag>/model.onnx \
+  --output ml/artifacts/reports/<name>.json
+```
+
+### Reproducibility note (fixed 2026-08-28)
+
+External (Flickr) rows were split with `assign_split(hash(f"ext_{id}") %
+10_000_000, ...)`. Python salts `hash()` on `str` per process, so every
+export reshuffled Flickr between train/val/test: **2,718 of 5,767 images
+(47.1%)** landed in a different split between the two v4 runs. No run leaked
+internally, but no two Flickr-inclusive experiments were comparable. Now uses
+the same sha256 `stable_bucket` as the webcam path, in an `ext_` namespace.
+
 ---
 
 ## 9. ONNX export and deployment

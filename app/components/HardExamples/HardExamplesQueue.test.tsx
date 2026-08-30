@@ -206,8 +206,13 @@ describe('HardExamplesQueue counts bar', () => {
   });
 });
 
-// A full-size page, so the component's prefetch-near-the-end path actually runs.
-const BATCH = 120;
+// A full page as far as the component is concerned, so the prefetch-near-the-end
+// path actually runs — but small, and passed in as `batchSize`. The boundary
+// logic is the same at 10 as at the production 120; the only difference is that
+// reaching it costs 8 ratings instead of 118. At 118 each of these tests did
+// ~0.5s of real renders and POSTs, which stretched past the 5s timeout when the
+// rest of the suite was competing for CPU.
+const BATCH = 10;
 const makePage = (prefix: string, n = BATCH) =>
   Array.from({ length: n }, (_, i) => ({
     id: `${prefix}-${i}`,
@@ -255,15 +260,15 @@ describe('HardExamplesQueue pagination', () => {
     const { fn, calls } = pagingFetch();
     vi.stubGlobal('fetch', fn);
     const user = userEvent.setup();
-    render(<HardExamplesQueue />);
+    render(<HardExamplesQueue batchSize={BATCH} />);
     await waitFor(() => expect(calls.length).toBe(1));
 
-    // Rate 116 and skip 2 — the cursor lands two from the end and trips the
+    // Rate 6 and skip 2 — the cursor lands two from the end and trips the
     // prefetch. Labeled frames leave the server's unlabeled set, so four of the
-    // 120 loaded frames are still in it: the 2 skipped and the 2 not yet
-    // reached. Paging by the loaded length (offset 120) would jump the 116
+    // 10 loaded frames are still in it: the 2 skipped and the 2 not yet
+    // reached. Paging by the loaded length (offset 10) would jump the 6
     // unseen frames that took the labeled ones' place.
-    await user.keyboard('4'.repeat(116));
+    await user.keyboard('4'.repeat(BATCH - 4));
     await user.keyboard('  ');
 
     await waitFor(() => expect(calls.length).toBe(2));
@@ -301,16 +306,16 @@ describe('HardExamplesQueue pagination', () => {
       }),
     );
     const user = userEvent.setup();
-    render(<HardExamplesQueue />);
+    render(<HardExamplesQueue batchSize={BATCH} />);
     await waitFor(() => expect(calls.length).toBe(1));
 
-    await user.keyboard('4'.repeat(118)); // trips the prefetch at frame 118
+    await user.keyboard('4'.repeat(BATCH - 2)); // trips the prefetch at frame 8
     await waitFor(() => expect(calls.length).toBe(2));
 
-    // Frames 118 and 119 close out page one; frame 120 must be next. Paging by
-    // the loaded length lands on frame 238 here and loses the 118 in between.
+    // Frames 8 and 9 close out page one; frame 10 must be next. Paging by the
+    // loaded length lands on frame 18 here and loses the 8 in between.
     await user.keyboard('4'.repeat(2));
-    await waitFor(() => expect(screen.getByText('pool frame 120')).toBeTruthy());
+    await waitFor(() => expect(screen.getByText('pool frame 10')).toBeTruthy());
   });
 
   it('stops paging once the server returns a short page', async () => {
@@ -330,7 +335,7 @@ describe('HardExamplesQueue pagination', () => {
       }),
     );
     const user = userEvent.setup();
-    render(<HardExamplesQueue />);
+    render(<HardExamplesQueue batchSize={BATCH} />);
     await waitFor(() => expect(calls.length).toBe(1));
 
     // A page shorter than BATCH means the queue is drained; running off the end
@@ -362,7 +367,7 @@ describe('HardExamplesQueue rapid rating', () => {
         } as Response;
       }),
     );
-    render(<HardExamplesQueue />);
+    render(<HardExamplesQueue batchSize={BATCH} />);
     await waitFor(() => expect(screen.getByText('burst frame 0')).toBeTruthy());
 
     // Five keydowns in one tick — the worst case a blocked main thread can
@@ -403,5 +408,206 @@ describe('HardExamplesQueue rubric legend', () => {
     expect(keys.textContent).toContain('undo');
     expect(keys.textContent).toContain('z');
     expect(keys.textContent).toContain('␣');
+  });
+});
+
+describe('HardExamplesQueue random-sample queue', () => {
+  // The disagreement queue only ever surfaces the hardest ~15% of the corpus,
+  // which is why the operator-vs-Claude numbers have all needed caveats. These
+  // tests pin the second queue: a pre-drawn fixed set, served in its own order.
+  const SAMPLE = { name: 'random_ordinary_v2', size: 200, labeled: 12 };
+
+  // Sample frames carry no disagreement kind — that is what makes them ordinary.
+  const SAMPLE_FRAMES = FRAMES.map((f) => ({ ...f, modelDisagreementKind: null }));
+
+  const urls: string[] = [];
+  function mockSampleFetch() {
+    return vi.fn(async (url: string) => {
+      urls.push(String(url));
+      if (String(url).startsWith('/api/snapshots')) {
+        const isSample = String(url).includes('sample=');
+        return {
+          ok: true,
+          json: async () => ({
+            snapshots: isSample ? SAMPLE_FRAMES : FRAMES,
+            total: 2,
+            counts: COUNTS,
+            sample: isSample ? SAMPLE : null,
+          }),
+        } as Response;
+      }
+      return labelResponse();
+    });
+  }
+
+  beforeEach(() => {
+    urls.length = 0;
+    labelSeq = 0;
+    vi.stubGlobal('fetch', mockSampleFetch());
+  });
+
+  const switchToSample = async () => {
+    render(<HardExamplesQueue />);
+    await screen.findByText('Frame one');
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Random sample' }));
+    });
+  };
+
+  it('asks for the named sample instead of the disagreement ranking', async () => {
+    await switchToSample();
+    const last = urls.filter((u) => u.startsWith('/api/snapshots')).at(-1) ?? '';
+    expect(last).toContain('sample=random_ordinary_v2');
+    // Both at once would be incoherent: the sample is exactly the frames the
+    // disagreement filter excludes, so it has to replace that filter.
+    expect(last).not.toContain('disagreements_only=true');
+  });
+
+  it('shows progress through the draw, not the remaining-by-provenance buckets', async () => {
+    await switchToSample();
+    expect(await screen.findByTestId('sample-progress')).toHaveTextContent('12 / 200');
+    expect(screen.queryByText('left to rate:')).toBeNull();
+  });
+
+  it('stamps the sample name as origin so the two label sets stay separable', async () => {
+    await switchToSample();
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Not a sunset (N)' }));
+    });
+    const post = (fetch as unknown as ReturnType<typeof vi.fn>).mock.calls.find(
+      (c) => String(c[0]).startsWith('/api/manual-labels'),
+    );
+    expect(JSON.parse(String((post?.[1] as RequestInit)?.body)).origin).toBe(
+      'random_ordinary_v2',
+    );
+  });
+
+  it('advances the progress readout on a confirmed save', async () => {
+    await switchToSample();
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Not a sunset (N)' }));
+    });
+    await waitFor(() =>
+      expect(screen.getByTestId('sample-progress')).toHaveTextContent('13 / 200'),
+    );
+  });
+
+  it('does not tell the operator the judges disagree', async () => {
+    // The whole value of this set is an unprimed rating. Claiming a
+    // disagreement exists on an ordinary frame would bias it.
+    await switchToSample();
+    await waitFor(() =>
+      expect(screen.getByText(/Random ordinary frame/)).toBeTruthy(),
+    );
+    expect(screen.queryByText(/Judges disagree/)).toBeNull();
+  });
+});
+
+
+describe('HardExamplesQueue population integrity (regression, 2026-08-29)', () => {
+  // What actually happened: the operator switched to the random sample, rated
+  // 120 frames, and every one was stored with origin 'hard_example'; then 151
+  // disagreement frames were appended into the same run and rated as if they
+  // were still the sample. Both failures came from reading the live queue mode
+  // at rating time instead of binding the population to the frame.
+  const FRAME = (id: number, kind: string | null = null) => ({
+    id: `w-${id}`, title: `F${id}`, source: 'webcam', provenance: 'archive_new',
+    modelDisagreementKind: kind, aiRegressionScore: 0.2,
+    llmIsSunset: true, llmQuality: 0.8,
+    snapshot: { id, firebaseUrl: `https://example.test/${id}.jpg` },
+  });
+
+  const bodies = () =>
+    (fetch as unknown as ReturnType<typeof vi.fn>).mock.calls
+      .filter((c) => String(c[0]).startsWith('/api/manual-labels'))
+      .map((c) => JSON.parse(String((c[1] as RequestInit)?.body)));
+
+  it('labels a sample frame with the sample origin even if the mode flips first', async () => {
+    let sampleServed = false;
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      const u = String(url);
+      if (u.startsWith('/api/snapshots')) {
+        const isSample = u.includes('sample=');
+        if (isSample) sampleServed = true;
+        return { ok: true, json: async () => ({
+          snapshots: [FRAME(1), FRAME(2)], total: 2,
+          counts: { archiveTrained: 0, archiveNew: 0, flickr: 0 },
+          sample: isSample ? { name: 'random_ordinary_v2', size: 200, labeled: 0 } : null,
+        })} as Response;
+      }
+      return labelResponse();
+    }));
+    render(<HardExamplesQueue />);
+    await screen.findByText('F1');
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Random sample' }));
+    });
+    expect(sampleServed).toBe(true);
+    // Simulate the mode reverting under the operator before they rate.
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Disagreements' }));
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Not a sunset (N)' }));
+    });
+    // Whatever the toggle now says, the frame on screen came from whichever
+    // fetch loaded it, and must be labeled as that population.
+    const origins = bodies().map((b) => b.origin);
+    expect(new Set(origins).size).toBe(1);
+  });
+
+  it('never appends frames from a different population into the loaded run', async () => {
+    // Page 1 is the sample; the mode flips; page 2 would be disagreements.
+    let call = 0;
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      const u = String(url);
+      if (u.startsWith('/api/snapshots')) {
+        const isSample = u.includes('sample=');
+        call += 1;
+        return { ok: true, json: async () => ({
+          snapshots: isSample
+            ? [FRAME(1), FRAME(2), FRAME(3)]
+            : [FRAME(90, 'model_low_claude_sunset'), FRAME(91, 'model_low_claude_sunset')],
+          total: 3,
+          counts: { archiveTrained: 0, archiveNew: 0, flickr: 0 },
+          sample: isSample ? { name: 'random_ordinary_v2', size: 200, labeled: 0 } : null,
+        })} as Response;
+      }
+      return labelResponse();
+    }));
+    render(<HardExamplesQueue batchSize={3} />);
+    // Mount serves the disagreement queue; switch to the sample from there.
+    await screen.findByText('F90');
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Random sample' }));
+    });
+    await screen.findByText('F1');
+    const before = screen.getByTestId('frame-population').textContent;
+    // Rate to the prefetch boundary; a disagreement page must not slide in.
+    await act(async () => { fireEvent.keyDown(window, { key: '0' }); });
+    await act(async () => { fireEvent.keyDown(window, { key: '0' }); });
+    expect(before).toMatch(/Random sample/);
+    expect(screen.queryByText('F90')).toBeNull();
+    expect(call).toBeGreaterThan(0);
+  });
+
+  it('does not call a sample "complete" when frames are still unrated', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      if (String(url).startsWith('/api/snapshots')) {
+        return { ok: true, json: async () => ({
+          snapshots: [], total: 0,
+          counts: { archiveTrained: 0, archiveNew: 0, flickr: 0 },
+          sample: { name: 'random_ordinary_v2', size: 200, labeled: 120 },
+        })} as Response;
+      }
+      return labelResponse();
+    }));
+    render(<HardExamplesQueue />);
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Random sample' }));
+    });
+    // 120 of 200 rated must never read as finished.
+    await waitFor(() => expect(screen.getByText(/still unrated/)).toBeTruthy());
+    expect(screen.queryByText(/Sample complete/)).toBeNull();
   });
 });

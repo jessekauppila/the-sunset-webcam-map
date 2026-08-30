@@ -5,7 +5,7 @@ const sha256Mock = vi.fn();
 const runMock = vi.fn();
 
 vi.mock('./imagePreprocess', () => ({
-  preprocessJpegToImagenetTensor: (...a: unknown[]) => preprocessMock(...a),
+  preprocessJpegToModelTensor: (...a: unknown[]) => preprocessMock(...a),
 }));
 vi.mock('./imageHash', () => ({
   sha256Hex: (...a: unknown[]) => sha256Mock(...a),

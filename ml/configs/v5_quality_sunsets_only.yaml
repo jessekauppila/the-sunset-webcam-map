@@ -1,0 +1,86 @@
+run:
+  name: v5_quality_sunsets_only
+  seed: 20260212
+  notes: >
+    QUALITY head of the two-scale design. "Is it a sunset" and "how good is
+    the sunset" are different questions and do not belong on one axis, so
+    this head trains ONLY on the 3,546 frames the operator marked as
+    sunsets, with rating 1-5 mapped to 0.0-1.0. Detection is the binary
+    head's job.
+
+    What this fixes vs v5_regression_gold, which trained on all 8,564 rows
+    with non-sunsets pinned at 0.0:
+      - 59%% of that run's data (5,018 rows) was teaching detection, not
+        quality. Target mean was 0.228; here it is 0.506 across the full
+        0-1 range.
+      - N and rating 1 both normalized to 0.0, so the head could not
+        distinguish "no sunset" from "a sunset with nothing to see". With
+        non-sunsets removed the collision cannot occur: rating 1 is the
+        genuine bottom of the quality scale.
+
+    Map usage: the detection head decides whether a sunset is happening;
+    this head sizes the tile. A frame the detection head rejects never
+    reaches this scale at all.
+
+    Caveat: 2,432 training images is small, and v5_binary_gold showed val
+    loss bottoming at epoch 2 with 5,897. Expect early overfitting; read
+    the loss curve before trusting the metric.
+  tags: [v5, quality, gold_labels, sunsets_only, two_scale]
+
+data:
+  label_source: gold
+  target_type: regression
+  gold_sunsets_only: true
+  binary_label_from: is_sunset  # not read in regression mode
+  binary_threshold: 0.75
+  min_rating_count: 1
+  include_external: false
+  splits:
+    seed: 20260212
+    train_pct: 70
+    val_pct: 15
+    test_pct: 15
+
+model:
+  name: resnet18
+  epochs: 60
+  batch_size: 32
+  learning_rate: 0.0001
+  lr_schedule: cosine
+  early_stopping_patience: 15
+  head_dropout: 0.3
+
+imbalance:
+  class_weighting: none
+  sampler: none
+  manual_weights: {}
+
+augmentation:
+  profile: light
+
+cropping:
+  strategy: random_resized
+  scale_min: 0.95
+  scale_max: 1.0
+
+performance:
+  num_workers: 0
+  pin_memory: false
+  prefetch_factor: 2
+  persistent_workers: false
+
+subset:
+  max_train_samples: 0
+  max_val_samples: 0
+
+image_cache:
+  enabled: true
+  cache_dir: ml/artifacts/image_cache
+  precache: true
+
+metrics:
+  decision_threshold: 0.30
+  threshold_sweep: true
+  threshold_sweep_start: 0.3
+  threshold_sweep_end: 0.9
+  threshold_sweep_step: 0.05
