@@ -288,7 +288,35 @@ Once the 200 are rated, that unblocks all three of the open questions above.
 
 ### Workstream 3 — Map display integration (product thread)
 
-**CODE COMPLETE on the branch (2026-08-30), awaiting deploy.** What changed:
+**DEPLOYED & VERIFIED in production, 2026-08-30 (~05:00 UTC).** The shipping
+pair is live: within 3 minutes of the deploy going Ready, one cron tick
+stamped 43 webcams with `20260829_062437_v5_binary_gold` +
+`20260830_003808_v5_quality_sunsets_only` on the `webcams` table — and since
+the unscored path writes no version strings, those stamps are proof of real
+ONNX output. Build bundled `ml/artifacts/models: 85.26 MB` (functions
+163.5 MB).
+
+**The deploy failed once first — the `.vercelignore` trap.** PR #81's bundle
+shipped model-less (78 MB functions): `.vercelignore` re-includes model dirs
+by explicit version (`!ml/artifacts/models/.../<version>`), and those lines
+still named the v4 dirs, so the v5 ONNX never reached the builder and
+tracing had nothing to include. Every tick logged `Load model ... File
+doesn't exist` and left frames unscored (fail-visible, as designed). Fixed
+by PR #83, which also extends `next.config.test.ts` to check the
+`.vercelignore` whitelist against masterConfig — a version bump now touches
+masterConfig + next.config.ts + .vercelignore or fails tests. Full story:
+`docs/ml-deploy-runbook.md` Trap 6.
+
+Two loose ends:
+- **Smoke-endpoint latency check still pending.** `CRON_SECRET` is Sensitive
+  in Vercel (unpullable — `env pull` writes `""`); the only recoverable copy
+  is in the kiosk Pi's launch script and the Pi was unreachable over
+  Tailscale on 2026-08-30. Not blocking — the DB stamps are stronger
+  evidence (runbook: "Verify without the secret").
+- **Confirm the 0.55 gate on `random_ordinary_v2`** (300 frames, drawn,
+  awaiting rating) before trusting it long-term.
+
+What the branch changed (context for the above):
 `imagePreprocess.ts` now matches training exactly (no ImageNet normalize —
 AND `fit:'fill'` squash instead of `'cover'` center-crop, a second silent
 mismatch found during the fix); masterConfig defaults pin the shipping pair
@@ -299,21 +327,18 @@ through the real `scoreImage` path on two eval frames (negative:
 p=0.0000/quality 0.26; operator-4: p=1.0000/quality 0.73 → aiRating 3.91),
 against the Python reference. 777 tests + production build pass.
 
-**To ship (Jesse):** (1) remove the v4 env overrides in Vercel — else they
-silently beat the new defaults: `AI_ONNX_BINARY_MODEL_PATH`,
-`AI_ONNX_REGRESSION_MODEL_PATH`, `AI_BINARY_MODEL_VERSION`,
-`AI_REGRESSION_MODEL_VERSION`, and `AI_BINARY_SUNSET_THRESHOLD` if set; keep
-`AI_BINARY_SCORING_ENABLED=true`. (2) merge the PR → deploy. (3) verify via
-`/api/debug/scoring-smoke`: `latencyMs` 100–500 ms, `modelVersion` strings =
-the two shipping tags, fallbacks ~0. Confirm the 0.55 gate on the v2 sample
-rating before trusting it long-term.
+Ship steps all done 2026-08-30: v4 env overrides removed before the deploy
+(`AI_BINARY_SUNSET_THRESHOLD` was never set; `AI_BINARY_SCORING_ENABLED=true`
+kept), PR #81 merged, PR #83 fixed the `.vercelignore` gap, verification via
+DB stamps as described above.
 
-
-Blocked on Workstream 1 producing a model worth shipping. Scope:
+Remaining scope (the model itself is now live):
 
 - Tile sizing driven by the quality head; six categories addressable.
-- **`AI_BINARY_SUNSET_THRESHOLD` must be re-derived** — currently 0.5, tuned for
-  v4's quality-threshold head, whose meaning has changed.
+- ~~`AI_BINARY_SUNSET_THRESHOLD` must be re-derived~~ **Done** — shipped as
+  `AI_BINARY_DECISION_THRESHOLD = 0.55` in masterConfig defaults (corrected
+  sweep: prec 0.891 / rec 0.774, F1 plateau 0.45–0.70). Confirm on the v2
+  sample.
 - **If the quality head ships as sunsets-only, the output contract changes.**
   `normalizeOnnxOutput` / `ratingFromRaw` in `app/lib/aiScoring.ts` and
   `customBackfill.ts` assume one five-level scale over all frames. Two heads
