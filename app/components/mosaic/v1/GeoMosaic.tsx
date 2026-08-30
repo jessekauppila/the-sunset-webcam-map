@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef } from 'react';
 import type { WindyWebcam } from '@/app/lib/types';
-import { COMPOSITION_CONFIG } from '@/app/lib/masterConfig';
+import { COMPOSITION_CONFIG } from './config';
 import { compose } from './engine/compose';
 import type { CompositionConfig } from './engine/types';
 import { useLoadedTiles } from './useLoadedTiles';

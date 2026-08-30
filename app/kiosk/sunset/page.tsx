@@ -2,12 +2,11 @@
 
 import { Suspense, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { GeoMosaic } from '@/app/components/GeoMosaic/GeoMosaic';
+import { resolveMosaic } from '@/app/components/mosaic/registry';
 import { useTerminatorStore } from '@/app/store/useTerminatorStore';
 import { useLoadTerminatorWebcams } from '@/app/store/useLoadTerminatorWebcams';
 import { useKioskRuntime } from '../useKioskRuntime';
 import { KioskDozeOverlay } from '../KioskDozeOverlay';
-import { parseCompositionOverrides } from '../compositionOverrides';
 import { parsePanelPreview } from '../panelPreview';
 import { PanelFrame } from '../PanelFrame';
 
@@ -17,10 +16,7 @@ function SunsetKioskContent() {
   const webcams = useTerminatorStore((t) => t.sunset);
   const searchParams = useSearchParams();
   const queryString = searchParams.toString();
-  const configOverrides = useMemo(
-    () => parseCompositionOverrides(new URLSearchParams(queryString)),
-    [queryString]
-  );
+  const Mosaic = resolveMosaic(searchParams.get('v'));
   const panel = useMemo(
     () => parsePanelPreview(new URLSearchParams(queryString)),
     [queryString]
@@ -46,13 +42,13 @@ function SunsetKioskContent() {
 
   const mosaic = (
     <>
-      <GeoMosaic
+      <Mosaic
         webcams={webcams}
         width={stage.width}
         height={stage.height}
         feed="sunset"
         setupMode={searchParams.get('setup') === '1'}
-        config={configOverrides}
+        search={queryString}
       />
       <KioskDozeOverlay dozing={dozing} />
     </>

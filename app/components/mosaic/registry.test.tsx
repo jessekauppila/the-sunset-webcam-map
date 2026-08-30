@@ -1,0 +1,34 @@
+import { describe, it, expect, vi } from 'vitest';
+import {
+  MOSAIC_VERSIONS,
+  DEFAULT_MOSAIC_VERSION,
+  resolveMosaic,
+} from './registry';
+import { MosaicV1 } from './v1';
+
+vi.mock('./v1', () => ({
+  MosaicV1: () => null,
+}));
+
+describe('mosaic registry', () => {
+  it('pins v1 as the default version', () => {
+    expect(DEFAULT_MOSAIC_VERSION).toBe('v1');
+    expect(MOSAIC_VERSIONS[DEFAULT_MOSAIC_VERSION]).toBeDefined();
+  });
+
+  it('resolves a known version by name', () => {
+    expect(resolveMosaic('v1')).toBe(MosaicV1);
+  });
+
+  it('falls back to the default for null (no ?v= param)', () => {
+    expect(resolveMosaic(null)).toBe(
+      MOSAIC_VERSIONS[DEFAULT_MOSAIC_VERSION]
+    );
+  });
+
+  it('falls back to the default for an unknown version name', () => {
+    expect(resolveMosaic('v999')).toBe(
+      MOSAIC_VERSIONS[DEFAULT_MOSAIC_VERSION]
+    );
+  });
+});

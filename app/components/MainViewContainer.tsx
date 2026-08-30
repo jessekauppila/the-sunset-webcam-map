@@ -3,11 +3,15 @@
 import { useRef, useState, useEffect } from 'react';
 import SimpleMap from './Map/SimpleMap';
 import { RatingPanel } from './Rating/RatingPanel';
-import { GeoMosaic } from './GeoMosaic/GeoMosaic';
+import { resolveMosaic } from './mosaic/registry';
 import { useTerminatorStore } from '@/app/store/useTerminatorStore';
 import { SwipeSnapshotGallery } from './SwipeSnapshotGallery';
 import { MyCamerasView } from './MyCameras/MyCamerasView';
 import type { Location } from '../lib/types';
+
+// The main page always renders the pinned default mosaic version; only the
+// kiosk pages take a ?v= override.
+const Mosaic = resolveMosaic(null);
 
 export type ViewMode =
   | 'map'
@@ -127,7 +131,7 @@ export default function MainViewContainer({
             </h1> */}
             <div ref={sunsetContainerRef} className="flex-1">
               {sunsetDimensions.height > 0 && (
-                <GeoMosaic
+                <Mosaic
                   webcams={sunsetWebcams || []}
                   width={sunsetDimensions.width}
                   height={sunsetDimensions.height}
@@ -159,7 +163,7 @@ export default function MainViewContainer({
             </h1> */}
             <div ref={sunriseContainerRef} className="flex-1">
               {sunriseDimensions.height > 0 && (
-                <GeoMosaic
+                <Mosaic
                   webcams={sunriseWebcams || []}
                   width={sunriseDimensions.width}
                   height={sunriseDimensions.height}

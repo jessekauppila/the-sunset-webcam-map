@@ -7,7 +7,7 @@ import {
   COMPOSITION_MAX_GROWTH,
   COMPOSITION_CULL_OVERFLOW,
   COMPOSITION_CONFIG,
-} from './masterConfig';
+} from './config';
 
 describe('composition config constants', () => {
   it('COMPOSITION_TILE_FLOOR_PX is exactly 100', () => {

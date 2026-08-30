@@ -1,5 +1,5 @@
-import { AI_BINARY_DECISION_THRESHOLD } from './masterConfig';
-import type { WindyWebcam } from './types';
+import { AI_BINARY_DECISION_THRESHOLD } from '@/app/lib/masterConfig';
+import type { WindyWebcam } from '@/app/lib/types';
 
 // The detection gate expressed on the 1-5 rating scale that
 // aiScoring.ts stores (rating = 1 + probability * 4).
