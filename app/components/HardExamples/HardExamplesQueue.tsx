@@ -37,8 +37,10 @@ type SampleProgress = { name: string; size: number; labeled: number };
 // The ACTIVE pre-drawn random sample of ordinary frames — the unbiased eval
 // set, quarantined from all training. Bump this to the newest sample loaded by
 // `ml/load_label_sample.py --sample-name`; completed samples (v1: 200/200 on
-// 2026-08-29) stay in label_samples and keep their labels' origin stamp.
-const SAMPLE_NAME = 'random_ordinary_v2';
+// 2026-08-29, v2: 300/300 on 2026-08-30) stay in label_samples and keep their
+// labels' origin stamp. v3 (200 frames, seed 20260831) additionally excludes
+// the 3 cameras that entered v6 training after the holdout pool was built.
+const SAMPLE_NAME = 'random_ordinary_v3';
 
 const BATCH = 120;
 const SIDE = 2; // thumbs each side (symmetric)
