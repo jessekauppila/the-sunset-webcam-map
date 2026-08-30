@@ -193,11 +193,11 @@ export const AI_MODEL_VERSION_DEFAULT = 'baseline-v1';
 export const AI_ONNX_MODEL_PATH_DEFAULT =
   'ml/artifacts/models/model.onnx';
 export const AI_BINARY_MODEL_VERSION_DEFAULT =
-  '20260830_082004_v5_binary_gold_llm_finetune';
+  '20260829_062437_v5_binary_gold';
 export const AI_REGRESSION_MODEL_VERSION_DEFAULT =
   '20260830_190519_v5_quality_llm_backbone_finetune';
 export const AI_ONNX_BINARY_MODEL_PATH_DEFAULT =
-  'ml/artifacts/models/binary_resnet18/20260830_082004_v5_binary_gold_llm_finetune/model.onnx';
+  'ml/artifacts/models/binary_resnet18/20260829_062437_v5_binary_gold/model.onnx';
 export const AI_ONNX_REGRESSION_MODEL_PATH_DEFAULT =
   'ml/artifacts/models/regression_resnet18/20260830_190519_v5_quality_llm_backbone_finetune/model.onnx';
 

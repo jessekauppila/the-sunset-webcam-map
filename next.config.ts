@@ -47,15 +47,15 @@ const nextConfig: NextConfig = {
   outputFileTracingIncludes: {
     '/api/cron/update-cameras': [
       './ml/artifacts/models/regression_resnet18/20260830_190519_v5_quality_llm_backbone_finetune/**/*',
-      './ml/artifacts/models/binary_resnet18/20260830_082004_v5_binary_gold_llm_finetune/**/*',
+      './ml/artifacts/models/binary_resnet18/20260829_062437_v5_binary_gold/**/*',
     ],
     '/api/debug/scoring-smoke': [
       './ml/artifacts/models/regression_resnet18/20260830_190519_v5_quality_llm_backbone_finetune/**/*',
-      './ml/artifacts/models/binary_resnet18/20260830_082004_v5_binary_gold_llm_finetune/**/*',
+      './ml/artifacts/models/binary_resnet18/20260829_062437_v5_binary_gold/**/*',
     ],
     '/api/kiosk/tick': [
       './ml/artifacts/models/regression_resnet18/20260830_190519_v5_quality_llm_backbone_finetune/**/*',
-      './ml/artifacts/models/binary_resnet18/20260830_082004_v5_binary_gold_llm_finetune/**/*',
+      './ml/artifacts/models/binary_resnet18/20260829_062437_v5_binary_gold/**/*',
     ],
   },
 };
