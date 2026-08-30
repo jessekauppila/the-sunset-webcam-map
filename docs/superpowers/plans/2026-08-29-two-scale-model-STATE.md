@@ -153,9 +153,43 @@ Verdict was split, so the pair is mixed:
 
 Composed (gate 0.55): Spearman **0.835**, still 5/147 false-shows and 8/8 of
 the operator's ≥4 frames shown, rating-5 tile rises 0.57→0.65, and the top-8
-tiles no longer contain an N frame — four operator-4s, four 3s. Confirm the
-pick on `random_ordinary_v2` (300 frames, drawn, awaiting rating) since it
-was made on v1.
+tiles no longer contain an N frame — four operator-4s, four 3s.
+
+**✅ v2 CONFIRMATION (2026-08-30, all 300 rated: N 218, 1:25, 2:18, 3:19,
+4:16, 5:4).** The pair and the 0.55 gate HOLD — no decision reverses — but
+every v1 headline was optimistic, as expected when moving from the data a
+choice was made on to fresh confirmation data. Honest production estimates
+are the v2 numbers:
+
+| metric | v1 (decision data) | v2 (confirmation) |
+|---|---|---|
+| detection @0.55 prec / rec / F1 | 0.891 / 0.774 / ~0.83 | **0.843 / 0.720 / 0.776** |
+| F1 plateau | 0.45–0.70 | 0.30–0.65 (max 0.797 @0.60 — noise-level gap) |
+| quality Pearson / MAE (sunsets) | 0.820 / 0.167 (n=53) | **0.632 / 0.207** (n=82) |
+| Claude Pearson, same frames | 0.560 | 0.488 (model still clearly ahead) |
+| composed Spearman | 0.835 | **0.759** |
+| false-shows | 5/147 (3.4%) | 11/218 (5.0%) |
+| operator-≥4 shown | 8/8 | **19/20** |
+| rating-1 hidden | 10/14 | 15/25 (design note still stands) |
+
+Pick-confirmation on the rejected variants (checking the v1 decisions, not
+re-deciding): the binary retrain scores F1 0.784 @0.55 vs the shipped
+0.776, and the OLD quality head scores Pearson 0.649 vs the shipped 0.632 —
+both within noise. The v1 "retrain quality wins 0.820 vs 0.763" gap does
+not replicate; the two quality heads are equivalent, and no swap is
+warranted (re-picking on confirmation data would just re-tune on it). Real
+quality discrimination on ordinary sunsets sits near **0.63–0.70**, not 0.82.
+
+Eyeball item: top-8 composed tiles contain two N frames, both webcam
+**3656741** an hour apart (snapshots 85541 / 85789, tile 0.853) — one
+camera fools both heads twice. ⚠️ The pre-registered pretrain bar (beat
+0.816 detection / 0.820 quality) was set on v1's optimistic numbers —
+restate it against v1+v2 pooled before spending re-rating money.
+
+Reports: `ml/artifacts/reports/*_random300_v2.json`. Tooling now committed:
+`ml/build_operator_manifest.py` (sample → manifest CSVs, refuses partial
+exports) and `ml/eval_composed_operator.py` (quality + composed eval, reuses
+the verified score_manifest preprocessing).
 
 **Composed two-scale system, first pair, end-to-end on the 200 (2026-08-30).** Detection
 gate 0.55 + quality head sizing: **5/147 operator-N frames wrongly shown
@@ -313,8 +347,9 @@ Two loose ends:
   is in the kiosk Pi's launch script and the Pi was unreachable over
   Tailscale on 2026-08-30. Not blocking — the DB stamps are stronger
   evidence (runbook: "Verify without the secret").
-- **Confirm the 0.55 gate on `random_ordinary_v2`** (300 frames, drawn,
-  awaiting rating) before trusting it long-term.
+- ~~Confirm the 0.55 gate on `random_ordinary_v2`~~ **Done 2026-08-30** —
+  gate and pair hold on the 300-frame confirmation sample; see the v2
+  CONFIRMATION block above for the (softer, honest) numbers.
 
 What the branch changed (context for the above):
 `imagePreprocess.ts` now matches training exactly (no ImageNet normalize —
