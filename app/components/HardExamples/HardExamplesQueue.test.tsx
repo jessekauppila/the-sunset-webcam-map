@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import HardExamplesQueue from './HardExamplesQueue';
+import HardExamplesQueue, { SAMPLE_NAME } from './HardExamplesQueue';
 
 // Two frames with different provenance so we can assert the right bucket moves.
 const FRAMES = [
@@ -457,7 +457,7 @@ describe('HardExamplesQueue random-sample queue', () => {
   it('asks for the named sample instead of the disagreement ranking', async () => {
     await switchToSample();
     const last = urls.filter((u) => u.startsWith('/api/snapshots')).at(-1) ?? '';
-    expect(last).toContain('sample=random_ordinary_v2');
+    expect(last).toContain(`sample=${SAMPLE_NAME}`);
     // Both at once would be incoherent: the sample is exactly the frames the
     // disagreement filter excludes, so it has to replace that filter.
     expect(last).not.toContain('disagreements_only=true');
@@ -478,7 +478,7 @@ describe('HardExamplesQueue random-sample queue', () => {
       (c) => String(c[0]).startsWith('/api/manual-labels'),
     );
     expect(JSON.parse(String((post?.[1] as RequestInit)?.body)).origin).toBe(
-      'random_ordinary_v2',
+      SAMPLE_NAME,
     );
   });
 

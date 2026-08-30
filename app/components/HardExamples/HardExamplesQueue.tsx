@@ -40,7 +40,9 @@ type SampleProgress = { name: string; size: number; labeled: number };
 // 2026-08-29, v2: 300/300 on 2026-08-30) stay in label_samples and keep their
 // labels' origin stamp. v3 (200 frames, seed 20260831) additionally excludes
 // the 3 cameras that entered v6 training after the holdout pool was built.
-const SAMPLE_NAME = 'random_ordinary_v3';
+// Exported so the tests assert against the live value — PR #89 bumped this
+// to v3 while two test expectations still hardcoded v2, and main went red.
+export const SAMPLE_NAME = 'random_ordinary_v3';
 
 const BATCH = 120;
 const SIDE = 2; // thumbs each side (symmetric)
