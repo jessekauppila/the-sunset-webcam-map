@@ -1,0 +1,18 @@
+{
+  "model": "ml/artifacts/models/regression_resnet18/20260830_003808_v5_quality_sunsets_only/model.onnx",
+  "sample": "random_ordinary_v2",
+  "n": 82,
+  "skipped_unreadable": 0,
+  "preprocessing": "FIXED (matches training)",
+  "mae": 0.20700848584131495,
+  "rmse": 0.2608853759627679,
+  "pearson_model": 0.6322149126512201,
+  "pearson_claude_same_frames": 0.4875066857372121,
+  "mean_quality_by_rating": {
+    "1": 0.335,
+    "2": 0.391,
+    "3": 0.505,
+    "4": 0.673,
+    "5": 0.63
+  }
+}
