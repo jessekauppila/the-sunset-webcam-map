@@ -1,0 +1,23 @@
+import type { MosaicComponent } from './types';
+import { MosaicV1 } from './v1';
+
+/**
+ * Every mosaic version deployed, side by side. All versions ship in one
+ * build; a surface picks one with `?v=<name>` (kiosk pages) and everything
+ * else renders the pinned default. Promote a winner by changing
+ * DEFAULT_MOSAIC_VERSION; retire a loser by deleting its folder and its
+ * row here.
+ */
+export const MOSAIC_VERSIONS: Record<string, MosaicComponent> = {
+  v1: MosaicV1,
+};
+
+export const DEFAULT_MOSAIC_VERSION = 'v1';
+
+/** Unknown or missing names fall back to the pinned default. */
+export function resolveMosaic(version: string | null | undefined): MosaicComponent {
+  return (
+    (version ? MOSAIC_VERSIONS[version] : undefined) ??
+    MOSAIC_VERSIONS[DEFAULT_MOSAIC_VERSION]
+  );
+}

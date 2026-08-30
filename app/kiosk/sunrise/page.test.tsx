@@ -5,8 +5,8 @@ import { useLoadTerminatorWebcams } from '@/app/store/useLoadTerminatorWebcams';
 import SunriseKioskPage from './page';
 
 // GeoMosaic uses HTMLCanvasElement which jsdom doesn't support — mock it
-vi.mock('@/app/components/GeoMosaic/GeoMosaic', () => ({
-  GeoMosaic: (props: Record<string, unknown>) => (
+vi.mock('@/app/components/mosaic/v1', () => ({
+  MosaicV1: (props: Record<string, unknown>) => (
     <div
       data-testid="geo-mosaic"
       data-props={JSON.stringify(props)}

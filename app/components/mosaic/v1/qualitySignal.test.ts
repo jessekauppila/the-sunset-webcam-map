@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { getQualityScore } from './qualitySignal';
-import type { WindyWebcam } from './types';
+import type { WindyWebcam } from '@/app/lib/types';
 
 const base = { webcamId: 1, viewCount: 0, location: { latitude: 0, longitude: 0 } } as WindyWebcam;
 

@@ -3,8 +3,8 @@ import { render, screen } from '@testing-library/react';
 import MainViewContainer from './MainViewContainer';
 import { useTerminatorStore } from '@/app/store/useTerminatorStore';
 
-vi.mock('@/app/components/GeoMosaic/GeoMosaic', () => ({
-  GeoMosaic: (props: Record<string, unknown>) => (
+vi.mock('@/app/components/mosaic/v1', () => ({
+  MosaicV1: (props: Record<string, unknown>) => (
     <div
       data-testid="geo-mosaic"
       data-props={JSON.stringify(props)}

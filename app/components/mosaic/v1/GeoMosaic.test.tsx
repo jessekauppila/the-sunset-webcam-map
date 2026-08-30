@@ -30,7 +30,7 @@ import {
 import { GeoMosaic } from './GeoMosaic';
 import { useLoadedTiles } from './useLoadedTiles';
 import { compose } from './engine/compose';
-import { COMPOSITION_CONFIG } from '@/app/lib/masterConfig';
+import { COMPOSITION_CONFIG } from './config';
 import type { WindyWebcam } from '@/app/lib/types';
 import type { TileInput } from './engine/types';
 

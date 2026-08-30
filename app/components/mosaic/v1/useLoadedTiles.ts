@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import type { WindyWebcam } from '@/app/lib/types';
-import { getQualityScore } from '@/app/lib/qualitySignal';
+import { getQualityScore } from './qualitySignal';
 import type { TileInput } from './engine/types';
 
 export interface LoadedTilesResult {

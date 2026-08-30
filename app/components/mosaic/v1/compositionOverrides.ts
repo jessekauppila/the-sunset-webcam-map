@@ -1,4 +1,4 @@
-import type { CompositionConfig } from '@/app/components/GeoMosaic/engine/types';
+import type { CompositionConfig } from './engine/types';
 
 /**
  * Parses on-glass composition tuning out of the kiosk URL.
