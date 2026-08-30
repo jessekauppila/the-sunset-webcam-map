@@ -1,0 +1,78 @@
+run:
+  name: v5_binary_gold_llm_finetune
+  seed: 20260212
+  notes: >
+    Stage 2 of the pretrain->finetune candidate (STATE open question 3):
+    fine-tune the LLM-pretrained is-sunset head
+    (20260830_061333_v5_binary_llm_pretrain, best val F1 0.857 at epoch 6
+    against Claude's own labels) on the operator gold export - identical
+    data, splits and seed to the shipping 20260829_062437_v5_binary_gold,
+    so the only difference is the initialization. The operator's labels
+    win every conflict by construction: they are what the model last
+    learns from.
+
+    Verdict comes ONLY from the pre-registered bar: detection F1 > 0.797
+    on the pooled 500 operator frames through ml/score_manifest.py at
+    0.55 + sweep; gains under +0.02 are a wash. Gold-test F1 here is a
+    sanity check, not the decision number.
+  tags: [v5, binary, is_sunset, gold_labels, finetune, llm_pretrain]
+
+data:
+  label_source: gold
+  target_type: binary
+  binary_label_from: is_sunset
+  # Unused in is_sunset mode; kept so export_meta records the convention.
+  binary_threshold: 0.75
+  min_rating_count: 1
+  # The gold source already carries its own Flickr rows from manual_labels.
+  include_external: false
+  splits:
+    seed: 20260212
+    train_pct: 70
+    val_pct: 15
+    test_pct: 15
+
+model:
+  name: resnet18
+  epochs: 30
+  batch_size: 32
+  learning_rate: 0.00002
+  lr_schedule: cosine
+  early_stopping_patience: 10
+  head_dropout: 0.3
+  init_checkpoint: ml/artifacts/experiments/20260830_061333_v5_binary_llm_pretrain/train/best.pt
+
+imbalance:
+  class_weighting: none
+  sampler: none
+  manual_weights: {}
+
+augmentation:
+  profile: light
+
+cropping:
+  strategy: random_resized
+  scale_min: 0.95
+  scale_max: 1.0
+
+performance:
+  num_workers: 0
+  pin_memory: false
+  prefetch_factor: 2
+  persistent_workers: false
+
+subset:
+  max_train_samples: 0
+  max_val_samples: 0
+
+image_cache:
+  enabled: true
+  cache_dir: ml/artifacts/image_cache
+  precache: true
+
+metrics:
+  decision_threshold: 0.5
+  threshold_sweep: true
+  threshold_sweep_start: 0.1
+  threshold_sweep_end: 0.9
+  threshold_sweep_step: 0.05
