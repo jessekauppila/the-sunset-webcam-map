@@ -17,6 +17,25 @@ If the checkout is mid-work on another branch, **ask before switching.**
 Verify the branch before any commit — Jesse merges PRs in parallel and the
 working branch can shift mid-task.
 
+### Multi-session coordination (proven 2026-08-30)
+
+Several Claude sessions share this one checkout. The protocol:
+
+1. **Message peer sessions directly** (`ListAgents` + `SendMessage`) to
+   negotiate the checkout, hand off work, or report a bug in their lane —
+   don't work around each other silently.
+2. **Leave the checkout on `main` when you go idle.** Whoever takes it,
+   returns it.
+3. **Push branches immediately** so the checkout is never the only copy of
+   anyone's work; that's what makes switching safe.
+4. **Lanes:** model/measurement work (training, evals, the STATE doc) and
+   display work (mosaic, kiosk) run in separate sessions. Shared helpers
+   (`app/lib/modelReadout.ts`, the mosaic's `qualitySignal`) get a
+   heads-up message to the other lane when they change.
+5. **`docs/superpowers/plans/2026-08-29-two-scale-model-STATE.md` is the
+   cross-session source of truth** for the model program — read it first,
+   update it on the way out.
+
 ## Commands
 
 ```bash
