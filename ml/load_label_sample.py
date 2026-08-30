@@ -66,6 +66,22 @@ def main() -> None:
         rows = list(csv.DictReader(fh))
     print(f"  Manifest rows: {len(rows)}")
 
+    # Drop frames already drawn into ANY sample or already labeled — a second
+    # draw must consist of fresh frames, or its label count silently shrinks
+    # and frames end up belonging to two samples at once.
+    if not args.dry_run or database_url:
+        with psycopg2.connect(database_url) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT image_id FROM label_samples WHERE source = %s "
+                    "UNION SELECT image_id FROM manual_labels WHERE source = %s",
+                    (args.source, args.source),
+                )
+                taken = {r[0] for r in cur.fetchall()}
+        before = len(rows)
+        rows = [r for r in rows if int(r["snapshot_id"]) not in taken]
+        print(f"  After excluding already-sampled/labeled frames: {len(rows)} (dropped {before - len(rows)})")
+
     # Shuffle before truncating: the manifest is already in sampled order, but
     # taking its first N would tie this sample to that file's ordering rather
     # than to a seed of its own.

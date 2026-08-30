@@ -34,11 +34,11 @@ type QueuedSnapshot = Snapshot & {
 type Counts = { archiveTrained: number; archiveNew: number; flickr: number };
 type SampleProgress = { name: string; size: number; labeled: number };
 
-// The pre-drawn random sample of ordinary frames. The disagreement queue only
-// ever shows the hardest ~15% of the corpus, which is why every operator-vs-
-// Claude number so far has had to be caveated; this set is the unbiased one.
-// Name must match what `ml/load_label_sample.py --sample-name` wrote.
-const SAMPLE_NAME = 'random_ordinary_v1';
+// The ACTIVE pre-drawn random sample of ordinary frames — the unbiased eval
+// set, quarantined from all training. Bump this to the newest sample loaded by
+// `ml/load_label_sample.py --sample-name`; completed samples (v1: 200/200 on
+// 2026-08-29) stay in label_samples and keep their labels' origin stamp.
+const SAMPLE_NAME = 'random_ordinary_v2';
 
 const BATCH = 120;
 const SIDE = 2; // thumbs each side (symmetric)

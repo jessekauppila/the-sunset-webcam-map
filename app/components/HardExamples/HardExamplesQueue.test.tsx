@@ -415,7 +415,7 @@ describe('HardExamplesQueue random-sample queue', () => {
   // The disagreement queue only ever surfaces the hardest ~15% of the corpus,
   // which is why the operator-vs-Claude numbers have all needed caveats. These
   // tests pin the second queue: a pre-drawn fixed set, served in its own order.
-  const SAMPLE = { name: 'random_ordinary_v1', size: 200, labeled: 12 };
+  const SAMPLE = { name: 'random_ordinary_v2', size: 200, labeled: 12 };
 
   // Sample frames carry no disagreement kind — that is what makes them ordinary.
   const SAMPLE_FRAMES = FRAMES.map((f) => ({ ...f, modelDisagreementKind: null }));
@@ -457,7 +457,7 @@ describe('HardExamplesQueue random-sample queue', () => {
   it('asks for the named sample instead of the disagreement ranking', async () => {
     await switchToSample();
     const last = urls.filter((u) => u.startsWith('/api/snapshots')).at(-1) ?? '';
-    expect(last).toContain('sample=random_ordinary_v1');
+    expect(last).toContain('sample=random_ordinary_v2');
     // Both at once would be incoherent: the sample is exactly the frames the
     // disagreement filter excludes, so it has to replace that filter.
     expect(last).not.toContain('disagreements_only=true');
@@ -478,7 +478,7 @@ describe('HardExamplesQueue random-sample queue', () => {
       (c) => String(c[0]).startsWith('/api/manual-labels'),
     );
     expect(JSON.parse(String((post?.[1] as RequestInit)?.body)).origin).toBe(
-      'random_ordinary_v1',
+      'random_ordinary_v2',
     );
   });
 
@@ -532,7 +532,7 @@ describe('HardExamplesQueue population integrity (regression, 2026-08-29)', () =
         return { ok: true, json: async () => ({
           snapshots: [FRAME(1), FRAME(2)], total: 2,
           counts: { archiveTrained: 0, archiveNew: 0, flickr: 0 },
-          sample: isSample ? { name: 'random_ordinary_v1', size: 200, labeled: 0 } : null,
+          sample: isSample ? { name: 'random_ordinary_v2', size: 200, labeled: 0 } : null,
         })} as Response;
       }
       return labelResponse();
@@ -570,7 +570,7 @@ describe('HardExamplesQueue population integrity (regression, 2026-08-29)', () =
             : [FRAME(90, 'model_low_claude_sunset'), FRAME(91, 'model_low_claude_sunset')],
           total: 3,
           counts: { archiveTrained: 0, archiveNew: 0, flickr: 0 },
-          sample: isSample ? { name: 'random_ordinary_v1', size: 200, labeled: 0 } : null,
+          sample: isSample ? { name: 'random_ordinary_v2', size: 200, labeled: 0 } : null,
         })} as Response;
       }
       return labelResponse();
@@ -597,7 +597,7 @@ describe('HardExamplesQueue population integrity (regression, 2026-08-29)', () =
         return { ok: true, json: async () => ({
           snapshots: [], total: 0,
           counts: { archiveTrained: 0, archiveNew: 0, flickr: 0 },
-          sample: { name: 'random_ordinary_v1', size: 200, labeled: 120 },
+          sample: { name: 'random_ordinary_v2', size: 200, labeled: 120 },
         })} as Response;
       }
       return labelResponse();
