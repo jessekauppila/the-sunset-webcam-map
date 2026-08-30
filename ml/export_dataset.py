@@ -362,6 +362,14 @@ def fetch_gold_rows(
     FROM manual_labels m
     JOIN webcam_snapshots s ON s.id = m.image_id
     WHERE m.source = 'webcam' AND s.firebase_url IS NOT NULL
+      -- EVAL QUARANTINE: labels on frames drawn into a fixed sample
+      -- (label_samples) are evaluation ground truth, not training data.
+      -- The 200-frame random_ordinary_v1 set is the project's only unbiased
+      -- eval set; training on it would silently destroy the yardstick every
+      -- v5 decision is measured against. If a *training* sample is ever
+      -- drawn, add an explicit opt-in rather than removing this.
+      AND NOT EXISTS (SELECT 1 FROM label_samples ls
+                      WHERE ls.source = m.source AND ls.image_id = m.image_id)
     UNION ALL
     SELECT
       e.id AS snapshot_id,
@@ -376,6 +384,9 @@ def fetch_gold_rows(
     FROM manual_labels m
     JOIN external_images e ON e.id = m.image_id
     WHERE m.source = 'flickr' AND e.image_url IS NOT NULL
+      -- Same eval quarantine as the webcam leg above.
+      AND NOT EXISTS (SELECT 1 FROM label_samples ls
+                      WHERE ls.source = m.source AND ls.image_id = m.image_id)
     """
     with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
         cur.execute(query)

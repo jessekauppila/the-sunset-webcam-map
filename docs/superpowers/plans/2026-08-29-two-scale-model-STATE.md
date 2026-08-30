@@ -95,17 +95,28 @@ Full findings: `docs/superpowers/specs/2026-08-28-v5-gold-label-retrain-design.m
 **Questions 1 and 2 were SETTLED on 2026-08-29** by 200 operator labels on the
 random ordinary sample (`random_ordinary_v1`). Measurements below.
 
-1. ~~How much of the ordinary-frame failure is real?~~ **All of it, and the
-   proxy label was flattering the model.** Graded against operator truth on the
-   200, the v5 `is_sunset` head scores **precision 0.393 / recall 0.830 /
-   F1 0.533**, balanced accuracy 0.684 — against `llm_is_sunset` on the same
-   distribution it scored precision 0.574 / F1 0.643. This doc previously
-   predicted Claude-grading would *understate* the model; for the is_sunset
-   head it **overstates** it. 68 false positives against 147 true negatives:
-   it fires on 46% of the frames the operator calls not-a-sunset.
-   On the actual product question (rating ≥ 4, base rate 8/200) it is
-   **precision 0.0625 / recall 0.875 / F1 0.117** — 105 false positives for 7
-   true positives. Unusable as a surfacing gate at threshold 0.5.
+0. **⚠️ SCORING-PIPELINE BUG, found and fixed 2026-08-30.** Every number
+   `ml/score_manifest.py` ever produced (v5 "0.643 ordinary", v4 "0.109",
+   the first operator-truth pass "0.533/0.393") fed the model inputs with
+   **ImageNet mean/std normalization that training never applies**
+   (train.py:360 is Resize+ToTensor only). Fixed; verified to reproduce
+   `evaluate.py` predictions to 5 decimals. **Production
+   (`imagePreprocess.ts`) still has the same bug** — every deployed model
+   has always run on shifted inputs. Fixing prod is now a top Workstream 3
+   item (redeploy + re-derive threshold).
+1. ~~How much of the ordinary-frame failure is real?~~ **Mostly none of it —
+   the "does not transfer / over-fires" blocker was the preprocessing
+   artifact above.** Corrected, against operator truth on the 200:
+   v5 `is_sunset` head **precision 0.840 / recall 0.792 / F1 0.816**,
+   firing on 50 frames where the operator says 53. Against `llm_is_sunset`
+   on the 2,000-frame holdout (corrected): precision 0.952 / recall 0.490 /
+   F1 0.647 — the low recall is largely Claude over-calling sunsets (82 vs
+   the operator's 53 on the 200), not the model missing them.
+   v4 re-scored with correct inputs: **F1 0.081** — still broken; that
+   verdict survives (36 positive webcam training examples is the disease).
+   A detector is not a ≥4 classifier: vs rating ≥ 4 truth v5 is precision
+   0.160 (all 8 caught inside its 50 fires) — sizing is the quality head's
+   job, which it now does well (see below).
 2. ~~Is Claude's quality scale usable at all?~~ **Yes — far more than the
    hard-case number implied.** Pearson vs operator on the 53 operator-confirmed
    sunsets is **0.560**, against 0.243 on the 1,224 hard-case overlap. And the
@@ -113,11 +124,23 @@ random ordinary sample (`random_ordinary_v1`). Measurements below.
    frames Claude's mean quality is **monotonic** — N 0.090, 1: 0.257, 2: 0.406,
    3: 0.441, 4: 0.493, 5: 0.600. Claude's detection on ordinary frames is
    precision 0.598 / recall 0.925 / **F1 0.726**, agreement 0.815.
-3. **Does the LLM pretrain help?** Not started — and now better motivated.
-   **Claude beats v5 on the production distribution** (F1 0.726 vs 0.533,
-   precision 0.598 vs 0.393). The ~52k LLM labels are a stronger detector than
-   the gold-only model where it counts. Justification remains distribution
-   coverage (25,018 ordinary negatives), not volume.
+3. **Does the LLM pretrain help?** Largely **demotivated** by the corrected
+   numbers: v5 now BEATS Claude on the production distribution (F1 0.816 vs
+   0.726; the earlier "Claude beats v5" was the preprocessing artifact).
+   The corrected quality head also beats Claude (Pearson 0.763 vs 0.560 on
+   identical frames). The pretrain remains a possible marginal improvement,
+   not a repair for a diagnosed defect — do not spend re-rating money on its
+   behalf without a pre-registered bar it must clear.
+
+**Corrected quality-head result (the real headline).** On the 53
+operator-rated ordinary sunsets: **MAE 0.170, Pearson 0.763** — better than
+its own hard-case number (0.690), beating Claude on the same frames, and
+calibrated almost linearly (rating 1→0.24, 2→0.42, 3→0.55, 4→0.69 against
+anchors 0/.25/.50/.75; rating 5 is n=1).
+
+**Additional trained variant, corrected:** r3 head (≥3 positives) vs its own
+question: precision 0.621 / recall 0.818 / F1 0.706, 29 fires vs 22 true.
+r4 head: training in flight (first run with the eval-quarantined export).
 
 **Caveats on the 200.** Drawn from LLM-rated frames on cameras absent from the
 gold train/val splits, so it measures the ordinary distribution on unseen
@@ -138,12 +161,12 @@ Reports: `ml/artifacts/reports/v5_binary_on_operator_random200.json` and
 
 | run | status | result |
 |---|---|---|
-| `v5_binary_gold` (is_sunset) | done | F1 0.874 gold / 0.643 vs Claude / **0.533 vs operator** |
+| `v5_binary_gold` (is_sunset) | done | F1 0.874 gold / **0.816 vs operator** (corrected pipeline) |
 | `v5_binary_gold_aug` | done | +0.005, noise |
 | `v5_regression_gold` (all rows) | done, superseded | MAE 0.112, Pearson 0.854 |
 | `v5_binary_gold_r3` (rating ≥3) | done | F1 0.8354, balacc 0.8862, AUC 0.9559 |
-| `v5_binary_gold_r4` (rating ≥4) | **config written, not run** | — |
-| `v5_quality_sunsets_only` | done | MAE 0.180, Pearson **0.690** on 514 sunsets |
+| `v5_binary_gold_r4` (rating ≥4) | training 2026-08-30 (eval-quarantined export) | — |
+| `v5_quality_sunsets_only` | done | Pearson 0.690 gold / **0.763 vs operator on ordinary** |
 
 **Quality-head result (2026-08-29).** Apples to apples on the identical 514
 sunset test frames:

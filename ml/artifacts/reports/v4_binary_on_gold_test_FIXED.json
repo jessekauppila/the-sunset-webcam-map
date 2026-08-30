@@ -1,0 +1,286 @@
+{
+  "manifest": "ml/artifacts/datasets/gold_baseline/20260829_061622/manifest_test.csv",
+  "onnx": "ml/artifacts/models/binary_resnet18/20260601_063518_v4_binary_llm_with_flickr/model.onnx",
+  "threshold": 0.5,
+  "scored": 1212,
+  "skipped_unreadable": 0,
+  "overall": {
+    "count": 1212,
+    "precision": 0.7096774193548387,
+    "recall": 0.042801556420233464,
+    "f1": 0.08073394495412844,
+    "balanced_accuracy": 0.5149537868061053,
+    "confusion": {
+      "tn": 689,
+      "fp": 9,
+      "fn": 492,
+      "tp": 22
+    }
+  },
+  "source::flickr": {
+    "count": 47,
+    "precision": 0.875,
+    "recall": 0.45161290322580644,
+    "f1": 0.5957446808510638,
+    "balanced_accuracy": 0.6633064516129032,
+    "confusion": {
+      "tn": 14,
+      "fp": 2,
+      "fn": 17,
+      "tp": 14
+    }
+  },
+  "source::webcam": {
+    "count": 1165,
+    "precision": 0.5333333333333333,
+    "recall": 0.016563146997929608,
+    "f1": 0.032128514056224904,
+    "balanced_accuracy": 0.5031496086895807,
+    "confusion": {
+      "tn": 675,
+      "fp": 7,
+      "fn": 475,
+      "tp": 8
+    }
+  },
+  "threshold_sweep": [
+    {
+      "threshold": 0.1,
+      "count": 1212,
+      "precision": 0.6666666666666666,
+      "recall": 0.0622568093385214,
+      "f1": 0.11387900355871886,
+      "balanced_accuracy": 0.5196670866176848,
+      "confusion": {
+        "tn": 682,
+        "fp": 16,
+        "fn": 482,
+        "tp": 32
+      }
+    },
+    {
+      "threshold": 0.15,
+      "count": 1212,
+      "precision": 0.7045454545454546,
+      "recall": 0.06031128404669261,
+      "f1": 0.11111111111111112,
+      "balanced_accuracy": 0.5208433211064408,
+      "confusion": {
+        "tn": 685,
+        "fp": 13,
+        "fn": 483,
+        "tp": 31
+      }
+    },
+    {
+      "threshold": 0.2,
+      "count": 1212,
+      "precision": 0.7142857142857143,
+      "recall": 0.058365758754863814,
+      "f1": 0.10791366906474821,
+      "balanced_accuracy": 0.52058689083875,
+      "confusion": {
+        "tn": 686,
+        "fp": 12,
+        "fn": 484,
+        "tp": 30
+      }
+    },
+    {
+      "threshold": 0.25,
+      "count": 1212,
+      "precision": 0.717948717948718,
+      "recall": 0.054474708171206226,
+      "f1": 0.10126582278481013,
+      "balanced_accuracy": 0.5193576979251446,
+      "confusion": {
+        "tn": 687,
+        "fp": 11,
+        "fn": 486,
+        "tp": 28
+      }
+    },
+    {
+      "threshold": 0.3,
+      "count": 1212,
+      "precision": 0.717948717948718,
+      "recall": 0.054474708171206226,
+      "f1": 0.10126582278481013,
+      "balanced_accuracy": 0.5193576979251446,
+      "confusion": {
+        "tn": 687,
+        "fp": 11,
+        "fn": 486,
+        "tp": 28
+      }
+    },
+    {
+      "threshold": 0.35,
+      "count": 1212,
+      "precision": 0.6857142857142857,
+      "recall": 0.04669260700389105,
+      "f1": 0.08743169398907102,
+      "balanced_accuracy": 0.5154666473414871,
+      "confusion": {
+        "tn": 687,
+        "fp": 11,
+        "fn": 490,
+        "tp": 24
+      }
+    },
+    {
+      "threshold": 0.4,
+      "count": 1212,
+      "precision": 0.6875,
+      "recall": 0.042801556420233464,
+      "f1": 0.08058608058608059,
+      "balanced_accuracy": 0.5142374544278818,
+      "confusion": {
+        "tn": 688,
+        "fp": 10,
+        "fn": 492,
+        "tp": 22
+      }
+    },
+    {
+      "threshold": 0.45,
+      "count": 1212,
+      "precision": 0.6875,
+      "recall": 0.042801556420233464,
+      "f1": 0.08058608058608059,
+      "balanced_accuracy": 0.5142374544278818,
+      "confusion": {
+        "tn": 688,
+        "fp": 10,
+        "fn": 492,
+        "tp": 22
+      }
+    },
+    {
+      "threshold": 0.5,
+      "count": 1212,
+      "precision": 0.7096774193548387,
+      "recall": 0.042801556420233464,
+      "f1": 0.08073394495412844,
+      "balanced_accuracy": 0.5149537868061053,
+      "confusion": {
+        "tn": 689,
+        "fp": 9,
+        "fn": 492,
+        "tp": 22
+      }
+    },
+    {
+      "threshold": 0.55,
+      "count": 1212,
+      "precision": 0.7096774193548387,
+      "recall": 0.042801556420233464,
+      "f1": 0.08073394495412844,
+      "balanced_accuracy": 0.5149537868061053,
+      "confusion": {
+        "tn": 689,
+        "fp": 9,
+        "fn": 492,
+        "tp": 22
+      }
+    },
+    {
+      "threshold": 0.6,
+      "count": 1212,
+      "precision": 0.7096774193548387,
+      "recall": 0.042801556420233464,
+      "f1": 0.08073394495412844,
+      "balanced_accuracy": 0.5149537868061053,
+      "confusion": {
+        "tn": 689,
+        "fp": 9,
+        "fn": 492,
+        "tp": 22
+      }
+    },
+    {
+      "threshold": 0.65,
+      "count": 1212,
+      "precision": 0.7,
+      "recall": 0.04085603112840467,
+      "f1": 0.07720588235294118,
+      "balanced_accuracy": 0.5139810241601909,
+      "confusion": {
+        "tn": 689,
+        "fp": 9,
+        "fn": 493,
+        "tp": 21
+      }
+    },
+    {
+      "threshold": 0.7,
+      "count": 1212,
+      "precision": 0.7,
+      "recall": 0.04085603112840467,
+      "f1": 0.07720588235294118,
+      "balanced_accuracy": 0.5139810241601909,
+      "confusion": {
+        "tn": 689,
+        "fp": 9,
+        "fn": 493,
+        "tp": 21
+      }
+    },
+    {
+      "threshold": 0.75,
+      "count": 1212,
+      "precision": 0.7241379310344828,
+      "recall": 0.04085603112840467,
+      "f1": 0.07734806629834255,
+      "balanced_accuracy": 0.5146973565384144,
+      "confusion": {
+        "tn": 690,
+        "fp": 8,
+        "fn": 493,
+        "tp": 21
+      }
+    },
+    {
+      "threshold": 0.8,
+      "count": 1212,
+      "precision": 0.75,
+      "recall": 0.04085603112840467,
+      "f1": 0.07749077490774908,
+      "balanced_accuracy": 0.5154136889166379,
+      "confusion": {
+        "tn": 691,
+        "fp": 7,
+        "fn": 493,
+        "tp": 21
+      }
+    },
+    {
+      "threshold": 0.85,
+      "count": 1212,
+      "precision": 0.7307692307692307,
+      "recall": 0.03696498054474708,
+      "f1": 0.07037037037037037,
+      "balanced_accuracy": 0.5134681636248091,
+      "confusion": {
+        "tn": 691,
+        "fp": 7,
+        "fn": 495,
+        "tp": 19
+      }
+    },
+    {
+      "threshold": 0.9,
+      "count": 1212,
+      "precision": 0.7307692307692307,
+      "recall": 0.03696498054474708,
+      "f1": 0.07037037037037037,
+      "balanced_accuracy": 0.5134681636248091,
+      "confusion": {
+        "tn": 691,
+        "fp": 7,
+        "fn": 495,
+        "tp": 19
+      }
+    }
+  ]
+}

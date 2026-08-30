@@ -91,7 +91,13 @@ def load_image(ref: str, cache_dir: Path) -> np.ndarray | None:
     except Exception:
         return None
     arr = np.asarray(img, dtype=np.float32) / 255.0
-    arr = (arr - IMAGENET_MEAN) / IMAGENET_STD
+    # NO ImageNet mean/std here. ml/train.py trains and validates with
+    # Resize + ToTensor only (train.py:360), so inference must match.
+    # This scorer DID apply ImageNet normalization until 2026-08-29 —
+    # every score it produced before then fed the model inputs shifted
+    # ~2 sigma from its training distribution. (Production's
+    # imagePreprocess.ts still has the same bug; fixing that is a
+    # deploy-side change with its own re-thresholding.)
     return arr.transpose(2, 0, 1)[None, :, :, :].astype(np.float32)
 
 
