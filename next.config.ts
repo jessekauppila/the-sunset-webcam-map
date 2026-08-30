@@ -46,16 +46,16 @@ const nextConfig: NextConfig = {
   // AI_ONNX_*_MODEL_PATH env vars in Vercel together.
   outputFileTracingIncludes: {
     '/api/cron/update-cameras': [
-      './ml/artifacts/models/regression_resnet18/20260830_003808_v5_quality_sunsets_only/**/*',
-      './ml/artifacts/models/binary_resnet18/20260829_062437_v5_binary_gold/**/*',
+      './ml/artifacts/models/regression_resnet18/20260830_190519_v5_quality_llm_backbone_finetune/**/*',
+      './ml/artifacts/models/binary_resnet18/20260830_082004_v5_binary_gold_llm_finetune/**/*',
     ],
     '/api/debug/scoring-smoke': [
-      './ml/artifacts/models/regression_resnet18/20260830_003808_v5_quality_sunsets_only/**/*',
-      './ml/artifacts/models/binary_resnet18/20260829_062437_v5_binary_gold/**/*',
+      './ml/artifacts/models/regression_resnet18/20260830_190519_v5_quality_llm_backbone_finetune/**/*',
+      './ml/artifacts/models/binary_resnet18/20260830_082004_v5_binary_gold_llm_finetune/**/*',
     ],
     '/api/kiosk/tick': [
-      './ml/artifacts/models/regression_resnet18/20260830_003808_v5_quality_sunsets_only/**/*',
-      './ml/artifacts/models/binary_resnet18/20260829_062437_v5_binary_gold/**/*',
+      './ml/artifacts/models/regression_resnet18/20260830_190519_v5_quality_llm_backbone_finetune/**/*',
+      './ml/artifacts/models/binary_resnet18/20260830_082004_v5_binary_gold_llm_finetune/**/*',
     ],
   },
 };

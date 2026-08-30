@@ -1,0 +1,79 @@
+{
+  "schema_version": 1,
+  "slug": "v5_quality_llm_backbone_finetune",
+  "display_name": "v5_quality_llm_backbone_finetune",
+  "published_at": "2026-08-30T19:18:13+00:00",
+  "started_at": "2026-08-30T19:05:19+00:00",
+  "config_summary": {
+    "model": {
+      "name": "resnet18",
+      "epochs": 60,
+      "batch_size": 32,
+      "learning_rate": 0.0001,
+      "lr_schedule": "cosine",
+      "early_stopping_patience": 15,
+      "head_dropout": 0.3,
+      "init_backbone_checkpoint": "ml/artifacts/experiments/20260830_061333_v5_binary_llm_pretrain/train/best.pt"
+    },
+    "target_type": "regression",
+    "epochs_configured": 60,
+    "lr_schedule": "cosine",
+    "early_stopping_patience": 15,
+    "head_dropout": 0.3,
+    "class_weighting": "none",
+    "label_source": null
+  },
+  "metrics": {
+    "pearson_r": 0.6747955261326644,
+    "spearman_r": 0.6932579107019099,
+    "r_squared": 0.4329810488400444,
+    "val_mse": 0.05256431600290553,
+    "best_f1": null,
+    "val_precision": null,
+    "val_recall": null,
+    "val_accuracy": null,
+    "best_epoch": 12,
+    "epochs_completed": 27,
+    "early_stopped_epoch": 27
+  },
+  "diagnosis": {
+    "status": "mild_overfit",
+    "note": "Slight val-loss drift (10%) after the best epoch."
+  },
+  "data": {
+    "train_samples": 2491,
+    "val_samples": 611,
+    "test_samples": null,
+    "class_balance": {
+      "negative": null,
+      "positive": null,
+      "ratio": null
+    },
+    "label_distribution": {
+      "train": {
+        "4": 691,
+        "1": 362,
+        "5": 298,
+        "3": 699,
+        "2": 441
+      },
+      "val": {
+        "2": 133,
+        "1": 117,
+        "3": 179,
+        "4": 137,
+        "5": 45
+      },
+      "test": null
+    }
+  },
+  "assets": {
+    "loss_curves_png": "plots/loss_curves.png",
+    "label_distribution_png": "plots/label_distribution.png",
+    "config_yaml": "config.yaml",
+    "failure_gallery_json": "failure_gallery.json"
+  },
+  "threshold_sweep": [],
+  "best_threshold": null,
+  "decision_threshold": 0.3
+}
