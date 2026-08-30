@@ -54,10 +54,10 @@ ml/artifacts/datasets
 ml/artifacts/datasets_regression
 
 ml/artifacts/models/regression_resnet18/*
-!ml/artifacts/models/regression_resnet18/20260830_003808_v5_quality_sunsets_only
+!ml/artifacts/models/regression_resnet18/20260830_190519_v5_quality_llm_backbone_finetune
 
 ml/artifacts/models/binary_resnet18/*
-!ml/artifacts/models/binary_resnet18/20260829_062437_v5_binary_gold
+!ml/artifacts/models/binary_resnet18/20260830_082004_v5_binary_gold_llm_finetune
 
 # ---------------------------------------------------------------------------
 # Docs / scratch — not needed to build or serve
