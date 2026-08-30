@@ -1,7 +1,36 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-08-30T18:57:49+00:00",
+  "generated_at": "2026-08-30T19:18:13+00:00",
   "runs": [
+    {
+      "slug": "v5_quality_llm_backbone_finetune",
+      "display_name": "v5_quality_llm_backbone_finetune",
+      "published_at": "2026-08-30T19:18:13+00:00",
+      "started_at": "2026-08-30T19:05:19+00:00",
+      "target_type": "regression",
+      "binary_metrics": {
+        "val_f1": null,
+        "val_precision": null,
+        "val_recall": null,
+        "val_accuracy": null
+      },
+      "regression_metrics": {
+        "pearson_r": 0.6747955261326644,
+        "spearman_r": 0.6932579107019099,
+        "r_squared": 0.4329810488400444,
+        "val_mse": 0.05256431600290553
+      },
+      "best_metric_name": "pearson_r",
+      "best_metric_value": 0.6747955261326644,
+      "best_epoch": 12,
+      "epochs_total": 27,
+      "early_stopped": true,
+      "train_samples": 2491,
+      "val_samples": 611,
+      "test_samples": null,
+      "status": "mild_overfit",
+      "status_note": "Slight val-loss drift (10%) after the best epoch."
+    },
     {
       "slug": "v5_binary_gold_llm_finetune",
       "display_name": "v5_binary_gold_llm_finetune",

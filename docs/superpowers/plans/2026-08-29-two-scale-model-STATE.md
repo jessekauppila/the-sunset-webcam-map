@@ -248,8 +248,28 @@ confirmation data. Re-rating spend stays PARKED: the rate-money rule
 required detection AND quality to improve, and the quality head is
 unchanged at 0.697 — the detection win came from labels we already owned.
 
+**🏁 QUALITY HEAD TOO (2026-08-30, same day): the backbone warm start
+clears the quality bar as well — the full pair is now warm-started.**
+Run `20260830_190519_v5_quality_llm_backbone_finetune`: identical recipe/
+data/seed as the shipping quality head, backbone warm-started from the
+same stage-1 pretrain via the new `--init-backbone-checkpoint` (loads
+backbone only, head fresh, fail-loud on any other mismatch; tested).
+Pre-registered bar: beat Pearson 0.697 on the pooled 500 sunsets, <+0.02
+wash. Result: **Pearson 0.739 (+0.042), MAE 0.178 (vs 0.191)**, monotonic
+mean-by-rating (1: 0.28 → 4: 0.69; the 5-dip is n=7). Composed with the
+candidate detection head: Spearman 0.809, false-shows 10/365, 27/28 ≥4
+shown, top-8 = six ≥4s + two 3s, zero N. (Composed Spearman 0.809 vs
+0.820 with the old quality head is inside noise; the quality head's own
++0.042 is not.) **New ship candidate = BOTH warm-started heads.** Also
+fixed en route: `ml/evaluate.py` had no image cache and no retry — one
+network flap killed a whole eval; it now shares the sha256 cache with
+train.py/score_manifest.py (byte-source only; decode/resize untouched,
+ONNX parity re-verified 5e-7 on 20 frames).
+
 Candidate reports: `ml/artifacts/reports/v5_llm_finetune_on_operator_pooled500.json`,
-`..._reports/composed_on_operator_llm_finetune_pooled500.json`. A
+`..._reports/composed_on_operator_llm_finetune_pooled500.json`,
+`..._reports/quality_head_on_operator_quality_warmstart_pooled500.json`,
+`..._reports/composed_on_operator_quality_warmstart_pooled500.json`. A
 quarantine hole was found and fixed on the way: the llm_only export leg
 did NOT exclude `label_samples` (all 500 eval frames are LLM-rated and
 would have entered the pretrain); `export_dataset.py` now applies the same
@@ -304,6 +324,7 @@ Reports: `ml/artifacts/reports/v5_binary_on_operator_random200.json` and
 | `v5_quality_sunsets_only` retrain (quarantined export) | done 2026-08-30 | **Pearson 0.820 vs operator — SHIPS** |
 | `v5_binary_llm_pretrain` (stage 1, 51,346 LLM labels) | done 2026-08-30 | F1 0.878 vs Claude's held-out labels; feeder for the finetune |
 | `v5_binary_gold_llm_finetune` (stage 2, warm start) | done 2026-08-30 | **F1 0.821 on pooled 500 — CLEARS the 0.797 bar; new ship candidate** |
+| `v5_quality_llm_backbone_finetune` (backbone warm start) | done 2026-08-30 | **Pearson 0.739 on pooled 500 — CLEARS the 0.697 bar; pairs with the above** |
 
 **Quality-head result (2026-08-29).** Apples to apples on the identical 514
 sunset test frames:
