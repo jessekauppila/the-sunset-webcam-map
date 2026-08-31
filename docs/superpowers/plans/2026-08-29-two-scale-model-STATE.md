@@ -339,26 +339,41 @@ Reports: `ml/artifacts/reports/v5_binary_on_operator_random200.json` and
 
 ---
 
-## What's next (2026-08-30: Phase 0 BUILT, sitting pending)
+## What's next (2026-08-31: 🏁 CEILING MEASURED — both heads are DONE; work failure modes)
 
-`2026-08-30-quality-ceiling-and-labeling-roadmap.md` is the follow-on plan:
-Phase 0 measures the operator's own test–retest ceiling, which gates whether
-a big detection-gated quality labeling push (Phase 1) is worth anything.
-Detection stays frozen; Flickr stays out of fine-tune; images are not the
-constraint, labels are.
+**The retest sitting settled it** (146/150 of `retest_v1`, blind, PR #97
+infrastructure; report `ml/artifacts/reports/retest_v1_ceiling.json`):
 
-**Phase 0 is built** (branch `feat/retest-draw`): the Hard Examples queue has
-a third **Retest** toggle serving `retest_v1` — 150 already-rated frames,
-blind, stratified (15 per rating 1–5, 40 N, 35 rating-1, stale-first, seed
-20260830). Re-ratings go to the new `manual_label_retests` table, physically
-separate from gold (`manual_labels` is UNIQUE(source,image_id) with an
-ON CONFLICT DO UPDATE upsert — a retest through it would overwrite gold).
-`label_samples.kind` distinguishes eval draws from retests, and the export
-quarantine is scoped to `kind='draw'` so the retest frames' original labels
-stay in training (counts verified unchanged). Next action is the operator's:
-one blind sitting, then
-`.venv/bin/python ml/analyze_retest.py --sample-name retest_v1` prints the
-pre-registered ceiling verdict.
+| | operator vs himself | model vs operator | gap |
+|---|---|---|---|
+| detection | self-F1 **0.807** (agree 0.760, κ 0.515) | 0.776–0.816 across 4 fresh sets | at ceiling |
+| quality | self-Pearson **0.673** (n=73), MAE 0.216 | 0.697 pooled / 0.63–0.70 fresh | **−0.024** |
+
+The quality head agrees with the operator's labels slightly MORE than the
+operator agrees with himself. Per the pre-registered rule (gap ≤ 0.10):
+**CEILING REACHED — the Phase 1 labeling push is cancelled**; more labels of
+the same kind cannot improve a model already at label noise. The detection
+"shouldn't it be better than 0.8?" question closes permanently: 0.8 IS the
+operator. This also retro-explains why three detection "improvements" in a
+row failed to replicate — they were fitting label noise.
+
+Caveats and leads from the confusion matrix (rows pass 1, cols pass 2):
+140/146 originals were hard-example frames, so ordinary-frame
+self-consistency is likely somewhat higher; agreement decays with label age
+(fresh 0.768 / ≥14d 0.428, n=14). The N↔1 boundary is the dominant
+instability (21/47 original 1s → N). **Original 4s were the least stable
+label of all** — 2/15 unchanged, 7 → N — the tier the product showcases is
+the fuzziest in the operator's own head.
+
+**Active track — failure modes, not metrics** (roadmap
+`2026-08-30-quality-ceiling-and-labeling-roadmap.md`):
+1. Sharpen the rubric's 4 boundary (the instability above), then the
+   silhouette-4s / custom-cam manual-rating work.
+2. Per-camera error audit (the 3656741 pattern) — now with per-snapshot
+   binary evidence, PR #69.
+3. Below-gate frames render minimal, not hidden (Workstream 3 design note).
+Side items from the roadmap (trickle-save intake, stale README, leaderboard
+instrument drift) remain open and cheap.
 
 ---
 

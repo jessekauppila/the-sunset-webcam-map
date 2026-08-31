@@ -6,15 +6,25 @@ status: parked — deliberately not executing yet
 
 # Quality ceiling & labeling roadmap
 
-> **Status: Phase 0 BUILT (2026-08-30) — awaiting the operator sitting.**
-> Implementation plan: `2026-08-30-retest-draw-implementation.md`, executed on
-> branch `feat/retest-draw`. `retest_v1` is loaded (150 frames: 15 per rating
-> 1–5, 40 N, 35 rating-1; seed 20260830) and the Hard Examples queue has a
-> **Retest** toggle showing 0/150. Re-ratings land in `manual_label_retests`
-> (never `manual_labels`); the export quarantine is scoped to `kind='draw'`
-> (row counts verified unchanged: gold 8371+344, llm 58323). After the
-> sitting: `.venv/bin/python ml/analyze_retest.py --sample-name retest_v1`
-> prints the pre-registered verdict. Phases 1–2 remain gated on it.
+> **Status: Phase 0 COMPLETE (2026-08-31) — VERDICT: CEILING REACHED.**
+> Sitting done (146/150). Quality self-Pearson **0.673** (n=73) vs model
+> 0.697 → gap **−0.024**: the model agrees with the operator's labels
+> slightly MORE than the operator agrees with himself. Detection self-F1
+> **0.807** (agreement 0.760, kappa 0.515) vs the model's 0.776–0.816 →
+> detection is FINISHED; that conversation closes permanently per the
+> pre-registered rule. **Phase 1 (the 1,000-frame gated labeling push) is
+> CANCELLED** — more labels of the same kind cannot help a model that already
+> sits at label noise. Active track: FAILURE MODES (below).
+> Report: `ml/artifacts/reports/retest_v1_ceiling.json`. Findings worth
+> acting on: (1) the N/1 boundary is the big instability — 21/47 original
+> rating-1s became N on retest; (2) original **4s were the least stable
+> label of all** (2/15 unchanged; 7 became N) — the "vivid" tier the product
+> showcases is the fuzziest in the operator's own head, so the silhouette/4s
+> failure-mode work should start with sharpening the rubric's 4 boundary,
+> not with more labels; (3) agreement decays with time gap (fresh originals
+> 0.768, ≥14d-old 0.428 at n=14) — the pooled 0.673 may still flatter.
+> Caveat: 140/146 originals were hard-example frames, the hardest ~15%;
+> ordinary-frame self-consistency is likely somewhat higher.
 >
 > Companion to `2026-08-29-two-scale-model-STATE.md` (read that first — it
 > holds the settled findings this plan builds on).
