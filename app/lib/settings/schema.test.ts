@@ -45,6 +45,10 @@ describe('stripDefaults', () => {
     expect(stripDefaults(SCHEMA, { floorPx: 100, cullOverflow: false }))
       .toEqual({ cullOverflow: false });
   });
+  it('omits keys absent from a partial input instead of writing undefined entries', () => {
+    const out = stripDefaults(SCHEMA, { cullOverflow: false });
+    expect(Object.keys(out)).toEqual(['cullOverflow']);
+  });
 });
 
 describe('mergeSettings', () => {

@@ -62,6 +62,7 @@ export function sanitizeValues(schema: SettingsSchema, input: unknown): Settings
 export function stripDefaults(schema: SettingsSchema, values: SettingsValues): SettingsValues {
   const out: SettingsValues = {};
   for (const knob of schema) {
+    if (!(knob.key in values)) continue;
     const value = values[knob.key];
     if (value !== knob.default) {
       out[knob.key] = value;
