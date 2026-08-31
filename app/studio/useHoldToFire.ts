@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 /** Hold duration for the Take/Deploy button (ms). Shared with DeployButton's
  * CSS sweep animation so the visual fill and the fire timer stay in lockstep. */
@@ -58,6 +58,19 @@ export function useHoldToFire({
     clear();
     setHolding(false);
   }, [clear]);
+
+  // Unmount cleanup: a hold in progress when the owning component unmounts
+  // (e.g. the rail collapses mid-hold, tearing down the full DeployButton)
+  // must not fire onFire from a stale closure after teardown — same pattern
+  // as useStudioSettings.ts's debounce-timer cleanup.
+  useEffect(() => {
+    return () => {
+      if (timerRef.current !== null) {
+        clearTimeout(timerRef.current);
+        timerRef.current = null;
+      }
+    };
+  }, []);
 
   return {
     holding,

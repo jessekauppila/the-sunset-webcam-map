@@ -92,6 +92,23 @@ describe('useHoldToFire', () => {
     expect(onFire).not.toHaveBeenCalled();
   });
 
+  it('unmounting mid-hold cancels the timer so onFire never fires', () => {
+    const onFire = vi.fn();
+    const { result, unmount } = renderHook(() => useHoldToFire({ ms: DEPLOY_HOLD_MS, onFire }));
+
+    act(() => {
+      result.current.handlers.onPointerDown();
+    });
+    expect(result.current.holding).toBe(true);
+
+    unmount();
+
+    act(() => {
+      vi.advanceTimersByTime(DEPLOY_HOLD_MS);
+    });
+    expect(onFire).not.toHaveBeenCalled();
+  });
+
   it('a second hold after firing works', () => {
     const onFire = vi.fn();
     const { result } = renderHook(() => useHoldToFire({ ms: DEPLOY_HOLD_MS, onFire }));

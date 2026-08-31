@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { useHoldToFire, DEPLOY_HOLD_MS } from './useHoldToFire';
 
 export { DEPLOY_HOLD_MS };
@@ -57,13 +58,21 @@ export function DeployButton({
   compact?: boolean;
 }) {
   const inSync = diffCount === 0;
+  // diffCount only updates once the deploy's mutate() resolves, so without
+  // this the button stays armed (and holdable) for the whole fetch — a
+  // second completed hold during that window would call onDeploy again.
+  // The server-side deploy is a copy, so a double-POST is harmless to the
+  // data; this guard exists purely so the UI doesn't lie about being ready
+  // to fire again while a deploy is still in flight.
+  const [isDeploying, setIsDeploying] = useState(false);
 
   const { holding, handlers } = useHoldToFire({
     ms: DEPLOY_HOLD_MS,
     onFire: () => {
-      void onDeploy();
+      setIsDeploying(true);
+      void onDeploy().finally(() => setIsDeploying(false));
     },
-    disabled: inSync,
+    disabled: inSync || isDeploying,
   });
 
   const fillClassName = `studio-deploy-fill${holding ? ' studio-deploy-fill--holding' : ''}`;
@@ -75,8 +84,14 @@ export function DeployButton({
         <button
           type="button"
           {...handlers}
-          disabled={inSync}
-          aria-label={inSync ? 'in sync with glass' : `deploy — ${diffCount} differ`}
+          disabled={inSync || isDeploying}
+          aria-label={
+            inSync
+              ? 'in sync with glass'
+              : isDeploying
+                ? 'deploying'
+                : `deploy — ${diffCount} differ`
+          }
           style={{
             position: 'relative',
             display: 'flex',
@@ -92,8 +107,9 @@ export function DeployButton({
             fontWeight: 700,
             letterSpacing: '0.06em',
             padding: '4px 10px',
-            cursor: inSync ? 'default' : 'pointer',
+            cursor: inSync || isDeploying ? 'default' : 'pointer',
             boxShadow: inSync ? 'none' : ARMED_GLOW,
+            opacity: isDeploying ? 0.6 : 1,
           }}
         >
           <span className={fillClassName} aria-hidden />
@@ -125,7 +141,7 @@ export function DeployButton({
       <button
         type="button"
         {...handlers}
-        disabled={inSync}
+        disabled={inSync || isDeploying}
         aria-label={inSync ? 'IN SYNC WITH GLASS ✓' : 'HOLD TO DEPLOY'}
         style={{
           position: 'relative',
@@ -141,8 +157,9 @@ export function DeployButton({
           borderRadius: 8,
           color: inSync ? SYNC_FG : '#fff',
           padding: '12px 8px',
-          cursor: inSync ? 'default' : 'pointer',
+          cursor: inSync || isDeploying ? 'default' : 'pointer',
           boxShadow: inSync ? 'none' : ARMED_GLOW,
+          opacity: isDeploying ? 0.6 : 1,
         }}
       >
         <span className={fillClassName} aria-hidden />
@@ -165,7 +182,7 @@ export function DeployButton({
             opacity: inSync ? 1 : 0.85,
           }}
         >
-          {inSync ? 'dials match the deployed state' : subline(diffCount)}
+          {inSync ? 'dials match the deployed state' : isDeploying ? 'deploying…' : subline(diffCount)}
         </span>
       </button>
       <button
