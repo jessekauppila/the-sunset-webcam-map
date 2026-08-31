@@ -3,6 +3,7 @@ import {
   MOSAIC_VERSIONS,
   DEFAULT_MOSAIC_VERSION,
   resolveMosaic,
+  resolveMosaicName,
 } from './registry';
 import { MosaicV1 } from './v1';
 
@@ -30,5 +31,13 @@ describe('mosaic registry', () => {
     expect(resolveMosaic('v999')).toBe(
       MOSAIC_VERSIONS[DEFAULT_MOSAIC_VERSION]
     );
+  });
+
+  it('resolveMosaicName resolves a known version to itself', () => {
+    expect(resolveMosaicName('v1')).toBe('v1');
+  });
+
+  it('resolveMosaicName falls back to the default name for an unknown version', () => {
+    expect(resolveMosaicName('nope')).toBe('v1');
   });
 });

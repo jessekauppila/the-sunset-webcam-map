@@ -28,3 +28,12 @@ export function resolveMosaic(version: string | null | undefined): MosaicCompone
     MOSAIC_VERSIONS[DEFAULT_MOSAIC_VERSION]
   );
 }
+
+/**
+ * Same fallback rule as resolveMosaic, but returns the resolved registry
+ * key rather than the component — for looking up the matching settings
+ * namespace (`liveSettings.namespaces[resolveMosaicName(...)]`).
+ */
+export function resolveMosaicName(version: string | null | undefined): string {
+  return version && version in MOSAIC_VERSIONS ? version : DEFAULT_MOSAIC_VERSION;
+}
