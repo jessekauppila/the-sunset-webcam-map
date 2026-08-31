@@ -62,11 +62,18 @@ export function useStudioSettings(): StudioSettingsApi {
 
   // Per-namespace optimistic overlay: full local deviation set for a
   // namespace once it has been touched this session, keyed by namespace.
+  // `overlay` (state) drives re-renders; `overlayRef` is the synchronous
+  // source of truth setKnob/resetSection/flush read and write from — React
+  // batches state updates, so reading the `overlay` *state* value back
+  // inside the same synchronous event (e.g. two setKnob calls in one
+  // act()/handler) would see a stale snapshot and drop the earlier edit.
   const [overlay, setOverlay] = useState<Record<string, SettingsValues>>({});
+  const overlayRef = useRef<Record<string, SettingsValues>>({});
   const timers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const [deployedAtMs, setDeployedAtMs] = useState<number | null>(null);
 
-  const flush = useCallback((namespace: string, schema: SettingsSchema, values: SettingsValues) => {
+  const flush = useCallback((namespace: string, schema: SettingsSchema) => {
+    const values = overlayRef.current[namespace] ?? {};
     const body = {
       namespace,
       values: stripDefaults(schema, sanitizeValues(schema, values)),
@@ -79,11 +86,11 @@ export function useStudioSettings(): StudioSettingsApi {
   }, []);
 
   const scheduleFlush = useCallback(
-    (namespace: string, schema: SettingsSchema, values: SettingsValues) => {
+    (namespace: string, schema: SettingsSchema) => {
       if (timers.current[namespace]) clearTimeout(timers.current[namespace]);
       timers.current[namespace] = setTimeout(() => {
         delete timers.current[namespace];
-        void flush(namespace, schema, values);
+        void flush(namespace, schema);
       }, DEBOUNCE_MS);
     },
     [flush]
@@ -121,38 +128,39 @@ export function useStudioSettings(): StudioSettingsApi {
       clearTimeout(timers.current[namespace]);
       delete timers.current[namespace];
       const schema = schemaFor(namespace);
-      const values = overlay[namespace];
-      if (!schema || !values) return Promise.resolve();
-      return flush(namespace, schema, values);
+      if (!schema) return Promise.resolve();
+      return flush(namespace, schema);
     });
     await Promise.all(patches);
-  }, [flush, overlay]);
+  }, [flush]);
 
   const setKnob = useCallback(
     (namespace: string, key: string, value: KnobValue) => {
       const schema = schemaFor(namespace);
       if (!schema) return;
-      const base = overlay[namespace] ?? data?.studio?.namespaces?.[namespace] ?? {};
+      const base = overlayRef.current[namespace] ?? data?.studio?.namespaces?.[namespace] ?? {};
       const next = sanitizeValues(schema, { ...base, [key]: value });
-      setOverlay((prev) => ({ ...prev, [namespace]: next }));
-      scheduleFlush(namespace, schema, next);
+      overlayRef.current = { ...overlayRef.current, [namespace]: next };
+      setOverlay(overlayRef.current);
+      scheduleFlush(namespace, schema);
     },
-    [data, overlay, scheduleFlush]
+    [data, scheduleFlush]
   );
 
   const resetSection = useCallback(
     (namespace: string, section: string) => {
       const schema = schemaFor(namespace);
       if (!schema) return;
-      const base = overlay[namespace] ?? data?.studio?.namespaces?.[namespace] ?? {};
+      const base = overlayRef.current[namespace] ?? data?.studio?.namespaces?.[namespace] ?? {};
       const next: SettingsValues = { ...base };
       for (const knob of schema) {
         if (knob.section === section) delete next[knob.key];
       }
-      setOverlay((prev) => ({ ...prev, [namespace]: next }));
-      scheduleFlush(namespace, schema, next);
+      overlayRef.current = { ...overlayRef.current, [namespace]: next };
+      setOverlay(overlayRef.current);
+      scheduleFlush(namespace, schema);
     },
-    [data, overlay, scheduleFlush]
+    [data, scheduleFlush]
   );
 
   const studio = useMemo<ProfileSettings | undefined>(() => {
@@ -213,6 +221,7 @@ export function useStudioSettings(): StudioSettingsApi {
       (current) => (current ? { ...current, studio: json.studio } : current),
       { revalidate: false }
     );
+    overlayRef.current = {};
     setOverlay({});
   }, [cancelPending, mutate]);
 

@@ -275,4 +275,42 @@ describe('useStudioSettings', () => {
     );
     expect(revertCalls.length).toBe(1);
   });
+
+  it('two synchronous setKnob calls to the same namespace in one batch both survive', async () => {
+    const getResponse = settingsResponse({}, {});
+    fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+      if (!init || (!init.method && url === '/api/kiosk/settings')) {
+        return { ok: true, json: async () => getResponse };
+      }
+      if (init.method === 'PATCH') {
+        return { ok: true, json: async () => ({ revision: 2 }) };
+      }
+      return { ok: true, json: async () => ({}) };
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { result } = renderHook(() => useStudioSettings(), { wrapper });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+
+    act(() => {
+      result.current.setKnob('v1', 'floorPx', 200);
+      result.current.setKnob('v1', 'padding', 5);
+    });
+
+    // Both edits must be reflected — the second call must not have
+    // clobbered the first via a stale render-time overlay snapshot.
+    expect(result.current.effective('v1').floorPx).toBe(200);
+    expect(result.current.effective('v1').padding).toBe(5);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(400);
+    });
+
+    const patchCalls = fetchMock.mock.calls.filter((c) => c[1]?.method === 'PATCH');
+    expect(patchCalls.length).toBe(1);
+    const body = JSON.parse(patchCalls[0][1].body as string);
+    expect(body).toEqual({ namespace: 'v1', values: { floorPx: 200, padding: 5 } });
+  });
 });
