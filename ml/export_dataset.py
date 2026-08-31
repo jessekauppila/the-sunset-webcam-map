@@ -308,8 +308,11 @@ def fetch_rows(
           -- EVAL QUARANTINE: same rule as the gold leg below. Every
           -- label_samples frame is LLM-rated, so without this the LLM
           -- pretrain trains on all 500 frames of the only unbiased eval set.
+          -- Scoped to kind='draw': retest samples re-serve frames whose
+          -- ORIGINAL labels are training data and must stay in.
           AND NOT EXISTS (SELECT 1 FROM label_samples ls
-                          WHERE ls.source = 'webcam' AND ls.image_id = s.id)
+                          WHERE ls.source = 'webcam' AND ls.image_id = s.id
+                            AND ls.kind = 'draw')
         """
     elif label_source == "public_aggregate":
         query = """
@@ -391,8 +394,12 @@ def fetch_gold_rows(
       -- eval set; training on it would silently destroy the yardstick every
       -- v5 decision is measured against. If a *training* sample is ever
       -- drawn, add an explicit opt-in rather than removing this.
+      -- Scoped to kind='draw': retest samples (kind='retest') re-serve
+      -- already-labeled frames blind; their ORIGINAL labels stay in training
+      -- (the re-ratings live in manual_label_retests, never exported).
       AND NOT EXISTS (SELECT 1 FROM label_samples ls
-                      WHERE ls.source = m.source AND ls.image_id = m.image_id)
+                      WHERE ls.source = m.source AND ls.image_id = m.image_id
+                        AND ls.kind = 'draw')
     UNION ALL
     SELECT
       e.id AS snapshot_id,
@@ -407,9 +414,10 @@ def fetch_gold_rows(
     FROM manual_labels m
     JOIN external_images e ON e.id = m.image_id
     WHERE m.source = 'flickr' AND e.image_url IS NOT NULL
-      -- Same eval quarantine as the webcam leg above.
+      -- Same eval quarantine as the webcam leg above, same kind='draw' scope.
       AND NOT EXISTS (SELECT 1 FROM label_samples ls
-                      WHERE ls.source = m.source AND ls.image_id = m.image_id)
+                      WHERE ls.source = m.source AND ls.image_id = m.image_id
+                        AND ls.kind = 'draw')
     """
     with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
         cur.execute(query)
