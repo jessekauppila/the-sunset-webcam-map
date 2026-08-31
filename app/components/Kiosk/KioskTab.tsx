@@ -76,6 +76,28 @@ export function KioskTab() {
             </MuiLink>
           ))
         )}
+        <MuiLink
+          href="/studio"
+          target="_blank"
+          rel="noopener noreferrer"
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            px: 2,
+            py: 1.25,
+            minWidth: 150,
+            borderRadius: 1,
+            border: '1px solid #374151',
+            background: '#111827',
+            textDecoration: 'none',
+            color: '#e5e7eb',
+            fontWeight: 600,
+            fontSize: 14,
+            '&:hover': { borderColor: '#6b7280', background: '#1f2937' },
+          }}
+        >
+          🎛 Studio
+        </MuiLink>
       </Box>
 
       <Typography sx={{ fontWeight: 700, mb: 0.5 }}>Tuning</Typography>

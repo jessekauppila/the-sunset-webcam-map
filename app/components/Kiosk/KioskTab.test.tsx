@@ -70,4 +70,12 @@ describe('KioskTab', () => {
     render(<KioskTab />);
     expect(screen.getByText(/quiet=off/)).toBeTruthy();
   });
+
+  it('links to the studio dial page, opened in a new tab', () => {
+    render(<KioskTab />);
+    const link = screen.getByRole('link', { name: /studio/i }) as HTMLAnchorElement;
+
+    expect(link.getAttribute('href')).toBe('/studio');
+    expect(link.target).toBe('_blank');
+  });
 });

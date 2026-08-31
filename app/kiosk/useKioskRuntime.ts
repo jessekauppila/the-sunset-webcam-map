@@ -11,13 +11,18 @@ import {
   KIOSK_TICK_INTERVAL_MS,
   KIOSK_WAKE_MINUTES,
 } from '@/app/lib/masterConfig';
+import type { ProfileSettings } from '@/app/lib/settings/store';
 
-export function useKioskRuntime(): { dozing: boolean } {
+export function useKioskRuntime(): {
+  dozing: boolean;
+  liveSettings: ProfileSettings | null;
+} {
   const [visible, setVisible] = useState(
     () => typeof document === 'undefined' || document.visibilityState === 'visible',
   );
   const [localDoze, setLocalDoze] = useState(false);
   const [remoteDoze, setRemoteDoze] = useState(false);
+  const [liveSettings, setLiveSettings] = useState<ProfileSettings | null>(null);
   const [, forceRender] = useState(0);
   const quietRef = useRef<QuietWindow>(null);
   const lastInteractionRef = useRef<number | null>(null);
@@ -68,11 +73,15 @@ export function useKioskRuntime(): { dozing: boolean } {
 
     const poll = async () => {
       try {
-        const res = await fetch('/api/kiosk/state');
+        const res = await fetch('/api/kiosk/state?kiosk=1');
         if (res.ok) {
-          const { doze } = (await res.json()) as { doze: boolean };
+          const { doze, settings } = (await res.json()) as {
+            doze: boolean;
+            settings?: ProfileSettings | null;
+          };
           setRemoteDoze(doze);
           remoteDozeRef.current = doze;
+          if (settings) setLiveSettings(settings);
         }
       } catch {
         /* state poll failures are non-fatal */
@@ -96,5 +105,5 @@ export function useKioskRuntime(): { dozing: boolean } {
     };
   }, [gate]);
 
-  return { dozing: isDozing(gate()) };
+  return { dozing: isDozing(gate()), liveSettings };
 }

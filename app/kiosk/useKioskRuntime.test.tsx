@@ -23,7 +23,12 @@ describe('useKioskRuntime', () => {
       await vi.advanceTimersByTimeAsync(61_000);
     });
     const urls = fetchMock.mock.calls.map((c) => String(c[0]));
-    expect(urls.filter((u) => u.includes('/api/kiosk/state')).length).toBeGreaterThanOrEqual(2);
+    const statePolls = urls.filter((u) => u.includes('/api/kiosk/state'));
+    expect(statePolls.length).toBeGreaterThanOrEqual(2);
+    // Marked with ?kiosk=1 so the route's markKioskPoll only fires for the
+    // kiosk's own poll loop, not other callers of this endpoint (e.g. the
+    // Ops drawer's DozeControl).
+    expect(statePolls.every((u) => u.includes('kiosk=1'))).toBe(true);
     expect(urls.filter((u) => u.includes('/api/kiosk/tick')).length).toBeGreaterThanOrEqual(1);
   });
 
@@ -58,5 +63,25 @@ describe('useKioskRuntime', () => {
       await vi.advanceTimersByTimeAsync(1_000);
     });
     expect(result.current.dozing).toBe(true);
+  });
+
+  it('surfaces settings from a poll response and keeps them on a failed poll', async () => {
+    const settings = { namespaces: { v1: { floorPx: 150 } }, revision: 2 };
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ doze: false, settings }),
+    });
+    const { result } = renderHook(() => useKioskRuntime());
+    expect(result.current.liveSettings).toBeNull();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1_000);
+    });
+    expect(result.current.liveSettings).toEqual(settings);
+
+    fetchMock.mockRejectedValueOnce(new Error('network down'));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(61_000);
+    });
+    expect(result.current.liveSettings).toEqual(settings);
   });
 });
