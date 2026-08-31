@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import useSWR from 'swr';
 import {
   mergeSettings,
@@ -98,6 +98,17 @@ export function useStudioSettings(): StudioSettingsApi {
     }
   }, []);
 
+  // Unmount cleanup: a pending debounce timer must not fire a PATCH from a
+  // stale closure after the component that owns this hook has torn down.
+  useEffect(() => {
+    return () => {
+      for (const namespace of Object.keys(timers.current)) {
+        clearTimeout(timers.current[namespace]);
+      }
+      timers.current = {};
+    };
+  }, []);
+
   // Cancel every pending per-namespace debounce timer and PATCH its
   // namespace's full deviation set immediately — used by deploy() so a dial
   // moved less than DEBOUNCE_MS before Deploy is still in the studio row
@@ -121,31 +132,27 @@ export function useStudioSettings(): StudioSettingsApi {
     (namespace: string, key: string, value: KnobValue) => {
       const schema = schemaFor(namespace);
       if (!schema) return;
-      setOverlay((prev) => {
-        const base = prev[namespace] ?? data?.studio?.namespaces?.[namespace] ?? {};
-        const next = sanitizeValues(schema, { ...base, [key]: value });
-        scheduleFlush(namespace, schema, next);
-        return { ...prev, [namespace]: next };
-      });
+      const base = overlay[namespace] ?? data?.studio?.namespaces?.[namespace] ?? {};
+      const next = sanitizeValues(schema, { ...base, [key]: value });
+      setOverlay((prev) => ({ ...prev, [namespace]: next }));
+      scheduleFlush(namespace, schema, next);
     },
-    [data, scheduleFlush]
+    [data, overlay, scheduleFlush]
   );
 
   const resetSection = useCallback(
     (namespace: string, section: string) => {
       const schema = schemaFor(namespace);
       if (!schema) return;
-      setOverlay((prev) => {
-        const base = prev[namespace] ?? data?.studio?.namespaces?.[namespace] ?? {};
-        const next: SettingsValues = { ...base };
-        for (const knob of schema) {
-          if (knob.section === section) delete next[knob.key];
-        }
-        scheduleFlush(namespace, schema, next);
-        return { ...prev, [namespace]: next };
-      });
+      const base = overlay[namespace] ?? data?.studio?.namespaces?.[namespace] ?? {};
+      const next: SettingsValues = { ...base };
+      for (const knob of schema) {
+        if (knob.section === section) delete next[knob.key];
+      }
+      setOverlay((prev) => ({ ...prev, [namespace]: next }));
+      scheduleFlush(namespace, schema, next);
     },
-    [data, scheduleFlush]
+    [data, overlay, scheduleFlush]
   );
 
   const studio = useMemo<ProfileSettings | undefined>(() => {

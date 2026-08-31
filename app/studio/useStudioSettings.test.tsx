@@ -220,4 +220,59 @@ describe('useStudioSettings', () => {
 
     expect(result.current.diffCount).toBe(0);
   });
+
+  it('revert() cancels a pending debounced PATCH (never sent) and clears the optimistic overlay', async () => {
+    const getResponse = settingsResponse({}, {});
+    fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+      if (!init || (!init.method && url === '/api/kiosk/settings')) {
+        return { ok: true, json: async () => getResponse };
+      }
+      if (init.method === 'PATCH') {
+        return { ok: true, json: async () => ({ revision: 2 }) };
+      }
+      if (init.method === 'POST' && url === '/api/kiosk/settings/revert') {
+        return {
+          ok: true,
+          json: async () => ({
+            studio: { namespaces: { v1: { floorPx: 140 } }, revision: 5 },
+          }),
+        };
+      }
+      return { ok: true, json: async () => ({}) };
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { result } = renderHook(() => useStudioSettings(), { wrapper });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+
+    act(() => {
+      result.current.setKnob('v1', 'floorPx', 200);
+    });
+    expect(result.current.effective('v1').floorPx).toBe(200);
+
+    // Revert immediately — no timer advance — so the debounce timer is
+    // still pending when revert cancels it.
+    await act(async () => {
+      await result.current.revert();
+    });
+
+    // Overlay cleared: effective() now reflects the reverted studio from
+    // the server, not the discarded local edit.
+    expect(result.current.effective('v1').floorPx).toBe(140);
+
+    // Advance well past the debounce window: the cancelled timer must
+    // never fire a PATCH.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1000);
+    });
+
+    const patchCalls = fetchMock.mock.calls.filter((c) => c[1]?.method === 'PATCH');
+    expect(patchCalls.length).toBe(0);
+    const revertCalls = fetchMock.mock.calls.filter(
+      (c) => c[0] === '/api/kiosk/settings/revert'
+    );
+    expect(revertCalls.length).toBe(1);
+  });
 });
