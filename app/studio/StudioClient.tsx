@@ -5,6 +5,7 @@ import { useLoadTerminatorWebcams } from '@/app/store/useLoadTerminatorWebcams';
 import { PreviewPane, type FeedView } from './PreviewPane';
 import { StudioRail } from './StudioRail';
 import { useStudioSettings } from './useStudioSettings';
+import { DeployButton } from './DeployButton';
 import { resolveMosaicName } from '@/app/components/mosaic/registry';
 import type { PanelSize } from '@/app/kiosk/panelPreview';
 
@@ -70,7 +71,17 @@ export function StudioClient() {
             boxSizing: 'border-box',
           }}
         >
-          <StudioRail api={settingsApi} onCollapse={() => setRailCollapsed(true)} />
+          <StudioRail
+            api={settingsApi}
+            onCollapse={() => setRailCollapsed(true)}
+            deploySlot={
+              <DeployButton
+                diffCount={settingsApi.diffCount}
+                onDeploy={settingsApi.deploy}
+                onRevert={settingsApi.revert}
+              />
+            }
+          />
         </aside>
       )}
 
@@ -123,6 +134,12 @@ export function StudioClient() {
             >
               » dials
             </button>
+            <DeployButton
+              compact
+              diffCount={settingsApi.diffCount}
+              onDeploy={settingsApi.deploy}
+              onRevert={settingsApi.revert}
+            />
           </div>
         )}
       </main>
