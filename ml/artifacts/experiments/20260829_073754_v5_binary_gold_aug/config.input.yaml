@@ -1,0 +1,80 @@
+run:
+  name: v5_binary_gold_aug
+  seed: 20260212
+  notes: >
+    A/B against v5_binary_gold with exactly one variable changed:
+    augmentation profile light -> medium. Everything else — data, splits,
+    seed, architecture, LR schedule, dropout — is identical, so the test F1
+    difference is attributable to augmentation alone.
+
+    Motivation: v5_binary_gold hit test F1 0.874 but with a clear
+    memorization signature — train loss 0.33 -> 0.024 while val loss climbed
+    0.37 -> 0.63, best val at epoch 11 of 26. At 5,897 training images that
+    is expected, and more epochs will not fix it.
+
+    Caveat on the knob: in ml/train.py, medium differs from light only by
+    doubling ColorJitter (brightness/contrast/saturation 0.1 -> 0.2). Colour
+    IS the signal for sunset detection, so this could plausibly hurt rather
+    than help. If it does, the next thing to try is widening
+    cropping.scale_min (currently 0.95, i.e. almost no crop) which adds view
+    diversity without touching colour.
+  tags: [v5, binary, is_sunset, gold_labels, augmentation_ab]
+
+data:
+  label_source: gold
+  target_type: binary
+  binary_label_from: is_sunset
+  # Unused in is_sunset mode; kept so export_meta records the convention.
+  binary_threshold: 0.75
+  min_rating_count: 1
+  # The gold source already carries its own Flickr rows from manual_labels.
+  include_external: false
+  splits:
+    seed: 20260212
+    train_pct: 70
+    val_pct: 15
+    test_pct: 15
+
+model:
+  name: resnet18
+  epochs: 60
+  batch_size: 32
+  learning_rate: 0.0001
+  lr_schedule: cosine
+  early_stopping_patience: 15
+  head_dropout: 0.3
+
+imbalance:
+  class_weighting: none
+  sampler: none
+  manual_weights: {}
+
+augmentation:
+  profile: medium
+
+cropping:
+  strategy: random_resized
+  scale_min: 0.95
+  scale_max: 1.0
+
+performance:
+  num_workers: 0
+  pin_memory: false
+  prefetch_factor: 2
+  persistent_workers: false
+
+subset:
+  max_train_samples: 0
+  max_val_samples: 0
+
+image_cache:
+  enabled: true
+  cache_dir: ml/artifacts/image_cache
+  precache: true
+
+metrics:
+  decision_threshold: 0.5
+  threshold_sweep: true
+  threshold_sweep_start: 0.1
+  threshold_sweep_end: 0.9
+  threshold_sweep_step: 0.05

@@ -130,6 +130,26 @@ def main() -> None:
     if llm_weight is not None:
         export_cmd.extend(["--llm-weight", str(llm_weight)])
 
+    init_checkpoint = str(cfg_get(model_cfg, "init_checkpoint", ""))
+    init_backbone_checkpoint = str(
+        cfg_get(model_cfg, "init_backbone_checkpoint", "")
+    )
+
+    llm_label_source = str(cfg_get(data_cfg, "llm_label_source", ""))
+    if llm_label_source:
+        export_cmd.extend(["--llm-label-source", llm_label_source])
+
+    binary_label_from = str(cfg_get(data_cfg, "binary_label_from", ""))
+    if binary_label_from:
+        export_cmd.extend(["--binary-label-from", binary_label_from])
+
+    if bool(cfg_get(data_cfg, "gold_sunsets_only", False)):
+        export_cmd.append("--gold-sunsets-only")
+
+    min_positive_rating = cfg_get(data_cfg, "min_positive_rating", None)
+    if min_positive_rating is not None:
+        export_cmd.extend(["--min-positive-rating", str(int(min_positive_rating))])
+
     if args.no_progress:
         export_cmd.append("--no-progress")
     run_cmd(export_cmd)
@@ -176,6 +196,12 @@ def main() -> None:
         "--output-dir",
         str(train_dir),
     ]
+    if init_checkpoint:
+        train_cmd.extend(["--init-checkpoint", init_checkpoint])
+    if init_backbone_checkpoint:
+        train_cmd.extend(
+            ["--init-backbone-checkpoint", init_backbone_checkpoint]
+        )
     num_workers = int(cfg_get(perf_cfg, "num_workers", 0))
     train_cmd.extend(["--num-workers", str(num_workers)])
     train_cmd.extend(["--prefetch-factor", str(int(cfg_get(perf_cfg, "prefetch_factor", 2)))])

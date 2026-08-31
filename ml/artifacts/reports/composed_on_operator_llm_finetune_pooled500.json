@@ -1,0 +1,61 @@
+{
+  "sample": "random_ordinary_pooled_v1v2",
+  "gate": 0.55,
+  "binary_onnx": "ml/artifacts/models/binary_resnet18/20260830_082004_v5_binary_gold_llm_finetune/model.onnx",
+  "quality_onnx": "ml/artifacts/models/regression_resnet18/20260830_003808_v5_quality_sunsets_only/model.onnx",
+  "n": 500,
+  "false_shows": "10/365",
+  "ge4_shown": "27/28",
+  "spearman_tile_vs_operator": 0.819906613429649,
+  "mean_tile_by_rating": {
+    "1": 0.121,
+    "2": 0.306,
+    "3": 0.484,
+    "4": 0.653,
+    "5": 0.634,
+    "N": 0.009
+  },
+  "hidden_rating1": "23/39",
+  "top8": [
+    {
+      "snapshot_id": 118731,
+      "rating": 4,
+      "tile": 0.826
+    },
+    {
+      "snapshot_id": 110951,
+      "rating": 4,
+      "tile": 0.803
+    },
+    {
+      "snapshot_id": 110632,
+      "rating": 4,
+      "tile": 0.8
+    },
+    {
+      "snapshot_id": 109317,
+      "rating": 4,
+      "tile": 0.783
+    },
+    {
+      "snapshot_id": 101294,
+      "rating": 4,
+      "tile": 0.778
+    },
+    {
+      "snapshot_id": 93177,
+      "rating": 4,
+      "tile": 0.771
+    },
+    {
+      "snapshot_id": 81678,
+      "rating": 2,
+      "tile": 0.77
+    },
+    {
+      "snapshot_id": 71095,
+      "rating": 4,
+      "tile": 0.745
+    }
+  ]
+}

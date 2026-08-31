@@ -1,0 +1,208 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-06-01T09:06:52+00:00",
+  "split": "val",
+  "target_type": "binary",
+  "items": [
+    {
+      "snapshot_id": "4271",
+      "webcam_id": null,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/external_images/flickr/5785014192.jpg",
+      "true_label": 0.0,
+      "predicted_score": 1.0,
+      "absolute_error": 0.999997854232788,
+      "captured_at": "2026-05-12T20:13:57.562749+00:00",
+      "llm_explanation": "Vivid pink and coral sky with dramatic cloud formations, though the crane silhouette dominates the foreground."
+    },
+    {
+      "snapshot_id": "1215",
+      "webcam_id": null,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/external_images/flickr/6137077118.jpg",
+      "true_label": 0.0,
+      "predicted_score": 1.0,
+      "absolute_error": 0.9999886751174928,
+      "captured_at": "2026-05-12T19:18:57.867996+00:00",
+      "llm_explanation": "Vivid orange and golden gradient sky with clear sun disk over water, though lacking dramatic clouds for higher impact."
+    },
+    {
+      "snapshot_id": "21",
+      "webcam_id": null,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/external_images/flickr/48817031007.jpg",
+      "true_label": 1.0,
+      "predicted_score": 0.0,
+      "absolute_error": 0.9999822528534423,
+      "captured_at": "2026-05-12T18:57:14.843000+00:00",
+      "llm_explanation": "Rich golden-orange sky with beautiful gradient and sparkling water reflections, though lacking dramatic cloud formations."
+    },
+    {
+      "snapshot_id": "668",
+      "webcam_id": null,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/external_images/flickr/13329010814.jpg",
+      "true_label": 0.0,
+      "predicted_score": 1.0,
+      "absolute_error": 0.9999794960021972,
+      "captured_at": "2026-05-12T19:09:08.640015+00:00",
+      "llm_explanation": "Vivid orange and red sunset over water with smooth gradient colors, though lacking dramatic clouds for higher impact."
+    },
+    {
+      "snapshot_id": "5749",
+      "webcam_id": null,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/external_images/flickr/489311546.jpg",
+      "true_label": 0.0,
+      "predicted_score": 1.0,
+      "absolute_error": 0.9999775886535645,
+      "captured_at": "2026-05-12T20:41:14.462075+00:00",
+      "llm_explanation": "Vivid orange and peach sky with dramatic cloud formations and strong golden hour lighting, though silhouettes dominate the foreground."
+    },
+    {
+      "snapshot_id": "745",
+      "webcam_id": null,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/external_images/flickr/27914599643.jpg",
+      "true_label": 0.0,
+      "predicted_score": 1.0,
+      "absolute_error": 0.9999661445617676,
+      "captured_at": "2026-05-12T19:10:29.544774+00:00",
+      "llm_explanation": "Vivid golden and pink hues illuminate the buildings with dramatic cloud formations across the entire sky creating a striking urban sunset scene."
+    },
+    {
+      "snapshot_id": "3525",
+      "webcam_id": null,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/external_images/flickr/16116292521.jpg",
+      "true_label": 0.0,
+      "predicted_score": 1.0,
+      "absolute_error": 0.999947428703308,
+      "captured_at": "2026-05-12T20:00:00.493752+00:00",
+      "llm_explanation": "Vivid twilight colors with dramatic purple-blue sky transitioning to warm pink-orange near the horizon, enhanced by layered clouds."
+    },
+    {
+      "snapshot_id": "2086",
+      "webcam_id": null,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/external_images/flickr/27663235267.jpg",
+      "true_label": 1.0,
+      "predicted_score": 0.0,
+      "absolute_error": 0.9999051554041216,
+      "captured_at": "2026-05-12T19:34:23.260983+00:00",
+      "llm_explanation": "Beautiful gradient from warm orange to cool blue with volcanic landscape adding drama, though colors are somewhat subtle."
+    },
+    {
+      "snapshot_id": "1307",
+      "webcam_id": null,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/external_images/flickr/41421877061.jpg",
+      "true_label": 0.0,
+      "predicted_score": 1.0,
+      "absolute_error": 0.999893069267273,
+      "captured_at": "2026-05-12T19:20:32.739032+00:00",
+      "llm_explanation": "Vivid gradient of warm oranges and pinks blending into cool purples and blues with dramatic cloud formations across the entire sky."
+    },
+    {
+      "snapshot_id": "5562",
+      "webcam_id": null,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/external_images/flickr/4653406717.jpg",
+      "true_label": 0.0,
+      "predicted_score": 1.0,
+      "absolute_error": 0.9998410940170288,
+      "captured_at": "2026-05-12T20:37:48.950373+00:00",
+      "llm_explanation": "Vivid orange and amber sky with dramatic dark clouds creating strong contrast across the horizon over water."
+    },
+    {
+      "snapshot_id": "795",
+      "webcam_id": null,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/external_images/flickr/21331469413.jpg",
+      "true_label": 1.0,
+      "predicted_score": 0.0,
+      "absolute_error": 0.9998119172814768,
+      "captured_at": "2026-05-12T19:11:27.574874+00:00",
+      "llm_explanation": "Vibrant golden-orange sunset with dramatic cloud layers and rich warm colors reflected in the side mirror, creating a compelling composition."
+    },
+    {
+      "snapshot_id": "3066",
+      "webcam_id": null,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/external_images/flickr/52395507362.jpg",
+      "true_label": 0.0,
+      "predicted_score": 1.0,
+      "absolute_error": 0.9996786117553712,
+      "captured_at": "2026-05-12T19:51:43.070016+00:00",
+      "llm_explanation": "Vivid golden and orange hues with layered clouds and dramatic sun rays breaking over mountain ridges create a striking scene."
+    },
+    {
+      "snapshot_id": "3814",
+      "webcam_id": null,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/external_images/flickr/51288592560.jpg",
+      "true_label": 1.0,
+      "predicted_score": 0.0,
+      "absolute_error": 0.9996162403840572,
+      "captured_at": "2026-05-12T20:05:25.432707+00:00",
+      "llm_explanation": "Vivid golden and orange sky with dramatic sun rays bursting through bare tree silhouettes creating strong contrast and atmosphere."
+    },
+    {
+      "snapshot_id": "82756",
+      "webcam_id": 2926965,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/2926965/1773460643265.jpg",
+      "true_label": 1.0,
+      "predicted_score": 0.0,
+      "absolute_error": 0.9994249052833766,
+      "captured_at": "2026-03-14T03:57:23.555317+00:00",
+      "llm_explanation": "Stunning sunrise with vibrant orange and golden bands across the horizon, dramatic cloud formations, and beautiful reflection on the water."
+    },
+    {
+      "snapshot_id": "5462",
+      "webcam_id": null,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/external_images/flickr/213043724.jpg",
+      "true_label": 0.0,
+      "predicted_score": 1.0,
+      "absolute_error": 0.9993748068809508,
+      "captured_at": "2026-05-12T20:36:04.117909+00:00",
+      "llm_explanation": "Vivid orange and yellow sunset colors with dramatic purple and pink clouds spread across the entire sky, though colors are somewhat muted by the twilight hour."
+    },
+    {
+      "snapshot_id": "1777",
+      "webcam_id": null,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/external_images/flickr/24527799251.jpg",
+      "true_label": 0.0,
+      "predicted_score": 1.0,
+      "absolute_error": 0.9993540644645692,
+      "captured_at": "2026-05-12T19:28:59.025869+00:00",
+      "llm_explanation": "Pleasant golden-orange glow at the horizon with warm tones reflecting on the pavement, though colors are somewhat muted by haze and bare trees partially obstruct the view."
+    },
+    {
+      "snapshot_id": "5408",
+      "webcam_id": null,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/external_images/flickr/15431320355.jpg",
+      "true_label": 0.0,
+      "predicted_score": 1.0,
+      "absolute_error": 0.998971700668335,
+      "captured_at": "2026-05-12T20:35:09.644314+00:00",
+      "llm_explanation": "Vivid pink and coral clouds stretch across the sky with dramatic streaking patterns and good color saturation throughout."
+    },
+    {
+      "snapshot_id": "635",
+      "webcam_id": null,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/external_images/flickr/5653426587.jpg",
+      "true_label": 0.0,
+      "predicted_score": 1.0,
+      "absolute_error": 0.9988662004470824,
+      "captured_at": "2026-05-12T19:08:35.123704+00:00",
+      "llm_explanation": "Vivid orange and coral sky with clear sun disk at horizon, though lacking dramatic clouds to elevate the scene further."
+    },
+    {
+      "snapshot_id": "1047",
+      "webcam_id": null,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/external_images/flickr/5949833754.jpg",
+      "true_label": 0.0,
+      "predicted_score": 1.0,
+      "absolute_error": 0.9988529682159424,
+      "captured_at": "2026-05-12T19:15:57.856907+00:00",
+      "llm_explanation": "Vivid golden-orange clouds with dramatic layering across the entire sky create a compelling sunset scene."
+    },
+    {
+      "snapshot_id": "890",
+      "webcam_id": null,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/external_images/flickr/37153462411.jpg",
+      "true_label": 1.0,
+      "predicted_score": 0.0,
+      "absolute_error": 0.9987035172525794,
+      "captured_at": "2026-05-12T19:13:09.471960+00:00",
+      "llm_explanation": "Vivid golden sunset with dramatic cloud formations, beautiful color gradients, and stunning turquoise water reflection creating a captivating tropical scene."
+    }
+  ]
+}

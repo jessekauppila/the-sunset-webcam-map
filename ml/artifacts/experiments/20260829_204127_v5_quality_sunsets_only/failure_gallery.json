@@ -1,0 +1,208 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-08-29T20:47:36+00:00",
+  "split": "val",
+  "target_type": "regression",
+  "items": [
+    {
+      "snapshot_id": "124277",
+      "webcam_id": 28496139,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/28496139/1787046355642.jpg",
+      "true_label": 0.75,
+      "predicted_score": -0.0738047659397125,
+      "absolute_error": 0.8238047659397125,
+      "captured_at": "2026-08-18T09:45:56.265596+00:00",
+      "llm_explanation": null
+    },
+    {
+      "snapshot_id": "124147",
+      "webcam_id": 29275205,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/29275205/1786997746337.jpg",
+      "true_label": 0.0,
+      "predicted_score": 0.7213677763938904,
+      "absolute_error": 0.7213677763938904,
+      "captured_at": "2026-08-17T20:15:46.669005+00:00",
+      "llm_explanation": null
+    },
+    {
+      "snapshot_id": "121852",
+      "webcam_id": 29007500,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/29007500/1786219286041.jpg",
+      "true_label": 1.0,
+      "predicted_score": 0.344405323266983,
+      "absolute_error": 0.655594676733017,
+      "captured_at": "2026-08-08T20:01:26.364707+00:00",
+      "llm_explanation": null
+    },
+    {
+      "snapshot_id": "107023",
+      "webcam_id": 28819232,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/28819232/1782073875683.jpg",
+      "true_label": 0.75,
+      "predicted_score": 0.1551696509122848,
+      "absolute_error": 0.5948303490877151,
+      "captured_at": "2026-06-21T20:31:16.038884+00:00",
+      "llm_explanation": "The image is dominated by a hazy, foggy or overexposed view with no discernible sunset or sunrise colors."
+    },
+    {
+      "snapshot_id": "121235",
+      "webcam_id": 3309592,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/3309592/1786011351281.jpg",
+      "true_label": 0.75,
+      "predicted_score": 0.1740538030862808,
+      "absolute_error": 0.5759461969137192,
+      "captured_at": "2026-08-06T10:15:51.615112+00:00",
+      "llm_explanation": null
+    },
+    {
+      "snapshot_id": "125771",
+      "webcam_id": 8039585,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/8039585/1787640347951.jpg",
+      "true_label": 0.0,
+      "predicted_score": 0.5759254097938538,
+      "absolute_error": 0.5759254097938538,
+      "captured_at": "2026-08-25T06:45:48.273720+00:00",
+      "llm_explanation": null
+    },
+    {
+      "snapshot_id": "124834",
+      "webcam_id": 6622,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/6622/1787265955814.jpg",
+      "true_label": 0.5,
+      "predicted_score": -0.056773018091917,
+      "absolute_error": 0.556773018091917,
+      "captured_at": "2026-08-20T22:45:56.197391+00:00",
+      "llm_explanation": null
+    },
+    {
+      "snapshot_id": "125075",
+      "webcam_id": 10472220,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/10472220/1787364062883.jpg",
+      "true_label": 0.0,
+      "predicted_score": 0.5216134190559387,
+      "absolute_error": 0.5216134190559387,
+      "captured_at": "2026-08-22T02:01:03.189729+00:00",
+      "llm_explanation": null
+    },
+    {
+      "snapshot_id": "120402",
+      "webcam_id": 12604012,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/12604012/1785760260357.jpg",
+      "true_label": 0.25,
+      "predicted_score": 0.7582270503044128,
+      "absolute_error": 0.5082270503044128,
+      "captured_at": "2026-08-03T12:31:00.738448+00:00",
+      "llm_explanation": null
+    },
+    {
+      "snapshot_id": "125372",
+      "webcam_id": 29275205,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/29275205/1787472947772.jpg",
+      "true_label": 0.0,
+      "predicted_score": 0.4902629554271698,
+      "absolute_error": 0.4902629554271698,
+      "captured_at": "2026-08-23T08:15:48.997827+00:00",
+      "llm_explanation": null
+    },
+    {
+      "snapshot_id": "120972",
+      "webcam_id": 28588659,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/28588659/1785925881613.jpg",
+      "true_label": 0.0,
+      "predicted_score": 0.4716152846813202,
+      "absolute_error": 0.4716152846813202,
+      "captured_at": "2026-08-05T10:31:23.010009+00:00",
+      "llm_explanation": null
+    },
+    {
+      "snapshot_id": "122115",
+      "webcam_id": 29007500,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/29007500/1786305685245.jpg",
+      "true_label": 1.0,
+      "predicted_score": 0.5344900488853455,
+      "absolute_error": 0.46550995111465454,
+      "captured_at": "2026-08-09T20:01:25.555635+00:00",
+      "llm_explanation": null
+    },
+    {
+      "snapshot_id": "125347",
+      "webcam_id": 29022867,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/29022867/1787459501295.jpg",
+      "true_label": 1.0,
+      "predicted_score": 0.5355211496353149,
+      "absolute_error": 0.46447885036468506,
+      "captured_at": "2026-08-23T04:31:41.643929+00:00",
+      "llm_explanation": null
+    },
+    {
+      "snapshot_id": "124340",
+      "webcam_id": 28751496,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/28751496/1787082365153.jpg",
+      "true_label": 1.0,
+      "predicted_score": 0.5375218987464905,
+      "absolute_error": 0.4624781012535095,
+      "captured_at": "2026-08-18T19:46:06.544692+00:00",
+      "llm_explanation": null
+    },
+    {
+      "snapshot_id": "124378",
+      "webcam_id": 27046337,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/27046337/1787094052457.jpg",
+      "true_label": 0.0,
+      "predicted_score": 0.4584299623966217,
+      "absolute_error": 0.4584299623966217,
+      "captured_at": "2026-08-18T23:00:52.813006+00:00",
+      "llm_explanation": null
+    },
+    {
+      "snapshot_id": "125161",
+      "webcam_id": 4204207,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/4204207/1787393758118.jpg",
+      "true_label": 0.75,
+      "predicted_score": 0.292688637971878,
+      "absolute_error": 0.457311362028122,
+      "captured_at": "2026-08-22T10:15:58.776651+00:00",
+      "llm_explanation": null
+    },
+    {
+      "snapshot_id": "121669",
+      "webcam_id": 6156909,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/6156909/1786154491729.jpg",
+      "true_label": 0.75,
+      "predicted_score": 0.2930737435817718,
+      "absolute_error": 0.4569262564182282,
+      "captured_at": "2026-08-08T02:01:32.314542+00:00",
+      "llm_explanation": null
+    },
+    {
+      "snapshot_id": "119499",
+      "webcam_id": 2921342,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/2921342/1785511856675.jpg",
+      "true_label": 0.25,
+      "predicted_score": 0.7043061852455139,
+      "absolute_error": 0.4543061852455139,
+      "captured_at": "2026-07-31T15:30:57.275457+00:00",
+      "llm_explanation": null
+    },
+    {
+      "snapshot_id": "120055",
+      "webcam_id": 28470202,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/28470202/1785663965179.jpg",
+      "true_label": 0.0,
+      "predicted_score": 0.4412296712398529,
+      "absolute_error": 0.4412296712398529,
+      "captured_at": "2026-08-02T09:46:05.492456+00:00",
+      "llm_explanation": null
+    },
+    {
+      "snapshot_id": "119951",
+      "webcam_id": 6156909,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/6156909/1785636963955.jpg",
+      "true_label": 0.75,
+      "predicted_score": 0.310229480266571,
+      "absolute_error": 0.439770519733429,
+      "captured_at": "2026-08-02T02:16:04.672523+00:00",
+      "llm_explanation": null
+    }
+  ]
+}

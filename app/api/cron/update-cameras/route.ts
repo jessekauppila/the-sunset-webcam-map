@@ -253,6 +253,12 @@ export async function GET(req: Request) {
             aiModelVersionRegression: scored.modelVersion,
             scoringPath: scored.pathTaken,
             disagreementKind,
+            // Deliberately NOT the `binaryModelVersion` fallback above:
+            // undefined here means "binary head didn't run", and the
+            // regression version standing in would read as a real verdict.
+            aiBinaryScore: scored.binaryRawScore,
+            aiBinaryIsSunset: scored.binaryIsSunset,
+            aiModelVersionBinary: scored.binaryModelVersion,
           });
         } catch (persistError) {
           console.warn(

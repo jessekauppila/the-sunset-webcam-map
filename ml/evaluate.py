@@ -2,8 +2,10 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import io
 import json
+import time
 from pathlib import Path
 
 import numpy as np
@@ -28,21 +30,53 @@ from torchvision import models, transforms
 
 
 class EvalDataset(Dataset):
-    def __init__(self, csv_path: str, target_type: str) -> None:
+    def __init__(
+        self,
+        csv_path: str,
+        target_type: str,
+        cache_dir: str = "ml/artifacts/image_cache",
+    ) -> None:
         self.df = pd.read_csv(csv_path)
         self.tf = transforms.Compose([transforms.Resize((224, 224)), transforms.ToTensor()])
         self.target_type = target_type
+        self.cache_root = Path(cache_dir) if cache_dir else None
+        if self.cache_root is not None:
+            self.cache_root.mkdir(parents=True, exist_ok=True)
 
     def __len__(self) -> int:
         return len(self.df)
 
-    @staticmethod
-    def load_image(image_ref: str) -> Image.Image:
-        if image_ref.startswith("http://") or image_ref.startswith("https://"):
-            resp = requests.get(image_ref, timeout=20)
-            resp.raise_for_status()
-            return Image.open(io.BytesIO(resp.content)).convert("RGB")
-        return Image.open(image_ref).convert("RGB")
+    def _cache_path(self, image_ref: str) -> Path:
+        # Same sha256 naming as train.py / score_manifest.py so all three
+        # share one cache and eval never re-downloads a training image.
+        ext = Path(image_ref.split("?")[0]).suffix.lower()
+        if ext not in {".jpg", ".jpeg", ".png", ".webp"}:
+            ext = ".jpg"
+        digest = hashlib.sha256(image_ref.encode("utf-8")).hexdigest()
+        return self.cache_root / f"{digest}{ext}"
+
+    def load_image(self, image_ref: str) -> Image.Image:
+        if not (image_ref.startswith("http://") or image_ref.startswith("https://")):
+            return Image.open(image_ref).convert("RGB")
+        # Cache-first with retries: eval used to re-download every test
+        # image with zero retry, so one transient network flap killed a
+        # whole run. Only the byte source changed — decode and resize are
+        # untouched, preserving scorer parity.
+        path = self._cache_path(image_ref) if self.cache_root is not None else None
+        if path is not None and path.exists():
+            return Image.open(path).convert("RGB")
+        last_err: Exception | None = None
+        for attempt in range(4):
+            try:
+                resp = requests.get(image_ref, timeout=20)
+                resp.raise_for_status()
+                if path is not None:
+                    path.write_bytes(resp.content)
+                return Image.open(io.BytesIO(resp.content)).convert("RGB")
+            except requests.RequestException as err:
+                last_err = err
+                time.sleep(2 * (attempt + 1))
+        raise last_err
 
     def __getitem__(self, idx: int):
         row = self.df.iloc[idx]
@@ -97,6 +131,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--threshold-sweep-end", type=float, default=0.9)
     parser.add_argument("--threshold-sweep-step", type=float, default=0.1)
     parser.add_argument("--output", default="ml/artifacts/reports/eval_report.json")
+    parser.add_argument("--cache-dir", default="ml/artifacts/image_cache",
+                        help="Shared sha256 image cache (same layout as "
+                             "train.py / score_manifest.py). Empty string "
+                             "disables caching.")
     parser.add_argument("--no-progress", action="store_true")
     args = parser.parse_args()
     if args.target_type == "binary" and not (0.0 <= args.decision_threshold <= 1.0):
@@ -121,7 +159,7 @@ def main() -> None:
         device = torch.device("mps")
     else:
         device = torch.device("cpu")
-    ds = EvalDataset(args.test_manifest, args.target_type)
+    ds = EvalDataset(args.test_manifest, args.target_type, cache_dir=args.cache_dir)
     loader = DataLoader(ds, batch_size=32, shuffle=False)
 
     state = torch.load(args.checkpoint, map_location=device)

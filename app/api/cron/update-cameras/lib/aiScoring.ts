@@ -37,7 +37,7 @@ import {
   MODEL_VS_CLAUDE_CLAUDE_HIGH,
 } from '@/app/lib/masterConfig';
 import { sha256Hex } from './imageHash';
-import { preprocessJpegToImagenetTensor } from './imagePreprocess';
+import { preprocessJpegToModelTensor } from './imagePreprocess';
 
 export type WebcamSource = 'windy' | 'custom' | 'flickr';
 
@@ -394,7 +394,7 @@ export async function scoreImage(
   let tensorData: Float32Array;
   try {
     ort = await getOrt();
-    tensorData = await preprocessJpegToImagenetTensor(input.imageBytes);
+    tensorData = await preprocessJpegToModelTensor(input.imageBytes);
   } catch (error) {
     console.error(
       `[scoreImage] ONNX setup failed for webcam ${input.webcamId}, leaving unscored:`,

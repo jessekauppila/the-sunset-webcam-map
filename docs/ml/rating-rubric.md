@@ -61,6 +61,59 @@ So the question on every frame is really: *would I want this surfaced on the
 map?* Yes → 4 or 5. No → 1–3. The 2-vs-3 distinction only feeds a future
 regression head; the 3-vs-4 line is what the shipped model learns.
 
+## What the scale actually taught the model (measured 2026-08-29)
+
+The v5 is-sunset head, trained on `is_sunset` (i.e. **rating ≥ 1**), scores the
+gold test split like this — broken out by the operator rating:
+
+| your rating | n | mean model score | % scored ≥ 0.5 |
+|---|---|---|---|
+| **N** (not a sunset) | 682 | 0.437 | **43%** |
+| 1 | 57 | 0.658 | 67% |
+| 2 | 100 | 0.812 | 83% |
+| 3 | 137 | 0.936 | 97% |
+| 4 | 135 | 0.974 | 99% |
+| 5 | 54 | 0.983 | 100% |
+
+**The model learned the rubric.** Its score rises monotonically with the
+rating, and it is near-certain on 4s and 5s. The scale is doing its job as a
+quality ordering.
+
+**But `is_sunset` is the wrong training target for the product.** A rating of
+1 means "a sunset event is occurring and there is nothing to see" — dusk light
+over a field, a faint warm line on the horizon — and it writes
+`is_sunset = true`. So the binary head is taught that dim, near-colourless
+scenes are positives, and it generalizes that to ordinary frames: on a 2,000
+frame sample of ordinary (non-hard-case) frames it fired on 54.7% against a
+43.0% base rate, with precision 0.574. Raising the decision threshold does not
+fix it — precision only reaches 0.637 at 0.90, and balanced accuracy stays flat
+near 0.65 across the whole sweep.
+
+This document already said the real question is *"would I want this surfaced on
+the map?"* — that is the **rating ≥ 4** line, not `is_sunset`. The binary head
+should be trained on a rating threshold, not on the boolean.
+
+**Implication: no relabeling is needed.** The 1–5 ratings already encode the
+distinction; only the label derivation in `ml/export_dataset.py` has to change
+(`--binary-label-from is_sunset` → a rating-threshold mode). See
+`docs/superpowers/specs/2026-08-28-v5-gold-label-retrain-design.md` §11.
+
+### Where the rubric and Claude's prompt disagree
+
+Claude's `RATING_PROMPT` (`ml/llm_rater.py`, prompt version `v2_extended`, also
+quoted in `ml/OPERATING_GUIDE.md` §4) asks for `is_sunset: <boolean — sunset OR
+sunrise visible?>` and anchors quality at `0.00 = no sunset/sunrise visible at
+all`, `0.10 = barely any color, mostly gray or dark`.
+
+That boolean is **not** the same question as this rubric's. A colourless dusk
+is a **1** here (`is_sunset = true`) and is plausibly `is_sunset = false,
+quality 0.0` to Claude. On the 1,096 frames the operator marked *not* a sunset,
+Claude called 141 of them sunsets; on the 1,224-frame overlap the two disagreed
+211 times in total. **Treat `llm_is_sunset` and operator `is_sunset` as
+different measurements, not as agreement/disagreement on the same one.**
+
+---
+
 ## Two habits that keep the set clean
 
 1. **Judge the sky, not the framing.** A great sky behind a power line or

@@ -1,0 +1,162 @@
+{
+  "schema_version": 1,
+  "slug": "v5_regression_gold",
+  "display_name": "v5_regression_gold",
+  "published_at": "2026-08-30T18:57:49+00:00",
+  "started_at": "2026-08-29T07:07:02+00:00",
+  "config_summary": {
+    "model": {
+      "name": "resnet18",
+      "epochs": 60,
+      "batch_size": 32,
+      "learning_rate": 0.0001,
+      "lr_schedule": "cosine",
+      "early_stopping_patience": 15,
+      "head_dropout": 0.3
+    },
+    "target_type": "regression",
+    "epochs_configured": 60,
+    "lr_schedule": "cosine",
+    "early_stopping_patience": 15,
+    "head_dropout": 0.3,
+    "class_weighting": "none",
+    "label_source": null
+  },
+  "metrics": {
+    "pearson_r": 0.8537880068074746,
+    "spearman_r": 0.7802736325486925,
+    "r_squared": 0.7243106411859319,
+    "val_mse": 0.030246694317106963,
+    "best_f1": 0.8396739130434783,
+    "val_precision": 0.8131578947368421,
+    "val_recall": 0.8679775280898876,
+    "val_accuracy": null,
+    "best_epoch": 11,
+    "epochs_completed": 26,
+    "early_stopped_epoch": 26
+  },
+  "diagnosis": {
+    "status": "mild_overfit",
+    "note": "Slight val-loss drift (9%) after the best epoch."
+  },
+  "data": {
+    "train_samples": 5897,
+    "val_samples": 1455,
+    "test_samples": null,
+    "class_balance": {
+      "negative": null,
+      "positive": null,
+      "ratio": null
+    },
+    "label_distribution": {
+      "train": {
+        "4": 681,
+        "1": 3818,
+        "5": 298,
+        "3": 681,
+        "2": 419
+      },
+      "val": {
+        "2": 130,
+        "1": 971,
+        "3": 175,
+        "4": 134,
+        "5": 45
+      },
+      "test": null
+    }
+  },
+  "assets": {
+    "loss_curves_png": "plots/loss_curves.png",
+    "label_distribution_png": "plots/label_distribution.png",
+    "config_yaml": "config.yaml",
+    "failure_gallery_json": "failure_gallery.json"
+  },
+  "threshold_sweep": [
+    {
+      "threshold": 0.3,
+      "precision": 0.8131578947368421,
+      "recall": 0.8679775280898876,
+      "f1": 0.8396739130434783
+    },
+    {
+      "threshold": 0.35,
+      "precision": 0.8441176470588235,
+      "recall": 0.8061797752808989,
+      "f1": 0.8247126436781609
+    },
+    {
+      "threshold": 0.4,
+      "precision": 0.8852459016393442,
+      "recall": 0.7584269662921348,
+      "f1": 0.8169440242057489
+    },
+    {
+      "threshold": 0.45,
+      "precision": 0.9060150375939849,
+      "recall": 0.6769662921348315,
+      "f1": 0.77491961414791
+    },
+    {
+      "threshold": 0.5,
+      "precision": 0.9391304347826087,
+      "recall": 0.6067415730337079,
+      "f1": 0.7372013651877133
+    },
+    {
+      "threshold": 0.55,
+      "precision": 0.7684729064039408,
+      "recall": 0.7188940092165899,
+      "f1": 0.7428571428571429
+    },
+    {
+      "threshold": 0.6,
+      "precision": 0.8192771084337349,
+      "recall": 0.6267281105990783,
+      "f1": 0.7101827676240209
+    },
+    {
+      "threshold": 0.65,
+      "precision": 0.8661417322834646,
+      "recall": 0.5069124423963134,
+      "f1": 0.6395348837209303
+    },
+    {
+      "threshold": 0.7,
+      "precision": 0.875,
+      "recall": 0.3225806451612903,
+      "f1": 0.4713804713804714
+    },
+    {
+      "threshold": 0.75,
+      "precision": 0.9183673469387755,
+      "recall": 0.2073732718894009,
+      "f1": 0.3383458646616541
+    },
+    {
+      "threshold": 0.8,
+      "precision": 0.6666666666666666,
+      "recall": 0.21333333333333335,
+      "f1": 0.32323232323232326
+    },
+    {
+      "threshold": 0.85,
+      "precision": 0.8666666666666667,
+      "recall": 0.17333333333333334,
+      "f1": 0.28888888888888886
+    },
+    {
+      "threshold": 0.9,
+      "precision": 0.9,
+      "recall": 0.12,
+      "f1": 0.21176470588235294
+    }
+  ],
+  "best_threshold": {
+    "threshold": 0.3,
+    "precision": 0.8131578947368421,
+    "recall": 0.8679775280898876,
+    "f1": 0.8396739130434783
+  },
+  "decision_threshold": 0.3
+}

@@ -1,0 +1,208 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-08-30T08:19:49+00:00",
+  "split": "val",
+  "target_type": "binary",
+  "items": [
+    {
+      "snapshot_id": "92207",
+      "webcam_id": 17580012,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/17580012/1774464753060.jpg",
+      "true_label": 1.0,
+      "predicted_score": 0.0,
+      "absolute_error": 0.9999301278294297,
+      "captured_at": "2026-03-25T18:52:33.370236+00:00",
+      "llm_explanation": "Weak twilight scene with overexposed bright light source and minimal color variation in the darkening sky."
+    },
+    {
+      "snapshot_id": "117078",
+      "webcam_id": 26047053,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/26047053/1784844081950.jpg",
+      "true_label": 0.0,
+      "predicted_score": 1.0,
+      "absolute_error": 0.999859094619751,
+      "captured_at": "2026-07-23T22:01:22.550257+00:00",
+      "llm_explanation": "Overcast gray sky with snowy landscape and no visible color from sunset or sunrise."
+    },
+    {
+      "snapshot_id": "101426",
+      "webcam_id": 26961341,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/26961341/1780980360032.jpg",
+      "true_label": 0.0,
+      "predicted_score": 1.0,
+      "absolute_error": 0.9998315572738647,
+      "captured_at": "2026-06-09T04:46:00.777994+00:00",
+      "llm_explanation": "Plain daytime sky with scattered clouds and no warm sunset or sunrise colors."
+    },
+    {
+      "snapshot_id": "92192",
+      "webcam_id": 17580012,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/17580012/1774462893521.jpg",
+      "true_label": 1.0,
+      "predicted_score": 0.0,
+      "absolute_error": 0.999813424263266,
+      "captured_at": "2026-03-25T18:21:33.794231+00:00",
+      "llm_explanation": "Weak sunset with minimal color variation, mostly showing bright overexposed light source against darkening sky without dramatic clouds or vivid hues."
+    },
+    {
+      "snapshot_id": "111418",
+      "webcam_id": 12672924,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/12672924/1783286180914.jpg",
+      "true_label": 0.0,
+      "predicted_score": 1.0,
+      "absolute_error": 0.9996262788772584,
+      "captured_at": "2026-07-05T21:16:21.439283+00:00",
+      "llm_explanation": "The sky is overcast and dark with no visible color from sunset or sunrise, indicating nighttime conditions."
+    },
+    {
+      "snapshot_id": "116776",
+      "webcam_id": 28588659,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/28588659/1784766670876.jpg",
+      "true_label": 0.0,
+      "predicted_score": 1.0,
+      "absolute_error": 0.9995710253715516,
+      "captured_at": "2026-07-23T00:31:11.287913+00:00",
+      "llm_explanation": "The sky is dominated by fog and haze illuminated by city lights rather than any natural sunset or sunrise coloration."
+    },
+    {
+      "snapshot_id": "92969",
+      "webcam_id": 3631982,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/3631982/1774608633357.jpg",
+      "true_label": 1.0,
+      "predicted_score": 0.0,
+      "absolute_error": 0.9991375011159108,
+      "captured_at": "2026-03-27T10:50:33.760156+00:00",
+      "llm_explanation": "Overexposed sun visible through building structure with minimal color and heavy obstruction reducing visual impact."
+    },
+    {
+      "snapshot_id": "108356",
+      "webcam_id": 28470202,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/28470202/1782432120752.jpg",
+      "true_label": 0.0,
+      "predicted_score": 1.0,
+      "absolute_error": 0.9985824823379515,
+      "captured_at": "2026-06-26T00:02:01.150041+00:00",
+      "llm_explanation": "Overcast, hazy sky with no visible color from sunset or sunrise, obscured further by rain on the lens and windblown palm trees."
+    },
+    {
+      "snapshot_id": "101712",
+      "webcam_id": 26961341,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/26961341/1781068537409.jpg",
+      "true_label": 0.0,
+      "predicted_score": 1.0,
+      "absolute_error": 0.9982461929321288,
+      "captured_at": "2026-06-10T05:15:37.910046+00:00",
+      "llm_explanation": "Dark overcast sky with only faint artificial light glow on the horizon, no real sunset color present."
+    },
+    {
+      "snapshot_id": "117990",
+      "webcam_id": 20544913,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/20544913/1785105069771.jpg",
+      "true_label": 0.0,
+      "predicted_score": 1.0,
+      "absolute_error": 0.9979602098464966,
+      "captured_at": "2026-07-26T22:31:10.079364+00:00",
+      "llm_explanation": "The sky is overcast and gray with only a faint contrail-like streak, showing no real sunset or sunrise color."
+    },
+    {
+      "snapshot_id": "114819",
+      "webcam_id": 27474067,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/27474067/1784217722761.jpg",
+      "true_label": 0.0,
+      "predicted_score": 1.0,
+      "absolute_error": 0.997349500656128,
+      "captured_at": "2026-07-16T16:02:03.243536+00:00",
+      "llm_explanation": "Overcast gray sky with no visible color from sunset or sunrise."
+    },
+    {
+      "snapshot_id": "86867",
+      "webcam_id": 2988,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/2988/1773521551309.jpg",
+      "true_label": 1.0,
+      "predicted_score": 0.0,
+      "absolute_error": 0.9972294468898327,
+      "captured_at": "2026-03-14T20:52:31.592358+00:00",
+      "llm_explanation": "Weak sunrise with minimal color showing only subtle warm tones along the horizon through overcast conditions."
+    },
+    {
+      "snapshot_id": "84033",
+      "webcam_id": 4589070,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/4589070/1773481953728.jpg",
+      "true_label": 1.0,
+      "predicted_score": 0.0,
+      "absolute_error": 0.9959903466515244,
+      "captured_at": "2026-03-14T09:52:34.029509+00:00",
+      "llm_explanation": "Weak twilight colors with minimal pink tones in a mostly gray-blue sky, partially obscured by trees and buildings."
+    },
+    {
+      "snapshot_id": "4315",
+      "webcam_id": null,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/external_images/flickr/3039246327.jpg",
+      "true_label": 0.0,
+      "predicted_score": 1.0,
+      "absolute_error": 0.995333731174469,
+      "captured_at": "2026-05-12T20:14:46.130696+00:00",
+      "llm_explanation": "This is an indoor nightclub or party scene with artificial colored lighting, not a natural sunset or sunrise."
+    },
+    {
+      "snapshot_id": "118432",
+      "webcam_id": 28470202,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/28470202/1785232913264.jpg",
+      "true_label": 0.0,
+      "predicted_score": 1.0,
+      "absolute_error": 0.9950932264328004,
+      "captured_at": "2026-07-28T10:01:53.572173+00:00",
+      "llm_explanation": "Thick fog obscures the sky and beach, leaving only a dull gray-white tone with no visible sunset or sunrise colors."
+    },
+    {
+      "snapshot_id": "83997",
+      "webcam_id": 5415,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/5415/1773481592161.jpg",
+      "true_label": 1.0,
+      "predicted_score": 0.0,
+      "absolute_error": 0.9942767312750221,
+      "captured_at": "2026-03-14T09:46:32.443581+00:00",
+      "llm_explanation": "Weak twilight colors with minimal pink-orange glow barely visible through dark clouds and urban haze."
+    },
+    {
+      "snapshot_id": "107919",
+      "webcam_id": 27474067,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/27474067/1782315966913.jpg",
+      "true_label": 0.0,
+      "predicted_score": 1.0,
+      "absolute_error": 0.9940901398658752,
+      "captured_at": "2026-06-24T15:46:07.566977+00:00",
+      "llm_explanation": "The sky is overcast and hazy with no visible color from a sunrise or sunset."
+    },
+    {
+      "snapshot_id": "5168",
+      "webcam_id": null,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/external_images/flickr/42888480852.jpg",
+      "true_label": 0.0,
+      "predicted_score": 1.0,
+      "absolute_error": 0.9933971166610718,
+      "captured_at": "2026-05-12T20:30:59.990168+00:00",
+      "llm_explanation": "This is a moon photograph during twilight hours with no sunset or sunrise colors visible."
+    },
+    {
+      "snapshot_id": "113469",
+      "webcam_id": 27474067,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/27474067/1783872118302.jpg",
+      "true_label": 0.0,
+      "predicted_score": 1.0,
+      "absolute_error": 0.9928960204124452,
+      "captured_at": "2026-07-12T16:01:58.964789+00:00",
+      "llm_explanation": "Overcast gray sky with no visible color from sunrise or sunset."
+    },
+    {
+      "snapshot_id": "79191",
+      "webcam_id": 160,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/160/1773199770306.jpg",
+      "true_label": 0.0,
+      "predicted_score": 1.0,
+      "absolute_error": 0.9927085041999816,
+      "captured_at": "2026-03-11T03:29:30.624630+00:00",
+      "llm_explanation": "Clear daytime scene with no sunset or sunrise colors, just pale blue sky over a snow-covered landscape."
+    }
+  ]
+}

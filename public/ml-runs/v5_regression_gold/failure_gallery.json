@@ -1,0 +1,208 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-08-29T07:23:14+00:00",
+  "split": "val",
+  "target_type": "regression",
+  "items": [
+    {
+      "snapshot_id": "107023",
+      "webcam_id": 28819232,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/28819232/1782073875683.jpg",
+      "true_label": 0.75,
+      "predicted_score": -0.0431818068027496,
+      "absolute_error": 0.7931818068027496,
+      "captured_at": "2026-06-21T20:31:16.038884+00:00",
+      "llm_explanation": "The image is dominated by a hazy, foggy or overexposed view with no discernible sunset or sunrise colors."
+    },
+    {
+      "snapshot_id": "122343",
+      "webcam_id": 28615436,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/28615436/1786389350764.jpg",
+      "true_label": 0.75,
+      "predicted_score": -0.0052191782742738,
+      "absolute_error": 0.7552191782742738,
+      "captured_at": "2026-08-10T19:15:51.187989+00:00",
+      "llm_explanation": null
+    },
+    {
+      "snapshot_id": "124277",
+      "webcam_id": 28496139,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/28496139/1787046355642.jpg",
+      "true_label": 0.75,
+      "predicted_score": 0.0026536863297224,
+      "absolute_error": 0.7473463136702776,
+      "captured_at": "2026-08-18T09:45:56.265596+00:00",
+      "llm_explanation": null
+    },
+    {
+      "snapshot_id": "1751",
+      "webcam_id": null,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/external_images/flickr/6349710040.jpg",
+      "true_label": 1.0,
+      "predicted_score": 0.261462926864624,
+      "absolute_error": 0.738537073135376,
+      "captured_at": "2026-05-12T19:28:31.556880+00:00",
+      "llm_explanation": "Spectacular sunset with rich purple and orange hues, dramatic textured clouds filling the entire sky, and the sun visible on the horizon creating a stunning backdrop for the pineapple fountain."
+    },
+    {
+      "snapshot_id": "121235",
+      "webcam_id": 3309592,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/3309592/1786011351281.jpg",
+      "true_label": 0.75,
+      "predicted_score": 0.0349764376878738,
+      "absolute_error": 0.7150235623121262,
+      "captured_at": "2026-08-06T10:15:51.615112+00:00",
+      "llm_explanation": null
+    },
+    {
+      "snapshot_id": "121852",
+      "webcam_id": 29007500,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/29007500/1786219286041.jpg",
+      "true_label": 1.0,
+      "predicted_score": 0.3054982125759125,
+      "absolute_error": 0.6945017874240875,
+      "captured_at": "2026-08-08T20:01:26.364707+00:00",
+      "llm_explanation": null
+    },
+    {
+      "snapshot_id": "119747",
+      "webcam_id": 28470202,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/28470202/1785578474438.jpg",
+      "true_label": 0.75,
+      "predicted_score": 0.074469044804573,
+      "absolute_error": 0.6755309551954269,
+      "captured_at": "2026-08-01T10:01:15.588938+00:00",
+      "llm_explanation": null
+    },
+    {
+      "snapshot_id": "124340",
+      "webcam_id": 28751496,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/28751496/1787082365153.jpg",
+      "true_label": 1.0,
+      "predicted_score": 0.3906272947788238,
+      "absolute_error": 0.6093727052211761,
+      "captured_at": "2026-08-18T19:46:06.544692+00:00",
+      "llm_explanation": null
+    },
+    {
+      "snapshot_id": "124293",
+      "webcam_id": 28588659,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/28588659/1787050902018.jpg",
+      "true_label": 0.0,
+      "predicted_score": 0.5762743353843689,
+      "absolute_error": 0.5762743353843689,
+      "captured_at": "2026-08-18T11:01:42.357466+00:00",
+      "llm_explanation": null
+    },
+    {
+      "snapshot_id": "121902",
+      "webcam_id": 28999873,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/28999873/1786231845018.jpg",
+      "true_label": 1.0,
+      "predicted_score": 0.4266465008258819,
+      "absolute_error": 0.573353499174118,
+      "captured_at": "2026-08-08T23:30:45.721088+00:00",
+      "llm_explanation": null
+    },
+    {
+      "snapshot_id": "122115",
+      "webcam_id": 29007500,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/29007500/1786305685245.jpg",
+      "true_label": 1.0,
+      "predicted_score": 0.4289121031761169,
+      "absolute_error": 0.5710878968238831,
+      "captured_at": "2026-08-09T20:01:25.555635+00:00",
+      "llm_explanation": null
+    },
+    {
+      "snapshot_id": "122829",
+      "webcam_id": 28588659,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/28588659/1786532493348.jpg",
+      "true_label": 0.0,
+      "predicted_score": 0.5620473027229309,
+      "absolute_error": 0.5620473027229309,
+      "captured_at": "2026-08-12T11:01:34.405997+00:00",
+      "llm_explanation": null
+    },
+    {
+      "snapshot_id": "119885",
+      "webcam_id": 16791781,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/16791781/1785622529994.jpg",
+      "true_label": 1.0,
+      "predicted_score": 0.4398383200168609,
+      "absolute_error": 0.560161679983139,
+      "captured_at": "2026-08-01T22:15:30.405654+00:00",
+      "llm_explanation": null
+    },
+    {
+      "snapshot_id": "125863",
+      "webcam_id": 29007371,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/29007371/1787685354890.jpg",
+      "true_label": 1.0,
+      "predicted_score": 0.4688348770141601,
+      "absolute_error": 0.5311651229858398,
+      "captured_at": "2026-08-25T19:15:55.683626+00:00",
+      "llm_explanation": null
+    },
+    {
+      "snapshot_id": "514",
+      "webcam_id": null,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/external_images/flickr/20366965063.jpg",
+      "true_label": 0.75,
+      "predicted_score": 0.2206031531095504,
+      "absolute_error": 0.5293968468904496,
+      "captured_at": "2026-05-12T19:06:25.946663+00:00",
+      "llm_explanation": "Strong backlit sun with dramatic cloud formations, though monochrome processing limits the visible color range that would typically enhance sunset quality."
+    },
+    {
+      "snapshot_id": "125177",
+      "webcam_id": 28588659,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/28588659/1787397404001.jpg",
+      "true_label": 0.0,
+      "predicted_score": 0.5291531085968018,
+      "absolute_error": 0.5291531085968018,
+      "captured_at": "2026-08-22T11:16:44.720833+00:00",
+      "llm_explanation": null
+    },
+    {
+      "snapshot_id": "123607",
+      "webcam_id": 28588659,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/28588659/1786792543162.jpg",
+      "true_label": 0.0,
+      "predicted_score": 0.5276974439620972,
+      "absolute_error": 0.5276974439620972,
+      "captured_at": "2026-08-15T11:15:43.496542+00:00",
+      "llm_explanation": null
+    },
+    {
+      "snapshot_id": "121669",
+      "webcam_id": 6156909,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/6156909/1786154491729.jpg",
+      "true_label": 0.75,
+      "predicted_score": 0.2249171435832977,
+      "absolute_error": 0.5250828564167023,
+      "captured_at": "2026-08-08T02:01:32.314542+00:00",
+      "llm_explanation": null
+    },
+    {
+      "snapshot_id": "124834",
+      "webcam_id": 6622,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/6622/1787265955814.jpg",
+      "true_label": 0.5,
+      "predicted_score": -0.0144579280167818,
+      "absolute_error": 0.5144579280167818,
+      "captured_at": "2026-08-20T22:45:56.197391+00:00",
+      "llm_explanation": null
+    },
+    {
+      "snapshot_id": "119951",
+      "webcam_id": 6156909,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/6156909/1785636963955.jpg",
+      "true_label": 0.75,
+      "predicted_score": 0.2368776202201843,
+      "absolute_error": 0.5131223797798157,
+      "captured_at": "2026-08-02T02:16:04.672523+00:00",
+      "llm_explanation": null
+    }
+  ]
+}

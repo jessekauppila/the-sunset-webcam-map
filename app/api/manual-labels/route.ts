@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { requireOwner } from '@/app/lib/owner';
 import {
   upsertManualLabel,
+  upsertRetestLabel,
+  resolveLabelDestination,
   deleteManualLabel,
   countManualLabels,
   type LabelSource,
@@ -15,7 +17,7 @@ export async function POST(request: Request) {
   const denied = await requireOwner();
   if (denied) return denied;
   try {
-    const { source, imageId, isSunset, rating } = await request.json();
+    const { source, imageId, isSunset, rating, origin } = await request.json();
     if (!SOURCES.includes(source)) {
       return NextResponse.json({ error: 'bad source' }, { status: 400 });
     }
@@ -31,12 +33,36 @@ export async function POST(request: Request) {
     if (rating != null && (typeof rating !== 'number' || rating < 1 || rating > 5)) {
       return NextResponse.json({ error: 'bad rating' }, { status: 400 });
     }
-    const saved = await upsertManualLabel({
-      source,
-      imageId: imageIdNum,
-      isSunset,
-      rating: rating ?? null,
-    });
+    // `origin` records which queue this label came from and is read back as a
+    // filter in the ML exports, so keep it to a slug rather than storing
+    // whatever the client sent.
+    if (origin != null && (typeof origin !== 'string' || !/^[a-z0-9_]{1,64}$/.test(origin))) {
+      return NextResponse.json({ error: 'bad origin' }, { status: 400 });
+    }
+    // Retest labels go to their own table: written through the gold upsert
+    // they would ON CONFLICT overwrite the operator's original label. The
+    // destination is resolved from label_samples (kind + membership), never
+    // from what the client asserts.
+    const destination = await resolveLabelDestination(origin ?? null, source, imageIdNum);
+    if (destination === 'reject') {
+      return NextResponse.json({ error: 'not in retest sample' }, { status: 400 });
+    }
+    const saved =
+      destination === 'retest'
+        ? await upsertRetestLabel({
+            source,
+            imageId: imageIdNum,
+            isSunset,
+            rating: rating ?? null,
+            origin,
+          })
+        : await upsertManualLabel({
+            source,
+            imageId: imageIdNum,
+            isSunset,
+            rating: rating ?? null,
+            origin: origin ?? null,
+          });
     if (!saved) {
       // The insert returned no row, so nothing was stored. Say so rather than
       // letting the queue count this as a save.
