@@ -27,3 +27,15 @@ export function getQualityScore(webcam: WindyWebcam): number | null {
   }
   return webcam.aiRatingRegression ?? null;
 }
+
+/**
+ * Whether the detection head considers this frame a sunset — the same
+ * `aiRatingBinary >= GATE_AS_RATING` check `getQualityScore` uses to decide
+ * between floor-to-1 and the real quality score. Exposed for callers (the
+ * studio status strip) that want a per-feed pass/fail count without
+ * duplicating the gate constant.
+ */
+export function passesGate(webcam: WindyWebcam): boolean {
+  const score = webcam.aiRatingBinary;
+  return typeof score === 'number' && score >= GATE_AS_RATING;
+}

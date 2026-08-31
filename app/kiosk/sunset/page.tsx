@@ -2,7 +2,9 @@
 
 import { Suspense, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { resolveMosaic } from '@/app/components/mosaic/registry';
+import { resolveMosaic, resolveMosaicName } from '@/app/components/mosaic/registry';
+import { SHARED_SCHEMA } from '@/app/lib/settings/sharedSchema';
+import { mergeSettings } from '@/app/lib/settings/schema';
 import { useTerminatorStore } from '@/app/store/useTerminatorStore';
 import { useLoadTerminatorWebcams } from '@/app/store/useLoadTerminatorWebcams';
 import { useKioskRuntime } from '../useKioskRuntime';
@@ -11,12 +13,15 @@ import { parsePanelPreview } from '../panelPreview';
 import { PanelFrame } from '../PanelFrame';
 
 function SunsetKioskContent() {
-  const { dozing } = useKioskRuntime();
+  const { dozing, liveSettings } = useKioskRuntime();
   useLoadTerminatorWebcams({ paused: dozing });
   const webcams = useTerminatorStore((t) => t.sunset);
   const searchParams = useSearchParams();
   const queryString = searchParams.toString();
-  const Mosaic = resolveMosaic(searchParams.get('v'));
+  const liveShared = mergeSettings(SHARED_SCHEMA, liveSettings?.namespaces.shared);
+  const versionParam = searchParams.get('v') ?? (liveShared.activeVersion as string);
+  const Mosaic = resolveMosaic(versionParam);
+  const versionName = resolveMosaicName(versionParam);
   const panel = useMemo(
     () => parsePanelPreview(new URLSearchParams(queryString)),
     [queryString]
@@ -49,6 +54,7 @@ function SunsetKioskContent() {
         feed="sunset"
         setupMode={searchParams.get('setup') === '1'}
         search={queryString}
+        settings={liveSettings?.namespaces[versionName]}
       />
       <KioskDozeOverlay dozing={dozing} />
     </>

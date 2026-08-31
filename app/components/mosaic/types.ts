@@ -16,6 +16,8 @@ export interface MosaicProps {
   onSelect?: (webcam: WindyWebcam) => void;
   /** Raw query string of the hosting page, for version-specific params. */
   search?: string;
+  /** Merged-or-deviation knob values for THIS version's namespace (server profile). */
+  settings?: Record<string, number | boolean | string>;
 }
 
 export type MosaicComponent = (props: MosaicProps) => React.ReactNode;

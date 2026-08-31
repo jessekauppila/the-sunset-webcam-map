@@ -73,6 +73,37 @@ The kiosk dims itself to near-black between 1am and 8am local, and `d` toggles
 that dim by hand. If a preview goes dark mid-session, that is what happened —
 add `quiet=off`.
 
+## The dials moved to `/studio`
+
+`/studio` (owner-only — client-side gate shows "Owner sign-in required" if
+you're not signed in, but the real authorization is `requireOwner` on every
+mutating route) is now the primary way to tune composition. It's a leva rail
+next to a live sunrise/sunset preview pair, backed by the same settings
+schema as the URL params above, with two profiles:
+
+- **studio** — your scratch pad. Moving a dial previews instantly and
+  persists to the studio profile (survives a reload), but the kiosk glass
+  never sees it until you deploy.
+- **live** — what `/kiosk/sunrise` and `/kiosk/sunset` actually read. Only
+  changes when you push studio to it.
+
+Hold the **HOLD TO DEPLOY** button to push the studio profile to live (the
+badge showing `N differ` zeroes out); **↩ revert to glass** snaps the studio
+dials back to whatever's currently deployed. Both are explicit actions —
+turning a dial alone never touches the glass.
+
+The URL params in the table above still work, and still win: precedence is
+**URL param → deployed (live) profile → code default in `masterConfig.ts`**.
+That's what makes `?floor=60` useful for a one-off check without disturbing
+what's deployed for everyone else.
+
+Under the hood, `/kiosk/*` reads live settings via `/api/kiosk/state`, which
+is Redis-first (`getLiveSettingsCached`) and only falls back to Neon on a
+cache miss — so deploys show up on the glass within a poll cycle, not a
+redeploy. `/studio` reads through the owner-gated `/api/kiosk/settings`
+(Neon) instead, since it needs both the studio and live profiles, not just
+the mirrored live one.
+
 ## On the Pi
 
 `~/kiosk-launch.sh` lives only on the Pi and is not yet in this repo. Getting

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getQualityScore } from './qualitySignal';
+import { getQualityScore, passesGate } from './qualitySignal';
 import type { WindyWebcam } from '@/app/lib/types';
 
 const base = { webcamId: 1, viewCount: 0, location: { latitude: 0, longitude: 0 } } as WindyWebcam;
@@ -46,5 +46,24 @@ describe('getQualityScore (composed two-scale signal)', () => {
   it('a rejected frame with no quality score is still floored, not null', () => {
     // Detection alone is enough to know the tile should be minimal.
     expect(getQualityScore({ ...base, aiRatingBinary: REJECTED })).toBe(1);
+  });
+});
+
+describe('passesGate', () => {
+  it('passes when the detection score sits exactly at the gate', () => {
+    const atGate = 1 + 0.55 * 4; // 3.2
+    expect(passesGate({ ...base, aiRatingBinary: atGate })).toBe(true);
+  });
+
+  it('fails when the detection score is below the gate', () => {
+    expect(passesGate({ ...base, aiRatingBinary: REJECTED })).toBe(false);
+  });
+
+  it('fails when the webcam has no detection score', () => {
+    expect(passesGate(base)).toBe(false);
+  });
+
+  it('passes when the detection score is well above the gate', () => {
+    expect(passesGate({ ...base, aiRatingBinary: SHOWN })).toBe(true);
   });
 });

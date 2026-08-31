@@ -26,22 +26,35 @@ const base = {
 describe('MosaicV1 adapter', () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it('passes empty overrides when the query string has no tuning params', () => {
+  // Since Task 8, the adapter always merges settings (profile-or-default)
+  // into config, so "no tuning params" means the resolved config equals the
+  // schema defaults (which mirror COMPOSITION_CONFIG) rather than {}.
+  const defaultSettingsConfig = {
+    floorPx: COMPOSITION_CONFIG.floorPx,
+    ceilPx: COMPOSITION_CONFIG.ceilPx,
+    upscaleMax: COMPOSITION_CONFIG.upscaleMax,
+    maxGrowth: COMPOSITION_CONFIG.maxGrowth,
+    padding: COMPOSITION_CONFIG.padding,
+    cullOverflow: COMPOSITION_CONFIG.cullOverflow,
+  };
+
+  it('passes settings-schema-default overrides when the query string has no tuning params', () => {
     render(<MosaicV1 {...base} search="setup=1&v=v1" />);
-    expect(renderedProps().config).toEqual({});
+    expect(renderedProps().config).toEqual(defaultSettingsConfig);
   });
 
   it('parses v1 composition overrides out of the query string', () => {
     render(<MosaicV1 {...base} search="floor=120&cull=0" />);
     expect(renderedProps().config).toEqual({
+      ...defaultSettingsConfig,
       floorPx: 120,
       cullOverflow: false,
     });
   });
 
-  it('defaults to no overrides when search is omitted', () => {
+  it('defaults to settings-schema defaults when search is omitted', () => {
     render(<MosaicV1 {...base} />);
-    expect(renderedProps().config).toEqual({});
+    expect(renderedProps().config).toEqual(defaultSettingsConfig);
   });
 
   it('enables modelsMode with ?models=1', () => {
