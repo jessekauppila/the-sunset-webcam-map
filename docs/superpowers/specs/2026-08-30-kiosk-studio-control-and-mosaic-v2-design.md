@@ -227,3 +227,42 @@ disguise (side-by-side preview + collapsible panels); leva / Tweakpane /
 Unity Inspector (folders, reset-to-default, bold-when-differs); CMS
 draft/publish (passive always-on diff badge near the publish action);
 grandMA/Eos Blind mode (edit state and live state are separate objects).
+
+## Mockup decisions (2026-08-30)
+
+Settled in the visual mockup session (browser companion, throwaway HTML in
+scratchpad). These refine — and in two places amend — the design above.
+
+1. **Layout:** rail left (~320px), status strip bottom, under the preview
+   only (IDE-status-bar style, not full width). Rail top stacks: version
+   switcher + STUDIO profile chip, then Deploy, then Revert.
+2. **Rail collapsed:** the rail vanishes entirely; a translucent floating
+   pill sits in the preview's letterbox dead-space — `» dials · DEPLOY ·
+   N differ` — so the Take keeps full weight during the final check and
+   covers zero mosaic pixels. The status strip stays visible.
+3. **Deploy treatment: hold-to-deploy.** ~600 ms press-and-hold with a fill
+   sweeping across the button; early release is a no-op. The diff count
+   renders *inside* the button face ("▲ 3 settings differ"). In sync, the
+   button goes dark and inert ("IN SYNC WITH GLASS ✓") and Revert dims.
+   No confirm dialogs, no two-step arming.
+4. **Preview chrome:** both feeds side by side by default, with a three-way
+   segmented toggle `sunrise | sunset | both` in the preview header.
+   **Amendment:** the two physical panels are always identical, so panel
+   geometry becomes a single shared setting (one chip, e.g.
+   `ktc · 1440×2560 ▾`), not per-feed. Geometry edits count in the diff
+   badge like any other studio setting.
+5. **Status strip** (a /studio-only surface; never on public pages): 28 px,
+   monospace — liveness dot · glass version + settings revision · poll
+   freshness · gate-pass counts `↑1/39 ↓3/42 pass` · right-aligned one-word
+   state. Three states: in sync (green dot), deploying (amber:
+   `rev 14 → 15 deploying · on glass within 19s`, counting down the ≤60 s
+   poll cycle), stale (red: `polled 6m ago — kiosk unreachable?`).
+6. **Owner tag: cut from scope.** Entry to /studio is the drawer link plus
+   the direct URL. If an on-page tag is ever added, use the mocked
+   treatment: quiet lowercase "studio" chip with a drift dot (green when
+   studio = live, amber when undeployed changes exist).
+
+Palette direction from the mockups (guidance, not binding): dusk grounds
+`#0b0e14`/`#10141d`, text `#d7dce6`/muted `#7a8497`, amber drift accent
+`#f5a344`, deploy red `#c93a3f`, pass green `#4cc38a`; monospace for all
+telemetry values.
