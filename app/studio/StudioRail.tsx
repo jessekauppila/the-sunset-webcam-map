@@ -151,8 +151,18 @@ export function StudioRail({
   }, [activeVersion, sharedValuesKey, versionValuesKey, sharedDiffKey, versionDiffKey]);
 
   // Deps array leva uses to re-sync control values from `effective()` when
-  // they change from outside this panel (e.g. a revert()).
-  useControls(schema, { store }, [activeVersion, sharedValuesKey, versionValuesKey]);
+  // they change from outside this panel (e.g. a revert()). Must match the
+  // `schema` useMemo's deps exactly — sharedDiffKey/versionDiffKey are
+  // included too, since a label-only change (a knob's differing-from-live
+  // state flipping, with its value unchanged) still needs leva to pick up
+  // the freshly rebuilt `schema` object with the new ● prefix.
+  useControls(schema, { store }, [
+    activeVersion,
+    sharedValuesKey,
+    versionValuesKey,
+    sharedDiffKey,
+    versionDiffKey,
+  ]);
 
   return (
     <div

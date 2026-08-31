@@ -139,6 +139,14 @@ export function useStudioSettings(): StudioSettingsApi {
       const schema = schemaFor(namespace);
       if (!schema) return;
       const base = overlayRef.current[namespace] ?? data?.studio?.namespaces?.[namespace] ?? {};
+      // No-op guard: leva re-fires onChange on a programmatic resync (its
+      // deps-driven store.addData), so every control that gets re-synced
+      // from outside (e.g. after revert()) calls setKnob with the value it
+      // already has. Without this check that schedules a spurious PATCH
+      // per control on every resync. mirrors effective()'s merge so "the
+      // current value" here means the same thing it means everywhere else.
+      const current = mergeSettings(schema, base)[key];
+      if (current === value) return;
       const next = sanitizeValues(schema, { ...base, [key]: value });
       overlayRef.current = { ...overlayRef.current, [namespace]: next };
       setOverlay(overlayRef.current);

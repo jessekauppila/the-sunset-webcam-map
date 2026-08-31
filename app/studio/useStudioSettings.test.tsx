@@ -98,6 +98,57 @@ describe('useStudioSettings', () => {
     expect(body).toEqual({ namespace: 'v1', values: { floorPx: 200 } });
   });
 
+  it('setKnob no-ops (no PATCH) when called with the current effective value, but a genuinely different value still PATCHes', async () => {
+    // Guards against leva's echo: it re-fires onChange on every
+    // deps-driven resync (e.g. after revert()), calling setKnob with the
+    // value each control already has. That must not schedule a PATCH.
+    const getResponse = settingsResponse({ floorPx: 140 }, {});
+    fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+      if (!init || (!init.method && url === '/api/kiosk/settings')) {
+        return { ok: true, json: async () => getResponse };
+      }
+      if (init.method === 'PATCH') {
+        return { ok: true, json: async () => ({ revision: 2 }) };
+      }
+      return { ok: true, json: async () => ({}) };
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { result } = renderHook(() => useStudioSettings(), { wrapper });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+
+    expect(result.current.effective('v1').floorPx).toBe(140);
+
+    act(() => {
+      result.current.setKnob('v1', 'floorPx', 140);
+    });
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(400);
+    });
+
+    const noopPatchCalls = fetchMock.mock.calls.filter((c) => c[1]?.method === 'PATCH');
+    expect(noopPatchCalls.length).toBe(0);
+
+    // A genuinely different value still schedules and sends a real PATCH —
+    // the no-op guard must not block real edits.
+    act(() => {
+      result.current.setKnob('v1', 'floorPx', 200);
+    });
+    expect(result.current.effective('v1').floorPx).toBe(200);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(400);
+    });
+
+    const patchCalls = fetchMock.mock.calls.filter((c) => c[1]?.method === 'PATCH');
+    expect(patchCalls.length).toBe(1);
+    const body = JSON.parse(patchCalls[0][1].body as string);
+    expect(body).toEqual({ namespace: 'v1', values: { floorPx: 200 } });
+  });
+
   it('setting a knob back to its default omits that key from the PATCH', async () => {
     const getResponse = settingsResponse({ floorPx: 140 }, {});
     fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
