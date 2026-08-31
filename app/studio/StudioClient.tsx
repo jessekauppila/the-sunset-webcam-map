@@ -1,12 +1,17 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useLoadTerminatorWebcams } from '@/app/store/useLoadTerminatorWebcams';
+import { useTerminatorStore } from '@/app/store/useTerminatorStore';
 import { PreviewPane, type FeedView } from './PreviewPane';
 import { StudioRail } from './StudioRail';
 import { useStudioSettings } from './useStudioSettings';
 import { DeployButton } from './DeployButton';
+import { StatusStrip } from './StatusStrip';
 import { resolveMosaicName } from '@/app/components/mosaic/registry';
+import { mergeSettings } from '@/app/lib/settings/schema';
+import { SHARED_NAMESPACE, SHARED_SCHEMA } from '@/app/lib/settings/sharedSchema';
+import { passesGate } from '@/app/components/mosaic/v1/qualitySignal';
 import type { PanelSize } from '@/app/kiosk/panelPreview';
 
 /**
@@ -27,14 +32,14 @@ const railBg = '#10141d';
 const railBorder = '#1d2432';
 const stripBg = '#0e1119';
 const stripBorder = '#1d2432';
-const dim = '#8b95a7';
 const pillBg = 'rgba(16,20,29,.85)';
 const pillBorder = '#232a38';
-const mono = 'ui-monospace, SFMono-Regular, Menlo, monospace';
 
 export function StudioClient() {
   useLoadTerminatorWebcams();
   const settingsApi = useStudioSettings();
+  const sunriseWebcams = useTerminatorStore((t) => t.sunrise);
+  const sunsetWebcams = useTerminatorStore((t) => t.sunset);
 
   const [railCollapsed, setRailCollapsed] = useState(false);
   const [view, setView] = useState<FeedView>('both');
@@ -45,6 +50,30 @@ export function StudioClient() {
   const panelPresetLabel = `${panelPreset} · ${panel.width}×${panel.height}`;
   const versionName = resolveMosaicName(sharedSettings.activeVersion as string | undefined);
   const previewSettings = settingsApi.effective(versionName);
+
+  // What's actually on glass right now, NOT the studio dial position — the
+  // strip reports the deployed state, so this reads the live profile's
+  // deviations merged over SHARED_SCHEMA rather than settingsApi.effective
+  // (which merges over the studio profile).
+  const glassVersion = resolveMosaicName(
+    mergeSettings(SHARED_SCHEMA, settingsApi.live?.namespaces?.[SHARED_NAMESPACE])
+      .activeVersion as string | undefined
+  );
+
+  const sunrisePass = useMemo(
+    () => ({
+      pass: sunriseWebcams.filter(passesGate).length,
+      total: sunriseWebcams.length,
+    }),
+    [sunriseWebcams]
+  );
+  const sunsetPass = useMemo(
+    () => ({
+      pass: sunsetWebcams.filter(passesGate).length,
+      total: sunsetWebcams.length,
+    }),
+    [sunsetWebcams]
+  );
 
   return (
     <div
@@ -156,9 +185,15 @@ export function StudioClient() {
           boxSizing: 'border-box',
         }}
       >
-        <span style={{ fontFamily: mono, fontSize: 11, color: dim }}>
-          status strip — coming in a later task
-        </span>
+        <StatusStrip
+          glassVersion={glassVersion}
+          liveRevision={settingsApi.liveRevision}
+          lastPollAt={settingsApi.lastPollAt}
+          deployedAtMs={settingsApi.deployedAtMs}
+          diffCount={settingsApi.diffCount}
+          sunrisePass={sunrisePass}
+          sunsetPass={sunsetPass}
+        />
       </div>
     </div>
   );
