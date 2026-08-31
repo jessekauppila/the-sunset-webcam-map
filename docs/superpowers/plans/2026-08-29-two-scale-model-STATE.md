@@ -339,6 +339,29 @@ Reports: `ml/artifacts/reports/v5_binary_on_operator_random200.json` and
 
 ---
 
+## What's next (2026-08-30: Phase 0 BUILT, sitting pending)
+
+`2026-08-30-quality-ceiling-and-labeling-roadmap.md` is the follow-on plan:
+Phase 0 measures the operator's own test–retest ceiling, which gates whether
+a big detection-gated quality labeling push (Phase 1) is worth anything.
+Detection stays frozen; Flickr stays out of fine-tune; images are not the
+constraint, labels are.
+
+**Phase 0 is built** (branch `feat/retest-draw`): the Hard Examples queue has
+a third **Retest** toggle serving `retest_v1` — 150 already-rated frames,
+blind, stratified (15 per rating 1–5, 40 N, 35 rating-1, stale-first, seed
+20260830). Re-ratings go to the new `manual_label_retests` table, physically
+separate from gold (`manual_labels` is UNIQUE(source,image_id) with an
+ON CONFLICT DO UPDATE upsert — a retest through it would overwrite gold).
+`label_samples.kind` distinguishes eval draws from retests, and the export
+quarantine is scoped to `kind='draw'` so the retest frames' original labels
+stay in training (counts verified unchanged). Next action is the operator's:
+one blind sitting, then
+`.venv/bin/python ml/analyze_retest.py --sample-name retest_v1` prints the
+pre-registered ceiling verdict.
+
+---
+
 ## The three workstreams
 
 ### Workstream 1 — Model training (the ML thread)
