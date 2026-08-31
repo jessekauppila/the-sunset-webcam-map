@@ -35,6 +35,7 @@ export function PreviewPane({
   sceneSource = { kind: 'live' },
   onSceneSourceChange,
   sceneState = null,
+  error = null,
 }: {
   view: FeedView;
   onViewChange: (v: FeedView) => void;
@@ -46,14 +47,20 @@ export function PreviewPane({
   sceneSource?: SceneSource;
   onSceneSourceChange?: (source: SceneSource) => void;
   sceneState?: SceneState | null;
+  error?: string | null;
 }) {
   const liveSunrise = useTerminatorStore((t) => t.sunrise);
   const liveSunset = useTerminatorStore((t) => t.sunset);
   const Mosaic = resolveMosaic(versionName);
   const feeds = feedsFor(view);
 
+  // A scene is selected but hasn't resolved yet (still loading, 404, or a
+  // fetch error) — don't fall through to the live pool and silently show
+  // it under the scene's header, and don't render live tiles at all.
+  const sceneUnresolved = sceneSource.kind === 'scene' && !sceneState;
+
   const webcamsFor = (feed: 'sunrise' | 'sunset') => {
-    if (sceneState) return sceneState[feed];
+    if (sceneSource.kind === 'scene') return sceneState ? sceneState[feed] : [];
     return feed === 'sunrise' ? liveSunrise : liveSunset;
   };
 
@@ -143,6 +150,19 @@ export function PreviewPane({
             </option>
           ))}
         </select>
+
+        {sceneUnresolved && (
+          <span
+            data-testid="studio-scene-status"
+            style={{
+              fontFamily: mono,
+              fontSize: 11,
+              color: error ? '#f0a04b' : dim,
+            }}
+          >
+            {error ?? 'loading scene…'}
+          </span>
+        )}
       </div>
 
       <div
