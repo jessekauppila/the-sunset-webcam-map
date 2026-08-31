@@ -59,4 +59,24 @@ describe('useKioskRuntime', () => {
     });
     expect(result.current.dozing).toBe(true);
   });
+
+  it('surfaces settings from a poll response and keeps them on a failed poll', async () => {
+    const settings = { namespaces: { v1: { floorPx: 150 } }, revision: 2 };
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ doze: false, settings }),
+    });
+    const { result } = renderHook(() => useKioskRuntime());
+    expect(result.current.liveSettings).toBeNull();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1_000);
+    });
+    expect(result.current.liveSettings).toEqual(settings);
+
+    fetchMock.mockRejectedValueOnce(new Error('network down'));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(61_000);
+    });
+    expect(result.current.liveSettings).toEqual(settings);
+  });
 });
