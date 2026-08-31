@@ -169,4 +169,55 @@ describe('useStudioSettings', () => {
     expect(deployCalls.length).toBe(1);
     expect(deployCalls[0][1]?.method).toBe('POST');
   });
+
+  it('deploy() flushes a pending debounced PATCH before posting, so an edit inside the debounce window is not lost', async () => {
+    const getResponse = settingsResponse({}, {});
+    fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+      if (!init || (!init.method && url === '/api/kiosk/settings')) {
+        return { ok: true, json: async () => getResponse };
+      }
+      if (init.method === 'PATCH') {
+        return { ok: true, json: async () => ({ revision: 2 }) };
+      }
+      if (init.method === 'POST' && url === '/api/kiosk/settings/deploy') {
+        return {
+          ok: true,
+          json: async () => ({
+            live: { namespaces: { v1: { floorPx: 200 } }, revision: 1 },
+          }),
+        };
+      }
+      return { ok: true, json: async () => ({}) };
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { result } = renderHook(() => useStudioSettings(), { wrapper });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+
+    act(() => {
+      result.current.setKnob('v1', 'floorPx', 200);
+    });
+
+    // Deploy immediately — no timer advance — so the debounce window has
+    // not fired yet and the edit is still only in the optimistic overlay.
+    await act(async () => {
+      await result.current.deploy();
+    });
+
+    const patchOrDeployCalls = fetchMock.mock.calls.filter(
+      (c) =>
+        c[1]?.method === 'PATCH' ||
+        (c[1]?.method === 'POST' && c[0] === '/api/kiosk/settings/deploy')
+    );
+    expect(patchOrDeployCalls.length).toBe(2);
+    expect(patchOrDeployCalls[0][1]?.method).toBe('PATCH');
+    expect(patchOrDeployCalls[1][0]).toBe('/api/kiosk/settings/deploy');
+
+    const patchBody = JSON.parse(patchOrDeployCalls[0][1].body as string);
+    expect(patchBody).toEqual({ namespace: 'v1', values: { floorPx: 200 } });
+
+    expect(result.current.diffCount).toBe(0);
+  });
 });

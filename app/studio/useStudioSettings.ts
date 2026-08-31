@@ -71,7 +71,7 @@ export function useStudioSettings(): StudioSettingsApi {
       namespace,
       values: stripDefaults(schema, sanitizeValues(schema, values)),
     };
-    void fetch(SETTINGS_URL, {
+    return fetch(SETTINGS_URL, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
@@ -82,11 +82,40 @@ export function useStudioSettings(): StudioSettingsApi {
     (namespace: string, schema: SettingsSchema, values: SettingsValues) => {
       if (timers.current[namespace]) clearTimeout(timers.current[namespace]);
       timers.current[namespace] = setTimeout(() => {
-        flush(namespace, schema, values);
+        delete timers.current[namespace];
+        void flush(namespace, schema, values);
       }, DEBOUNCE_MS);
     },
     [flush]
   );
+
+  // Cancel every pending per-namespace debounce timer without sending its
+  // PATCH — used by revert(), whose whole point is discarding those edits.
+  const cancelPending = useCallback(() => {
+    for (const namespace of Object.keys(timers.current)) {
+      clearTimeout(timers.current[namespace]);
+      delete timers.current[namespace];
+    }
+  }, []);
+
+  // Cancel every pending per-namespace debounce timer and PATCH its
+  // namespace's full deviation set immediately — used by deploy() so a dial
+  // moved less than DEBOUNCE_MS before Deploy is still in the studio row
+  // that gets copied to live (copyProfile reads whatever exists at POST
+  // time; an un-flushed edit would otherwise be silently dropped from the
+  // take).
+  const flushPending = useCallback(async () => {
+    const namespaces = Object.keys(timers.current);
+    const patches = namespaces.map((namespace) => {
+      clearTimeout(timers.current[namespace]);
+      delete timers.current[namespace];
+      const schema = schemaFor(namespace);
+      const values = overlay[namespace];
+      if (!schema || !values) return Promise.resolve();
+      return flush(namespace, schema, values);
+    });
+    await Promise.all(patches);
+  }, [flush, overlay]);
 
   const setKnob = useCallback(
     (namespace: string, key: string, value: KnobValue) => {
@@ -159,6 +188,7 @@ export function useStudioSettings(): StudioSettingsApi {
   );
 
   const deploy = useCallback(async () => {
+    await flushPending();
     const res = await fetch('/api/kiosk/settings/deploy', { method: 'POST' });
     const json = (await res.json()) as { live: ProfileSettings };
     await mutate(
@@ -166,9 +196,10 @@ export function useStudioSettings(): StudioSettingsApi {
       { revalidate: false }
     );
     setDeployedAtMs(Date.now());
-  }, [mutate]);
+  }, [flushPending, mutate]);
 
   const revert = useCallback(async () => {
+    cancelPending();
     const res = await fetch('/api/kiosk/settings/revert', { method: 'POST' });
     const json = (await res.json()) as { studio: ProfileSettings };
     await mutate(
@@ -176,7 +207,7 @@ export function useStudioSettings(): StudioSettingsApi {
       { revalidate: false }
     );
     setOverlay({});
-  }, [mutate]);
+  }, [cancelPending, mutate]);
 
   return {
     loading: isLoading,
