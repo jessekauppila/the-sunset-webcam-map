@@ -69,8 +69,12 @@ export const SNAPSHOTS_ENABLED = false;
 export const SNAPSHOTS_ENABLED_ON_RATING = true;
 
 // Binary classifier threshold used when mapping probability/raw score to
-// positive vs negative decisions.
-export const AI_BINARY_DECISION_THRESHOLD = 0.5;
+// positive vs negative decisions. 0.55 was derived 2026-08-30 from the
+// 200-frame operator-labeled random sample (precision 0.891 / recall 0.774
+// for the v5 is_sunset head; the F1 plateau spans 0.45–0.70, so the choice
+// is not fragile). The old 0.5 was tuned for v4's quality-threshold head
+// under the pre-fix preprocessing — both of those are gone.
+export const AI_BINARY_DECISION_THRESHOLD = 0.55;
 
 // Minimum raw score required to treat a webcam as "capture-worthy" for
 // snapshot persistence during cron runs.
@@ -174,17 +178,28 @@ export const SNAPSHOT_QUEUE_PROGRESS_RATED_SCOPE =
 export const SNAPSHOT_QUEUE_UNRATED_SCOPE = 'session_specific';
 
 // ONNX creation/export workflow lives in `ml/README.md` ("Export ONNX and verify locally").
-// Defaults here are compatibility fallbacks; production/experiment usage should
-// set AI_ONNX_*_MODEL_PATH + AI_*_MODEL_VERSION env vars to versioned artifacts.
+// Defaults are the SHIPPING PAIR (decided 2026-08-30 on the operator-labeled
+// random sample — see docs/superpowers/plans/2026-08-29-two-scale-model-STATE.md):
+//   detection  = v5_binary_gold        (is_sunset head, F1 0.816 vs operator)
+//   quality    = v5_quality_sunsets_only retrain (Pearson 0.820 vs operator)
+// They compose: detection gates whether a frame counts as a sunset; quality
+// (trained ONLY on operator-confirmed sunsets) sizes/ranks it. The quality
+// score of a frame the gate rejects is extrapolation — display code must
+// check binaryIsSunset before treating aiRating as a sunset quality.
+// AI_ONNX_*_MODEL_PATH + AI_*_MODEL_VERSION env vars still override, but the
+// preferred deploy is to keep prod env UNSET and let these defaults pin the
+// pair (next.config.ts outputFileTracingIncludes must list the same dirs).
 export const AI_MODEL_VERSION_DEFAULT = 'baseline-v1';
 export const AI_ONNX_MODEL_PATH_DEFAULT =
   'ml/artifacts/models/model.onnx';
-export const AI_BINARY_MODEL_VERSION_DEFAULT = 'binary-v1';
-export const AI_REGRESSION_MODEL_VERSION_DEFAULT = 'regression-v1';
+export const AI_BINARY_MODEL_VERSION_DEFAULT =
+  '20260829_062437_v5_binary_gold';
+export const AI_REGRESSION_MODEL_VERSION_DEFAULT =
+  '20260830_190519_v5_quality_llm_backbone_finetune';
 export const AI_ONNX_BINARY_MODEL_PATH_DEFAULT =
-  'ml/artifacts/models/binary_resnet18/model.onnx';
+  'ml/artifacts/models/binary_resnet18/20260829_062437_v5_binary_gold/model.onnx';
 export const AI_ONNX_REGRESSION_MODEL_PATH_DEFAULT =
-  'ml/artifacts/models/regression_resnet18/model.onnx';
+  'ml/artifacts/models/regression_resnet18/20260830_190519_v5_quality_llm_backbone_finetune/model.onnx';
 
 // ---------------------------------------------------------------------------
 // Windy API fetch behavior
@@ -194,30 +209,55 @@ export const WINDY_FETCH_DELAY_BETWEEN_BATCHES_MS = 1000;
 export const WINDY_FETCH_STAGGER_WITHIN_BATCH_MS = 200;
 
 // ---------------------------------------------------------------------------
-// Mosaic sizing behavior
-// ---------------------------------------------------------------------------
-// Largest image height in mosaic. Set to popup image height parity.
-export const MOSAIC_MAX_IMAGE_HEIGHT_PX = 128;
-// Smallest image height in mosaic.
-export const MOSAIC_MIN_IMAGE_HEIGHT_PX = 26;
-// Global scaling strength (1 = baseline behavior).
-export const MOSAIC_SIZE_SCALE_STRENGTH = 1;
-// Scaling mode for converting score -> size.
-// Current supported: 'linear'
-export const MOSAIC_SIZE_SCALE_MODE = 'linear';
-
-// ---------------------------------------------------------------------------
-// Kiosk display settings (portrait 1080×1920, gallery installation)
-// ---------------------------------------------------------------------------
-// Tile heights are larger than the default mosaic to fill the taller display.
-// Tune these visually using Chrome DevTools at 1080×1920.
-export const KIOSK_MOSAIC_MAX_IMAGE_HEIGHT_PX = 180;
-export const KIOSK_MOSAIC_MIN_IMAGE_HEIGHT_PX = 32;
-// More images than default (90) to fill the extra vertical height.
-export const KIOSK_CANVAS_MAX_IMAGES = 120;
-
-// ---------------------------------------------------------------------------
 // YouTube cron fetch behavior
 // ---------------------------------------------------------------------------
 export const YOUTUBE_FETCH_BATCH_SIZE = 5;
 export const YOUTUBE_FETCH_DELAY_BETWEEN_BATCHES_MS = 800;
+
+// ---------------------------------------------------------------------------
+// Ops tab (owner-only cost/health panel in the drawer)
+// ---------------------------------------------------------------------------
+// How many daily_sunset_stats rows the Ops tab shows. Two weeks reads well as
+// sparklines; the query is one cheap indexed scan on the PK.
+export const OPS_STATS_DAYS = 14;
+
+// Rough Neon usage rate for the digest email's dollar estimate. The invoice
+// of record is Vercel; this exists so the email can say "~$14 so far" without
+// an extra API. Update if Neon/Vercel repricing makes it drift.
+export const NEON_COST_PER_CU_HOUR = 0.14;
+// Days of history in the daily digest email's inline bar chart.
+export const DIGEST_LOOKBACK_DAYS = 14;
+// How far back the Ops usage chart reaches. 60 days spans two billing cycles
+// so month-rollover deltas are visible and testable.
+export const PROVIDER_USAGE_LOOKBACK_DAYS = 60;
+
+// Neon projects in the Vercel-managed org whose month-to-date usage counters
+// the cron snapshots daily into provider_usage_daily. Project ids are not
+// secrets (the API key NEON_COST_API is, and lives only in env).
+export const NEON_USAGE_PROJECT_IDS = [
+  'noisy-leaf-96391119', // sunrise-sunset-webcams (this app)
+  'rough-resonance-57753560', // nwac-observations (Weather_Web_App)
+  'holy-shadow-28821259', // land_buyback (idle)
+  'small-tree-05551811', // nextjs-dashboard-postgres (idle)
+];
+
+// ---------------------------------------------------------------------------
+// Kiosk gallery mode (presence-driven scoring cadence + doze)
+// ---------------------------------------------------------------------------
+// Tick lock TTL: slightly under the 60s poll interval so the next poll can
+// re-acquire even if clocks drift. One global lock = at most ~1 tick/minute
+// regardless of how many kiosk screens are open.
+export const KIOSK_TICK_LOCK_TTL_MS = 55_000;
+// Quiet hours default: gallery-local hours during which the kiosk dozes
+// (no scoring ticks). Override per install with ?quiet=off or ?quiet=23-9.
+export const KIOSK_QUIET_DEFAULT = '1-8';
+// How long one interaction keeps a quiet-hours kiosk awake.
+export const KIOSK_WAKE_MINUTES = 30;
+// Poll cadences (tick + doze-state check). Two cheap requests per minute.
+export const KIOSK_TICK_INTERVAL_MS = 60_000;
+
+// ---------------------------------------------------------------------------
+// Geographic mosaic composition tunables live with their version:
+// app/components/mosaic/<version>/config.ts. Each mosaic version owns its
+// own constants so tuning one never disturbs another.
+// ---------------------------------------------------------------------------

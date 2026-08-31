@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const fetchTerminatorWebcamsMock = vi.fn();
 const setCachedMock = vi.fn();
+const markKioskTickRanMock = vi.fn();
 const fetchBatchesMock = vi.fn();
 const upsertWebcamsMock = vi.fn();
 const classifyMock = vi.fn();
@@ -16,6 +17,7 @@ const scoreMock = vi.fn();
 const backfillMock = vi.fn();
 const customClassifyMock = vi.fn();
 const upsertStatsMock = vi.fn();
+const captureProviderUsageDailyMock = vi.fn();
 const verifyAuthMock = vi.fn(() => true);
 const computeTickStatsMock = vi.fn();
 const computeDisagreementKindMock = vi.fn(() => null);
@@ -30,6 +32,7 @@ vi.mock('@/app/lib/terminatorPayload', () => ({
 }));
 vi.mock('@/app/lib/cache', () => ({
   setCachedTerminatorPayload: (...a: unknown[]) => setCachedMock(...a),
+  markKioskTickRan: () => markKioskTickRanMock(),
 }));
 vi.mock('@/app/lib/webcamSnapshot', () => ({
   downloadImage: (...a: unknown[]) => downloadMock(...a),
@@ -72,6 +75,14 @@ vi.mock('./lib/customClassification', () => ({
 vi.mock('./lib/dailyStats', () => ({
   computeTickStats: (...a: unknown[]) => computeTickStatsMock(...a),
   upsertDailyStats: (...a: unknown[]) => upsertStatsMock(...a),
+}));
+vi.mock('./lib/providerUsage', () => ({
+  captureProviderUsageDaily: (...a: unknown[]) =>
+    captureProviderUsageDailyMock(...a),
+}));
+const sendDailyUsageDigestMock = vi.fn();
+vi.mock('./lib/dailyDigest', () => ({
+  sendDailyUsageDigest: (...a: unknown[]) => sendDailyUsageDigestMock(...a),
 }));
 vi.mock('@/app/components/Map/lib/subsolarLocation', () => ({
   subsolarPoint: () => ({ raHours: 0, gmstHours: 0 }),
@@ -120,7 +131,10 @@ beforeEach(() => {
   backfillMock.mockReset().mockResolvedValue({ scored: 0, failed: 0, deadUrls: 0, fallbacks: 0, abortedOnFallback: false, modelVersion: null, scores: [] });
   customClassifyMock.mockReset().mockResolvedValue({ sunrise: [], sunset: [] });
   upsertStatsMock.mockReset().mockResolvedValue(undefined);
+  captureProviderUsageDailyMock.mockReset().mockResolvedValue({ captured: 0 });
+  sendDailyUsageDigestMock.mockReset().mockResolvedValue({ sent: true });
   setCachedMock.mockReset().mockResolvedValue(undefined);
+  markKioskTickRanMock.mockReset().mockResolvedValue(undefined);
   fetchTerminatorWebcamsMock.mockReset().mockResolvedValue([]);
   computeTickStatsMock.mockReset().mockReturnValue({ modelVersion: 'v4', webcamsScored: 1, cacheHits: 0, fallbacks: 0, scoreAvg: 0.5, scoreP50: 0.5, scoreP90: 0.5, scoreP99: 0.5, aboveMinScoreToWinCount: 0, sourceBreakdown: { windy: { scored: 1, avg: 0.5 }, custom: { scored: 0, avg: null } } });
   verifyAuthMock.mockReset().mockReturnValue(true);
@@ -193,6 +207,12 @@ describe('GET /api/cron/update-cameras', () => {
     expect(res.status).toBe(401);
     expect(scoreMock).not.toHaveBeenCalled();
     expect(backfillMock).not.toHaveBeenCalled();
+  });
+
+  it('stamps the kiosk tick lock after a successful authed GET', async () => {
+    const res = await GET(makeReq());
+    expect(res.status).toBe(200);
+    expect(markKioskTickRanMock).toHaveBeenCalled();
   });
 
   it('unions custom cams into the upsert active set', async () => {
@@ -371,5 +391,35 @@ describe('GET /api/cron/update-cameras', () => {
     });
     await GET(makeReq());
     expect(insertWindyDisagreementSnapshotMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('captures provider usage without failing the tick when it errors', async () => {
+    captureProviderUsageDailyMock.mockRejectedValueOnce(new Error('neon down'));
+    const res = await GET(makeReq());
+    expect(res.status).toBe(200);
+    expect(captureProviderUsageDailyMock).toHaveBeenCalled();
+  });
+
+  it('sends the daily digest only on the tick that landed a fresh capture', async () => {
+    captureProviderUsageDailyMock.mockResolvedValueOnce({ captured: 4 });
+    const res = await GET(makeReq());
+    expect(res.status).toBe(200);
+    expect(sendDailyUsageDigestMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('skips the digest when the capture was skipped', async () => {
+    captureProviderUsageDailyMock.mockResolvedValueOnce({ skipped: 'already-captured' });
+    const res = await GET(makeReq());
+    const body = await res.json();
+    expect(sendDailyUsageDigestMock).not.toHaveBeenCalled();
+    expect(body.digest).toEqual({ skipped: 'no-fresh-capture' });
+  });
+
+  it('a digest failure never fails the tick', async () => {
+    captureProviderUsageDailyMock.mockResolvedValueOnce({ captured: 4 });
+    sendDailyUsageDigestMock.mockRejectedValueOnce(new Error('resend down'));
+    const res = await GET(makeReq());
+    expect(res.status).toBe(200);
+    expect((await res.json()).digest).toEqual({ skipped: 'send-failed' });
   });
 });

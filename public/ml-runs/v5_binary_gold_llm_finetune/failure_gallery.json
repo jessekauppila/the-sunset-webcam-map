@@ -1,0 +1,208 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-08-30T08:33:10+00:00",
+  "split": "val",
+  "target_type": "binary",
+  "items": [
+    {
+      "snapshot_id": "122343",
+      "webcam_id": 28615436,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/28615436/1786389350764.jpg",
+      "true_label": 1.0,
+      "predicted_score": 0.0,
+      "absolute_error": 0.9999997057872179,
+      "captured_at": "2026-08-10T19:15:51.187989+00:00",
+      "llm_explanation": null
+    },
+    {
+      "snapshot_id": "2644",
+      "webcam_id": null,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/external_images/flickr/2378464993.jpg",
+      "true_label": 0.0,
+      "predicted_score": 1.0,
+      "absolute_error": 0.9999250173568726,
+      "captured_at": "2026-05-12T19:44:11.039259+00:00",
+      "llm_explanation": "Dramatic cloud formations with golden sunlight breaking through create a textured, layered sky with good color contrast."
+    },
+    {
+      "snapshot_id": "125665",
+      "webcam_id": 28999873,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/28999873/1787598964065.jpg",
+      "true_label": 1.0,
+      "predicted_score": 0.0,
+      "absolute_error": 0.9996014576463494,
+      "captured_at": "2026-08-24T19:16:04.382741+00:00",
+      "llm_explanation": null
+    },
+    {
+      "snapshot_id": "125711",
+      "webcam_id": 28999873,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/28999873/1787621455352.jpg",
+      "true_label": 1.0,
+      "predicted_score": 0.0,
+      "absolute_error": 0.999447034788318,
+      "captured_at": "2026-08-25T01:30:56.781635+00:00",
+      "llm_explanation": null
+    },
+    {
+      "snapshot_id": "89465",
+      "webcam_id": 15931067,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/15931067/1773861692158.jpg",
+      "true_label": 1.0,
+      "predicted_score": 0.0,
+      "absolute_error": 0.9994041677564383,
+      "captured_at": "2026-03-18T19:21:32.504747+00:00",
+      "llm_explanation": "Dramatic golden light breaking through dark storm clouds creates a striking contrast with illuminated palm trees in the foreground."
+    },
+    {
+      "snapshot_id": "120554",
+      "webcam_id": 6156909,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/6156909/1785808920999.jpg",
+      "true_label": 1.0,
+      "predicted_score": 0.0,
+      "absolute_error": 0.9984539337456227,
+      "captured_at": "2026-08-04T02:02:01.937823+00:00",
+      "llm_explanation": null
+    },
+    {
+      "snapshot_id": "122052",
+      "webcam_id": 29050041,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/29050041/1786278694232.jpg",
+      "true_label": 1.0,
+      "predicted_score": 0.0,
+      "absolute_error": 0.9980793041177094,
+      "captured_at": "2026-08-09T12:31:34.619512+00:00",
+      "llm_explanation": null
+    },
+    {
+      "snapshot_id": "124277",
+      "webcam_id": 28496139,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/28496139/1787046355642.jpg",
+      "true_label": 1.0,
+      "predicted_score": 0.0,
+      "absolute_error": 0.9978839380200953,
+      "captured_at": "2026-08-18T09:45:56.265596+00:00",
+      "llm_explanation": null
+    },
+    {
+      "snapshot_id": "126570",
+      "webcam_id": 2051,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/2051/1787967969981.jpg",
+      "true_label": 1.0,
+      "predicted_score": 0.0,
+      "absolute_error": 0.9953589951619506,
+      "captured_at": "2026-08-29T01:46:11.652171+00:00",
+      "llm_explanation": null
+    },
+    {
+      "snapshot_id": "121642",
+      "webcam_id": 27046337,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/27046337/1786143696470.jpg",
+      "true_label": 1.0,
+      "predicted_score": 0.0,
+      "absolute_error": 0.9950948408804834,
+      "captured_at": "2026-08-07T23:01:36.833960+00:00",
+      "llm_explanation": null
+    },
+    {
+      "snapshot_id": "120972",
+      "webcam_id": 28588659,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/28588659/1785925881613.jpg",
+      "true_label": 1.0,
+      "predicted_score": 0.0,
+      "absolute_error": 0.9926398475654424,
+      "captured_at": "2026-08-05T10:31:23.010009+00:00",
+      "llm_explanation": null
+    },
+    {
+      "snapshot_id": "120575",
+      "webcam_id": 29033009,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/29033009/1785813366725.jpg",
+      "true_label": 1.0,
+      "predicted_score": 0.0,
+      "absolute_error": 0.9916957039386035,
+      "captured_at": "2026-08-04T03:16:07.206520+00:00",
+      "llm_explanation": null
+    },
+    {
+      "snapshot_id": "123732",
+      "webcam_id": 6156909,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/6156909/1786845643254.jpg",
+      "true_label": 1.0,
+      "predicted_score": 0.0,
+      "absolute_error": 0.9913800405338407,
+      "captured_at": "2026-08-16T02:00:43.626323+00:00",
+      "llm_explanation": null
+    },
+    {
+      "snapshot_id": "126566",
+      "webcam_id": 2051,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/2051/1787967079379.jpg",
+      "true_label": 1.0,
+      "predicted_score": 0.0,
+      "absolute_error": 0.9909115228801966,
+      "captured_at": "2026-08-29T01:31:21.518269+00:00",
+      "llm_explanation": null
+    },
+    {
+      "snapshot_id": "120697",
+      "webcam_id": 29050041,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/29050041/1785846661156.jpg",
+      "true_label": 0.0,
+      "predicted_score": 1.0,
+      "absolute_error": 0.9908229112625122,
+      "captured_at": "2026-08-04T12:31:01.549911+00:00",
+      "llm_explanation": null
+    },
+    {
+      "snapshot_id": "126588",
+      "webcam_id": 2051,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/2051/1787973373377.jpg",
+      "true_label": 1.0,
+      "predicted_score": 0.0,
+      "absolute_error": 0.9897808423265815,
+      "captured_at": "2026-08-29T03:16:14.425982+00:00",
+      "llm_explanation": null
+    },
+    {
+      "snapshot_id": "122411",
+      "webcam_id": 27046337,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/27046337/1786403754410.jpg",
+      "true_label": 1.0,
+      "predicted_score": 0.0,
+      "absolute_error": 0.987576144747436,
+      "captured_at": "2026-08-10T23:15:54.705192+00:00",
+      "llm_explanation": null
+    },
+    {
+      "snapshot_id": "123407",
+      "webcam_id": 29007500,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/29007500/1786737718755.jpg",
+      "true_label": 1.0,
+      "predicted_score": 0.0,
+      "absolute_error": 0.9862707667052746,
+      "captured_at": "2026-08-14T20:01:59.073829+00:00",
+      "llm_explanation": null
+    },
+    {
+      "snapshot_id": "122406",
+      "webcam_id": 27046337,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/27046337/1786402911719.jpg",
+      "true_label": 1.0,
+      "predicted_score": 0.0,
+      "absolute_error": 0.9836048912256957,
+      "captured_at": "2026-08-10T23:01:52.180001+00:00",
+      "llm_explanation": null
+    },
+    {
+      "snapshot_id": "759",
+      "webcam_id": null,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/external_images/flickr/52634050614.jpg",
+      "true_label": 1.0,
+      "predicted_score": 0.0,
+      "absolute_error": 0.9826336782425642,
+      "captured_at": "2026-05-12T19:10:48.920405+00:00",
+      "llm_explanation": "Pleasant golden hour colors with layered clouds over the ocean, though colors are somewhat muted and not dramatically vivid."
+    }
+  ]
+}

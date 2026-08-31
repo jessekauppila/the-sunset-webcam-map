@@ -1,0 +1,84 @@
+run:
+  name: v5_binary_gold
+  seed: 20260212
+  notes: >
+    v5 is-sunset head trained on the operator gold-label set only
+    (manual_labels, 8,564 rows across 1,055 webcams).
+
+    Unlike v2-v4 the positive class is the operator's is_sunset boolean, not
+    llm_quality >= 0.75. That threshold fired on 90 of 46,079 webcam rows
+    because Claude's quality scale tops out near 0.88 on webcam frames, so
+    v4's positive class was 97.5% Flickr and it trained on 36 positive
+    webcam examples. This dataset carries 2,269 positive webcam training
+    frames and 483 in test.
+
+    Near-balanced (3,546 pos / 5,018 neg, ~41% positive in every split), so
+    class_weighting is none — v4 needed an 8.3x positive weight.
+
+    Gold-only on purpose: every row came from a disagreement queue, so
+    mixing it into 52k LLM labels would let the easy majority drown out the
+    signal the labeling effort bought. The mixed variant is
+    v5_binary_gold_finetune; compare against it before choosing.
+
+    Baseline to beat is v4 measured on this same gold test split via
+    ml/score_manifest.py, NOT v4's self-reported 0.836.
+  tags: [v5, binary, is_sunset, gold_labels]
+
+data:
+  label_source: gold
+  target_type: binary
+  binary_label_from: is_sunset
+  # Unused in is_sunset mode; kept so export_meta records the convention.
+  binary_threshold: 0.75
+  min_rating_count: 1
+  # The gold source already carries its own Flickr rows from manual_labels.
+  include_external: false
+  splits:
+    seed: 20260212
+    train_pct: 70
+    val_pct: 15
+    test_pct: 15
+
+model:
+  name: resnet18
+  epochs: 60
+  batch_size: 32
+  learning_rate: 0.0001
+  lr_schedule: cosine
+  early_stopping_patience: 15
+  head_dropout: 0.3
+
+imbalance:
+  class_weighting: none
+  sampler: none
+  manual_weights: {}
+
+augmentation:
+  profile: light
+
+cropping:
+  strategy: random_resized
+  scale_min: 0.95
+  scale_max: 1.0
+
+performance:
+  num_workers: 0
+  pin_memory: false
+  prefetch_factor: 2
+  persistent_workers: false
+
+subset:
+  max_train_samples: 0
+  max_val_samples: 0
+
+image_cache:
+  enabled: true
+  cache_dir: ml/artifacts/image_cache
+  precache: true
+
+metrics:
+  decision_threshold: 0.5
+  threshold_sweep: true
+  threshold_sweep_start: 0.1
+  threshold_sweep_end: 0.9
+  threshold_sweep_step: 0.05

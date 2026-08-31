@@ -1,0 +1,208 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-08-30T00:15:42+00:00",
+  "split": "val",
+  "target_type": "binary",
+  "items": [
+    {
+      "snapshot_id": "122343",
+      "webcam_id": 28615436,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/28615436/1786389350764.jpg",
+      "true_label": 1.0,
+      "predicted_score": 0.0,
+      "absolute_error": 0.9999977983604822,
+      "captured_at": "2026-08-10T19:15:51.187989+00:00",
+      "llm_explanation": null
+    },
+    {
+      "snapshot_id": "124277",
+      "webcam_id": 28496139,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/28496139/1787046355642.jpg",
+      "true_label": 1.0,
+      "predicted_score": 0.0,
+      "absolute_error": 0.9999956043816383,
+      "captured_at": "2026-08-18T09:45:56.265596+00:00",
+      "llm_explanation": null
+    },
+    {
+      "snapshot_id": "120396",
+      "webcam_id": 12604012,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/12604012/1785759360608.jpg",
+      "true_label": 1.0,
+      "predicted_score": 0.0,
+      "absolute_error": 0.9997544669313357,
+      "captured_at": "2026-08-03T12:16:01.354929+00:00",
+      "llm_explanation": null
+    },
+    {
+      "snapshot_id": "119951",
+      "webcam_id": 6156909,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/6156909/1785636963955.jpg",
+      "true_label": 1.0,
+      "predicted_score": 0.0,
+      "absolute_error": 0.9995569226448425,
+      "captured_at": "2026-08-02T02:16:04.672523+00:00",
+      "llm_explanation": null
+    },
+    {
+      "snapshot_id": "124636",
+      "webcam_id": 6156909,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/6156909/1787191244669.jpg",
+      "true_label": 1.0,
+      "predicted_score": 0.0,
+      "absolute_error": 0.9990450608311222,
+      "captured_at": "2026-08-20T02:00:45.052898+00:00",
+      "llm_explanation": null
+    },
+    {
+      "snapshot_id": "120745",
+      "webcam_id": 28999873,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/28999873/1785872771097.jpg",
+      "true_label": 0.0,
+      "predicted_score": 1.0,
+      "absolute_error": 0.9983207583427428,
+      "captured_at": "2026-08-04T19:46:11.505310+00:00",
+      "llm_explanation": null
+    },
+    {
+      "snapshot_id": "514",
+      "webcam_id": null,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/external_images/flickr/20366965063.jpg",
+      "true_label": 1.0,
+      "predicted_score": 0.0,
+      "absolute_error": 0.9978138410951943,
+      "captured_at": "2026-05-12T19:06:25.946663+00:00",
+      "llm_explanation": "Strong backlit sun with dramatic cloud formations, though monochrome processing limits the visible color range that would typically enhance sunset quality."
+    },
+    {
+      "snapshot_id": "122411",
+      "webcam_id": 27046337,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/27046337/1786403754410.jpg",
+      "true_label": 1.0,
+      "predicted_score": 0.0,
+      "absolute_error": 0.9974547883030028,
+      "captured_at": "2026-08-10T23:15:54.705192+00:00",
+      "llm_explanation": null
+    },
+    {
+      "snapshot_id": "121633",
+      "webcam_id": 26047053,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/26047053/1786141848766.jpg",
+      "true_label": 1.0,
+      "predicted_score": 0.0,
+      "absolute_error": 0.9968581406865269,
+      "captured_at": "2026-08-07T22:30:49.065855+00:00",
+      "llm_explanation": null
+    },
+    {
+      "snapshot_id": "107023",
+      "webcam_id": 28819232,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/28819232/1782073875683.jpg",
+      "true_label": 1.0,
+      "predicted_score": 0.0,
+      "absolute_error": 0.9963919839356095,
+      "captured_at": "2026-06-21T20:31:16.038884+00:00",
+      "llm_explanation": "The image is dominated by a hazy, foggy or overexposed view with no discernible sunset or sunrise colors."
+    },
+    {
+      "snapshot_id": "120405",
+      "webcam_id": 12604012,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/12604012/1785761160999.jpg",
+      "true_label": 0.0,
+      "predicted_score": 1.0,
+      "absolute_error": 0.9963885545730592,
+      "captured_at": "2026-08-03T12:46:01.362697+00:00",
+      "llm_explanation": null
+    },
+    {
+      "snapshot_id": "125261",
+      "webcam_id": 4204207,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/4204207/1787430699870.jpg",
+      "true_label": 0.0,
+      "predicted_score": 1.0,
+      "absolute_error": 0.9962934851646424,
+      "captured_at": "2026-08-22T20:31:40.547469+00:00",
+      "llm_explanation": null
+    },
+    {
+      "snapshot_id": "126133",
+      "webcam_id": 28999873,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/28999873/1787794301594.jpg",
+      "true_label": 1.0,
+      "predicted_score": 0.0,
+      "absolute_error": 0.9957406627945602,
+      "captured_at": "2026-08-27T01:31:41.959865+00:00",
+      "llm_explanation": null
+    },
+    {
+      "snapshot_id": "122597",
+      "webcam_id": 27474067,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/27474067/1786464946845.jpg",
+      "true_label": 0.0,
+      "predicted_score": 1.0,
+      "absolute_error": 0.9950921535491944,
+      "captured_at": "2026-08-11T16:15:47.906219+00:00",
+      "llm_explanation": null
+    },
+    {
+      "snapshot_id": "119885",
+      "webcam_id": 16791781,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/16791781/1785622529994.jpg",
+      "true_label": 1.0,
+      "predicted_score": 0.0,
+      "absolute_error": 0.9945927411317826,
+      "captured_at": "2026-08-01T22:15:30.405654+00:00",
+      "llm_explanation": null
+    },
+    {
+      "snapshot_id": "119739",
+      "webcam_id": 29041672,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/29041672/1785575722741.jpg",
+      "true_label": 1.0,
+      "predicted_score": 0.0,
+      "absolute_error": 0.994500185828656,
+      "captured_at": "2026-08-01T09:15:23.170362+00:00",
+      "llm_explanation": null
+    },
+    {
+      "snapshot_id": "121587",
+      "webcam_id": 28999873,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/28999873/1786131097699.jpg",
+      "true_label": 0.0,
+      "predicted_score": 1.0,
+      "absolute_error": 0.9943225383758544,
+      "captured_at": "2026-08-07T19:31:39.007049+00:00",
+      "llm_explanation": null
+    },
+    {
+      "snapshot_id": "121265",
+      "webcam_id": 29050041,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/29050041/1786019438011.jpg",
+      "true_label": 0.0,
+      "predicted_score": 1.0,
+      "absolute_error": 0.992980420589447,
+      "captured_at": "2026-08-06T12:30:39.068180+00:00",
+      "llm_explanation": null
+    },
+    {
+      "snapshot_id": "124335",
+      "webcam_id": 28911628,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/28911628/1787081523331.jpg",
+      "true_label": 0.0,
+      "predicted_score": 1.0,
+      "absolute_error": 0.9917513728141784,
+      "captured_at": "2026-08-18T19:32:04.079271+00:00",
+      "llm_explanation": null
+    },
+    {
+      "snapshot_id": "119774",
+      "webcam_id": 12604012,
+      "image_url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/12604012/1785586520574.jpg",
+      "true_label": 1.0,
+      "predicted_score": 0.0,
+      "absolute_error": 0.9894708637148142,
+      "captured_at": "2026-08-01T12:15:21.018784+00:00",
+      "llm_explanation": null
+    }
+  ]
+}

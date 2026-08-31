@@ -65,3 +65,100 @@ describe('terminator payload cache', () => {
     ).resolves.toBeUndefined();
   });
 });
+
+describe('kiosk helpers', () => {
+  it('acquireKioskTickLock passes NX+PX and reports acquisition', async () => {
+    setMock.mockResolvedValueOnce('OK');
+    const { acquireKioskTickLock } = await import('./cache');
+    await expect(acquireKioskTickLock()).resolves.toBe(true);
+    expect(setMock).toHaveBeenCalledWith(
+      'kiosk:tick:lock',
+      '1',
+      expect.objectContaining({ nx: true, px: 55000 }),
+    );
+  });
+
+  it('acquireKioskTickLock returns false when the lock is held', async () => {
+    setMock.mockResolvedValueOnce(null); // upstash returns null when NX fails
+    const { acquireKioskTickLock } = await import('./cache');
+    await expect(acquireKioskTickLock()).resolves.toBe(false);
+  });
+
+  it('markKioskTickRan sets the lock without NX', async () => {
+    const { markKioskTickRan } = await import('./cache');
+    await markKioskTickRan();
+    expect(setMock).toHaveBeenCalledWith(
+      'kiosk:tick:lock',
+      '1',
+      expect.objectContaining({ px: 55000 }),
+    );
+    expect(setMock.mock.calls.at(-1)![2]).not.toHaveProperty('nx');
+  });
+
+  it('doze flag round-trips', async () => {
+    const { setKioskDoze, getKioskDoze } = await import('./cache');
+    await setKioskDoze(true);
+    expect(setMock).toHaveBeenCalledWith('kiosk:doze', '1');
+    getMock.mockResolvedValueOnce('1');
+    await expect(getKioskDoze()).resolves.toBe(true);
+    await setKioskDoze(false);
+    expect(delMock).toHaveBeenCalledWith('kiosk:doze');
+    getMock.mockResolvedValueOnce(null);
+    await expect(getKioskDoze()).resolves.toBe(false);
+  });
+});
+
+describe('kiosk live settings cache', () => {
+  it('round-trips a ProfileSettings object through kiosk:liveSettings with a 300s TTL', async () => {
+    const { setKioskLiveSettingsCache, getKioskLiveSettingsCache } = await import('./cache');
+    await setKioskLiveSettingsCache({ namespaces: { v1: { floorPx: 140 } }, revision: 15 });
+    expect(setMock).toHaveBeenCalledWith(
+      'kiosk:liveSettings',
+      expect.anything(),
+      { ex: 300 },
+    );
+    getMock.mockResolvedValueOnce(setMock.mock.calls[0][1]);
+    await expect(getKioskLiveSettingsCache()).resolves.toEqual({
+      namespaces: { v1: { floorPx: 140 } },
+      revision: 15,
+    });
+  });
+
+  it('returns null on a cache miss', async () => {
+    const { getKioskLiveSettingsCache } = await import('./cache');
+    getMock.mockResolvedValueOnce(null);
+    await expect(getKioskLiveSettingsCache()).resolves.toBeNull();
+  });
+
+  it('fails soft to null when redis rejects, so a cache outage never breaks the kiosk', async () => {
+    const { getKioskLiveSettingsCache } = await import('./cache');
+    getMock.mockRejectedValueOnce(new Error('down'));
+    await expect(getKioskLiveSettingsCache()).resolves.toBeNull();
+  });
+
+  it('setKioskLiveSettingsCache swallows Redis errors (fire-and-forget safe)', async () => {
+    const { setKioskLiveSettingsCache } = await import('./cache');
+    setMock.mockRejectedValueOnce(new Error('down'));
+    await expect(
+      setKioskLiveSettingsCache({ namespaces: {}, revision: 1 }),
+    ).resolves.toBeUndefined();
+  });
+
+  it('markKioskPoll stores an ISO timestamp readable by getKioskLastPoll', async () => {
+    const { markKioskPoll } = await import('./cache');
+    await markKioskPoll();
+    const written = setMock.mock.calls.at(-1)!;
+    expect(written[0]).toBe('kiosk:lastPoll');
+    expect(new Date(String(written[1])).toISOString()).toBe(String(written[1]));
+  });
+
+  it('getKioskLastPoll returns the stored timestamp, or null on miss/failure', async () => {
+    const { getKioskLastPoll } = await import('./cache');
+    getMock.mockResolvedValueOnce('2026-08-30T00:00:00.000Z');
+    await expect(getKioskLastPoll()).resolves.toBe('2026-08-30T00:00:00.000Z');
+    getMock.mockResolvedValueOnce(null);
+    await expect(getKioskLastPoll()).resolves.toBeNull();
+    getMock.mockRejectedValueOnce(new Error('down'));
+    await expect(getKioskLastPoll()).resolves.toBeNull();
+  });
+});

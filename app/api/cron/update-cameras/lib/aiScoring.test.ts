@@ -5,7 +5,7 @@ const sha256Mock = vi.fn();
 const runMock = vi.fn();
 
 vi.mock('./imagePreprocess', () => ({
-  preprocessJpegToImagenetTensor: (...a: unknown[]) => preprocessMock(...a),
+  preprocessJpegToModelTensor: (...a: unknown[]) => preprocessMock(...a),
 }));
 vi.mock('./imageHash', () => ({
   sha256Hex: (...a: unknown[]) => sha256Mock(...a),
@@ -350,10 +350,11 @@ describe('computeDisagreementKind — model-vs-Claude (Claude trusted)', () => {
     ).toBe('binary_negative_regression_high');
   });
 
-  it('prefers the model-vs-Claude kind when both families apply', () => {
-    // binary says no + aiRating 4.0 would be binary_negative_regression_high,
-    // but Claude also says not-a-sunset at a high model rating → false positive
-    // (model-vs-Claude) must win on priority.
+  it('settles rather than flags when binary agrees with Claude that it is not a sunset', () => {
+    // binary says no + Claude says no: two of three judges agree, so the
+    // regression head's high rating does not promote to
+    // model_high_claude_not_sunset.
+    // v2 (2026-07-29): Claude present ⇒ adjudicated, binary flags cleared
     expect(
       computeDisagreementKind({
         binaryIsSunset: false,
@@ -361,7 +362,7 @@ describe('computeDisagreementKind — model-vs-Claude (Claude trusted)', () => {
         llmIsSunset: false,
         llmQuality: 0.1,
       }),
-    ).toBe('model_high_claude_not_sunset');
+    ).toBeNull();
   });
 
   it('ranks model-vs-Claude kinds above binary-vs-regression kinds', () => {
@@ -371,5 +372,87 @@ describe('computeDisagreementKind — model-vs-Claude (Claude trusted)', () => {
     expect(
       DISAGREEMENT_KIND_PRIORITY.model_high_claude_not_sunset,
     ).toBeGreaterThan(DISAGREEMENT_KIND_PRIORITY.binary_positive_regression_low);
+  });
+});
+
+describe('v2: Claude adjudicates once present (2026-07-29 triage spec)', () => {
+  it('clears a binary-vs-regression flag when Claude has rated and no model-vs-Claude contest applies', () => {
+    // Dark frame: binary says no, regression 3.2 (>= 3.0 would have
+    // flagged it), Claude confirms not-a-sunset. Settled.
+    expect(
+      computeDisagreementKind({
+        binaryIsSunset: false,
+        aiRating: 3.2,
+        llmQuality: 0.05,
+        llmIsSunset: false,
+      }),
+    ).toBeNull();
+  });
+
+  it('two judges agreeing not-sunset settles even a high regression score', () => {
+    // Binary head AND Claude both say not-a-sunset: 2 of 3 judges agree,
+    // so no promotion to model_high_claude_not_sunset despite rating >= 3.5.
+    expect(
+      computeDisagreementKind({
+        binaryIsSunset: false,
+        aiRating: 4.2,
+        llmQuality: 0.05,
+        llmIsSunset: false,
+      }),
+    ).toBeNull();
+  });
+
+  it('still flags model_high_claude_not_sunset when the binary head sides with the regression head', () => {
+    expect(
+      computeDisagreementKind({
+        binaryIsSunset: true,
+        aiRating: 4.0,
+        llmQuality: 0.1,
+        llmIsSunset: false,
+      }),
+    ).toBe('model_high_claude_not_sunset');
+  });
+
+  it('keeps model_high_claude_not_sunset when the binary verdict is absent (June archive rows)', () => {
+    expect(
+      computeDisagreementKind({
+        aiRating: 4.0,
+        llmQuality: 0.1,
+        llmIsSunset: false,
+      }),
+    ).toBe('model_high_claude_not_sunset');
+  });
+
+  it('model_low_claude_sunset is unchanged', () => {
+    expect(
+      computeDisagreementKind({
+        binaryIsSunset: false,
+        aiRating: 1.5,
+        llmQuality: 0.8,
+        llmIsSunset: true,
+      }),
+    ).toBe('model_low_claude_sunset');
+  });
+
+  it('Claude-present with a mediocre verdict settles a binary_positive_regression_low flag', () => {
+    // Would be binary_positive_regression_low (yes + 1.8 <= 2.0) without
+    // Claude; Claude's mediocre-sunset verdict settles it.
+    expect(
+      computeDisagreementKind({
+        binaryIsSunset: true,
+        aiRating: 1.8,
+        llmQuality: 0.3,
+        llmIsSunset: true,
+      }),
+    ).toBeNull();
+  });
+
+  it('Claude-absent binary-vs-regression flags are unchanged (live cron path)', () => {
+    expect(
+      computeDisagreementKind({ binaryIsSunset: false, aiRating: 3.21 }),
+    ).toBe('binary_negative_regression_high');
+    expect(
+      computeDisagreementKind({ binaryIsSunset: true, aiRating: 1.9 }),
+    ).toBe('binary_positive_regression_low');
   });
 });

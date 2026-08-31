@@ -1,0 +1,87 @@
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { renderHook, act } from '@testing-library/react';
+import { useKioskRuntime } from './useKioskRuntime';
+
+describe('useKioskRuntime', () => {
+  const fetchMock = vi.fn();
+  beforeEach(() => {
+    vi.useFakeTimers();
+    // Noon local, outside default quiet hours
+    vi.setSystemTime(new Date(2026, 7, 1, 12, 0, 0));
+    fetchMock.mockResolvedValue({ ok: true, json: async () => ({ doze: false }) });
+    vi.stubGlobal('fetch', fetchMock);
+    window.history.replaceState({}, '', '/kiosk/sunset');
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
+
+  it('polls state and fires a tick each minute while awake', async () => {
+    renderHook(() => useKioskRuntime());
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(61_000);
+    });
+    const urls = fetchMock.mock.calls.map((c) => String(c[0]));
+    const statePolls = urls.filter((u) => u.includes('/api/kiosk/state'));
+    expect(statePolls.length).toBeGreaterThanOrEqual(2);
+    // Marked with ?kiosk=1 so the route's markKioskPoll only fires for the
+    // kiosk's own poll loop, not other callers of this endpoint (e.g. the
+    // Ops drawer's DozeControl).
+    expect(statePolls.every((u) => u.includes('kiosk=1'))).toBe(true);
+    expect(urls.filter((u) => u.includes('/api/kiosk/tick')).length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('the d key toggles sticky local doze and stops ticks', async () => {
+    const { result } = renderHook(() => useKioskRuntime());
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'd' }));
+    });
+    expect(result.current.dozing).toBe(true);
+    // an ordinary interaction must NOT wake a manual doze
+    act(() => {
+      window.dispatchEvent(new Event('pointerdown'));
+    });
+    expect(result.current.dozing).toBe(true);
+    fetchMock.mockClear();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(61_000);
+    });
+    const urls = fetchMock.mock.calls.map((c) => String(c[0]));
+    expect(urls.some((u) => u.includes('/api/kiosk/tick'))).toBe(false);
+    expect(urls.some((u) => u.includes('/api/kiosk/state'))).toBe(true); // still listens
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'd' }));
+    });
+    expect(result.current.dozing).toBe(false);
+  });
+
+  it('remote doze from the state poll dozes the kiosk', async () => {
+    fetchMock.mockResolvedValue({ ok: true, json: async () => ({ doze: true }) });
+    const { result } = renderHook(() => useKioskRuntime());
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1_000);
+    });
+    expect(result.current.dozing).toBe(true);
+  });
+
+  it('surfaces settings from a poll response and keeps them on a failed poll', async () => {
+    const settings = { namespaces: { v1: { floorPx: 150 } }, revision: 2 };
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ doze: false, settings }),
+    });
+    const { result } = renderHook(() => useKioskRuntime());
+    expect(result.current.liveSettings).toBeNull();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1_000);
+    });
+    expect(result.current.liveSettings).toEqual(settings);
+
+    fetchMock.mockRejectedValueOnce(new Error('network down'));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(61_000);
+    });
+    expect(result.current.liveSettings).toEqual(settings);
+  });
+});

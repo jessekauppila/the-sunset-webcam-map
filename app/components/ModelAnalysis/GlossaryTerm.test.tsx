@@ -23,7 +23,12 @@ describe('GlossaryTerm', () => {
     const user = userEvent.setup();
     render(<GlossaryTerm slug="val_f1">F1</GlossaryTerm>);
     await user.tab();
-    expect(await screen.findByText(/precision \+ recall/i)).toBeInTheDocument();
+    // The tooltip has a real 200ms enterDelay, so this wait has a hard floor
+    // rather than resolving on the next tick. findBy's 1000ms default left only
+    // ~4x headroom, the tightest margin in this directory; be explicit instead.
+    expect(
+      await screen.findByText(/precision \+ recall/i, {}, { timeout: 5000 }),
+    ).toBeInTheDocument();
   });
 
   it('renders an info icon next to the label when withIcon is true', () => {

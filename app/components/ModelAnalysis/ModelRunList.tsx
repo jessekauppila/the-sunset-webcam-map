@@ -3,6 +3,7 @@
 import { Box, Typography } from '@mui/material';
 import type { ManifestEntry } from '@/app/lib/modelRuns.types';
 import { STATUS_EMOJI, STATUS_LABEL } from './statusEmoji';
+import { liveRole } from './liveModels';
 
 interface Props {
   runs: ManifestEntry[];
@@ -88,6 +89,26 @@ export function ModelRunList({ runs, selectedSlug, onSelect }: Props) {
           >
             <Typography variant="body2" sx={{ color: '#e5e7eb', fontWeight: 600 }}>
               {run.display_name}
+              {liveRole(run.slug) && (
+                <Box
+                  component="span"
+                  aria-label={`Live in production: ${liveRole(run.slug)}`}
+                  sx={{
+                    ml: 0.75,
+                    px: 0.6,
+                    py: 0.1,
+                    borderRadius: 1,
+                    fontSize: 9,
+                    fontWeight: 700,
+                    letterSpacing: '0.5px',
+                    color: '#052e16',
+                    background: '#4ade80',
+                    verticalAlign: 'middle',
+                  }}
+                >
+                  LIVE · {liveRole(run.slug) === 'detection' ? 'DETECTION' : 'QUALITY'}
+                </Box>
+              )}
             </Typography>
             <Typography variant="caption" sx={{ display: 'block', color: '#cbd5e1' }}>
               {runDate(run)} · {primaryMetric(run)} ·{' '}

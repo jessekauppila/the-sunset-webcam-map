@@ -23,6 +23,8 @@ import { AuthControl } from './components/auth/AuthControl';
 import { useIsOperator } from './components/auth/useIsOperator';
 import { LeaderboardTab } from './components/Leaderboard/LeaderboardTab';
 import { HardExamplesQueue } from './components/HardExamples/HardExamplesQueue';
+import { OpsTab } from './components/Ops/OpsTab';
+import { KioskTab } from './components/Kiosk/KioskTab';
 
 interface Props {
   manifestRuns: ManifestEntry[];
@@ -48,6 +50,8 @@ export function HomeClient({ manifestRuns }: Props) {
     { key: 'unrated', label: 'Unrated Queue', operatorOnly: true },
     { key: 'all', label: 'All Webcams', operatorOnly: true },
     { key: 'models', label: 'Model Analysis', operatorOnly: false },
+    { key: 'ops', label: '📊 Ops', operatorOnly: true },
+    { key: 'kiosk', label: '📺 Kiosk', operatorOnly: true },
   ] as const;
   const visibleTabs = ALL_TABS.filter((t) => isOperator || !t.operatorOnly);
 
@@ -245,6 +249,16 @@ export function HomeClient({ manifestRuns }: Props) {
               {tabKey === 'models' && (
                 <Box sx={{ height: '100%' }}>
                   <ModelAnalysisTab runs={manifestRuns} />
+                </Box>
+              )}
+              {tabKey === 'ops' && (
+                <Box>
+                  <OpsTab />
+                </Box>
+              )}
+              {tabKey === 'kiosk' && (
+                <Box>
+                  <KioskTab />
                 </Box>
               )}
             </Box>

@@ -1,0 +1,7 @@
+{
+  "config_input": "ml/artifacts/experiments/20260829_070702_v5_regression_gold/config.input.yaml",
+  "config_resolved": "ml/artifacts/experiments/20260829_070702_v5_regression_gold/config.resolved.json",
+  "dataset_meta": "ml/artifacts/experiments/20260829_070702_v5_regression_gold/dataset/20260829_070704/export_meta.json",
+  "train_summary": "ml/artifacts/experiments/20260829_070702_v5_regression_gold/train/train_summary.json",
+  "eval_report": "ml/artifacts/experiments/20260829_070702_v5_regression_gold/eval/eval_report.json"
+}

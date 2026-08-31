@@ -1,0 +1,84 @@
+run:
+  name: v5_quality_llm_backbone_finetune
+  seed: 20260212
+  notes: >
+    Quality-head analog of the detection pretrain experiment: identical
+    recipe, data, splits and seed as the SHIPPING quality head
+    (20260830_003808_v5_quality_sunsets_only) - the ONLY difference is the
+    initialization, which warm-starts the backbone from the LLM detection
+    pretrain (20260830_061333_v5_binary_llm_pretrain best.pt, backbone
+    only; the regression head starts fresh - the pretrain's binary head
+    does not transfer and is dropped by --init-backbone-checkpoint's
+    fail-loud loader).
+
+    Motivation: the detection finetune from this same backbone CLEARED its
+    pre-registered bar (F1 0.821 vs 0.797 on the pooled 500). Quality is
+    now the weak axis (Pearson 0.697 pooled, 0.632 on fresh v2 data).
+
+    THE PRE-REGISTERED BAR, fixed before this run started: beat quality
+    Pearson 0.697 on the pooled 500 operator sunsets (n=135,
+    ml/artifacts/datasets/random_ordinary_pooled_v1v2/), scored through
+    ml/eval_composed_operator.py with the shipping detection candidate.
+    Gains under +0.02 are single-seed noise = WASH. A wash or loss closes
+    the question as "the ceiling is label volume, not initialization" and
+    the next lever becomes more operator ratings on ordinary sunsets.
+  tags: [v5, quality, gold_labels, sunsets_only, two_scale, llm_pretrain, finetune]
+
+data:
+  label_source: gold
+  target_type: regression
+  gold_sunsets_only: true
+  binary_label_from: is_sunset  # not read in regression mode
+  binary_threshold: 0.75
+  min_rating_count: 1
+  include_external: false
+  splits:
+    seed: 20260212
+    train_pct: 70
+    val_pct: 15
+    test_pct: 15
+
+model:
+  name: resnet18
+  epochs: 60
+  batch_size: 32
+  learning_rate: 0.0001
+  lr_schedule: cosine
+  early_stopping_patience: 15
+  head_dropout: 0.3
+  init_backbone_checkpoint: ml/artifacts/experiments/20260830_061333_v5_binary_llm_pretrain/train/best.pt
+
+imbalance:
+  class_weighting: none
+  sampler: none
+  manual_weights: {}
+
+augmentation:
+  profile: light
+
+cropping:
+  strategy: random_resized
+  scale_min: 0.95
+  scale_max: 1.0
+
+performance:
+  num_workers: 0
+  pin_memory: false
+  prefetch_factor: 2
+  persistent_workers: false
+
+subset:
+  max_train_samples: 0
+  max_val_samples: 0
+
+image_cache:
+  enabled: true
+  cache_dir: ml/artifacts/image_cache
+  precache: true
+
+metrics:
+  decision_threshold: 0.30
+  threshold_sweep: true
+  threshold_sweep_start: 0.3
+  threshold_sweep_end: 0.9
+  threshold_sweep_step: 0.05

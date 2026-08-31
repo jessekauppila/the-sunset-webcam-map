@@ -1,0 +1,84 @@
+run:
+  name: v5_binary_llm_pretrain
+  seed: 20260212
+  notes: >
+    Stage 1 of the pretrain->finetune candidate (STATE open question 3):
+    pretrain the is-sunset head on Claude's llm_is_sunset labels (46,079
+    webcam rows minus the 500 quarantined eval frames, plus 5,767 Flickr)
+    read live from the DB. Zero API spend - every label already exists.
+
+    This is the first time any head sees the ordinary-frame majority; the
+    gold set is 99.3% hard cases. Stage 2 (v5_binary_gold_llm_finetune)
+    fine-tunes on the operator gold labels, which win every conflict.
+
+    Judge mix is on the record (llm_model column + export_meta
+    llm_judge_mix): ~64% claude-sonnet-4-5 / ~36% claude-sonnet-5, and the
+    two are different instruments (35.9% vs 63.6% sunset call rate). Pooled
+    deliberately for pretraining; the operator eval is judge-free.
+
+    The pre-registered bar this candidate must clear, fixed before training:
+    detection F1 > 0.797 on the pooled 500 operator frames
+    (ml/artifacts/datasets/random_ordinary_pooled_v1v2/), gains under +0.02
+    are a wash. See the STATE doc's PRETRAIN BAR RESTATED block.
+  tags: [v5, binary, is_sunset, llm_labels, pretrain]
+
+data:
+  label_source: manual_only
+  label_merge_strategy: llm_only
+  llm_label_source: db
+  target_type: binary
+  binary_label_from: is_sunset
+  # Unused in is_sunset mode; kept so export_meta records the convention.
+  binary_threshold: 0.75
+  min_rating_count: 1
+  include_external: true
+  external_categories: [sunset]
+  splits:
+    seed: 20260212
+    train_pct: 70
+    val_pct: 15
+    test_pct: 15
+
+model:
+  name: resnet18
+  epochs: 25
+  batch_size: 32
+  learning_rate: 0.0001
+  lr_schedule: cosine
+  early_stopping_patience: 8
+  head_dropout: 0.3
+
+imbalance:
+  class_weighting: none
+  sampler: none
+  manual_weights: {}
+
+augmentation:
+  profile: light
+
+cropping:
+  strategy: random_resized
+  scale_min: 0.95
+  scale_max: 1.0
+
+performance:
+  num_workers: 0
+  pin_memory: false
+  prefetch_factor: 2
+  persistent_workers: false
+
+subset:
+  max_train_samples: 0
+  max_val_samples: 0
+
+image_cache:
+  enabled: true
+  cache_dir: ml/artifacts/image_cache
+  precache: true
+
+metrics:
+  decision_threshold: 0.5
+  threshold_sweep: true
+  threshold_sweep_start: 0.1
+  threshold_sweep_end: 0.9
+  threshold_sweep_step: 0.05

@@ -11,7 +11,7 @@
  */
 
 import { fetchTerminatorWebcams } from '@/app/lib/terminatorPayload';
-import { setCachedTerminatorPayload } from '@/app/lib/cache';
+import { setCachedTerminatorPayload, markKioskTickRan } from '@/app/lib/cache';
 import { NextResponse } from 'next/server';
 import { subsolarPoint } from '@/app/components/Map/lib/subsolarLocation';
 import { createTerminatorQueryRing } from '@/app/components/Map/lib/terminatorRing';
@@ -47,6 +47,8 @@ import {
 import { computeDisagreementKind, scoreImage } from './lib/aiScoring';
 import { backfillArchiveSnapshotScores } from './lib/archiveBackfill';
 import { computeTickStats, upsertDailyStats } from './lib/dailyStats';
+import { captureProviderUsageDaily } from './lib/providerUsage';
+import { sendDailyUsageDigest } from './lib/dailyDigest';
 import { downloadImage, uploadToFirebase } from '@/app/lib/webcamSnapshot';
 
 const TICK_DEADLINE_MS = 50_000;
@@ -60,6 +62,10 @@ export async function GET(req: Request) {
   if (!verifyCronAuth(req)) {
     return new NextResponse('Unauthorized', { status: 401 });
   }
+
+  // Stamp the kiosk tick lock so a kiosk poll immediately after this cron
+  // tick is a no-op (shared once-per-minute budget).
+  void markKioskTickRan();
 
   console.log('🚀 Starting cron job...');
 
@@ -392,6 +398,30 @@ export async function GET(req: Request) {
     console.error('[update-cameras] daily_sunset_stats UPSERT failed:', err);
   }
 
+  // Once per UTC day, snapshot Neon usage counters for the Ops tab. Never
+  // allowed to fail the tick.
+  let providerUsage: Awaited<ReturnType<typeof captureProviderUsageDaily>> | { error: true };
+  try {
+    providerUsage = await captureProviderUsageDaily(new Date());
+  } catch (error) {
+    console.warn('[update-cameras] provider usage capture failed:', error);
+    providerUsage = { error: true };
+  }
+
+  // The digest rides the once-per-day capture: it only sends on the tick that
+  // actually landed a fresh snapshot. Same non-fatal contract.
+  let digest: Awaited<ReturnType<typeof sendDailyUsageDigest>> | { skipped: string };
+  if ('captured' in providerUsage && providerUsage.captured > 0) {
+    try {
+      digest = await sendDailyUsageDigest(new Date());
+    } catch (error) {
+      console.warn('[update-cameras] daily digest failed:', error);
+      digest = { skipped: 'send-failed' };
+    }
+  } else {
+    digest = { skipped: 'no-fresh-capture' };
+  }
+
   return NextResponse.json({
     ok: true,
     sunrise: sunriseRows.length,
@@ -401,5 +431,7 @@ export async function GET(req: Request) {
     fallbacks,
     scoringPaths,
     archiveBackfill: backfillResult,
+    providerUsage,
+    digest,
   });
 }
