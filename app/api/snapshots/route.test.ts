@@ -186,3 +186,78 @@ describe('GET /api/snapshots?mode=verification', () => {
     expect(body.snapshots[0]).toHaveProperty('provenance');
   });
 });
+
+describe('GET /api/snapshots?mode=verification — retest samples', () => {
+  const allText = () =>
+    sqlMock.mock.calls.map(([s]) => (s as TemplateStringsArray).join('?'));
+
+  // A retest sample (label_samples.kind = 'retest') re-serves frames that BY
+  // CONSTRUCTION already have manual_labels rows; drop-out and progress must
+  // therefore read manual_label_retests instead.
+  const mockRetestKind = () => {
+    sqlMock.mockImplementation((strings: TemplateStringsArray) => {
+      const q = strings.join('?');
+      if (/select\s+kind\s+from\s+label_samples/i.test(q)) {
+        return Promise.resolve([{ kind: 'retest' }]);
+      }
+      if (/count\(\*\)::int as size/i.test(q)) {
+        return Promise.resolve([{ size: 150, labeled: 12 }]);
+      }
+      return Promise.resolve([]);
+    });
+  };
+
+  it('serves retest frames despite their manual_labels rows (no gold exclusion)', async () => {
+    mockRetestKind();
+    await GET(req('?mode=verification&sample=retest_v1'));
+    const text = allText();
+    // Membership filter still applies…
+    expect(text.some((q) => /s\.id in\s*\(\s*select image_id from label_samples/i.test(q))).toBe(true);
+    // …but nothing excludes on manual_labels — every retest frame has a row there.
+    expect(text.some((q) => /not in\s*\(\s*select image_id from manual_labels/i.test(q))).toBe(false);
+  });
+
+  it('drops a frame from the queue once manual_label_retests has its re-rating', async () => {
+    mockRetestKind();
+    await GET(req('?mode=verification&sample=retest_v1'));
+    const text = allText();
+    expect(
+      text.some((q) =>
+        /not in\s*\(\s*select image_id from manual_label_retests\s+where source\s*=\s*'webcam'\s+and origin\s*=\s*\?/i.test(q),
+      ),
+    ).toBe(true);
+  });
+
+  it('reports retest progress from manual_label_retests, not manual_labels', async () => {
+    mockRetestKind();
+    const res = await GET(req('?mode=verification&sample=retest_v1'));
+    const body = await res.json();
+    expect(body.sample).toEqual({ name: 'retest_v1', size: 150, labeled: 12 });
+    const progressCall = allText().find((q) => /count\(\*\)::int as size/i.test(q));
+    expect(progressCall).toMatch(/manual_label_retests/i);
+    expect(progressCall).not.toMatch(/join manual_labels\b/i);
+  });
+
+  it('stays blind: no query joins manual_labels, so the first-pass label is never fetched', async () => {
+    mockRetestKind();
+    await GET(req('?mode=verification&sample=retest_v1'));
+    const text = allText();
+    expect(text.some((q) => /join\s+manual_labels\b/i.test(q))).toBe(false);
+  });
+
+  it('draw samples keep the manual_labels drop-out exactly as before', async () => {
+    // Kind lookup returns 'draw' — behavior must be indistinguishable from
+    // the pre-retest code path.
+    sqlMock.mockImplementation((strings: TemplateStringsArray) => {
+      const q = strings.join('?');
+      if (/select\s+kind\s+from\s+label_samples/i.test(q)) {
+        return Promise.resolve([{ kind: 'draw' }]);
+      }
+      return Promise.resolve([]);
+    });
+    await GET(req('?mode=verification&sample=random_ordinary_v1'));
+    const text = allText();
+    expect(text.some((q) => /not in\s*\(\s*select image_id from manual_labels where source\s*=\s*'webcam'/i.test(q))).toBe(true);
+    expect(text.some((q) => /manual_label_retests/i.test(q) && /not in/i.test(q))).toBe(false);
+  });
+});

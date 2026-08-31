@@ -207,6 +207,17 @@ export async function GET(request: Request) {
       // per request would drift while it was being rated. Overrides
       // disagreements_only — the whole point is the frames that queue skips.
       const sampleName = searchParams.get('sample');
+      // A retest sample (kind='retest') re-serves frames that BY CONSTRUCTION
+      // already have manual_labels rows — the operator is rating them a second
+      // time, blind, to measure test–retest reliability. Drop-out and progress
+      // for those read manual_label_retests instead; the manual_labels
+      // exclusion below would otherwise hide the entire sample.
+      const sampleKindRows = sampleName
+        ? ((await sql`
+            SELECT kind FROM label_samples WHERE sample_name = ${sampleName} LIMIT 1
+          `) as { kind: string }[])
+        : [];
+      const isRetest = sampleKindRows[0]?.kind === 'retest';
       // Over-fetch so the merged result can be paged in JS.
       const fetchN = limit + offset;
 
@@ -240,7 +251,12 @@ export async function GET(request: Request) {
                + ABS(COALESCE(e.ai_regression_score, 0) - COALESCE(e.llm_quality, 0)))`
         : sql`EXTRACT(EPOCH FROM e.scraped_at)`;
 
-      const webcamFilter = sampleName
+      const webcamFilter = sampleName && isRetest
+        ? sql`AND s.id IN (SELECT image_id FROM label_samples
+                            WHERE sample_name = ${sampleName} AND source = 'webcam')
+              AND s.id NOT IN (SELECT image_id FROM manual_label_retests
+                                WHERE source = 'webcam' AND origin = ${sampleName})`
+        : sampleName
         ? sql`AND s.id IN (SELECT image_id FROM label_samples
                             WHERE sample_name = ${sampleName} AND source = 'webcam')
               AND s.id NOT IN (SELECT image_id FROM manual_labels WHERE source = 'webcam')`
@@ -248,7 +264,12 @@ export async function GET(request: Request) {
         ? sql`AND s.model_disagreement_kind IS NOT NULL
               AND s.id NOT IN (SELECT image_id FROM manual_labels WHERE source = 'webcam')`
         : sql`AND s.id NOT IN (SELECT image_id FROM manual_labels WHERE source = 'webcam')`;
-      const externalFilter = sampleName
+      const externalFilter = sampleName && isRetest
+        ? sql`AND e.id IN (SELECT image_id FROM label_samples
+                            WHERE sample_name = ${sampleName} AND source = 'flickr')
+              AND e.id NOT IN (SELECT image_id FROM manual_label_retests
+                                WHERE source = 'flickr' AND origin = ${sampleName})`
+        : sampleName
         ? sql`AND e.id IN (SELECT image_id FROM label_samples
                             WHERE sample_name = ${sampleName} AND source = 'flickr')
               AND e.id NOT IN (SELECT image_id FROM manual_labels WHERE source = 'flickr')`
@@ -369,7 +390,18 @@ export async function GET(request: Request) {
       // reports what is still unrated.
       let sample: { name: string; size: number; labeled: number } | null = null;
       if (sampleName) {
-        const sampleRows = (await sql`
+        const sampleRows = isRetest
+          ? ((await sql`
+              SELECT
+                count(*)::int AS size,
+                count(r.id)::int AS labeled
+              FROM label_samples ls
+              LEFT JOIN manual_label_retests r
+                ON r.source = ls.source AND r.image_id = ls.image_id
+               AND r.origin = ls.sample_name
+              WHERE ls.sample_name = ${sampleName}
+            `) as { size: number; labeled: number }[])
+          : ((await sql`
           SELECT
             count(*)::int AS size,
             count(m.id)::int AS labeled
@@ -377,7 +409,7 @@ export async function GET(request: Request) {
           LEFT JOIN manual_labels m
             ON m.source = ls.source AND m.image_id = ls.image_id
           WHERE ls.sample_name = ${sampleName}
-        `) as { size: number; labeled: number }[];
+        `) as { size: number; labeled: number }[]);
         sample = {
           name: sampleName,
           size: sampleRows[0]?.size ?? 0,
