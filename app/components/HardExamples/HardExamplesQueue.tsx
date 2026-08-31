@@ -333,7 +333,11 @@ export function HardExamplesQueue({
   // reason — the server only recomputes them per page.
   const adjustCount = useCallback(
     (p: Provenance, delta: number, origin: string) => {
-      if (origin === SAMPLE_NAME) {
+      // Any fixed-sample origin (random draw or retest) moves the sample
+      // progress readout; only disagreement-queue labels move the
+      // by-provenance buckets. Keying on SAMPLE_NAME alone let retest saves
+      // fall through and silently drain a bucket while progress sat frozen.
+      if (origin === SAMPLE_NAME || origin === RETEST_SAMPLE_NAME) {
         setSample((s) =>
           s ? { ...s, labeled: Math.max(0, Math.min(s.size, s.labeled - delta)) } : s,
         );

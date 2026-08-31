@@ -831,4 +831,17 @@ describe('HardExamplesQueue retest queue', () => {
     expect(await screen.findByTestId('sample-progress')).toHaveTextContent('3 / 150');
     expect(screen.queryByText('left to rate:')).toBeNull();
   });
+
+  it('advances retest progress on a confirmed save, not the provenance buckets', async () => {
+    // adjustCount once keyed on SAMPLE_NAME alone, so a retest save fell
+    // through to the disagreement buckets: progress sat frozen and a bucket
+    // count drifted down.
+    await switchToRetest();
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Not a sunset (N)' }));
+    });
+    await waitFor(() =>
+      expect(screen.getByTestId('sample-progress')).toHaveTextContent('4 / 150'),
+    );
+  });
 });
