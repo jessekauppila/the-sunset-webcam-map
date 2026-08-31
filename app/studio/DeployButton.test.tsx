@@ -96,6 +96,37 @@ describe('DeployButton', () => {
     expect(onRevert).toHaveBeenCalledTimes(1);
   });
 
+  it('shows a failure line when onRevert rejects (no unhandled rejection), and a subsequent successful revert clears it', async () => {
+    const onRevert = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('revert failed: 500'))
+      .mockResolvedValueOnce(undefined);
+    render(<DeployButton diffCount={2} onDeploy={vi.fn()} onRevert={onRevert} />);
+
+    const revertButton = screen.getByRole('button', { name: /revert to glass/i });
+
+    fireEvent.click(revertButton);
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(onRevert).toHaveBeenCalledTimes(1);
+    expect(screen.getByText('revert failed — try again')).toBeInTheDocument();
+
+    // A subsequent click (now labeled "revert failed — try again") retries
+    // and, on success, clears the failure line.
+    fireEvent.click(screen.getByRole('button', { name: /revert failed/i }));
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(onRevert).toHaveBeenCalledTimes(2);
+    expect(screen.queryByText('revert failed — try again')).not.toBeInTheDocument();
+    expect(screen.getByText('↩ revert to glass')).toBeInTheDocument();
+  });
+
   it('compact variant renders DEPLOY and an N differ chip', () => {
     render(<DeployButton diffCount={4} onDeploy={vi.fn()} onRevert={vi.fn()} compact />);
 

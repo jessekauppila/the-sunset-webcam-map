@@ -74,10 +74,19 @@ export function DeployButton({
   // non-ok response) — cleared at the start of the next hold and whenever
   // diffCount changes (a new edit, or the deploy actually going through).
   const [deployFailed, setDeployFailed] = useState(false);
+  // Same pattern for revert() — cleared at the start of the next revert
+  // click and whenever diffCount changes.
+  const [revertFailed, setRevertFailed] = useState(false);
 
   useEffect(() => {
     setDeployFailed(false);
+    setRevertFailed(false);
   }, [diffCount]);
+
+  const handleRevertClick = () => {
+    setRevertFailed(false);
+    void onRevert().catch(() => setRevertFailed(true));
+  };
 
   const { holding, handlers } = useHoldToFire({
     ms: DEPLOY_HOLD_MS,
@@ -227,9 +236,7 @@ export function DeployButton({
       </button>
       <button
         type="button"
-        onClick={() => {
-          void onRevert();
-        }}
+        onClick={handleRevertClick}
         disabled={inSync}
         style={{
           display: 'block',
@@ -237,7 +244,7 @@ export function DeployButton({
           width: '100%',
           background: 'transparent',
           border: 'none',
-          color: '#8b95a7',
+          color: revertFailed ? FAIL_FG : '#8b95a7',
           fontFamily: mono,
           fontSize: 11,
           padding: '4px 0',
@@ -245,7 +252,7 @@ export function DeployButton({
           opacity: inSync ? 0.35 : 1,
         }}
       >
-        ↩ revert to glass
+        {revertFailed ? 'revert failed — try again' : '↩ revert to glass'}
       </button>
     </div>
   );
