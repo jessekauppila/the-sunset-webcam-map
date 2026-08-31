@@ -55,6 +55,31 @@ describe('rowsToSceneState', () => {
     ]);
     expect(state.sunset.map((c) => c.rank)).toEqual([2, 9]);
   });
+
+  it('handles null rank and sorts nulls last', () => {
+    const { state } = rowsToSceneState([
+      row({ webcam_id: 1, rank: 1 }), row({ webcam_id: 2, rank: null }),
+    ]);
+    expect(state.sunset.map((c) => c.rank)).toEqual([1, undefined]);
+  });
+
+  it('preserves null llm fields (quality, is_sunset, model)', () => {
+    const { state } = rowsToSceneState([
+      row({ llm_quality: null, llm_is_sunset: null, llm_model: null }),
+    ]);
+    const cam = state.sunset[0];
+    expect(cam.llmQuality).toBeNull();
+    expect(cam.llmIsSunset).toBeNull();
+    expect(cam.llmModel).toBeNull();
+  });
+
+  it('returns empty state when given no rows', () => {
+    const { state, reconstructed, skipped } = rowsToSceneState([]);
+    expect(state.sunrise).toHaveLength(0);
+    expect(state.sunset).toHaveLength(0);
+    expect(reconstructed).toBe(0);
+    expect(skipped).toBe(0);
+  });
 });
 
 describe('reconstructScene', () => {
