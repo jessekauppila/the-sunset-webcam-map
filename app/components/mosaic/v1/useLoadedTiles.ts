@@ -64,9 +64,14 @@ export function useLoadedTiles(webcams: WindyWebcam[]): LoadedTilesResult {
       }
     };
 
-    for (const webcam of withPreview) {
+    // Frames are loaded with crossOrigin='anonymous' first so CORS-enabled
+    // hosts (Windy CDN) keep the canvas untainted; hosts that serve images
+    // without CORS headers (storage.googleapis.com snapshot frames) fail that
+    // load, so retry once without crossOrigin — the canvas taints, which is
+    // fine because nothing reads pixels back (drawImage only).
+    const loadFrame = (webcam: WindyWebcam, withCors: boolean) => {
       const img = new Image();
-      img.crossOrigin = 'anonymous';
+      if (withCors) img.crossOrigin = 'anonymous';
       img.onload = () => {
         if (cancelled) return;
         tiles.push({
@@ -82,10 +87,18 @@ export function useLoadedTiles(webcams: WindyWebcam[]): LoadedTilesResult {
       };
       img.onerror = () => {
         if (cancelled) return;
+        if (withCors) {
+          loadFrame(webcam, false);
+          return;
+        }
         skipped += 1;
         maybeFinish();
       };
       img.src = webcam.images!.current!.preview;
+    };
+
+    for (const webcam of withPreview) {
+      loadFrame(webcam, true);
     }
 
     return () => {
