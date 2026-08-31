@@ -80,6 +80,28 @@ Scored through the verified pipeline only. ALL of:
   is a design doc for the calibration job. (Jesse, 2026-08-31: if we go
   there, we go deliberately.)
 
-## Verdict
+## Verdict (2026-08-31, run `20260831_143028_v5_binary_gold_hne8`)
 
-_(empty until the run and both evals complete)_
+**BAR FAILS on the class-effect clause. Per the decision rule, the committed
+direction is automatic per-camera calibration.**
+
+| clause | required | measured | result |
+|---|---|---|---|
+| class effect (held-out 122) | ≤ 61 shown | **67 shown** (median p 0.623) | **FAIL** |
+| no harm: pooled F1 @0.55 | ≥ 0.777 | 0.787 (prec 0.881 / rec 0.711) | pass |
+| no harm: pooled false-shows | ≤ 16/365 | 13/365 | pass |
+| no harm: ≥4 shown | ≥ 26/28 | 27/28 | pass |
+| ship gate (fresh draw) | — | not reached | moot |
+
+Honest reading: the emphasis had a **real effect** — 122/122 → 67/122 on
+frames the model never trained on, at the cost of ~0.01 F1 (inside the wash
+band) — but 45% is not the registered 50%, and after three detection changes
+that died on fresh data, a near-miss does not get talked into a pass.
+Re-running with a bigger factor to chase the bar would be tuning on the
+eval — the forbidden move. Also decisive: even a passing candidate would
+have left 55% of the class false-showing, so calibration would have been
+needed regardless; the experiment mainly proved the residual is real.
+
+Emphasis remains available as a technique (tooling stays committed) but is
+NOT part of the standard recipe. Next step per the decision rule: design
+doc for the nightly per-camera calibration job.
