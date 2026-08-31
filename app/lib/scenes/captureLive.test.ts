@@ -92,6 +92,46 @@ describe('captureLiveScene', () => {
     expect(result.provenance.activeVersion).toBe('v1');
   });
 
+  it('pins >5 volatile frames in bounded chunks, preserving pool order and accounting for null and rejected pins', async () => {
+    const cams = Array.from({ length: 8 }, (_, i) =>
+      cam({
+        webcamId: i + 1,
+        images: { current: { preview: `https://images-webcams.windy.com/${i + 1}.jpg` } },
+      })
+    );
+    fetchTerminatorWebcams.mockResolvedValue(cams);
+
+    captureWebcamSnapshot.mockImplementation((c: WindyWebcam) => {
+      if (c.webcamId === 3) return Promise.resolve(null); // null result -> pinFailure
+      if (c.webcamId === 6) return Promise.reject(new Error('boom')); // rejection -> pinFailure
+      return Promise.resolve({
+        url: `https://storage.googleapis.com/bucket/pinned-${c.webcamId}.jpg`,
+        path: 'p',
+      });
+    });
+
+    const result = await captureLiveScene();
+
+    expect(result.pinned).toBe(6);
+    expect(result.pinFailures).toBe(2);
+    // Original pool order (webcamId 1..8) must be preserved in the output.
+    expect(result.state.sunset.map((c) => c.webcamId)).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
+    // Failed pins (null and rejected) keep the original, unmutated cam/URL.
+    expect(result.state.sunset[2].images?.current.preview).toBe(
+      'https://images-webcams.windy.com/3.jpg'
+    );
+    expect(result.state.sunset[5].images?.current.preview).toBe(
+      'https://images-webcams.windy.com/6.jpg'
+    );
+    // Successful pins swap in the uploaded URL, including one from the second chunk.
+    expect(result.state.sunset[0].images?.current.preview).toBe(
+      'https://storage.googleapis.com/bucket/pinned-1.jpg'
+    );
+    expect(result.state.sunset[7].images?.current.preview).toBe(
+      'https://storage.googleapis.com/bucket/pinned-8.jpg'
+    );
+  });
+
   it('preserves sibling image fields when pinning volatile frames', async () => {
     const volatile = cam({
       webcamId: 9,

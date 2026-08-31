@@ -30,29 +30,47 @@ export interface LiveCaptureResult {
   pinFailures: number;
 }
 
+// Bound how many pins run at once so a ~30-cam pool at 1-2s each doesn't
+// push against the POST route's maxDuration=60s by running fully serially.
+const PIN_CONCURRENCY = 5;
+
 export async function captureLiveScene(): Promise<LiveCaptureResult> {
   const webcams = await fetchTerminatorWebcams();
   let pinned = 0;
   let pinFailures = 0;
 
-  const frozen: WindyWebcam[] = [];
-  for (const cam of webcams) {
+  // Preallocate by index so pool order survives out-of-order chunk settling.
+  const frozen: WindyWebcam[] = new Array(webcams.length);
+  const volatileIndices: number[] = [];
+
+  webcams.forEach((cam, index) => {
     const preview = cam.images?.current?.preview;
     if (isDurableFrameUrl(preview)) {
-      frozen.push(cam);
-      continue;
-    }
-    const uploaded = await captureWebcamSnapshot(cam);
-    if (uploaded) {
-      pinned += 1;
-      frozen.push({
-        ...cam,
-        images: { ...cam.images, current: { ...cam.images?.current, preview: uploaded.url } },
-      });
+      frozen[index] = cam;
     } else {
-      pinFailures += 1;
-      frozen.push(cam);
+      volatileIndices.push(index);
     }
+  });
+
+  for (let start = 0; start < volatileIndices.length; start += PIN_CONCURRENCY) {
+    const chunkIndices = volatileIndices.slice(start, start + PIN_CONCURRENCY);
+    const settled = await Promise.allSettled(
+      chunkIndices.map((index) => captureWebcamSnapshot(webcams[index]))
+    );
+    settled.forEach((outcome, i) => {
+      const index = chunkIndices[i];
+      const cam = webcams[index];
+      if (outcome.status === 'fulfilled' && outcome.value) {
+        pinned += 1;
+        frozen[index] = {
+          ...cam,
+          images: { ...cam.images, current: { ...cam.images?.current, preview: outcome.value.url } },
+        };
+      } else {
+        pinFailures += 1;
+        frozen[index] = cam;
+      }
+    });
   }
 
   const state: SceneState = {
