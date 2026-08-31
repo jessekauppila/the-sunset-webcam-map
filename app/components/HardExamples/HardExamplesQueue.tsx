@@ -44,6 +44,15 @@ type SampleProgress = { name: string; size: number; labeled: number };
 // to v3 while two test expectations still hardcoded v2, and main went red.
 export const SAMPLE_NAME = 'random_ordinary_v3';
 
+// The ACTIVE retest sample — already-rated frames served back BLIND so the
+// operator's test–retest agreement (the ceiling for any model trained on
+// these labels) can be measured. Loaded by `ml/load_retest_sample.py`; the
+// server routes this origin into manual_label_retests, so the re-ratings can
+// never overwrite the gold rows in manual_labels. Analysis:
+// `ml/analyze_retest.py --sample-name retest_v1` (quality-ceiling roadmap,
+// Phase 0).
+export const RETEST_SAMPLE_NAME = 'retest_v1';
+
 const BATCH = 120;
 const SIDE = 2; // thumbs each side (symmetric)
 const THUMB_W = 104;
@@ -157,7 +166,7 @@ export function HardExamplesQueue({
   const [blind, setBlind] = useState(true);
   const [view, setView] = useState<'queue' | 'grid'>('queue');
   const [source, setSource] = useState<'all' | 'webcam' | 'flickr'>('all');
-  const [queue, setQueue] = useState<'disagreements' | 'sample'>('disagreements');
+  const [queue, setQueue] = useState<'disagreements' | 'sample' | 'retest'>('disagreements');
 
   const [snapshots, setSnapshots] = useState<QueuedSnapshot[]>([]);
   const [counts, setCounts] = useState<Counts>({ archiveTrained: 0, archiveNew: 0, flickr: 0 });
@@ -209,15 +218,17 @@ export function HardExamplesQueue({
       // Read the mode ONCE, here, and carry it through this whole request. The
       // request, the frames it returns and the origin they are labeled with all
       // come from this single value, so they cannot disagree with each other.
-      const fetchOrigin = queue === 'sample' ? SAMPLE_NAME : 'hard_example';
+      const activeSample =
+        queue === 'sample' ? SAMPLE_NAME : queue === 'retest' ? RETEST_SAMPLE_NAME : null;
+      const fetchOrigin = activeSample ?? 'hard_example';
       try {
         const srcParam = source === 'all' ? '' : `&source=${source}`;
-        // The sample is a fixed set served in its own frozen order, so it takes
-        // the place of the disagreement ranking rather than layering on top.
-        const queueParam =
-          queue === 'sample'
-            ? `&sample=${encodeURIComponent(SAMPLE_NAME)}`
-            : '&disagreements_only=true';
+        // A sample (random or retest) is a fixed set served in its own frozen
+        // order, so it takes the place of the disagreement ranking rather than
+        // layering on top.
+        const queueParam = activeSample
+          ? `&sample=${encodeURIComponent(activeSample)}`
+          : '&disagreements_only=true';
         const r = await fetch(
           `/api/snapshots?mode=verification${queueParam}&limit=${batchSize}&offset=${offset}${srcParam}`,
         );
@@ -461,6 +472,7 @@ export function HardExamplesQueue({
       >
         <ToggleButton value="disagreements">Disagreements</ToggleButton>
         <ToggleButton value="sample">Random sample</ToggleButton>
+        <ToggleButton value="retest">Retest</ToggleButton>
       </ToggleButtonGroup>
       <Box sx={{ flex: 1 }} />
       {saved.total != null && (
@@ -475,12 +487,12 @@ export function HardExamplesQueue({
           </span>
         </Box>
       )}
-      {queue === 'sample' ? (
+      {queue !== 'disagreements' ? (
         <Box
           data-testid="sample-progress"
           sx={{ display: 'flex', gap: 0.75, fontSize: 12, alignItems: 'center' }}
         >
-          <span style={{ color: '#94a3b8' }}>sample:</span>
+          <span style={{ color: '#94a3b8' }}>{queue === 'retest' ? 'retest:' : 'sample:'}</span>
           <span style={{ color: '#cbd5e1' }}>
             <b>{sample?.labeled ?? 0}</b> / {sample?.size ?? 0} rated
           </span>
@@ -531,9 +543,11 @@ export function HardExamplesQueue({
       ) : !current ? (
         <Box sx={{ flex: 1, display: 'grid', placeItems: 'center', minHeight: '36vh' }}>
           <Typography sx={{ color: '#9ca3af' }}>
-            {queue === 'sample'
+            {queue !== 'disagreements'
               ? !sample || sample.size === 0
-                ? `No frames in sample "${SAMPLE_NAME}" — load it with ml/load_label_sample.py.`
+                ? queue === 'retest'
+                  ? `No frames in sample "${RETEST_SAMPLE_NAME}" — load it with ml/load_retest_sample.py.`
+                  : `No frames in sample "${SAMPLE_NAME}" — load it with ml/load_label_sample.py.`
                 : sample.labeled >= sample.size
                 ? `Sample complete — all ${sample.size} frames rated.`
                 : // Running out of LOADED frames is not the same as finishing
@@ -607,7 +621,9 @@ export function HardExamplesQueue({
                 color: current.queueOrigin === SAMPLE_NAME ? '#6ee7b7' : '#94a3b8',
               }}
             >
-              {current.queueOrigin === SAMPLE_NAME
+              {current.queueOrigin === RETEST_SAMPLE_NAME
+                ? `Retest${sample ? ` · ${sample.labeled} of ${sample.size}` : ''}`
+                : current.queueOrigin === SAMPLE_NAME
                 ? `Random sample${sample ? ` · ${sample.labeled} of ${sample.size}` : ''}`
                 : 'Disagreement queue'}
             </Typography>
@@ -619,7 +635,11 @@ export function HardExamplesQueue({
               {/* Sample frames carry no disagreement — and saying one exists
                   would prime the rating, which is the one thing this set has
                   to avoid. */}
-              {current.queueOrigin === SAMPLE_NAME
+              {current.queueOrigin === RETEST_SAMPLE_NAME
+                ? // Never hint that this frame was rated before, let alone what
+                  // it got — a remembered or primed rating defeats the retest.
+                  'Rate it on its own terms.'
+                : current.queueOrigin === SAMPLE_NAME
                 ? 'Random ordinary frame — rate it on its own terms.'
                 : current.modelDisagreementKind
                 ? WHY[current.modelDisagreementKind] ?? 'Judges disagree on this frame.'

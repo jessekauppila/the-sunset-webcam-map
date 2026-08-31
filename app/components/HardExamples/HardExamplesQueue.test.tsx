@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import HardExamplesQueue, { SAMPLE_NAME } from './HardExamplesQueue';
+import HardExamplesQueue, { SAMPLE_NAME, RETEST_SAMPLE_NAME } from './HardExamplesQueue';
 
 // Two frames with different provenance so we can assert the right bucket moves.
 const FRAMES = [
@@ -609,5 +609,72 @@ describe('HardExamplesQueue population integrity (regression, 2026-08-29)', () =
     // 120 of 200 rated must never read as finished.
     await waitFor(() => expect(screen.getByText(/still unrated/)).toBeTruthy());
     expect(screen.queryByText(/Sample complete/)).toBeNull();
+  });
+});
+
+describe('HardExamplesQueue retest queue', () => {
+  // Third queue: already-rated frames served back BLIND so the operator's
+  // test–retest agreement (the ceiling for any model) can be measured. Same
+  // fetch-time origin stamping as the random sample — the server routes
+  // retest origins into manual_label_retests, so a wrong origin here would
+  // overwrite gold labels.
+  const RETEST = { name: RETEST_SAMPLE_NAME, size: 150, labeled: 3 };
+
+  const urls: string[] = [];
+  beforeEach(() => {
+    urls.length = 0;
+    labelSeq = 0;
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      urls.push(String(url));
+      if (String(url).startsWith('/api/snapshots')) {
+        const isRetest = String(url).includes(`sample=${RETEST_SAMPLE_NAME}`);
+        return {
+          ok: true,
+          json: async () => ({
+            snapshots: isRetest
+              ? FRAMES.map((f) => ({ ...f, modelDisagreementKind: null }))
+              : FRAMES,
+            total: 2,
+            counts: COUNTS,
+            sample: isRetest ? RETEST : null,
+          }),
+        } as Response;
+      }
+      return labelResponse();
+    }));
+  });
+
+  const switchToRetest = async () => {
+    render(<HardExamplesQueue />);
+    await screen.findByText('Frame one');
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Retest' }));
+    });
+  };
+
+  it('asks for the retest sample instead of the disagreement ranking', async () => {
+    await switchToRetest();
+    const last = urls.filter((u) => u.startsWith('/api/snapshots')).at(-1) ?? '';
+    expect(last).toContain(`sample=${RETEST_SAMPLE_NAME}`);
+    expect(last).not.toContain('disagreements_only=true');
+  });
+
+  it('stamps the retest sample name as origin on saves', async () => {
+    await switchToRetest();
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Not a sunset (N)' }));
+    });
+    const post = (fetch as unknown as ReturnType<typeof vi.fn>).mock.calls.find(
+      (c) => String(c[0]).startsWith('/api/manual-labels'),
+    );
+    expect(JSON.parse(String((post?.[1] as RequestInit)?.body)).origin).toBe(
+      RETEST_SAMPLE_NAME,
+    );
+  });
+
+  it('shows progress through the retest draw', async () => {
+    await switchToRetest();
+    expect(await screen.findByTestId('sample-progress')).toHaveTextContent('3 / 150');
+    expect(screen.queryByText('left to rate:')).toBeNull();
   });
 });
