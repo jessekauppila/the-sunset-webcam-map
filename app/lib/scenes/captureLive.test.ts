@@ -79,4 +79,45 @@ describe('captureLiveScene', () => {
     const result = await captureLiveScene();
     expect(result.provenance.activeVersion).toBe('v1');
   });
+
+  it('preserves sibling image fields when pinning volatile frames', async () => {
+    const volatile = cam({
+      webcamId: 9,
+      images: {
+        sizes: {
+          icon: { width: 48, height: 48 },
+          preview: { width: 400, height: 224 },
+          thumbnail: { width: 200, height: 112 },
+        },
+        current: {
+          preview: 'https://images-webcams.windy.com/9.jpg',
+          icon: 'i.jpg',
+          thumbnail: 't.jpg',
+        },
+        daylight: {
+          icon: 'di.jpg',
+          preview: 'dp.jpg',
+          thumbnail: 'dt.jpg',
+        },
+      },
+    });
+    fetchTerminatorWebcams.mockResolvedValue([volatile]);
+    captureWebcamSnapshot.mockResolvedValue({ url: 'https://firebasestorage.googleapis.com/pinned-9.jpg', path: 'p' });
+    const result = await captureLiveScene();
+    expect(result.pinned).toBe(1);
+    expect(result.state.sunset[0].images?.current.preview)
+      .toBe('https://firebasestorage.googleapis.com/pinned-9.jpg');
+    expect(result.state.sunset[0].images?.current.icon).toBe('i.jpg');
+    expect(result.state.sunset[0].images?.current.thumbnail).toBe('t.jpg');
+    expect(result.state.sunset[0].images?.sizes).toEqual({
+      icon: { width: 48, height: 48 },
+      preview: { width: 400, height: 224 },
+      thumbnail: { width: 200, height: 112 },
+    });
+    expect(result.state.sunset[0].images?.daylight).toEqual({
+      icon: 'di.jpg',
+      preview: 'dp.jpg',
+      thumbnail: 'dt.jpg',
+    });
+  });
 });
