@@ -34,9 +34,12 @@ const COUNTS = { archiveTrained: 10, archiveNew: 5, flickr: 7 };
 // What POST /api/manual-labels returns: the stored row plus the table's own
 // total. The queue treats the returned row as its proof the label persisted.
 let labelSeq = 0;
+// `removed` is the DELETE half of the same contract: the row count the database
+// actually deleted. Undo trusts that number the way rating trusts `saved`.
 const labelBody = () => ({
   ok: true,
   saved: { id: ++labelSeq, labeledAt: '2026-08-08T02:35:24.017Z' },
+  removed: 1,
   labeledTotal: 100 + labelSeq,
 });
 const labelResponse = () =>
@@ -383,6 +386,157 @@ describe('HardExamplesQueue rapid rating', () => {
   });
 });
 
+// The rated thumbnails show the model's score and Claude's verdict — both fixed
+// properties of the frame. Without your own label beside them there is no way to
+// tell a rated frame from a skipped one, or to see that an undo did anything.
+describe('HardExamplesQueue label feedback', () => {
+  beforeEach(() => {
+    vi.stubGlobal('fetch', mockFetch());
+  });
+
+  it('shows your own rating on the frame you just rated', async () => {
+    const user = userEvent.setup();
+    render(<HardExamplesQueue />);
+    await waitFor(() => expect(screen.getByText('Frame one')).toBeTruthy());
+
+    await user.keyboard('4');
+
+    await waitFor(() => expect(screen.getByText('you: 4★')).toBeTruthy());
+  });
+
+  it('shows a "not a sunset" label as words, not a star rating', async () => {
+    const user = userEvent.setup();
+    render(<HardExamplesQueue />);
+    await waitFor(() => expect(screen.getByText('Frame one')).toBeTruthy());
+
+    await user.keyboard('n');
+
+    await waitFor(() => expect(screen.getByText('you: not a sunset')).toBeTruthy());
+  });
+
+  it('shows nothing for a frame you skipped', async () => {
+    const user = userEvent.setup();
+    render(<HardExamplesQueue />);
+    await waitFor(() => expect(screen.getByText('Frame one')).toBeTruthy());
+
+    await user.keyboard(' ');
+
+    await waitFor(() => expect(screen.getByText('Frame two')).toBeTruthy());
+    expect(screen.queryByText(/^you: /)).toBeNull();
+  });
+
+  it('says the rating was cleared when you step back onto it', async () => {
+    const user = userEvent.setup();
+    render(<HardExamplesQueue />);
+    await waitFor(() => expect(screen.getByText('Frame one')).toBeTruthy());
+
+    await user.keyboard('4');
+    await waitFor(() => expect(screen.getByText('you: 4★')).toBeTruthy());
+    await user.keyboard('z');
+
+    // Back on frame one, with visible evidence the 4 is gone and re-rating is
+    // what's wanted — the whole point of pressing z.
+    await waitFor(() => expect(screen.getByText('Frame one')).toBeTruthy());
+    const note = await waitFor(() => screen.getByTestId('your-label'));
+    expect(note.textContent).toContain('cleared');
+    expect(note.textContent).toContain('4★');
+    expect(screen.queryByText('you: 4★')).toBeNull();
+  });
+
+  it('replaces the cleared note with the new rating when you re-rate', async () => {
+    const user = userEvent.setup();
+    render(<HardExamplesQueue />);
+    await waitFor(() => expect(screen.getByText('Frame one')).toBeTruthy());
+
+    await user.keyboard('4');
+    await waitFor(() => expect(screen.getByText('you: 4★')).toBeTruthy());
+    await user.keyboard('z');
+    await waitFor(() => expect(screen.getByTestId('your-label')).toBeTruthy());
+    await user.keyboard('2');
+
+    await waitFor(() => expect(screen.getByText('you: 2★')).toBeTruthy());
+    expect(screen.queryByText('you: 4★')).toBeNull();
+  });
+});
+
+describe('HardExamplesQueue undo integrity', () => {
+  it('reports a failure when the database deleted no row', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string, init?: RequestInit) => {
+        if (String(url).startsWith('/api/snapshots')) {
+          return {
+            ok: true,
+            json: async () => ({ snapshots: FRAMES, total: FRAMES.length, counts: COUNTS }),
+          } as Response;
+        }
+        if (init?.method === 'DELETE') {
+          // 200, but nothing was on record to remove. Treating that as success
+          // is how an undo silently fails to change the value.
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({ ok: true, removed: 0, labeledTotal: 101 }),
+          } as Response;
+        }
+        return labelResponse();
+      }),
+    );
+    const user = userEvent.setup();
+    render(<HardExamplesQueue />);
+    await waitFor(() => expect(bucketText()).toContain('Archive·new 5'));
+
+    await user.keyboard('4');
+    await waitFor(() => expect(bucketText()).toContain('Archive·new 4'));
+    await user.keyboard('z');
+
+    await waitFor(() => expect(screen.getByText(/Undo failed/)).toBeTruthy());
+    // The label is still on record, so the bucket must not go back up and the
+    // frame must still read as rated.
+    expect(bucketText()).toContain('Archive·new 4');
+    // The cursor already stepped back, so the frame reads as still rated on the
+    // card rather than as cleared.
+    expect(screen.getByTestId('your-label').textContent).toBe('your rating: 4★');
+  });
+
+  it('waits for the save it is undoing before deleting the row', async () => {
+    const methods: string[] = [];
+    let release: (r: Response) => void = () => {};
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string, init?: RequestInit) => {
+        if (String(url).startsWith('/api/snapshots')) {
+          return {
+            ok: true,
+            json: async () => ({ snapshots: FRAMES, total: FRAMES.length, counts: COUNTS }),
+          } as Response;
+        }
+        methods.push(String(init?.method));
+        if (init?.method === 'DELETE') return labelResponse();
+        // Hold the POST open — the window in which a DELETE would find no row.
+        return new Promise<Response>((res) => {
+          release = res;
+        });
+      }),
+    );
+    const user = userEvent.setup();
+    render(<HardExamplesQueue />);
+    await waitFor(() => expect(screen.getByText('Frame one')).toBeTruthy());
+
+    await user.keyboard('4');
+    await waitFor(() => expect(methods).toEqual(['POST']));
+    await user.keyboard('z');
+
+    // The DELETE must not race ahead of the insert: it would remove nothing,
+    // the POST would land after it, and the label would survive the undo.
+    await new Promise((r) => setTimeout(r, 0));
+    expect(methods).toEqual(['POST']);
+
+    release(labelResponse());
+    await waitFor(() => expect(methods).toEqual(['POST', 'DELETE']));
+  });
+});
+
 describe('HardExamplesQueue rubric legend', () => {
   beforeEach(() => {
     vi.stubGlobal('fetch', mockFetch());
@@ -676,5 +830,18 @@ describe('HardExamplesQueue retest queue', () => {
     await switchToRetest();
     expect(await screen.findByTestId('sample-progress')).toHaveTextContent('3 / 150');
     expect(screen.queryByText('left to rate:')).toBeNull();
+  });
+
+  it('advances retest progress on a confirmed save, not the provenance buckets', async () => {
+    // adjustCount once keyed on SAMPLE_NAME alone, so a retest save fell
+    // through to the disagreement buckets: progress sat frozen and a bucket
+    // count drifted down.
+    await switchToRetest();
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Not a sunset (N)' }));
+    });
+    await waitFor(() =>
+      expect(screen.getByTestId('sample-progress')).toHaveTextContent('4 / 150'),
+    );
   });
 });
