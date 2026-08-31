@@ -4,6 +4,8 @@ import { NextResponse } from 'next/server';
 
 const requireOwnerMock = vi.fn();
 const upsertMock = vi.fn();
+const upsertRetestMock = vi.fn();
+const resolveDestMock = vi.fn();
 const deleteMock = vi.fn();
 const countMock = vi.fn();
 
@@ -12,6 +14,8 @@ vi.mock('@/app/lib/owner', () => ({
 }));
 vi.mock('@/app/lib/manualLabels', () => ({
   upsertManualLabel: (...a: unknown[]) => upsertMock(...a),
+  upsertRetestLabel: (...a: unknown[]) => upsertRetestMock(...a),
+  resolveLabelDestination: (...a: unknown[]) => resolveDestMock(...a),
   deleteManualLabel: (...a: unknown[]) => deleteMock(...a),
   countManualLabels: (...a: unknown[]) => countMock(...a),
 }));
@@ -29,6 +33,8 @@ const post = (body: unknown) =>
 beforeEach(() => {
   requireOwnerMock.mockReset().mockResolvedValue(null);
   upsertMock.mockReset().mockResolvedValue(SAVED);
+  upsertRetestMock.mockReset().mockResolvedValue(SAVED);
+  resolveDestMock.mockReset().mockResolvedValue('gold');
   deleteMock.mockReset().mockResolvedValue(1);
   countMock.mockReset().mockResolvedValue(113);
 });
@@ -90,6 +96,42 @@ describe('POST /api/manual-labels', () => {
     expect(upsertMock).toHaveBeenCalledWith({
       source: 'flickr', imageId: 5709, isSunset: true, rating: 3, origin: null,
     });
+  });
+});
+
+describe('POST /api/manual-labels — retest routing', () => {
+  // A retest label written through upsertManualLabel would ON CONFLICT
+  // OVERWRITE the operator's gold label; these pin the fork in the road.
+  it('routes a retest-sample label into manual_label_retests, never manual_labels', async () => {
+    resolveDestMock.mockResolvedValue('retest');
+    const res = await POST(
+      post({ source: 'webcam', imageId: 7, isSunset: true, rating: 3, origin: 'retest_v1' }),
+    );
+    expect(res.status).toBe(200);
+    expect(resolveDestMock).toHaveBeenCalledWith('retest_v1', 'webcam', 7);
+    expect(upsertRetestMock).toHaveBeenCalledWith({
+      source: 'webcam', imageId: 7, isSunset: true, rating: 3, origin: 'retest_v1',
+    });
+    expect(upsertMock).not.toHaveBeenCalled();
+  });
+  it('rejects a retest origin for a frame outside the sample (400, nothing written)', async () => {
+    // Without this, a stray retest origin would fall through to the gold
+    // upsert and overwrite the original label.
+    resolveDestMock.mockResolvedValue('reject');
+    const res = await POST(
+      post({ source: 'webcam', imageId: 999, isSunset: false, origin: 'retest_v1' }),
+    );
+    expect(res.status).toBe(400);
+    expect(upsertMock).not.toHaveBeenCalled();
+    expect(upsertRetestMock).not.toHaveBeenCalled();
+  });
+  it('leaves hard_example and draw-sample origins on the gold path', async () => {
+    const res = await POST(
+      post({ source: 'webcam', imageId: 7, isSunset: true, rating: 4, origin: 'random_ordinary_v1' }),
+    );
+    expect(res.status).toBe(200);
+    expect(upsertMock).toHaveBeenCalled();
+    expect(upsertRetestMock).not.toHaveBeenCalled();
   });
 });
 
