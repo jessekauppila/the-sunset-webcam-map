@@ -318,6 +318,12 @@ export async function insertWindyDisagreementSnapshot(opts: {
   // null when the frame is persisted for a non-disagreement reason
   // (high-rated or all-rated capture toggles), not the Hard Examples queue.
   disagreementKind: string | null;
+  // Binary-head evidence. Absent when AI_BINARY_SCORING_ENABLED is off —
+  // columns stay NULL so training exports can tell "no binary head ran"
+  // from a real verdict.
+  aiBinaryScore?: number;
+  aiBinaryIsSunset?: boolean;
+  aiModelVersionBinary?: string;
 }): Promise<number> {
   const [row] = (await sql`
     insert into webcam_snapshots (
@@ -329,6 +335,9 @@ export async function insertWindyDisagreementSnapshot(opts: {
       ai_rating,
       ai_regression_score,
       ai_model_version_regression,
+      ai_binary_score,
+      ai_binary_is_sunset,
+      ai_model_version_binary,
       scoring_path,
       model_disagreement_kind,
       captured_at
@@ -342,6 +351,9 @@ export async function insertWindyDisagreementSnapshot(opts: {
       ${opts.aiRating},
       ${opts.aiRegressionScore},
       ${opts.aiModelVersionRegression},
+      ${opts.aiBinaryScore ?? null},
+      ${opts.aiBinaryIsSunset ?? null},
+      ${opts.aiModelVersionBinary ?? null},
       ${opts.scoringPath},
       ${opts.disagreementKind},
       now()
