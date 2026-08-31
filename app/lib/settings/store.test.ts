@@ -1,15 +1,23 @@
 // @vitest-environment node
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
+type SqlTag = {
+  (strings: TemplateStringsArray, ...values: unknown[]): unknown;
+  transaction: unknown;
+  __sqlMock: unknown;
+  __txnMock: unknown;
+};
+
 vi.mock('@/app/lib/db', async () => {
   const sqlMockFn = vi.fn();
   const txnMockFn = vi.fn();
 
   const tag = (strings: TemplateStringsArray, ...values: unknown[]) =>
     sqlMockFn(strings, ...values);
-  (tag as any).transaction = txnMockFn;
-  (tag as any).__sqlMock = sqlMockFn;
-  (tag as any).__txnMock = txnMockFn;
+  const tagWithMocks = tag as unknown as SqlTag;
+  tagWithMocks.transaction = txnMockFn;
+  tagWithMocks.__sqlMock = sqlMockFn;
+  tagWithMocks.__txnMock = txnMockFn;
 
   return { sql: tag };
 });
@@ -17,8 +25,8 @@ vi.mock('@/app/lib/db', async () => {
 import { getProfileSettings, putStudioNamespace, copyProfile } from './store';
 import { sql } from '@/app/lib/db';
 
-const sqlMock = (sql as any).__sqlMock;
-const txnMock = (sql as any).__txnMock;
+const sqlMock = (sql as unknown as SqlTag).__sqlMock;
+const txnMock = (sql as unknown as SqlTag).__txnMock;
 
 beforeEach(() => {
   sqlMock.mockReset();
