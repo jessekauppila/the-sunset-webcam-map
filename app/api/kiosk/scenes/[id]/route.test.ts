@@ -43,6 +43,13 @@ it('GET rejects a non-numeric id', async () => {
   expect(getScene).not.toHaveBeenCalled();
 });
 
+it('PATCH denies non-owners without touching the store', async () => {
+  requireOwner.mockResolvedValue(NextResponse.json({ error: 'nope' }, { status: 403 }));
+  const res = await PATCH(req({ label: 'x' }), params('2'));
+  expect(res.status).toBe(403);
+  expect(updateSceneMeta).not.toHaveBeenCalled();
+});
+
 it('PATCH updates metadata only', async () => {
   updateSceneMeta.mockResolvedValue(true);
   const res = await PATCH(req({ label: 'renamed', tags: ['grant'] }), params('2'));
@@ -61,6 +68,13 @@ it('PATCH and DELETE 404 on a missing id', async () => {
   expect((await PATCH(req({ label: 'x' }), params('9'))).status).toBe(404);
   deleteScene.mockResolvedValue(false);
   expect((await DELETE(req(), params('9'))).status).toBe(404);
+});
+
+it('DELETE denies non-owners without touching the store', async () => {
+  requireOwner.mockResolvedValue(NextResponse.json({ error: 'nope' }, { status: 403 }));
+  const res = await DELETE(req(), params('2'));
+  expect(res.status).toBe(403);
+  expect(deleteScene).not.toHaveBeenCalled();
 });
 
 it('DELETE removes a scene', async () => {

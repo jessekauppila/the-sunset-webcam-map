@@ -43,6 +43,14 @@ describe('GET /api/kiosk/scenes', () => {
 });
 
 describe('POST /api/kiosk/scenes', () => {
+  it('denies non-owners without touching the store or capture', async () => {
+    requireOwner.mockResolvedValue(NextResponse.json({ error: 'nope' }, { status: 403 }));
+    const res = await post({ label: 'x', at: '2026-06-21T11:45:00Z' });
+    expect(res.status).toBe(403);
+    expect(createScene).not.toHaveBeenCalled();
+    expect(reconstructScene).not.toHaveBeenCalled();
+    expect(captureLiveScene).not.toHaveBeenCalled();
+  });
   it('rejects a missing label', async () => {
     expect((await post({ at: '2026-06-21T11:45:00Z' })).status).toBe(400);
   });
