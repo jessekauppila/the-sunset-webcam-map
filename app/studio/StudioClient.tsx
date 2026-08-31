@@ -3,19 +3,23 @@
 import { useState } from 'react';
 import { useLoadTerminatorWebcams } from '@/app/store/useLoadTerminatorWebcams';
 import { PreviewPane, type FeedView } from './PreviewPane';
+import { StudioRail } from './StudioRail';
+import { useStudioSettings } from './useStudioSettings';
+import { resolveMosaicName } from '@/app/components/mosaic/registry';
 import type { PanelSize } from '@/app/kiosk/panelPreview';
 
 /**
  * `/studio` chrome: left rail (dial controls, Task 11) + preview + a bottom
  * status strip (Task 13). This task lays out the grid, keeps `railCollapsed`
  * state and the collapse pill, and wires the preview to the live terminator
- * store — the rail's `<aside>` is a placeholder a later task fills in.
+ * store. The rail (Task 11) and its settings wiring are now real: panel
+ * size, version, and preview settings all flow from `useStudioSettings`.
  */
 
-// Hard-coded until Task 10 wires the real studio profile + settings.
-const PANEL: PanelSize = { width: 1440, height: 2560 };
-const PANEL_PRESET_LABEL = 'ktc · 1440×2560';
-const VERSION_NAME = 'v1';
+const PANEL_PRESETS: Record<string, PanelSize> = {
+  dell: { width: 1080, height: 1920 },
+  ktc: { width: 1440, height: 2560 },
+};
 
 const bg = '#0b0e14';
 const railBg = '#10141d';
@@ -29,9 +33,17 @@ const mono = 'ui-monospace, SFMono-Regular, Menlo, monospace';
 
 export function StudioClient() {
   useLoadTerminatorWebcams();
+  const settingsApi = useStudioSettings();
 
   const [railCollapsed, setRailCollapsed] = useState(false);
   const [view, setView] = useState<FeedView>('both');
+
+  const sharedSettings = settingsApi.effective('shared');
+  const panelPreset = (sharedSettings.panelPreset as string) ?? 'dell';
+  const panel = PANEL_PRESETS[panelPreset] ?? PANEL_PRESETS.dell;
+  const panelPresetLabel = `${panelPreset} · ${panel.width}×${panel.height}`;
+  const versionName = resolveMosaicName(sharedSettings.activeVersion as string | undefined);
+  const previewSettings = settingsApi.effective(versionName);
 
   return (
     <div
@@ -53,42 +65,12 @@ export function StudioClient() {
             gridRow: '1 / 2',
             background: railBg,
             borderRight: `1px solid ${railBorder}`,
-            overflow: 'auto',
+            overflow: 'hidden',
             padding: 16,
             boxSizing: 'border-box',
           }}
         >
-          <div
-            style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              marginBottom: 16,
-            }}
-          >
-            <span style={{ fontSize: 13, fontWeight: 600, color: dim }}>
-              dials
-            </span>
-            <button
-              type="button"
-              onClick={() => setRailCollapsed(true)}
-              aria-label="collapse dials"
-              style={{
-                background: 'transparent',
-                border: `1px solid ${railBorder}`,
-                borderRadius: 4,
-                color: dim,
-                fontSize: 12,
-                padding: '2px 8px',
-                cursor: 'pointer',
-              }}
-            >
-              «
-            </button>
-          </div>
-          <p style={{ fontSize: 12, color: dim, fontFamily: mono, margin: 0 }}>
-            dial controls arrive in a later task
-          </p>
+          <StudioRail api={settingsApi} onCollapse={() => setRailCollapsed(true)} />
         </aside>
       )}
 
@@ -105,10 +87,10 @@ export function StudioClient() {
         <PreviewPane
           view={view}
           onViewChange={setView}
-          panel={PANEL}
-          panelPresetLabel={PANEL_PRESET_LABEL}
-          versionName={VERSION_NAME}
-          settings={undefined}
+          panel={panel}
+          panelPresetLabel={panelPresetLabel}
+          versionName={versionName}
+          settings={previewSettings}
         />
 
         {railCollapsed && (
