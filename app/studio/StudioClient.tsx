@@ -6,6 +6,7 @@ import { useTerminatorStore } from '@/app/store/useTerminatorStore';
 import { PreviewPane, type FeedView } from './PreviewPane';
 import { StudioRail } from './StudioRail';
 import { useStudioSettings } from './useStudioSettings';
+import { useSceneWebcams, type SceneSource } from './useSceneWebcams';
 import { DeployButton } from './DeployButton';
 import { StatusStrip } from './StatusStrip';
 import { resolveMosaicName } from '@/app/components/mosaic/registry';
@@ -36,7 +37,9 @@ const pillBg = 'rgba(16,20,29,.85)';
 const pillBorder = '#232a38';
 
 export function StudioClient() {
-  useLoadTerminatorWebcams();
+  const [sceneSource, setSceneSource] = useState<SceneSource>({ kind: 'live' });
+  useLoadTerminatorWebcams({ paused: sceneSource.kind === 'scene' });
+  const { scenes, sceneState, error: sceneError } = useSceneWebcams(sceneSource);
   const settingsApi = useStudioSettings();
   const sunriseWebcams = useTerminatorStore((t) => t.sunrise);
   const sunsetWebcams = useTerminatorStore((t) => t.sunset);
@@ -131,6 +134,11 @@ export function StudioClient() {
           panelPresetLabel={panelPresetLabel}
           versionName={versionName}
           settings={previewSettings}
+          scenes={scenes}
+          sceneSource={sceneSource}
+          onSceneSourceChange={setSceneSource}
+          sceneState={sceneState}
+          error={sceneError}
         />
 
         {railCollapsed && (

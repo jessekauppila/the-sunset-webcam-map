@@ -28,9 +28,15 @@ global.ResizeObserver = StubResizeObserver;
 let capturedFeeds: string[] = [];
 
 vi.mock('@/app/components/mosaic/registry', () => ({
-  resolveMosaic: () => (props: { feed: string }) => {
+  resolveMosaic: () => (props: { feed: string; webcams: Array<{ webcamId: number }> }) => {
     capturedFeeds.push(props.feed);
-    return <div data-testid={`mosaic-${props.feed}`} />;
+    return (
+      <div data-testid={`mosaic-${props.feed}`}>
+        {props.webcams.map((w) => (
+          <div key={w.webcamId} data-testid={`tile-${w.webcamId}`} />
+        ))}
+      </div>
+    );
   },
   resolveMosaicName: (v: string | null | undefined) => v ?? 'v1',
 }));
@@ -117,5 +123,94 @@ describe('PreviewPane', () => {
     );
 
     expect(screen.getByText('ktc · 1440×2560')).toBeTruthy();
+  });
+
+  it('renders scene state webcams instead of the live store when a scene is selected', () => {
+    render(
+      <PreviewPane
+        view="sunset"
+        onViewChange={() => {}}
+        panel={PANEL}
+        panelPresetLabel="ktc · 1440×2560"
+        versionName="v1"
+        scenes={[
+          {
+            id: 1,
+            label: 'solstice',
+            tags: [],
+            representsAt: '2026-06-21T11:45:00Z',
+            source: 'historical',
+            createdAt: '2026-06-21T11:45:00Z',
+          },
+        ]}
+        sceneSource={{ kind: 'scene', id: 1 }}
+        onSceneSourceChange={() => {}}
+        sceneState={{
+          sunrise: [],
+          sunset: [{ webcamId: 42, title: 'scene sunset cam' } as unknown as WindyWebcam],
+        }}
+      />
+    );
+
+    expect(screen.getByTestId('tile-42')).toBeTruthy();
+    expect(screen.queryByTestId('tile-1')).toBeNull();
+  });
+
+  it('renders no live tiles and a loading status when a scene is selected but not yet loaded', () => {
+    render(
+      <PreviewPane
+        view="sunset"
+        onViewChange={() => {}}
+        panel={PANEL}
+        panelPresetLabel="ktc · 1440×2560"
+        versionName="v1"
+        scenes={[
+          {
+            id: 1,
+            label: 'solstice',
+            tags: [],
+            representsAt: '2026-06-21T11:45:00Z',
+            source: 'historical',
+            createdAt: '2026-06-21T11:45:00Z',
+          },
+        ]}
+        sceneSource={{ kind: 'scene', id: 1 }}
+        onSceneSourceChange={() => {}}
+        sceneState={null}
+      />
+    );
+
+    // Live store has webcamId 1 in both feeds (see beforeEach) — it must not leak through.
+    expect(screen.queryByTestId('tile-1')).toBeNull();
+    expect(screen.getByText('loading scene…')).toBeTruthy();
+  });
+
+  it('renders no live tiles and the hook error when a scene fails to load', () => {
+    render(
+      <PreviewPane
+        view="sunset"
+        onViewChange={() => {}}
+        panel={PANEL}
+        panelPresetLabel="ktc · 1440×2560"
+        versionName="v1"
+        scenes={[
+          {
+            id: 1,
+            label: 'solstice',
+            tags: [],
+            representsAt: '2026-06-21T11:45:00Z',
+            source: 'historical',
+            createdAt: '2026-06-21T11:45:00Z',
+          },
+        ]}
+        sceneSource={{ kind: 'scene', id: 1 }}
+        onSceneSourceChange={() => {}}
+        sceneState={null}
+        error="/api/kiosk/scenes/1: 404"
+      />
+    );
+
+    expect(screen.queryByTestId('tile-1')).toBeNull();
+    expect(screen.getByText('/api/kiosk/scenes/1: 404')).toBeTruthy();
   });
 });

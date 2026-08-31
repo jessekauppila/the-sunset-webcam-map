@@ -4,6 +4,8 @@ import { useTerminatorStore } from '@/app/store/useTerminatorStore';
 import { resolveMosaic } from '@/app/components/mosaic/registry';
 import type { PanelSize } from '@/app/kiosk/panelPreview';
 import type { SettingsValues } from '@/app/lib/settings/schema';
+import type { SceneSource } from './useSceneWebcams';
+import type { SceneState, SceneSummary } from '@/app/lib/scenes/types';
 import { StudioPanelFrame } from './StudioPanelFrame';
 
 export type FeedView = 'sunrise' | 'sunset' | 'both';
@@ -18,6 +20,10 @@ function feedsFor(view: FeedView): Array<'sunrise' | 'sunset'> {
   return view === 'both' ? ['sunrise', 'sunset'] : [view];
 }
 
+function sceneOptionLabel(scene: SceneSummary): string {
+  return `${scene.label} — ${new Date(scene.representsAt).toLocaleString()}`;
+}
+
 export function PreviewPane({
   view,
   onViewChange,
@@ -25,6 +31,11 @@ export function PreviewPane({
   panelPresetLabel,
   versionName,
   settings,
+  scenes = [],
+  sceneSource = { kind: 'live' },
+  onSceneSourceChange,
+  sceneState = null,
+  error = null,
 }: {
   view: FeedView;
   onViewChange: (v: FeedView) => void;
@@ -32,14 +43,26 @@ export function PreviewPane({
   panelPresetLabel: string;
   versionName: string;
   settings?: SettingsValues;
+  scenes?: SceneSummary[];
+  sceneSource?: SceneSource;
+  onSceneSourceChange?: (source: SceneSource) => void;
+  sceneState?: SceneState | null;
+  error?: string | null;
 }) {
-  const sunrise = useTerminatorStore((t) => t.sunrise);
-  const sunset = useTerminatorStore((t) => t.sunset);
+  const liveSunrise = useTerminatorStore((t) => t.sunrise);
+  const liveSunset = useTerminatorStore((t) => t.sunset);
   const Mosaic = resolveMosaic(versionName);
   const feeds = feedsFor(view);
 
-  const webcamsFor = (feed: 'sunrise' | 'sunset') =>
-    feed === 'sunrise' ? sunrise : sunset;
+  // A scene is selected but hasn't resolved yet (still loading, 404, or a
+  // fetch error) — don't fall through to the live pool and silently show
+  // it under the scene's header, and don't render live tiles at all.
+  const sceneUnresolved = sceneSource.kind === 'scene' && !sceneState;
+
+  const webcamsFor = (feed: 'sunrise' | 'sunset') => {
+    if (sceneSource.kind === 'scene') return sceneState ? sceneState[feed] : [];
+    return feed === 'sunrise' ? liveSunrise : liveSunset;
+  };
 
   return (
     <div
@@ -100,6 +123,46 @@ export function PreviewPane({
         >
           {panelPresetLabel}
         </span>
+
+        <select
+          aria-label="data source"
+          data-testid="studio-scene-select"
+          value={sceneSource.kind === 'live' ? 'live' : String(sceneSource.id)}
+          onChange={(e) => {
+            const raw = e.target.value;
+            onSceneSourceChange?.(
+              raw === 'live' ? { kind: 'live' } : { kind: 'scene', id: Number(raw) }
+            );
+          }}
+          style={{
+            fontSize: 12,
+            background: '#0e1119',
+            color: '#e5e7eb',
+            border: `1px solid ${hairline}`,
+            borderRadius: 6,
+            padding: '4px 8px',
+          }}
+        >
+          <option value="live">live</option>
+          {scenes.map((scene) => (
+            <option key={scene.id} value={scene.id}>
+              {sceneOptionLabel(scene)}
+            </option>
+          ))}
+        </select>
+
+        {sceneUnresolved && (
+          <span
+            data-testid="studio-scene-status"
+            style={{
+              fontFamily: mono,
+              fontSize: 11,
+              color: error ? '#f0a04b' : dim,
+            }}
+          >
+            {error ?? 'loading scene…'}
+          </span>
+        )}
       </div>
 
       <div
