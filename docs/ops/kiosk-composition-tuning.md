@@ -97,10 +97,12 @@ The URL params in the table above still work, and still win: precedence is
 That's what makes `?floor=60` useful for a one-off check without disturbing
 what's deployed for everyone else.
 
-Under the hood, `/kiosk/*` and `/studio` both read live settings via
-`/api/kiosk/state`, which is Redis-first (`getLiveSettingsCached`) and only
-falls back to Neon on a cache miss — so deploys show up on the glass within a
-poll cycle, not a redeploy.
+Under the hood, `/kiosk/*` reads live settings via `/api/kiosk/state`, which
+is Redis-first (`getLiveSettingsCached`) and only falls back to Neon on a
+cache miss — so deploys show up on the glass within a poll cycle, not a
+redeploy. `/studio` reads through the owner-gated `/api/kiosk/settings`
+(Neon) instead, since it needs both the studio and live profiles, not just
+the mirrored live one.
 
 ## On the Pi
 

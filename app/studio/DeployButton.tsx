@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useHoldToFire, DEPLOY_HOLD_MS } from './useHoldToFire';
 
 export { DEPLOY_HOLD_MS };
@@ -20,6 +20,11 @@ const SYNC_FG = '#5a6375';
 const CHIP_BG = '#3a2a12';
 const CHIP_FG = '#f5a344';
 const CHIP_BORDER = '#6b4a1a';
+
+// Deploy-failure line — #e5484d family, distinct from the armed red gradient.
+const FAIL_FG = '#e5484d';
+const FAIL_CHIP_BG = '#3a1216';
+const FAIL_CHIP_BORDER = '#6b1f26';
 
 const FILL_STYLE = `
 .studio-deploy-fill {
@@ -65,12 +70,23 @@ export function DeployButton({
   // data; this guard exists purely so the UI doesn't lie about being ready
   // to fire again while a deploy is still in flight.
   const [isDeploying, setIsDeploying] = useState(false);
+  // Set when the last deploy attempt rejected (deploy() throws on a
+  // non-ok response) — cleared at the start of the next hold and whenever
+  // diffCount changes (a new edit, or the deploy actually going through).
+  const [deployFailed, setDeployFailed] = useState(false);
+
+  useEffect(() => {
+    setDeployFailed(false);
+  }, [diffCount]);
 
   const { holding, handlers } = useHoldToFire({
     ms: DEPLOY_HOLD_MS,
     onFire: () => {
       setIsDeploying(true);
-      void onDeploy().finally(() => setIsDeploying(false));
+      setDeployFailed(false);
+      void onDeploy()
+        .catch(() => setDeployFailed(true))
+        .finally(() => setIsDeploying(false));
     },
     disabled: inSync || isDeploying,
   });
@@ -114,21 +130,38 @@ export function DeployButton({
         >
           <span className={fillClassName} aria-hidden />
           <span style={{ position: 'relative' }}>DEPLOY</span>
-          {diffCount > 0 && (
+          {deployFailed && !isDeploying ? (
             <span
               style={{
                 position: 'relative',
-                background: CHIP_BG,
-                color: CHIP_FG,
-                border: `1px solid ${CHIP_BORDER}`,
+                background: FAIL_CHIP_BG,
+                color: FAIL_FG,
+                border: `1px solid ${FAIL_CHIP_BORDER}`,
                 borderRadius: 999,
                 padding: '1px 6px',
                 fontSize: 10,
                 fontWeight: 700,
               }}
             >
-              {diffCount} differ
+              deploy failed — try again
             </span>
+          ) : (
+            diffCount > 0 && (
+              <span
+                style={{
+                  position: 'relative',
+                  background: CHIP_BG,
+                  color: CHIP_FG,
+                  border: `1px solid ${CHIP_BORDER}`,
+                  borderRadius: 999,
+                  padding: '1px 6px',
+                  fontSize: 10,
+                  fontWeight: 700,
+                }}
+              >
+                {diffCount} differ
+              </span>
+            )
           )}
         </button>
       </>
@@ -180,9 +213,16 @@ export function DeployButton({
             fontFamily: mono,
             fontSize: 11,
             opacity: inSync ? 1 : 0.85,
+            color: deployFailed && !isDeploying && !inSync ? FAIL_FG : undefined,
           }}
         >
-          {inSync ? 'dials match the deployed state' : isDeploying ? 'deploying…' : subline(diffCount)}
+          {inSync
+            ? 'dials match the deployed state'
+            : isDeploying
+              ? 'deploying…'
+              : deployFailed
+                ? 'deploy failed — try again'
+                : subline(diffCount)}
         </span>
       </button>
       <button

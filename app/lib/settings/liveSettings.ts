@@ -7,7 +7,11 @@ import { getProfileSettings, type ProfileSettings } from '@/app/lib/settings/sto
 
 // Redis-first read of the live settings profile. Falls back to Neon exactly
 // once on a cache miss, then re-warms the Redis mirror so the next poll hits
-// the cache. Returns null only if both the cache and the Neon read fail.
+// the cache. The mirror carries a 300s TTL (see setKioskLiveSettingsCache),
+// so a failed or stale write self-heals through this same Neon-miss path
+// within minutes — bounded to roughly one Neon read per 5 minutes per cold
+// key, while the hot path stays Redis-first. Returns null only if both the
+// cache and the Neon read fail.
 export async function getLiveSettingsCached(): Promise<ProfileSettings | null> {
   const cached = await getKioskLiveSettingsCache();
   if (cached) return cached;

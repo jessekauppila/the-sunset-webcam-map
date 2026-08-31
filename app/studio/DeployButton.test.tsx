@@ -143,6 +143,58 @@ describe('DeployButton', () => {
     expect(onDeploy).toHaveBeenCalledTimes(2);
   });
 
+  it('shows a failure line when onDeploy rejects, and it clears on the next successful hold', async () => {
+    const onDeploy = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('deploy failed: 500'))
+      .mockResolvedValueOnce(undefined);
+    render(<DeployButton diffCount={2} onDeploy={onDeploy} onRevert={vi.fn()} />);
+
+    const button = screen.getByRole('button', { name: /hold to deploy/i });
+
+    fireEvent.pointerDown(button);
+    await act(async () => {
+      vi.advanceTimersByTime(DEPLOY_HOLD_MS);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(screen.getByText('deploy failed — try again')).toBeInTheDocument();
+
+    // A fresh hold clears the failure line and (this time) succeeds.
+    fireEvent.pointerDown(button);
+    await act(async () => {
+      vi.advanceTimersByTime(DEPLOY_HOLD_MS);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(screen.queryByText('deploy failed — try again')).not.toBeInTheDocument();
+    expect(onDeploy).toHaveBeenCalledTimes(2);
+  });
+
+  it('clears the failure line when diffCount changes', async () => {
+    const onDeploy = vi.fn().mockRejectedValueOnce(new Error('deploy failed: 500'));
+    const { rerender } = render(
+      <DeployButton diffCount={2} onDeploy={onDeploy} onRevert={vi.fn()} />
+    );
+
+    const button = screen.getByRole('button', { name: /hold to deploy/i });
+
+    fireEvent.pointerDown(button);
+    await act(async () => {
+      vi.advanceTimersByTime(DEPLOY_HOLD_MS);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(screen.getByText('deploy failed — try again')).toBeInTheDocument();
+
+    rerender(<DeployButton diffCount={3} onDeploy={onDeploy} onRevert={vi.fn()} />);
+
+    expect(screen.queryByText('deploy failed — try again')).not.toBeInTheDocument();
+  });
+
   it('compact variant still fires onDeploy on a completed hold', async () => {
     const onDeploy = vi.fn().mockResolvedValue(undefined);
     render(<DeployButton diffCount={2} onDeploy={onDeploy} onRevert={vi.fn()} compact />);

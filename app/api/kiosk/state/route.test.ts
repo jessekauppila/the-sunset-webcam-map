@@ -13,7 +13,12 @@ vi.mock('@/app/lib/settings/liveSettings', () => ({
   getLiveSettingsCached: () => getLiveSettingsCachedMock(),
 }));
 
+import { NextRequest } from 'next/server';
 import { GET } from './route';
+
+function request(url: string) {
+  return new NextRequest(new URL(url, 'https://example.com'));
+}
 
 describe('GET /api/kiosk/state', () => {
   beforeEach(() => {
@@ -28,26 +33,35 @@ describe('GET /api/kiosk/state', () => {
     getKioskDozeMock.mockResolvedValueOnce(true);
     getLiveSettingsCachedMock.mockResolvedValueOnce(settings);
 
-    const res = await GET();
+    const res = await GET(request('/api/kiosk/state?kiosk=1'));
 
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ doze: true, settings });
   });
 
-  it('fires markKioskPoll without awaiting it', async () => {
+  it('marks poll freshness when the request carries ?kiosk=1', async () => {
     getKioskDozeMock.mockResolvedValueOnce(false);
     getLiveSettingsCachedMock.mockResolvedValueOnce(null);
 
-    await GET();
+    await GET(request('/api/kiosk/state?kiosk=1'));
 
     expect(markKioskPollMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not mark poll freshness for a plain request (e.g. the Ops drawer DozeControl)', async () => {
+    getKioskDozeMock.mockResolvedValueOnce(false);
+    getLiveSettingsCachedMock.mockResolvedValueOnce(null);
+
+    await GET(request('/api/kiosk/state'));
+
+    expect(markKioskPollMock).not.toHaveBeenCalled();
   });
 
   it('returns settings: null when the settings fetch fails to resolve a value', async () => {
     getKioskDozeMock.mockResolvedValueOnce(false);
     getLiveSettingsCachedMock.mockResolvedValueOnce(null);
 
-    const res = await GET();
+    const res = await GET(request('/api/kiosk/state'));
 
     expect(await res.json()).toEqual({ doze: false, settings: null });
   });

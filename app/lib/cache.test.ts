@@ -109,12 +109,13 @@ describe('kiosk helpers', () => {
 });
 
 describe('kiosk live settings cache', () => {
-  it('round-trips a ProfileSettings object through kiosk:liveSettings', async () => {
+  it('round-trips a ProfileSettings object through kiosk:liveSettings with a 300s TTL', async () => {
     const { setKioskLiveSettingsCache, getKioskLiveSettingsCache } = await import('./cache');
     await setKioskLiveSettingsCache({ namespaces: { v1: { floorPx: 140 } }, revision: 15 });
     expect(setMock).toHaveBeenCalledWith(
       'kiosk:liveSettings',
       expect.anything(),
+      { ex: 300 },
     );
     getMock.mockResolvedValueOnce(setMock.mock.calls[0][1]);
     await expect(getKioskLiveSettingsCache()).resolves.toEqual({

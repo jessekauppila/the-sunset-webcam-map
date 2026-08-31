@@ -327,6 +327,105 @@ describe('useStudioSettings', () => {
     expect(revertCalls.length).toBe(1);
   });
 
+  it('deploy() throws and leaves diffCount/deployedAtMs untouched when the deploy route 500s', async () => {
+    fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+      if (!init || (!init.method && url === '/api/kiosk/settings')) {
+        return { ok: true, json: async () => settingsResponse({ floorPx: 140 }, {}) };
+      }
+      if (init.method === 'POST' && url === '/api/kiosk/settings/deploy') {
+        return { ok: false, status: 500, json: async () => ({ error: 'boom' }) };
+      }
+      return { ok: true, json: async () => ({}) };
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { result } = renderHook(() => useStudioSettings(), { wrapper });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+
+    expect(result.current.diffCount).toBe(1);
+
+    await expect(
+      act(async () => {
+        await result.current.deploy();
+      })
+    ).rejects.toThrow();
+
+    expect(result.current.diffCount).toBe(1);
+    expect(result.current.deployedAtMs).toBeNull();
+  });
+
+  it('revert() throws and does NOT clear the optimistic overlay when the revert route 500s', async () => {
+    const getResponse = settingsResponse({}, {});
+    fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+      if (!init || (!init.method && url === '/api/kiosk/settings')) {
+        return { ok: true, json: async () => getResponse };
+      }
+      if (init.method === 'PATCH') {
+        return { ok: true, json: async () => ({ revision: 2 }) };
+      }
+      if (init.method === 'POST' && url === '/api/kiosk/settings/revert') {
+        return { ok: false, status: 500, json: async () => ({ error: 'boom' }) };
+      }
+      return { ok: true, json: async () => ({}) };
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { result } = renderHook(() => useStudioSettings(), { wrapper });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+
+    act(() => {
+      result.current.setKnob('v1', 'floorPx', 200);
+    });
+    expect(result.current.effective('v1').floorPx).toBe(200);
+
+    await expect(
+      act(async () => {
+        await result.current.revert();
+      })
+    ).rejects.toThrow();
+
+    // Overlay must survive the failed revert — local edits are not
+    // silently discarded on a 500.
+    expect(result.current.effective('v1').floorPx).toBe(200);
+  });
+
+  it('a failed debounced PATCH keeps the optimistic overlay (edits are not lost)', async () => {
+    const getResponse = settingsResponse({}, {});
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+      if (!init || (!init.method && url === '/api/kiosk/settings')) {
+        return { ok: true, json: async () => getResponse };
+      }
+      if (init.method === 'PATCH') {
+        return { ok: false, status: 500, json: async () => ({ error: 'boom' }) };
+      }
+      return { ok: true, json: async () => ({}) };
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { result } = renderHook(() => useStudioSettings(), { wrapper });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+
+    act(() => {
+      result.current.setKnob('v1', 'floorPx', 200);
+    });
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(400);
+    });
+
+    // The overlay (and therefore the local edit) survives a flush failure.
+    expect(result.current.effective('v1').floorPx).toBe(200);
+    expect(warnSpy).toHaveBeenCalled();
+    warnSpy.mockRestore();
+  });
+
   it('two synchronous setKnob calls to the same namespace in one batch both survive', async () => {
     const getResponse = settingsResponse({}, {});
     fetchMock = vi.fn(async (url: string, init?: RequestInit) => {

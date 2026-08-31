@@ -82,6 +82,15 @@ export function useStudioSettings(): StudioSettingsApi {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
+    }).then((res) => {
+      if (!res.ok) {
+        // Leave the optimistic overlay in place — the local edit isn't
+        // lost, it just hasn't reached the server. Next successful flush
+        // (this namespace's next edit, or a future retry) resends the full
+        // deviation set from overlayRef, so nothing needs replaying here.
+        console.warn('[studio] settings PATCH failed:', res.status);
+      }
+      return res;
     });
   }, []);
 
@@ -213,6 +222,9 @@ export function useStudioSettings(): StudioSettingsApi {
   const deploy = useCallback(async () => {
     await flushPending();
     const res = await fetch('/api/kiosk/settings/deploy', { method: 'POST' });
+    if (!res.ok) {
+      throw new Error(`deploy failed: ${res.status}`);
+    }
     const json = (await res.json()) as { live: ProfileSettings };
     await mutate(
       (current) => (current ? { ...current, live: json.live } : current),
@@ -224,6 +236,9 @@ export function useStudioSettings(): StudioSettingsApi {
   const revert = useCallback(async () => {
     cancelPending();
     const res = await fetch('/api/kiosk/settings/revert', { method: 'POST' });
+    if (!res.ok) {
+      throw new Error(`revert failed: ${res.status}`);
+    }
     const json = (await res.json()) as { studio: ProfileSettings };
     await mutate(
       (current) => (current ? { ...current, studio: json.studio } : current),

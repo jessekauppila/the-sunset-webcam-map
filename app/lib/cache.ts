@@ -7,6 +7,7 @@ const TERMINATOR_TTL_SECONDS = 300;
 const KIOSK_TICK_LOCK_KEY = 'kiosk:tick:lock';
 const KIOSK_DOZE_KEY = 'kiosk:doze';
 const KIOSK_LIVE_SETTINGS_KEY = 'kiosk:liveSettings';
+const KIOSK_LIVE_SETTINGS_TTL_SECONDS = 300;
 const KIOSK_LAST_POLL_KEY = 'kiosk:lastPoll';
 
 let client: Redis | null = null;
@@ -127,7 +128,7 @@ export async function setKioskLiveSettingsCache(s: ProfileSettings): Promise<voi
   const c = getClient();
   if (!c) return;
   try {
-    await c.set(KIOSK_LIVE_SETTINGS_KEY, s);
+    await c.set(KIOSK_LIVE_SETTINGS_KEY, s, { ex: KIOSK_LIVE_SETTINGS_TTL_SECONDS });
   } catch (error) {
     console.warn('[cache] setKioskLiveSettingsCache failed:', error);
   }

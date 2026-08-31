@@ -73,7 +73,7 @@ export function useKioskRuntime(): {
 
     const poll = async () => {
       try {
-        const res = await fetch('/api/kiosk/state');
+        const res = await fetch('/api/kiosk/state?kiosk=1');
         if (res.ok) {
           const { doze, settings } = (await res.json()) as {
             doze: boolean;

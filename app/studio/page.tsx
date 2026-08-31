@@ -14,7 +14,10 @@ import { StudioClient } from './StudioClient';
 function StudioGate() {
   const { isOperator, loading } = useIsOperator();
 
-  if (!loading && !isOperator) {
+  // Treat "loading" as not-yet-operator: render the dark shell (not the
+  // studio chrome) until auth resolves, so an anonymous visitor never sees
+  // /studio's controls flash before the sign-in gate kicks in.
+  if (loading || !isOperator) {
     return (
       <div
         style={{
@@ -29,8 +32,12 @@ function StudioGate() {
           color: '#8b95a7',
         }}
       >
-        <p style={{ fontSize: 14 }}>Owner sign-in required.</p>
-        <AuthControl />
+        {!loading && (
+          <>
+            <p style={{ fontSize: 14 }}>Owner sign-in required.</p>
+            <AuthControl />
+          </>
+        )}
       </div>
     );
   }

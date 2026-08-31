@@ -23,7 +23,12 @@ describe('useKioskRuntime', () => {
       await vi.advanceTimersByTimeAsync(61_000);
     });
     const urls = fetchMock.mock.calls.map((c) => String(c[0]));
-    expect(urls.filter((u) => u.includes('/api/kiosk/state')).length).toBeGreaterThanOrEqual(2);
+    const statePolls = urls.filter((u) => u.includes('/api/kiosk/state'));
+    expect(statePolls.length).toBeGreaterThanOrEqual(2);
+    // Marked with ?kiosk=1 so the route's markKioskPoll only fires for the
+    // kiosk's own poll loop, not other callers of this endpoint (e.g. the
+    // Ops drawer's DozeControl).
+    expect(statePolls.every((u) => u.includes('kiosk=1'))).toBe(true);
     expect(urls.filter((u) => u.includes('/api/kiosk/tick')).length).toBeGreaterThanOrEqual(1);
   });
 
