@@ -6,10 +6,18 @@ import { DEFAULT_MOSAIC_VERSION } from '@/app/components/mosaic/registry';
 import type { WindyWebcam } from '@/app/lib/types';
 import type { SceneProvenance, SceneState } from './types';
 
+const DURABLE_HOSTNAMES = new Set([
+  // Real host produced by uploadToFirebase (app/lib/webcamSnapshot.ts):
+  // `https://storage.googleapis.com/${bucket.name}/${path}`.
+  'storage.googleapis.com',
+  // Kept for compatibility with any legacy/alternate Firebase SDK URL shape.
+  'firebasestorage.googleapis.com',
+]);
+
 export function isDurableFrameUrl(url: string | undefined): boolean {
   if (!url) return false;
   try {
-    return new URL(url).hostname === 'firebasestorage.googleapis.com';
+    return DURABLE_HOSTNAMES.has(new URL(url).hostname);
   } catch {
     return false;
   }

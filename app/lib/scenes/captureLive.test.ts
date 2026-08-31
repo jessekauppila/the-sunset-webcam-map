@@ -12,7 +12,7 @@ import { captureLiveScene, isDurableFrameUrl } from './captureLive';
 
 const cam = (over: Partial<WindyWebcam>): WindyWebcam => ({
   webcamId: 1, title: 'c', viewCount: 0, status: 'active',
-  images: { current: { preview: 'https://firebasestorage.googleapis.com/f.jpg' } },
+  images: { current: { preview: 'https://storage.googleapis.com/sunset-webcam-map.appspot.com/snapshots/1/1700000000000.jpg' } },
   location: { latitude: 1, longitude: 2 }, categories: [],
   phase: 'sunset', rank: 1,
   ...over,
@@ -26,10 +26,22 @@ beforeEach(() => {
 });
 
 describe('isDurableFrameUrl', () => {
-  it('accepts firebase storage URLs and rejects windy CDN URLs', () => {
+  it('accepts real storage.googleapis.com upload URLs (see uploadToFirebase)', () => {
+    expect(
+      isDurableFrameUrl(
+        'https://storage.googleapis.com/sunset-webcam-map.appspot.com/snapshots/1/1700000000000.jpg'
+      )
+    ).toBe(true);
+  });
+
+  it('also accepts firebasestorage.googleapis.com as a compatibility bonus', () => {
     expect(isDurableFrameUrl('https://firebasestorage.googleapis.com/f.jpg')).toBe(true);
+  });
+
+  it('rejects windy CDN URLs, undefined, and malformed URLs', () => {
     expect(isDurableFrameUrl('https://images-webcams.windy.com/x/preview.jpg')).toBe(false);
     expect(isDurableFrameUrl(undefined)).toBe(false);
+    expect(isDurableFrameUrl('not a url')).toBe(false);
   });
 });
 
