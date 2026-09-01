@@ -93,7 +93,7 @@ vi.mock('@/app/components/Map/lib/terminatorRing', () => ({
 
 // Mutable capture toggles — keep the real masterConfig values, override only
 // the two flags so each test can flip them (getters re-read per access).
-const toggles = vi.hoisted(() => ({ high: false, all: false }));
+const toggles = vi.hoisted(() => ({ high: false, all: false, trickleRate: 0 }));
 vi.mock('@/app/lib/masterConfig', async (importOriginal) => {
   const actual =
     await importOriginal<typeof import('@/app/lib/masterConfig')>();
@@ -104,6 +104,12 @@ vi.mock('@/app/lib/masterConfig', async (importOriginal) => {
     },
     get SAVE_ALL_RATED_SNAPSHOTS() {
       return toggles.all;
+    },
+    // Defaults to 0 in tests. A live 0.02 here would fire on ~2% of runs and
+    // make every "does not persist" assertion in this file randomly flaky —
+    // the trickle arm is the one gate driven by Math.random().
+    get SAVE_RANDOM_TRICKLE_RATE() {
+      return toggles.trickleRate;
     },
   };
 });
@@ -146,6 +152,7 @@ beforeEach(() => {
   insertWindyDisagreementSnapshotMock.mockReset().mockReturnValue(999);
   toggles.high = false;
   toggles.all = false;
+  toggles.trickleRate = 0;
 });
 
 function makeReq(): Request {
@@ -372,6 +379,80 @@ describe('GET /api/cron/update-cameras', () => {
       disagreementKind: null,
       aiRating: 4.8,
     });
+  });
+
+  // The random trickle-save arm (roadmap side item 1): the archive is otherwise
+  // model-gated, so every generation trains on a distribution its predecessor
+  // chose. These tests pin the two properties that make the arm a control:
+  // it ignores the score, and it stays separable afterwards.
+  it('persists a LOW-scoring frame when the trickle draw hits', async () => {
+    toggles.trickleRate = 1; // draw always hits
+    scoreMock.mockResolvedValue({
+      rawScore: 0.01, aiRating: 1.04, modelVersion: 'v4',
+      imageHash: 'h', source: 'windy', pathTaken: 'onnx',
+    });
+    await GET(makeReq());
+    expect(insertWindyDisagreementSnapshotMock).toHaveBeenCalledTimes(1);
+    expect(insertWindyDisagreementSnapshotMock.mock.calls[0][0]).toMatchObject({
+      disagreementKind: null,
+      intakeReason: 'trickle',
+      aiRating: 1.04,
+    });
+  });
+
+  it('does not persist when the trickle draw misses', async () => {
+    toggles.trickleRate = 0;
+    scoreMock.mockResolvedValue({
+      rawScore: 0.01, aiRating: 1.04, modelVersion: 'v4',
+      imageHash: 'h', source: 'windy', pathTaken: 'onnx',
+    });
+    await GET(makeReq());
+    expect(insertWindyDisagreementSnapshotMock).not.toHaveBeenCalled();
+  });
+
+  it('does not label a frame "trickle" when a gated reason already caught it', async () => {
+    // A frame the incumbent model already likes is not part of the unbiased
+    // arm, even when the coin also comes up heads. If precedence inverted, the
+    // control arm would silently fill with high-rated frames — exactly the
+    // bias it exists to measure.
+    toggles.trickleRate = 1;
+    toggles.high = true;
+    scoreMock.mockResolvedValue({
+      rawScore: 0.95, aiRating: 4.8, modelVersion: 'v4',
+      imageHash: 'h', source: 'windy', pathTaken: 'onnx',
+    });
+    await GET(makeReq());
+    expect(insertWindyDisagreementSnapshotMock.mock.calls[0][0]).toMatchObject({
+      intakeReason: 'high_rated',
+    });
+  });
+
+  it('samples at roughly the configured rate, independent of score', async () => {
+    // Drives the real Math.random() gate through a fixed sequence so the rate
+    // is asserted rather than assumed. 0.02 keeps draws below the threshold
+    // only for the values seeded under it.
+    toggles.trickleRate = 0.02;
+    scoreMock.mockResolvedValue({
+      rawScore: 0.01, aiRating: 1.04, modelVersion: 'v4',
+      imageHash: 'h', source: 'windy', pathTaken: 'onnx',
+    });
+    const draws = [0.5, 0.019, 0.9, 0.021, 0.001];
+    let i = 0;
+    const randomSpy = vi
+      .spyOn(Math, 'random')
+      .mockImplementation(() => draws[i++ % draws.length]);
+    try {
+      // Each GET scores the single mocked webcam once, so one draw per call.
+      for (let call = 0; call < draws.length; call += 1) {
+        i = call;
+        insertWindyDisagreementSnapshotMock.mockClear();
+        await GET(makeReq());
+        const hit = draws[call] < 0.02;
+        expect(insertWindyDisagreementSnapshotMock.mock.calls.length > 0).toBe(hit);
+      }
+    } finally {
+      randomSpy.mockRestore();
+    }
   });
 
   it('does NOT persist a high-scoring frame when the toggle is off', async () => {
