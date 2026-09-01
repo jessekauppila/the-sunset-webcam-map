@@ -20,10 +20,23 @@ Scope discipline
 ----------------
 This is small on purpose. It corrects **24 labels of 9,118**, 10 of which
 cross the `rating >= 4` line that training actually sees (0.8% of the 1,237
-webcam `>= 4` gold labels). Do NOT expect a metric to move, and do not claim
-one did — the standing rule is that a change this size is invisible against
-single-seed noise. It is worth doing because the labels are demonstrably
-wrong and the corrections are already paid for, not because it buys accuracy.
+webcam `>= 4` gold labels). Do NOT expect a GLOBAL metric to move, and do not
+claim one did — a change this size is invisible against single-seed noise. It
+is worth doing because the labels are demonstrably wrong and the corrections
+are already paid for, not because it buys accuracy.
+
+"Global" is load-bearing there. Measured jointly with the per-camera
+calibration lane on 2026-09-01: 12 of the 24 flip `is_sunset`, and 4 of those
+are frames the shipping head shows, taking archive-wide false-shows 169 ->
+173. The tempered camera set is unchanged (17 -> 17, empty symmetric
+difference; none of the 15 cameras at exactly 2 false-shows cross the >=3
+across >=2 capture days bar), but webcam 3914190 goes 5 -> 6 false-shows and
+its multiplier moves 0.750 -> 0.727. A concentration metric over small
+per-camera denominators is exactly where 24 labels CAN matter.
+
+**Run this BEFORE `ml/audit_camera_errors.py --emit-evidence`.** That pass
+reads these rows to build a durable evidence table; emitting first archives
+those 4 frames with the wrong `is_negative`, and they do not self-correct.
 
 Deliberately NOT corrected: the same session's 80 **Flickr** positives (76 of
 them rated 5). The retest drew webcam frames only, so there is zero evidence

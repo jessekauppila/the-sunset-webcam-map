@@ -160,8 +160,11 @@ are at ceiling:
   labels**) and left the 80 Flickr positives untested — those are probably
   fine and were deliberately NOT touched. No sitting was needed: the retest
   ratings already existed. Applied with `ml/apply_label_corrections.py`,
-  archiving originals to `manual_label_supersessions`. Expect no metric
-  movement from 24 labels in 9,118.
+  archiving originals to `manual_label_supersessions`. No GLOBAL metric
+  moves (24 labels in 9,118), but the per-camera calibration lane measured
+  webcam 3914190's multiplier shifting 0.750 -> 0.727, so apply these
+  BEFORE that lane's `--emit-evidence` pass — see the ordering note in
+  `docs/ml/rating-rubric.md`.
 - **Per-camera error audit** — webcam 3656741 fooled both heads twice an hour
   apart; find the other cameras like it and characterize what they share.
 - **Below-gate rendering** — product intent is "show every image, just

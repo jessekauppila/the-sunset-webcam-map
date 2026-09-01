@@ -423,10 +423,43 @@ refuses to touch any frame without a second-pass rating, so it can never
 invent a correction; running it over the whole 476-row webcam cohort aborts
 on the 419 unrated rows rather than correcting a subset.
 
-**Expect no measurable metric change** — 24 labels in 9,118. This was worth
+**Expect no measurable change in any GLOBAL metric** — 24 labels in 9,118.
+That is NOT the same as "nothing moves": the per-camera calibration lane
+measured one already-tempered camera's multiplier shifting (see the ordering
+note below). Scope the claim to the metric. This was worth
 doing because the labels are demonstrably wrong (seven of the 4s have no sky
 in frame), not because it buys accuracy. Do not use it to explain a future
 number.
+
+> **⚠️ Ordering: apply these corrections BEFORE the per-camera calibration
+> evidence pass.** The corrections are not self-contained — the calibration
+> lane's `ml/audit_camera_errors.py --emit-evidence` reads exactly these
+> `manual_labels` rows to build a durable evidence table, and 4 of the 12
+> `is_sunset` flips are frames the shipping head shows. Emitting first would
+> archive those 4 rows with the wrong `is_negative` and they would not
+> self-correct later.
+>
+> Correct order: migrations (`20260831_manual_label_supersessions.sql`,
+> `20260831_snapshot_intake_reason.sql`, `20260901_camera_calibration.sql`)
+> → `ml/apply_label_corrections.py --apply` → `--emit-evidence`.
+>
+> Verified jointly with the calibration lane on 2026-09-01, replayed over the
+> 9,118 frozen frames in `ml/artifacts/reports/audit_frames_v1.csv`
+> (arithmetic only, no rescoring needed): false-shows 169 → **173**,
+> operator-N 5,538 → **5,550**, tempered set **17 → 17 with an empty symmetric
+> difference**. No camera is newly tempered — of the 15 cameras sitting at
+> exactly 2 false-shows, none cross. But one already-tempered offender does
+> move: **webcam 3914190 goes 5 → 6 false-shows and its multiplier shifts
+> 0.750 → 0.727.** So "no metric moves" is false at the per-camera level even
+> though it holds for set membership and for every global metric.
+>
+> The rule that makes this safe (≥3 false-shows across ≥2 distinct capture
+> days, so a single corrected frame can never temper a camera) belongs to the
+> calibration lane — see
+> `docs/superpowers/specs/2026-08-31-per-camera-calibration-design.md` and
+> `docs/superpowers/plans/2026-09-01-per-camera-calibration-leg1.md` for the
+> constants rather than trusting a copy here. Both land via that lane's PR;
+> if the path 404s, it has not merged yet.
 
 *Adjacent, deliberately not acted on:* Flickr supplies **194 of the 1,431
 `rating ≥ 4` gold labels (13.6% of the positive class)**. Given the settled
