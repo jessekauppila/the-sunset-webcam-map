@@ -80,6 +80,45 @@ describe('computeTemperingMultiplier', () => {
     expect(m).toBeLessThanOrEqual(1);
   });
 
+  // Regression guard for a real near-miss found on 2026-09-01. The rubric lane's
+  // label corrections flip 12 frames from operator-sunset to operator-N, and 4
+  // of them fire under the shipping head. Two land on cameras that have exactly
+  // ONE labeled frame — which would read as a 100% false-show rate, structurally
+  // identical to Broome's 11/11 but on a denominator of one. The recurrence bar
+  // is what stops a single frame from tempering a camera; these pin it down.
+  it('never tempers a camera on a single frame, even at a 100% rate', () => {
+    expect(
+      computeTemperingMultiplier({
+        falseShows: 1,
+        negativeFrames: 1,
+        falseShowDays: 1,
+        rawFalseShows: 1,
+      })
+    ).toBe(1);
+  });
+
+  it('never tempers on two false-shows across two days (below the event bar)', () => {
+    expect(
+      computeTemperingMultiplier({
+        falseShows: 2,
+        negativeFrames: 2,
+        falseShowDays: 2,
+        rawFalseShows: 2,
+      })
+    ).toBe(1);
+  });
+
+  it('tempers at exactly the bar: 3 false-shows across 2 days', () => {
+    const m = computeTemperingMultiplier({
+      falseShows: 3,
+      negativeFrames: 3,
+      falseShowDays: 2,
+      rawFalseShows: 3,
+    });
+    expect(m).toBeLessThan(1);
+    expect(m).toBeGreaterThanOrEqual(0.5);
+  });
+
   it('is bounded for adversarial input (negative, NaN, missing) (clause 5)', () => {
     for (const e of [
       { falseShows: -5, negativeFrames: -5, falseShowDays: 9, rawFalseShows: 9 },
