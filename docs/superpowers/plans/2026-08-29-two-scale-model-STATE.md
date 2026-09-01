@@ -339,7 +339,110 @@ Reports: `ml/artifacts/reports/v5_binary_on_operator_random200.json` and
 
 ---
 
-## What's next (2026-08-30: Phase 0 BUILT, sitting pending)
+## What's next (2026-08-31: Phase 0 RUN — ceiling reached, ceiling decomposed)
+
+`2026-08-30-quality-ceiling-and-labeling-roadmap.md` is the follow-on plan.
+Phase 0 has now been sat and analysed. Read that doc for the plan; this block
+is the verdict.
+
+**🏁 PHASE 0 VERDICT (retest_v1, 146 of 150 re-rated, 2026-08-31).**
+`ml/artifacts/reports/retest_v1_ceiling.json`:
+
+| | operator vs himself | shipping model |
+|---|---|---|
+| quality Pearson (n=73 sunset pairs) | **0.673** | 0.697 |
+| quality MAE | 0.216 | 0.191 |
+| detection self-F1 | **0.807** | ~0.80 |
+| detection agreement / kappa | 0.760 / 0.515 | — |
+
+Pre-registered rule: `gap = self-Pearson − model-Pearson ≤ 0.10` → **CEILING
+REACHED** (gap −0.024). **Both heads are at or above the operator's own
+reproducibility. The big labeling push (Phase 1) is cancelled and chasing
+global metrics is over** — that decision is now measured, not felt.
+
+**📐 THE CEILING IS NOT DIFFUSE — it decomposes into two named causes
+(2026-08-31).** Every one of the 35 detection disagreements is either a 1↔N
+call (21) or a frame from the 2026-08-08 labeling session (14). **Zero
+residual**: on the 39 retest frames that are neither, agreement is 39/39.
+The same two causes carry the quality churn. Corpus-reweighted, the label
+noise the models actually see is `is_sunset` **13.6%** and `rating ≥ 4`
+**12.6%** — and 4↔5 / 2↔3 wobble costs nothing, since neither crosses a
+training threshold.
+
+1. **Rating 4 is the noisiest label in the set** — 80% of frames rated 4
+   come back with the opposite `rating ≥ 4` label; within the current rubric
+   regime still 4 of 7, always drifting **down to a 3**, never to N.
+   *Addressed 2026-08-31:* anchor frames chosen from the retest itself and
+   written into `docs/ml/rating-rubric.md` ("Boundary sharpening"), with the
+   two boundary tests now rendering on-glass in the queue legend. The
+   sharpest anchor is a same-camera pair four days apart (webcam 28999873:
+   snapshot **124555** = a 4, snapshot **123667** = a 3) — identical framing,
+   so the only variable is the light.
+2. **The 1/N line is a coin flip (45%)** but feeds only the frozen detection
+   head, so it is worth ~2.8% corpus label noise. **Tested and rejected:
+   showing solar elevation in the queue.** It does not separate the calls
+   (1→1 median −7.6° vs 1→N −6.9°; a twilight-window rule agrees with the
+   operator's own second call on 25/47 = chance) because the queue is
+   *already* drawn from the sunset window, so "is a sunset occurring" is true
+   of nearly every frame and carries no information. **Do not build it.** The
+   fix is a definition change to something visible (usable sky vs not),
+   already made in the rubric.
+
+**⚠️ OPEN ACTION — the 2026-08-08 cohort is contaminated gold.** Of the 24
+frames from that session originally rated 2/3/4/5, **zero came back at the
+same rating and all 24 moved down**; 7 of 8 "4"s came back **N**. The N
+labels from the same day are 94% stable, so the positive scale specifically
+was shifted. Three independent signals say the *originals* are wrong: Claude
+scores all seven 4→N frames at `llm_quality` 0.00–0.05; the frames are not
+borderline (snapshot 115440 has **no sky in frame at all**; 83222 is flat
+gray sea); and the moves are unanimously downward.
+
+That cohort is **592 labels, 104 rated ≥ 2, 88 rated ≥ 4 — 6.1% of every
+`rating ≥ 4` label in gold** — and it is in training data now. Excluding it
+raises quality self-Pearson 0.673 → **0.751** and detection self-F1
+0.807 → **0.853** (the CEILING REACHED verdict survives either way: 0.751
+still sits inside the 0.10 gap).
+
+**Recommended next labeling action: re-rate those 104 positives** (one short
+sitting; the 488 N labels from that day are stable and need no revisit).
+This is the cheapest available ceiling-raiser and it is "better label
+consistency, not more of the same labels" exactly. **Not done — it needs a
+decision**, because it deliberately overwrites gold through
+`manual_labels`' `ON CONFLICT DO UPDATE`, which is precisely what
+`manual_label_retests` was built to prevent. It also wants a new
+`label_samples.kind` (`'correction'`) so the rewrite is auditable.
+
+**Gate on the next retrain (item 4 of the 2026-08-31 queue).** A
+pre-registered quality retrain is *not* yet justified: item 1 sharpened the
+rubric but has produced no new labels, and item 2 is blocked (below). The
+precondition stands — a body of labels made under the sharpened 3/4 rule,
+of which the 104-frame correction campaign would be the first tranche —
+before proposing a warm-start recipe with `random_ordinary_v4` as the ship
+gate.
+
+**⛔ ITEM 2 (silhouette blind spot via custom cams) IS BLOCKED UPSTREAM —
+there is no corpus to label.** Measured 2026-08-31:
+
+- `cameras` holds two rows. Only **one** is paired (`webcam_id` 28800228);
+  camera 2 still has `webcam_id = NULL` (the known tier0-seed pairing gap).
+- That camera has **1,719 frames, all from a single ~2-hour burst on
+  2026-06-13 evening** at ~3.7 s intervals, and nothing since 2026-06-14.
+- **Zero** `manual_labels` rows exist on any custom-cam frame.
+- The frames are **bring-up test shots, not sunsets**: the camera is on its
+  side pointed up into a tree with half the frame occluded (see snapshots
+  103343 / 104641). The model scoring them 0.005–0.081 is **correct**, not a
+  blind-spot failure — so they are not even a valid exhibit of the problem.
+
+The May-2026 memory note for this work is also stale in three of its five
+steps: `manual_labels` already exists (no `manual_rating` column needed),
+nothing is ever deleted (the retention exemption is moot), and the Hard
+Examples queue already is the rating UI. **The only real remaining work is a
+`label_samples` draw over custom-cam frames — which needs custom cams that
+produce sunset frames.** That is the hardware thread
+(`docs/hardware/`, edge-cam image path), not an ML-side wiring job. Revisit
+when a custom camera has banked golden-hour frames across multiple evenings.
+
+### Prior note (2026-08-30, superseded by the verdict above)
 
 `2026-08-30-quality-ceiling-and-labeling-roadmap.md` is the follow-on plan:
 Phase 0 measures the operator's own test–retest ceiling, which gates whether

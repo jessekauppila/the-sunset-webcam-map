@@ -1,20 +1,24 @@
 ---
 title: "Quality ceiling measurement and labeling roadmap"
 date: 2026-08-30
-status: parked — deliberately not executing yet
+status: Phase 0 answered 2026-08-31 (ceiling reached); failure-mode track active
 ---
 
 # Quality ceiling & labeling roadmap
 
-> **Status: Phase 0 BUILT (2026-08-30) — awaiting the operator sitting.**
-> Implementation plan: `2026-08-30-retest-draw-implementation.md`, executed on
-> branch `feat/retest-draw`. `retest_v1` is loaded (150 frames: 15 per rating
-> 1–5, 40 N, 35 rating-1; seed 20260830) and the Hard Examples queue has a
-> **Retest** toggle showing 0/150. Re-ratings land in `manual_label_retests`
-> (never `manual_labels`); the export quarantine is scoped to `kind='draw'`
-> (row counts verified unchanged: gold 8371+344, llm 58323). After the
-> sitting: `.venv/bin/python ml/analyze_retest.py --sample-name retest_v1`
-> prints the pre-registered verdict. Phases 1–2 remain gated on it.
+> **Status: Phase 0 RUN AND ANSWERED (2026-08-31) — CEILING REACHED.**
+> Self-Pearson **0.673** vs the model's 0.697 (gap −0.024 ≤ 0.10) and
+> detection self-F1 **0.807** vs the head's ~0.80. Report:
+> `ml/artifacts/reports/retest_v1_ceiling.json` (146 of 150 re-rated).
+> **Phase 1's big labeling push is CANCELLED** and Phase 2 with it, per the
+> pre-registered rule below. The failure-mode track is now the whole plan.
+>
+> The follow-up analysis decomposed the ceiling rather than accepting it:
+> all 35 detection disagreements are either a 1↔N call (21) or a frame from
+> the 2026-08-08 session (14), with **zero residual** — 39/39 agreement on
+> everything else. See the STATE doc's "PHASE 0 VERDICT" block and
+> `docs/ml/rating-rubric.md` "Boundary sharpening" for the anchors and the
+> numbers. Side items 1–3 below are all **DONE** (2026-08-31).
 >
 > Companion to `2026-08-29-two-scale-model-STATE.md` (read that first — it
 > holds the settled findings this plan builds on).
@@ -98,9 +102,10 @@ separable and extend the export quarantine if needed.
   0.80–0.85, the frozen detection head at 0.78–0.80 is *finished* and that
   conversation closes permanently.
 
-## Phase 1 — Detection-gated quality labeling push (CONDITIONAL on Phase 0)
+## Phase 1 — Detection-gated quality labeling push ❌ CANCELLED 2026-08-31
 
-Only if the quality gap says headroom exists.
+**Phase 0 said no headroom (gap −0.024).** Kept for the record; do not
+execute. If a future measurement reopens it, the design below stands.
 
 - Draw **1,000+** frames the live detection head scores **≥ 0.55**, from
   cameras outside every operator eval draw, excluding all `label_samples`
@@ -117,7 +122,11 @@ Only if the quality gap says headroom exists.
   if it's flat by 50%, stop labeling — the answer is architecture or ceiling,
   not volume.
 
-## Phase 2 — Quality head retrain (CONDITIONAL on Phase 1)
+## Phase 2 — Quality head retrain ❌ CANCELLED with Phase 1 (2026-08-31)
+
+The pre-registered bar and confirmation-draw discipline below remain the
+template for **any** future retrain, including one trained on corrected
+labels rather than more labels — see the STATE doc's gate note.
 
 - Proven recipe: backbone warm start from the LLM pretrain
   (`--init-backbone-checkpoint`), same seed discipline as the shipping head.
@@ -131,26 +140,76 @@ Only if the quality gap says headroom exists.
 
 This is where "we want this really good" actually lives once global metrics
 are at ceiling:
-- **Silhouette 4s** — the known quality blind spot; ties into the queued
-  manual-rating-for-custom-cams work.
+- **Silhouette 4s** — ⛔ **BLOCKED upstream, measured 2026-08-31.** The
+  custom-cam corpus is 1,719 frames from a single ~2-hour bring-up burst on
+  2026-06-13 (camera on its side, pointed into a tree, half-occluded), one
+  paired camera, nothing since 2026-06-14, and zero manual labels. There is
+  nothing to label. The model's 0.005–0.081 scores on those frames are
+  *correct*, so they are not even an exhibit of the blind spot. Reopens when
+  a custom camera has banked golden-hour frames across multiple evenings —
+  that is the hardware thread, not an ML wiring job.
+- **The 3/4 boundary** — ✅ **the live failure mode, and now the sharpest
+  lever.** 80% of frames rated 4 flip their `rating >= 4` training label on
+  retest, always drifting down to a 3. Anchors picked from the retest itself
+  are in `docs/ml/rating-rubric.md`; the two boundary tests render on-glass
+  in the queue legend.
+- **The 2026-08-08 cohort** — ⚠️ **104 contaminated positives (88 rated >= 4,
+  6.1% of all >= 4 gold labels) sitting in training data.** All 24 retested
+  positives from that session moved down; 7 of 8 "4"s came back N. Excluding
+  the cohort lifts quality self-Pearson to 0.751 and detection self-F1 to
+  0.853. Re-rating those 104 is one short sitting and is the cheapest
+  remaining ceiling-raiser — awaiting a decision, because it overwrites gold.
 - **Per-camera error audit** — webcam 3656741 fooled both heads twice an hour
   apart; find the other cameras like it and characterize what they share.
 - **Below-gate rendering** — product intent is "show every image, just
   small"; STATE's design note stands (gate currently *hides* 10–15/25 of the
   operator's rating-1 frames; they should render minimal instead).
 
-## Side items (cheap, independent, no phase dependency)
+## Side items ✅ ALL DONE 2026-08-31
 
-1. **Random trickle-save intake.** Add a sampled unconditional save
-   (~1-in-50 frames regardless of score) alongside `SAVE_HIGH_RATED_SNAPSHOTS`
-   in the `update-cameras` save gate, so an unbiased stream keeps entering the
-   archive and the intake feedback loop has a control arm.
-2. **Fix `SNAPSHOT_SYSTEM_README.md`** — still claims a 7-day auto-delete
-   that has never run (`ml/OPERATING_GUIDE.md` has the accurate description).
-3. **Leaderboard instrument drift** — the board ranks
-   `COALESCE(llm_quality, ai_regression_score)`; Claude campaigns stopped
-   mid-July, so new frames compete on ONNX scores against old frames' Claude
-   scores. Not urgent; decide eventually whether to re-rank on one instrument.
+1. **Random trickle-save intake — DONE.** `SAVE_RANDOM_TRICKLE_RATE = 0.02`
+   (1 in 50) in `masterConfig.ts`, applied in the `update-cameras` save gate
+   *without looking at the score*, so the archive keeps receiving an unbiased
+   stream as a control against the model-gated feedback loop. Rows are stamped
+   `webcam_snapshots.intake_reason` (`'disagreement' | 'high_rated' |
+   'trickle' | 'all_rated'`) — migration
+   `database/migrations/20260831_snapshot_intake_reason.sql`. The stamp is the
+   point: without it a trickle row is indistinguishable from a high-rated one
+   and the control arm is unrecoverable. Gated reasons take precedence, so
+   `'trickle'` marks only frames nothing else would have caught. ~80 extra
+   rows/day at current volume.
+
+   **⚠️ Deploy ordering: the migration MUST be applied before this code
+   ships.** `insertWindyDisagreementSnapshot` now names `intake_reason`
+   unconditionally; without the column every snapshot persist throws, and the
+   call site swallows it as a warning — the Hard Examples queue would silently
+   stop receiving frames.
+
+2. **`SNAPSHOT_SYSTEM_README.md` retention claim — DONE.** The file claimed a
+   7-day auto-delete in five places. Nothing has ever been deleted:
+   `CLEANUP_ENABLED = false` and `vercel.json` schedules no cleanup cron. Added
+   a "Retention — what actually happens" section, corrected each claim in
+   place, and reframed the storage/record estimates as per-week growth for a
+   window that never closes.
+
+3. **Leaderboard instrument drift — DOCUMENTED (behaviour unchanged).** The
+   route comment claimed COALESCE(llm_quality, ai_regression_score) had "no
+   scale discontinuity". Measured over the whole archive, that is false:
+
+   | column | n | mean | p99 | max |
+   |---|---|---|---|---|
+   | `llm_quality` | 46,079 | 0.188 | 0.720 | 0.880 |
+   | `ai_regression_score` | 60,646 | 0.432 | 0.809 | 1.000 |
+
+   On the 46,079 frames carrying both, means are 0.188 vs 0.405 and the two
+   correlate at only **r = 0.454**. Claude campaigns stopped 2026-07-31, so the
+   all-time top 100 is now **98 model-ranked, 2 Claude-ranked** — the public
+   board is effectively "best sunsets since August." Left as-is deliberately
+   (this item was "not urgent"), with the fix written down: rank everything on
+   `ai_regression_score`. Every Claude-rated frame already carries a model
+   score (46,079 of 46,079), so it is a single-instrument re-rank with no
+   coverage loss, onto the better instrument (Pearson 0.697 vs 0.514 against
+   operator truth). Changing what the public board shows wants its own call.
 
 ## Explicit non-goals
 
