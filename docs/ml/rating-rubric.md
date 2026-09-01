@@ -295,19 +295,39 @@ Three independent signals agree the *original* labels are the wrong ones:
 3. Every move was downward. Twenty-four of twenty-four in one direction is
    not noise.
 
-That cohort holds **104 labels rated ≥ 2, of which 88 are rated ≥ 4** —
-6.1% of every `rating ≥ 4` label in the gold set — and they are in training
-data now, teaching both heads that colourless and skyless frames are
-top-of-scale positives. Excluding the cohort raises the measured quality
-self-Pearson from 0.673 to **0.751** and the detection self-F1 from 0.807 to
-**0.853**.
+**Size the cohort carefully — the session was mostly Flickr.** Its 592
+labels split as webcam 452 `N` + **24 positives**, and Flickr 36 `N` + 80
+positives (76 of those rated 5). The retest draws webcam frames only, so:
 
-**Recommended:** re-rate the 104 positives as a correction campaign (one
-short sitting — the 488 N labels from that day are stable and need no
-revisit). This is proposed, not done: it would deliberately overwrite gold
-labels through `manual_labels`' `ON CONFLICT DO UPDATE` path, which is
-exactly what `manual_label_retests` exists to prevent, so it is the
-operator's call.
+| | n | retested | verdict |
+|---|---|---|---|
+| webcam positives | 24 | **24 (all)** | every one overturned |
+| webcam `N` | 452 | 33 | 94% stable — leave alone |
+| Flickr positives | 80 | **0** | **untested; probably fine** |
+| Flickr `N` | 36 | 0 | untested |
+
+So the evidenced contamination is **24 labels, not 104** — of which **10
+cross the `rating ≥ 4` line** and 12 flip `is_sunset`. Against 1,237 webcam
+`≥ 4` gold labels that is **0.8%**, not the 6.1% a naive count of the whole
+cohort suggests. A curated Flickr sunset photograph rated 5 is most likely
+*correct*; do not "correct" frames no second pass has actually seen.
+
+Excluding the whole cohort raises measured quality self-Pearson 0.673 →
+**0.751** and detection self-F1 0.807 → **0.853**, but that is a statement
+about the retest sample, not a forecast of model gain.
+
+**Applied by `ml/apply_label_corrections.py`** (dry-run by default), which
+copies the retest ratings onto the 24 gold rows, archiving each original into
+`manual_label_supersessions` in the same transaction. No new sitting was
+needed — the retest had already re-rated exactly those frames blind. Expect
+**no measurable metric change** from 24 labels in 9,118; it is worth doing
+because the labels are demonstrably wrong and the corrections were already
+paid for.
+
+*Adjacent, not addressed here:* Flickr supplies 194 of the 1,431 `rating ≥ 4`
+gold labels (13.6% of the positive class). Given the standing "Flickr is
+fine-tune poison" finding from v4, whether hand-labeled Flickr gold belongs
+in the fine-tune export at all is worth its own decision.
 
 
 ## Two habits that keep the set clean

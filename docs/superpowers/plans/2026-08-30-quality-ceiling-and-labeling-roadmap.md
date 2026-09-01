@@ -153,12 +153,15 @@ are at ceiling:
   retest, always drifting down to a 3. Anchors picked from the retest itself
   are in `docs/ml/rating-rubric.md`; the two boundary tests render on-glass
   in the queue legend.
-- **The 2026-08-08 cohort** — ⚠️ **104 contaminated positives (88 rated >= 4,
-  6.1% of all >= 4 gold labels) sitting in training data.** All 24 retested
-  positives from that session moved down; 7 of 8 "4"s came back N. Excluding
-  the cohort lifts quality self-Pearson to 0.751 and detection self-F1 to
-  0.853. Re-rating those 104 is one short sitting and is the cheapest
-  remaining ceiling-raiser — awaiting a decision, because it overwrites gold.
+- **The 2026-08-08 cohort** — ✅ **CORRECTED 2026-08-31.** The session was
+  mostly Flickr: 592 labels = webcam 452 N + **24 positives**, Flickr 36 N +
+  80 positives. The retest is webcam-only, so it overturned all 24 webcam
+  positives (**10 crossing `rating >= 4`, 0.8% of the 1,237 webcam >= 4 gold
+  labels**) and left the 80 Flickr positives untested — those are probably
+  fine and were deliberately NOT touched. No sitting was needed: the retest
+  ratings already existed. Applied with `ml/apply_label_corrections.py`,
+  archiving originals to `manual_label_supersessions`. Expect no metric
+  movement from 24 labels in 9,118.
 - **Per-camera error audit** — webcam 3656741 fooled both heads twice an hour
   apart; find the other cameras like it and characterize what they share.
 - **Below-gate rendering** — product intent is "show every image, just

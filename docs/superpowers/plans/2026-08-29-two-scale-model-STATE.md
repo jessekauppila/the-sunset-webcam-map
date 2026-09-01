@@ -397,20 +397,43 @@ scores all seven 4→N frames at `llm_quality` 0.00–0.05; the frames are not
 borderline (snapshot 115440 has **no sky in frame at all**; 83222 is flat
 gray sea); and the moves are unanimously downward.
 
-That cohort is **592 labels, 104 rated ≥ 2, 88 rated ≥ 4 — 6.1% of every
-`rating ≥ 4` label in gold** — and it is in training data now. Excluding it
-raises quality self-Pearson 0.673 → **0.751** and detection self-F1
-0.807 → **0.853** (the CEILING REACHED verdict survives either way: 0.751
-still sits inside the 0.10 gap).
+**⚠️ Correction to a first pass at this number (2026-08-31): the cohort is
+much smaller than a naive count suggests, because the session was mostly
+Flickr.** Its 592 labels split as webcam 452 `N` + **24 positives**, and
+Flickr 36 `N` + 80 positives (76 rated 5). The retest draws webcam frames
+only, so it covered all 24 webcam positives (every one overturned) and 33 of
+the 452 webcam `N` (94% stable). The 80 Flickr positives are **untested**,
+and a curated Flickr sunset rated 5 is most likely correct.
 
-**Recommended next labeling action: re-rate those 104 positives** (one short
-sitting; the 488 N labels from that day are stable and need no revisit).
-This is the cheapest available ceiling-raiser and it is "better label
-consistency, not more of the same labels" exactly. **Not done — it needs a
-decision**, because it deliberately overwrites gold through
-`manual_labels`' `ON CONFLICT DO UPDATE`, which is precisely what
-`manual_label_retests` was built to prevent. It also wants a new
-`label_samples.kind` (`'correction'`) so the rewrite is auditable.
+Evidenced contamination is therefore **24 labels, of which 10 cross
+`rating ≥ 4`** and 12 flip `is_sunset` — **0.8%** of the 1,237 webcam `≥ 4`
+gold labels, not the 6.1% that counting the whole cohort implies. Excluding
+the cohort raises quality self-Pearson 0.673 → **0.751** and detection
+self-F1 0.807 → **0.853**, but that describes the retest sample, not a
+forecast of model gain (CEILING REACHED survives either way — 0.751 still
+sits inside the 0.10 gap).
+
+**DONE 2026-08-31 — no sitting was needed.** The retest had already re-rated
+exactly those 24 frames blind, so the corrections were already paid for.
+`ml/apply_label_corrections.py` (dry-run by default, `--apply` to write)
+copies the retest ratings onto the gold rows and archives each original into
+`manual_label_supersessions` in the same transaction — migration
+`database/migrations/20260831_manual_label_supersessions.sql`. The script
+refuses to touch any frame without a second-pass rating, so it can never
+invent a correction; running it over the whole 476-row webcam cohort aborts
+on the 419 unrated rows rather than correcting a subset.
+
+**Expect no measurable metric change** — 24 labels in 9,118. This was worth
+doing because the labels are demonstrably wrong (seven of the 4s have no sky
+in frame), not because it buys accuracy. Do not use it to explain a future
+number.
+
+*Adjacent, deliberately not acted on:* Flickr supplies **194 of the 1,431
+`rating ≥ 4` gold labels (13.6% of the positive class)**. Given the settled
+"Flickr is fine-tune poison" finding from v4 (97.5%-Flickr positives → F1
+0.08), whether hand-labeled Flickr gold belongs in the fine-tune export is
+worth its own decision — the current gold export knowingly includes 344
+Flickr rows.
 
 **Gate on the next retrain (item 4 of the 2026-08-31 queue).** A
 pre-registered quality retrain is *not* yet justified: item 1 sharpened the
