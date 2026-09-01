@@ -13,9 +13,33 @@ export const dynamic = 'force-dynamic';
 //     provenance). The fallback clause is inert until the v4 archive backfill
 //     (U3) populates ai_regression_score.
 //
-// Both llm_quality and ai_regression_score are NUMERIC(4,3) on [0,1], so
-// COALESCE(llm_quality, ai_regression_score) is a valid unified sort key with
-// no scale discontinuity at the Claude/model boundary.
+// ⚠️ MIXED INSTRUMENTS — the board ranks two different measuring devices
+// against each other. Both columns are NUMERIC(4,3) on [0,1], but sharing a
+// RANGE is not sharing a SCALE, and the original "no scale discontinuity"
+// claim here is wrong. Measured 2026-08-31 over the whole archive:
+//
+//   column               n        mean    p99     max
+//   llm_quality          46,079   0.188   0.720   0.880
+//   ai_regression_score  60,646   0.432   0.809   1.000
+//
+// On the 46,079 frames that carry BOTH, the means are 0.188 vs 0.405 and the
+// two correlate at only r = 0.454. Claude's scale is compressed (STATE
+// 2026-08-29: rubric anchors say 1≈0.05/3≈0.50/5≈0.95, measured means are
+// 0.257/0.441/0.600), so a Claude-scored 5 loses to a model-scored 4.
+//
+// Consequence, not theory: Claude campaigns stopped 2026-07-31, so every
+// frame captured since ranks by ai_regression_score while older frames rank
+// by llm_quality — and the all-time top 100 is now **98 model-ranked, 2
+// Claude-ranked**. The public "Best Sunsets" board is effectively "best
+// sunsets since August."
+//
+// Not fixed here deliberately (roadmap side item 3 — "not urgent"). When it
+// is fixed, the clean move is to rank everything on ai_regression_score:
+// every Claude-rated frame already carries a model score (46,079 of 46,079),
+// so it is a single-instrument re-rank with no coverage loss, and the model
+// is the better instrument against operator truth (Pearson 0.697 vs Claude's
+// 0.514 on the same frames, pooled-500 eval). Changing the sort key changes
+// what the public board shows, so it wants its own decision.
 //
 // Flickr is excluded structurally, not by a filter: this query only reads
 // webcam_snapshots JOIN webcams; the Flickr corpus lives in external_images
