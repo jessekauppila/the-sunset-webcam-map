@@ -1,4 +1,5 @@
 import { AI_BINARY_DECISION_THRESHOLD } from '@/app/lib/masterConfig';
+import { applyTempering } from '@/app/lib/cameraCalibration';
 import type { WindyWebcam } from '@/app/lib/types';
 
 // The detection gate expressed on the 1-5 rating scale that
@@ -25,7 +26,12 @@ export function getQualityScore(webcam: WindyWebcam): number | null {
   if (typeof detection === 'number' && detection < GATE_AS_RATING) {
     return 1;
   }
-  return webcam.aiRatingRegression ?? null;
+  const raw = webcam.aiRatingRegression ?? null;
+  if (raw == null) return null;
+  // Per-camera tempering scales only the part ABOVE the floor, so a tempered
+  // frame gets smaller but is never hidden. passesGate is deliberately NOT
+  // tempered — the detection verdict is frozen.
+  return applyTempering(raw, webcam.calibrationMultiplier);
 }
 
 /**
