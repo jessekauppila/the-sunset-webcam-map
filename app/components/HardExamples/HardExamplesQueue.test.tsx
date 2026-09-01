@@ -546,10 +546,28 @@ describe('HardExamplesQueue rubric legend', () => {
     render(<HardExamplesQueue />);
     await waitFor(() => expect(screen.getByText('Frame one')).toBeTruthy());
 
-    expect(screen.getByText(/not a sunset at all/)).toBeTruthy();
-    expect(screen.getByText(/flat gray/)).toBeTruthy();
+    expect(screen.getByText(/no usable sky/)).toBeTruthy();
+    expect(screen.getByText(/readable sky, twilight light/)).toBeTruthy();
     expect(screen.getByText(/spectacular/)).toBeTruthy();
     expect(screen.getByText(/positive class for training/)).toBeTruthy();
+  });
+
+  // retest_v1 (2026-08-31) measured 80% churn on the rating>=4 label for frames
+  // rated 4, and a coin-flip N/1 split. Both boundaries now render as tests you
+  // can apply to the pixels; if they fall off the glass the drift comes back.
+  it('renders the two boundary tests that decide a training label', async () => {
+    render(<HardExamplesQueue />);
+    await waitFor(() => expect(screen.getByText('Frame one')).toBeTruthy());
+
+    const three4 = screen.getByTestId('boundary-test-3-4');
+    expect(three4.textContent).toContain('brightest thing in the frame');
+    expect(three4.textContent).toContain('Structure is not brightness');
+
+    const nOne = screen.getByTestId('boundary-test-N-1');
+    expect(nOne.textContent).toContain('readable sky');
+
+    // 4 is stated as the brightness test, not as the old bare "vivid".
+    expect(screen.getByText(/BRIGHTEST thing in frame/)).toBeTruthy();
   });
 
   it('lists the hotkeys, including the two with no on-card button', async () => {

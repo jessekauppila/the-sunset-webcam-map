@@ -29,17 +29,26 @@ after submit, so the label isn't anchored to the model's guess.
 
 ## The scale
 
-- **N** — not a sunset event at all: daytime, night, indoor, lens fully
-  fogged/rained out, or sky entirely obstructed.
-- **1** — sunset is happening but the frame has nothing: flat gray overcast,
-  zero color. (≈ Claude 0.0–0.10)
+- **N** — no usable sky: sky absent or only a sliver at the frame edge, fully
+  obstructed/fogged/rained out, or full dark. *(Not "no sunset is happening" —
+  the queue is drawn from the sunset window, so that is true of almost every
+  frame and carries no information. See the 1-vs-N section below.)*
+- **1** — a readable sky in twilight light, with no colour in it: flat gray
+  overcast, blue hour. (≈ Claude 0.0–0.10)
 - **2** — trace of color, weak and washed out; you'd scroll past it. (≈ 0.30)
 - **3** — real sunset color, unremarkable. The honest middle — use it freely,
-  don't round up. (≈ 0.50)
-- **4** — vivid; you'd stop and look. Crosses the line into "show this."
+  don't round up. Colour you can name, in a frame that still reads dark.
+  (≈ 0.50)
+- **4** — the warm light **carries the frame**: the sky is the brightest thing
+  in it, not merely the least dark thing. Crosses the line into "show this."
   (≈ 0.70–0.85)
 - **5** — dramatic/spectacular; the reason the project exists. Genuinely rare.
   (≈ 0.95)
+
+The 3-vs-4 line is the one that decides a training label and the one the
+operator is measurably least consistent on (80% churn — see **Boundary
+sharpening** below). Anchor frames for it live in that section; open them
+before a sitting.
 
 The `≈` values are the 0.0–1.0 anchors Claude is given in `RATING_PROMPT`
 (`ml/llm_rater.py:77`), so operator labels and LLM scores stay comparable.
@@ -113,6 +122,193 @@ Claude called 141 of them sunsets; on the 1,224-frame overlap the two disagreed
 different measurements, not as agreement/disagreement on the same one.**
 
 ---
+
+## Boundary sharpening — anchor frames (measured 2026-08-31)
+
+The `retest_v1` sitting re-rated 146 already-labeled frames blind
+(`ml/artifacts/reports/retest_v1_ceiling.json`). It settled the ceiling
+question — self-Pearson 0.673 vs the model's 0.697, so global metrics are
+done — but the confusion matrix also says exactly **where** the operator
+disagrees with himself, and those two places are fixable.
+
+**The only churn that reaches a model is `is_sunset` and `rating ≥ 4`.**
+A 4↔5 wobble costs nothing (both are the positive class); so does 2↔3. Only
+two boundaries change a training label. Re-weighted to the gold corpus's own
+composition (N 59.8%, 1: 6.2%, 2: 7.6%, 3: 11.2%, 4: 10.6%, 5: 4.5%):
+
+| stratum | corpus weight | retest n | flips `is_sunset` | flips `rating ≥ 4` |
+|---|---|---|---|---|
+| N | 59.8% | 40 | 5% | 0% |
+| 1 | 6.2% | 47 | **45%** | 0% |
+| 2 | 7.6% | 14 | 14% | 14% |
+| 3 | 11.2% | 15 | 13% | 13% |
+| **4** | 10.6% | 15 | 47% | **80%** |
+| 5 | 4.5% | 15 | 7% | 33% |
+| **corpus-weighted** | | 146 | **13.6%** | **12.6%** |
+
+Two conclusions, and they point in different directions:
+
+- **Rating 4 is the noisiest label in the set.** Four in five frames rated 4
+  come back with the opposite `rating ≥ 4` training label. Restricted to the
+  current rubric regime (originals labeled 2026-08-26 → 08-30, excluding the
+  2026-08-08 cohort below), it is still 4 of 7 — and every one of those drops
+  to a **3**, never to N. This is a real boundary problem and the anchors
+  below are the fix.
+- **The 1/N line is a coin flip (45%), but it only feeds the frozen detection
+  head.** Every one of the retest's 35 detection disagreements is either a
+  1↔N call (21) or a 2026-08-08 frame (14) — zero residual: on the 39 frames
+  that are neither, agreement is 39/39. See "The 1-vs-N line" below.
+
+### The 3-vs-4 line — what a 4 actually looks like
+
+Every anchor is a real frame from `retest_v1`, with the retest's own second
+call. Nothing here is invented; open them side by side before a sitting.
+
+**The cleanest pair — same camera, same framing, four days apart**
+(webcam 28999873, "Kohtla-Jarve linn › North: Kohtla-Nõmme", both
+captured 22:0x local):
+
+| | frame | second call | what to look at |
+|---|---|---|---|
+| **4** | snapshot **124555** | rated **5** on retest | a broad saturated orange band that is the **brightest thing in the frame** — it lights the horizon well above the terrain line |
+| **3** | snapshot **123667** | rated **3** on retest | same camera, same hour: a gray cloud deck with a thin dull orange line at the horizon only. Color is *present*, the frame still reads dark |
+
+The variable is isolated: same scene, same optics, same time of day. The
+difference is not *whether* there is color, it is whether the warm light
+**carries the frame**.
+
+> **The test: is the sky the brightest thing in the frame, or just the least
+> dark thing in it?** A 4's warm band reads as a light source. A 3 has colour
+> you can name but the frame still reads as a dark scene.
+
+**Held as 4 on retest (use these as the floor of the category):**
+
+- snapshot **123658** (webcam 28836338, Orebić Riva ferry, Korčula) — clean unbroken
+  orange → peach → blue gradient across the whole sky. No drama, no
+  structure, nothing spectacular; it is a 4 on brightness and saturation
+  alone. *This is the frame to compare a candidate against.*
+- snapshot **85211** (webcam 7439776, Northern Saskatchewan) — a low warm sun band
+  over snow. Sparse and plain, still unmistakably lit.
+
+**Rated 4, came back 3 (these are the ones the anchors have to catch):**
+
+- snapshot **121809** (beach + palm) — mauve and pink, but dim and murky;
+  the frame reads as night with tint.
+- snapshot **120494** (cloud sea) — a dusty pink band over fog. Pretty
+  structure, low luminance. **Structure is not brightness** — an interesting
+  shape does not lift a 3 to a 4.
+- snapshot **125073** (lake at dusk) — pastel wash over a dark foreground.
+- snapshot **123667** — the pair frame above.
+
+The common error is clear from the four of them: **being drawn in by an
+interesting scene and rating the composition rather than the light.** The
+existing habit "judge the sky, not the framing" already says this; these
+four are what violating it looks like.
+
+**The 4/5 line barely matters** — it never changes a training label — so do
+not agonise over it. For reference, snapshot **122617** (saturated orange
+wash, silhouetted trees, dark cloud bar) was originally a 5 and came back a
+4; either call trains the model identically.
+
+### The 1-vs-N line — a definition problem, not an anchor problem
+
+45% of rating-1 frames flip to N on a second pass. The cause is in the
+definition: **1** currently means "a sunset event is happening but the frame
+has nothing," which asks about the *sun's position* — information the frame
+does not contain.
+
+**Tested and rejected: showing solar elevation in the queue.** The obvious
+fix is to put the sun's altitude on screen and turn the judgment into a
+lookup. Measured on these 146 frames, it does not work — solar elevation
+does not separate the calls at all:
+
+| | n | median elevation | inside −8°…+6° |
+|---|---|---|---|
+| 1 → 1 (held) | 17 | −7.6° | 71% |
+| 1 → N (flipped) | 21 | −6.9° | 67% |
+| retest = N (all) | 71 | −6.6° | 61% |
+| retest = sunset (all) | 75 | −6.3° | 69% |
+
+A twilight-window rule would have agreed with the operator's own second call
+on 25 of 47 rating-1 frames — 53%, i.e. chance. The reason is structural:
+the queue is *already* drawn from the sunset window, so "is a sunset event
+occurring" is true for nearly every frame in it by construction and carries
+no information. **Do not build the solar readout.**
+
+What the operator is actually deciding, read off the frames, is whether
+there is a **usable sky** in the picture:
+
+- snapshot **123236** (pre-dawn harbour, held as **1**) — sky visible, water
+  and air clearly lit by blue hour, simply no warm colour.
+- snapshot **125460** (warehouse roof, flipped to **N**) — a building fills
+  the frame; the sky is a pale strip at the top edge. Incidental, not
+  readable.
+
+So state the boundary as something visible:
+
+> **N** — the frame gives you no usable sky: sky absent or filling only a
+> sliver, fully obstructed/fogged/rained out, or full dark.
+> **1** — a readable sky in twilight light, with no colour in it.
+
+This is a cheap edit and it makes the call reproducible. Its value is
+limited, though: rating 1 is 6.2% of the corpus, so 45% churn is only ~2.8%
+label noise, and it lands entirely on the **detection head, which is frozen
+and already at the operator's own reliability** (self-F1 0.807 vs the head's
+~0.80). Fix the definition because a coin-flip label is worth fixing; do not
+expect a metric to move.
+
+### Anchor frame links
+
+| snapshot | role | frame |
+|---|---|---|
+| 124555 | 4 → retest 5 — the bright anchor | [open](https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/28999873/1787167854413.jpg) |
+| 123667 | 4 → retest 3 — the pair frame | [open](https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/28999873/1786821350825.jpg) |
+| 123658 | 4 → retest 4 — the floor of the category | [open](https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/28836338/1786818653303.jpg) |
+| 85211 | 4 → retest 4 | [open](https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/7439776/1773495333618.jpg) |
+| 121809 | 4 → retest 3 | [open](https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/5973565/1786203942870.jpg) |
+| 120494 | 4 → retest 3 | [open](https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/13588772/1785793569005.jpg) |
+| 125073 | 4 → retest 3 | [open](https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/4600867/1787364061527.jpg) |
+| 122617 | 5 → retest 4 — the 4/5 line, costs nothing | [open](https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/29232682/1786473955296.jpg) |
+| 123236 | 1 → retest 1 — readable sky, no colour | [open](https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/4769517/1786679148223.jpg) |
+| 125460 | 1 → retest N — sky is a sliver | [open](https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/12987447/1787515304495.jpg) |
+| 83222 | 2026-08-08 cohort: rated 4, retest N | [open](https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/2270/1773467305230.jpg) |
+| 115440 | 2026-08-08 cohort: rated 4, retest N — no sky in frame | [open](https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/2942798/1784403058361.jpg) |
+| 107023 | 2026-08-08 cohort: rated 4, retest N | [open](https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/28819232/1782073875683.jpg) |
+
+### ⚠️ The 2026-08-08 cohort — 592 labels on a different scale
+
+The retest's single largest source of disagreement is one labeling session.
+Of the 24 frames from **2026-08-08** that were originally rated 2/3/4/5,
+**zero came back at the same rating and every one of them moved down** —
+7 of 8 "4"s came back **N**. From the same session, N labels are 94% stable
+(31/33), so this is not memory decay; the positive scale specifically was
+shifted.
+
+Three independent signals agree the *original* labels are the wrong ones:
+
+1. Claude, a wholly separate instrument, scores all seven of the 4 → N
+   frames at `llm_quality` 0.00–0.05 with `llm_is_sunset = false`.
+2. The frames themselves are not borderline. Snapshot **83222** is flat gray
+   overcast sea with no sky colour whatsoever; **115440** is a close-up of a
+   breaking wave with **no sky in frame at all**; **107023** is a blown-out,
+   out-of-focus beach. These are N under any reading of the scale.
+3. Every move was downward. Twenty-four of twenty-four in one direction is
+   not noise.
+
+That cohort holds **104 labels rated ≥ 2, of which 88 are rated ≥ 4** —
+6.1% of every `rating ≥ 4` label in the gold set — and they are in training
+data now, teaching both heads that colourless and skyless frames are
+top-of-scale positives. Excluding the cohort raises the measured quality
+self-Pearson from 0.673 to **0.751** and the detection self-F1 from 0.807 to
+**0.853**.
+
+**Recommended:** re-rate the 104 positives as a correction campaign (one
+short sitting — the 488 N labels from that day are stable and need no
+revisit). This is proposed, not done: it would deliberately overwrite gold
+labels through `manual_labels`' `ON CONFLICT DO UPDATE` path, which is
+exactly what `manual_label_retests` exists to prevent, so it is the
+operator's call.
+
 
 ## Two habits that keep the set clean
 
