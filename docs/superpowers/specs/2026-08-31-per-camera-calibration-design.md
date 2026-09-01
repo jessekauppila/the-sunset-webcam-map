@@ -1,7 +1,7 @@
 ---
 title: "Automatic per-camera calibration — design"
 date: 2026-08-31
-status: DRAFT — awaiting Jesse's sign-off before implementation
+status: SIGNED OFF 2026-09-01 — implementing leg 1
 ---
 
 # Automatic per-camera calibration (tempering prior)
@@ -31,6 +31,11 @@ closed. Detection stays frozen.
 7. Known ground truth: `4057187` (Broome), `2947112` (Coober Pedy),
    `29095214` (Mount Gambier), `29275205` (Wagga Wagga) must temper;
    almost everything else must not.
+8. **Frames are retained so the calibration can be checked over time**
+   (added 2026-09-01). Every frame that contributes to a multiplier is kept
+   with the scores that made it count, and every change to a camera's
+   multiplier is recorded — so a tempering decision can be re-examined, and
+   drift or healing observed, without rescoring anything.
 
 ---
 
@@ -195,9 +200,9 @@ camera looked like *then*, so a trimmed tree or a removed floodlight heals.
 
 ## Architecture
 
-Four units, each independently testable.
+Five units, each independently testable.
 
-### 1. `camera_calibration_evidence` (new table) — the socket
+### 1. `camera_calibration_evidence` (new table) — the socket, and the frame record
 
 One row per labeled frame per model version. Small (~9k rows today).
 
@@ -211,8 +216,17 @@ CREATE TABLE IF NOT EXISTS camera_calibration_evidence (
   is_negative    BOOLEAN NOT NULL,  -- operator said N
   fired          BOOLEAN NOT NULL,  -- model p_sunset >= gate
   captured_on    DATE NOT NULL,     -- decay + recurrence basis
+  -- Frame record: what the model actually saw and did, kept so a tempering
+  -- decision can be re-examined later WITHOUT rescoring 9k frames through ONNX.
+  p_sunset       NUMERIC(6,4) NOT NULL,  -- detection probability behind `fired`
+  quality        NUMERIC(6,4),           -- quality head output
+  tile           NUMERIC(6,4),           -- composed tile size the display used
+  firebase_url   TEXT NOT NULL,          -- deliberately denormalised (see below)
+  scored_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
   UNIQUE (snapshot_id, model_version, evidence_source)
 );
+CREATE INDEX IF NOT EXISTS camera_calibration_evidence_cam_idx
+  ON camera_calibration_evidence (webcam_id, model_version, captured_on DESC);
 ```
 
 `model_version` scoping is the fix for the exact defect that killed the wide
@@ -221,14 +235,72 @@ signal: evidence from a retired head must never drive a live multiplier.
 `evidence_source` is the leg-2 socket — a second writer appends rows and the
 aggregation needs no change.
 
-### 2. Evidence writer — `ml/audit_camera_errors.py --emit-evidence`
+**Retention is a hard rule, not an optimisation.** The table is
+**append-only**. Nothing in this system ever deletes an evidence row —
+not the nightly job (which only reads), not the writer (which upserts by
+the unique key), not a model swap. When the shipping head changes, the
+writer inserts a *new* generation of rows under the new `model_version`
+and the old generation stays, so "how did v5 and v6 judge this same frame?"
+stays answerable. This matches the standing no-deletion rule for frame
+storage.
+
+`firebase_url` is denormalised on purpose. Joining `webcam_snapshots` would
+normally be right, but the entire point of this table is to remain
+reviewable years later; a self-contained row survives any future pruning or
+reshaping of the snapshots table. The cost is ~9k duplicated strings.
+
+### 2. `camera_calibration_history` (new table) — drift over time
+
+The evidence table records *what the model saw*. This one records *what the
+system decided*, so a camera's tempering can be tracked over time rather than
+only observed in its current state.
+
+```sql
+CREATE TABLE IF NOT EXISTS camera_calibration_history (
+  id                  BIGSERIAL PRIMARY KEY,
+  webcam_id           BIGINT NOT NULL,
+  computed_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
+  multiplier          NUMERIC(4,3) NOT NULL,
+  previous_multiplier NUMERIC(4,3),          -- NULL on a camera's first row
+  false_shows         NUMERIC(8,3) NOT NULL, -- decayed weight
+  negative_frames     NUMERIC(8,3) NOT NULL, -- decayed weight
+  raw_false_shows     INT NOT NULL,
+  false_show_days     INT NOT NULL,
+  model_version       TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS camera_calibration_history_cam_idx
+  ON camera_calibration_history (webcam_id, computed_at DESC);
+```
+
+Written by the nightly job **only when a camera's multiplier changes** by more
+than 0.001. Writing every camera every night would add ~1,000 rows/night of
+mostly-identical data; `webcams.calibration_computed_at` already answers "did
+the job run". Change-events answer the question that matters — *when did this
+camera start tempering, how hard, and is it healing?*
+
+This is what makes the healing requirement observable rather than merely
+asserted: a camera whose view is cleaned up produces a visible sequence of
+rows walking its multiplier back toward 1.0.
+
+### 3. Evidence writer — `ml/audit_camera_errors.py --emit-evidence`
 
 Extends the existing, already-proven audit script to upsert its per-frame
-results into the table instead of only writing CSV/JSON. Offline, run when
-labels accumulate or the shipping head changes. Not on the nightly path —
-it needs ONNX, and operator labels only change when Jesse labels.
+results into `camera_calibration_evidence` in addition to the CSV/JSON it
+already writes. Offline, run when labels accumulate or the shipping head
+changes. Not on the nightly path — it needs ONNX, and operator labels only
+change when Jesse labels.
 
-### 3. Nightly job — `/api/cron/recompute-camera-calibration`
+It already computes every field the frame record needs (`p_sunset`, `quality`,
+`tile`, the URL, the capture day) — `--dump-frames` writes exactly these to
+CSV today. The writer persists them instead of leaving them in an artifact
+file, which is what makes requirement 8 hold: the frames behind a multiplier
+live in the database next to the decision, not in a CSV on a branch.
+
+Upsert is `ON CONFLICT (snapshot_id, model_version, evidence_source) DO UPDATE`
+— re-running the writer refreshes scores for the same generation but never
+deletes or duplicates.
+
+### 4. Nightly job — `/api/cron/recompute-camera-calibration`
 
 Pure SQL. Directly mirrors `recompute-disagreements`:
 
@@ -242,7 +314,7 @@ Pure SQL. Directly mirrors `recompute-disagreements`:
 No image download, no ONNX — so it does **not** need the `ml/artifacts` bundle
 and cannot push the 250 MB function limit.
 
-### 4. Multiplier math — `app/lib/cameraCalibration.ts`
+### 5. Multiplier math — `app/lib/cameraCalibration.ts`
 
 Pure function, no DB, no I/O. Where the rule actually lives, and where the
 tests point.
@@ -292,9 +364,19 @@ test asserting the gate verdict is bit-identical with and without a multiplier.
 
 ### Ops surface
 
-A "Camera calibration" panel in the Ops tab: tempered cameras, multiplier,
-`fs / n_N`, distinct days, `calibration_computed_at`, and a fleet-level count.
-Follows the existing `OpsPanels.tsx` patterns.
+A "Camera calibration" panel in the Ops tab, following the existing
+`OpsPanels.tsx` patterns. Three things, because requirement 8 is only real if
+it is reachable:
+
+1. **Current state** — tempered cameras with multiplier, `fs / n_N`, distinct
+   days, `calibration_computed_at`, and a fleet-level tempered count.
+2. **The frames** — expanding a camera lists its false-show frames with
+   `p_sunset`, `tile` and a thumbnail from `firebase_url`. This is the "was
+   this camera fairly tempered?" check, and it is the reason the frame record
+   is denormalised.
+3. **The history** — a camera's multiplier changes over time from
+   `camera_calibration_history`, so healing and drift are visible rather than
+   inferred.
 
 ---
 
@@ -313,6 +395,13 @@ The job is not allowed to ship unless, run against the frozen
 5. **Bounded output:** multiplier ∈ [0.50, 1.0] for all inputs, including
    adversarial ones (zero frames, all-false-shows, missing fields).
 6. **Neutral by default:** a camera with no evidence row gets exactly 1.0.
+7. **Retention holds:** re-running the evidence writer twice leaves the row
+   count unchanged (upsert, not duplicate) and deletes nothing; writing a
+   second `model_version` generation leaves the first generation's rows
+   intact and readable.
+8. **History is written:** a multiplier change produces exactly one
+   `camera_calibration_history` row carrying the previous value; an unchanged
+   multiplier produces none.
 
 Measured baseline to beat, from the simulation: 17 tempered, 0 false positives,
 all 4 ground-truth cameras caught.
@@ -378,14 +467,15 @@ math, the cron, the storage, or the display path.
 
 | phase | content | gate |
 |---|---|---|
-| 1 | `cameraCalibration.ts` + unit tests (pure math, clauses 4–6 of the acceptance test) | tests green |
-| 2 | Migration + `--emit-evidence` writer; populate from existing labels | clauses 1–3 reproduce the simulation |
-| 3 | Nightly cron route + lib + `vercel.json`, mirroring `recompute-disagreements` | tests green, dry-run locally |
-| 4 | `qualitySignal.ts` application + `WindyWebcam` plumbing | gate-identity test green |
-| 5 | Ops panel | visual check |
-| 6 | Deploy + verify via `calibration_computed_at` stamps | stamps present post-deploy |
+| 1 | `cameraCalibration.ts` + unit tests (pure math, clauses 4–6) | tests green |
+| 2 | Migration: both tables + `webcams` columns | applies clean, idempotent |
+| 3 | `--emit-evidence` writer; populate from existing labels | clauses 1–3 + 7 reproduce the simulation |
+| 4 | Nightly cron route + lib + `vercel.json`, mirroring `recompute-disagreements`; writes history | tests green, clause 8, dry-run locally |
+| 5 | `qualitySignal.ts` application + `WindyWebcam` plumbing | gate-identity test green (clause 4) |
+| 6 | Ops panel — current state, frames, history | visual check |
+| 7 | Deploy + verify via `calibration_computed_at` stamps | stamps present post-deploy |
 
-Phases 1 and 2 carry the risk; 3–5 are pattern-matching existing code.
+Phases 1 and 3 carry the risk; 4–6 are pattern-matching existing code.
 
 ---
 
@@ -405,15 +495,12 @@ Phases 1 and 2 carry the risk; 3–5 are pattern-matching existing code.
 
 ---
 
-## Open question for sign-off
+## Resolved at sign-off (2026-09-01)
 
-Everything above is settled by measurement except one judgement call:
+**Jesse, 2026-09-01: proceed with leg 1**, with the added requirement that
+frames be retained so the calibration can be checked over time (requirement 8,
+above). The trade-off question — demoting ~10 genuine operator-≥4 frames to
+remove 8 big false-shows — is accepted at `CALIBRATION_MAX_TEMPER = 0.50`.
 
-**Is demoting ~10 genuine operator-≥4 frames (most of them Broome's real
-sunsets, from ~0.95 tile to ~0.55) an acceptable price for removing 8 big
-false-shows before the 2026-09-13 showing?**
-
-Recommendation: **yes.** Nothing is hidden (the gate is untouched), the harm is
-bounded by `MIN_MULT`, and it reverses per-camera as labels accumulate. If the
-answer is no, lower `CALIBRATION_MAX_TEMPER` to 0.35 — 7 fixed, 9 demoted — a
-one-constant change requiring no redesign.
+`CALIBRATION_MAX_TEMPER = 0.35` (7 fixed, 9 demoted) remains a one-constant
+retreat if the showing suggests the tempering bites too hard.
