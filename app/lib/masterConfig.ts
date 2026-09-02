@@ -34,6 +34,23 @@ export const SEARCH_RADIUS_DEG = 11;
 // 0 = main ring, positive values shift the ring westward from the subsolar geometry.
 export const TERMINATOR_RING_OFFSETS_DEG = [0]; //was   0,1.75 * SEARCH_RADIUS_DEG,//was 1,.75
 
+// Per-feed camera count below which that feed sweeps an extra ring. Chosen
+// against a single observation (4 sunrise, 21 sunset on 2026-09-02); expect
+// to tune it once the sweep telemetry has a few days of history.
+export const TERMINATOR_CAMERA_FLOOR = 15;
+
+// Extra rings to sweep when a feed is under the floor, tried in this order.
+// radius = 90 - (sunAltitude + offset), so POSITIVE MOVES TOWARD DAY: +15.75
+// puts the ring near +2.75 degrees solar altitude (golden hour, which the base
+// ring at -13 misses entirely), and -15.75 puts it near -28.75 (deep night,
+// where the detection gate floors the frames anyway). Day side first.
+//
+// The magnitude is not arbitrary: the query box is 2 x SEARCH_RADIUS_DEG
+// across, so an offset smaller than the box mostly re-finds the same cameras.
+// Measured 2026-09-02 — a 3-degree offset returned 26-35% new cameras for a
+// full ring's worth of API calls; 15.75 returned 92-100%.
+export const TERMINATOR_WIDEN_OFFSETS_DEG = [15.75, -15.75] as const;
+
 // How recent a custom camera's most-recent snapshot must be for the camera
 // to qualify for terminator visibility. Mirrors Windy's "API returned it
 // this tick" semantics — custom cams without a fresh capture are

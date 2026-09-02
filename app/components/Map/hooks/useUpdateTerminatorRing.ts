@@ -27,10 +27,7 @@ import { subsolarPoint } from '../lib/subsolarLocation';
 import { createTerminatorVisualizationRing } from '../lib/terminatorRing';
 import { createTerminatorRingHiRes } from '../lib/terminatorRingHiRes';
 import { createSearchRadiusCircles } from '../lib/searchRadiusCircles';
-import {
-  TERMINATOR_RING_OFFSETS_DEG,
-  TERMINATOR_SUN_ALTITUDE_DEG,
-} from '@/app/lib/masterConfig';
+import { TERMINATOR_SUN_ALTITUDE_DEG } from '@/app/lib/masterConfig';
 import type { Location as TerminatorLocation } from '@/app/lib/types';
 
 export function useUpdateTerminatorRing(
@@ -61,18 +58,20 @@ export function useUpdateTerminatorRing(
     return createTerminatorRingHiRes(currentTime);
   }, [currentTime]);
 
-  // Use the same precision as the cron job for accurate visualization
+  // One ring at offset 0. Escalation rings are a fetch-time concern that
+  // varies tick to tick; drawing them would imply the map is showing cameras
+  // from all of them. Do not import TERMINATOR_WIDEN_OFFSETS_DEG here.
   const ringResults = useMemo(() => {
-    return TERMINATOR_RING_OFFSETS_DEG.map((offsetDeg) =>
+    return [
       createTerminatorVisualizationRing(
         currentTime,
         raHours,
         gmstHours,
         precisionDeg,
         TERMINATOR_SUN_ALTITUDE_DEG,
-        offsetDeg,
+        0,
       ),
-    );
+    ];
   }, [currentTime, raHours, gmstHours, precisionDeg]);
 
   const mainRing = ringResults[0];
