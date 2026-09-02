@@ -41,13 +41,18 @@ vi.mock('@/app/lib/webcamSnapshot', () => ({
 vi.mock('./lib/auth', () => ({ verifyCronAuth: () => verifyAuthMock() }));
 vi.mock('./lib/windyApi', () => ({
   dedupeCoords: (x: unknown) => x,
+  // Mirrors the real fetchCoordsCounted (lib/windyApi.ts): an empty coord
+  // list short-circuits to zero webcams without calling the batch fetcher.
   fetchCoordsCounted: async (coords: unknown[], ...rest: unknown[]) => {
+    if (!Array.isArray(coords) || coords.length === 0) {
+      return { webcams: [], attempted: 0, empty: 0 };
+    }
     const batches = (await fetchBatchesMock(coords, ...rest)) as Array<
       Array<{ webcamId: number | string; [k: string]: unknown }>
     >;
     return {
       webcams: batches.flat(),
-      attempted: Array.isArray(coords) ? coords.length : 0,
+      attempted: coords.length,
       empty: batches.filter((b) => b.length === 0).length,
     };
   },
@@ -92,7 +97,13 @@ vi.mock('@/app/components/Map/lib/subsolarLocation', () => ({
   subsolarPoint: () => ({ raHours: 0, gmstHours: 0 }),
 }));
 vi.mock('@/app/components/Map/lib/terminatorRing', () => ({
-  createTerminatorQueryRing: () => ({ sunriseCoords: [], sunsetCoords: [] }),
+  // One coordinate per feed so fetchCoords actually receives non-empty
+  // input — an all-empty ring would make fetchCoordsCounted's real
+  // short-circuit fire on every call and never exercise the fetch seam.
+  createTerminatorQueryRing: () => ({
+    sunriseCoords: [{ lat: 0, lng: 0 }],
+    sunsetCoords: [{ lat: 1, lng: 1 }],
+  }),
 }));
 
 // Mutable capture toggles — keep the real masterConfig values, override only
@@ -118,7 +129,21 @@ vi.mock('@/app/lib/masterConfig', async (importOriginal) => {
   };
 });
 
+import { TERMINATOR_CAMERA_FLOOR } from '@/app/lib/masterConfig';
 import { GET } from './route';
+
+// A classify result at/above the floor for both feeds, so the default tick
+// in this file is the common, non-escalating case — the sweep should not
+// widen when neither feed is thin. Escalation gets its own explicit test
+// below (see 'escalates to the widen offsets when a feed is thin').
+const HEALTHY_CLASSIFY_RESULT = {
+  sunrise: Array.from({ length: TERMINATOR_CAMERA_FLOOR }, (_, i) => ({
+    webcamId: `sunrise-${i}`,
+  })),
+  sunset: Array.from({ length: TERMINATOR_CAMERA_FLOOR }, (_, i) => ({
+    webcamId: `sunset-${i}`,
+  })),
+};
 
 beforeEach(() => {
   fetchBatchesMock.mockReset().mockResolvedValue([[{
@@ -126,7 +151,7 @@ beforeEach(() => {
     images: { current: { preview: 'https://x/p.jpg' } },
     viewCount: 1, rating: 3,
   }]]);
-  classifyMock.mockReset().mockReturnValue({ sunrise: [], sunset: [] });
+  classifyMock.mockReset().mockReturnValue(HEALTHY_CLASSIFY_RESULT);
   getIdMapMock.mockReset().mockResolvedValue(new Map([['7', 700]]));
   upsertWebcamsMock.mockReset().mockResolvedValue(undefined);
   upsertStateMock.mockReset().mockResolvedValue(undefined);
@@ -506,5 +531,42 @@ describe('GET /api/cron/update-cameras', () => {
     const res = await GET(makeReq());
     expect(res.status).toBe(200);
     expect((await res.json()).digest).toEqual({ skipped: 'send-failed' });
+  });
+
+  describe('terminator sweep telemetry', () => {
+    it('does not escalate on a healthy tick (both feeds at/above the floor)', async () => {
+      // Default beforeEach classifyMock already returns a healthy split
+      // (HEALTHY_CLASSIFY_RESULT); this pins that the base ring alone is
+      // enough, so a future refactor that widens by default fails loudly.
+      const res = await GET(makeReq());
+      const body = await res.json();
+      expect(res.status).toBe(200);
+      expect(body.sweep.escalations).toBe(0);
+      expect(body.sweep.rings).toHaveLength(1);
+      expect(body.sweep.rings[0].offsetDeg).toBe(0);
+    });
+
+    it('escalates to the widen offsets, day side first, when a feed is thin', async () => {
+      classifyMock.mockReturnValue({
+        sunrise: Array.from(
+          { length: TERMINATOR_CAMERA_FLOOR - 1 },
+          (_, i) => ({ webcamId: `thin-${i}` }),
+        ),
+        sunset: HEALTHY_CLASSIFY_RESULT.sunset,
+      });
+      const res = await GET(makeReq());
+      const body = await res.json();
+      expect(res.status).toBe(200);
+      expect(body.sweep.escalations).toBe(2);
+      expect(body.sweep.rings).toHaveLength(3);
+      // Day side (+15.75) before night side (-15.75) — the escalation
+      // priority order, not just membership.
+      expect(body.sweep.rings.map((r: { offsetDeg: number }) => r.offsetDeg)).toEqual([
+        0, 15.75, -15.75,
+      ]);
+      // Only the thin feed's half of each escalation ring is swept.
+      expect(body.sweep.rings[1].feedsSwept).toEqual(['sunrise']);
+      expect(body.sweep.rings[2].feedsSwept).toEqual(['sunrise']);
+    });
   });
 });

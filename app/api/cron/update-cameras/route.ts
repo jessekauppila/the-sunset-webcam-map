@@ -18,6 +18,7 @@ import { createTerminatorQueryRing } from '@/app/components/Map/lib/terminatorRi
 import {
   TERMINATOR_CAMERA_FLOOR,
   TERMINATOR_WIDEN_OFFSETS_DEG,
+  TERMINATOR_SWEEP_BUDGET_MS,
   TERMINATOR_PRECISION_DEG,
   TERMINATOR_SUN_ALTITUDE_DEG,
   WINDY_FETCH_BATCH_SIZE,
@@ -98,8 +99,8 @@ export async function GET(req: Request) {
     offsets: TERMINATOR_WIDEN_OFFSETS_DEG,
     // Escalation rings are the first thing sacrificed on a slow tick: the
     // scoring loop below needs the remaining budget more than the pool needs
-    // extra cameras. Half the deadline is the cutoff.
-    hasBudget: () => Date.now() - tickStartedAt < TICK_DEADLINE_MS / 2,
+    // extra cameras. See TERMINATOR_SWEEP_BUDGET_MS for the cutoff rationale.
+    hasBudget: () => Date.now() - tickStartedAt < TERMINATOR_SWEEP_BUDGET_MS,
   });
 
   const sunriseCoords = sweep.coords.sunriseCoords;

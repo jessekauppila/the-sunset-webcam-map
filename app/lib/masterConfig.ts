@@ -47,6 +47,14 @@ export const TERMINATOR_CAMERA_FLOOR = 15;
 // full ring's worth of API calls; 15.75 returned 92-100%.
 export const TERMINATOR_WIDEN_OFFSETS_DEG = [15.75, -15.75] as const;
 
+// Wall-clock budget for the whole terminator sweep (base ring + any
+// escalation rings), in milliseconds. The scoring loop that follows needs
+// the remaining tick more than the pool needs extra cameras, so escalation
+// rings are the first thing sacrificed on a slow tick. Chosen against a
+// single observation (half of the 50s tick deadline, 2026-09-02); expect to
+// tune it once the sweep telemetry has a few days of history.
+export const TERMINATOR_SWEEP_BUDGET_MS = 25_000;
+
 // How recent a custom camera's most-recent snapshot must be for the camera
 // to qualify for terminator visibility. Mirrors Windy's "API returned it
 // this tick" semantics — custom cams without a fresh capture are
