@@ -41,10 +41,13 @@ export const TERMINATOR_CAMERA_FLOOR = 15;
 // ring at -13 misses entirely), and -15.75 puts it near -28.75 (deep night,
 // where the detection gate floors the frames anyway). Day side first.
 //
-// The magnitude is not arbitrary: the query box is 2 x SEARCH_RADIUS_DEG
-// across, so an offset smaller than the box mostly re-finds the same cameras.
-// Measured 2026-09-02 — a 3-degree offset returned 26-35% new cameras for a
-// full ring's worth of API calls; 15.75 returned 92-100%.
+// The magnitude is EMPIRICAL, not derived. Measured 2026-09-02 at
+// SEARCH_RADIUS_DEG = 11: a 3-degree offset returned 26-35% cameras the base
+// ring had not seen, for a full ring's worth of API calls; 15.75 returned
+// 92-100%. Note 15.75 is well under the 22-degree box span, so these rings'
+// query boxes DO overlap the base ring's — overlap is not what predicts
+// yield here, and no inequality against SEARCH_RADIUS_DEG substitutes for a
+// live measurement of a new offset.
 export const TERMINATOR_WIDEN_OFFSETS_DEG = [15.75, -15.75] as const;
 
 // Wall-clock budget for the whole terminator sweep (base ring + any
@@ -54,6 +57,18 @@ export const TERMINATOR_WIDEN_OFFSETS_DEG = [15.75, -15.75] as const;
 // single observation (half of the 50s tick deadline, 2026-09-02); expect to
 // tune it once the sweep telemetry has a few days of history.
 export const TERMINATOR_SWEEP_BUDGET_MS = 25_000;
+
+// In-process deadline for one update-cameras tick, after which the scoring
+// loop stops starting batches. Lives here rather than in the route so its
+// relationship to TERMINATOR_SWEEP_BUDGET_MS is a guarded invariant instead of
+// a comment: the sweep may burn its budget before the escalation loop stops,
+// and the scoring loop needs at least as long again. masterConfig.test.ts
+// pins TERMINATOR_SWEEP_BUDGET_MS * 2 <= TICK_DEADLINE_MS.
+//
+// The route's `maxDuration` stays a literal there: Next.js reads it by static
+// analysis of the route module and an imported constant is not guaranteed to
+// resolve. Raising this means raising that too.
+export const TICK_DEADLINE_MS = 50_000;
 
 // How recent a custom camera's most-recent snapshot must be for the camera
 // to qualify for terminator visibility. Mirrors Windy's "API returned it

@@ -2,6 +2,7 @@
 // database and the terminator rings on the backend
 
 import { NextRequest, NextResponse } from 'next/server';
+import { boundingBox } from '@/app/api/cron/update-cameras/lib/windyApi';
 
 interface WindyWebcam {
   webcamId: number;
@@ -40,11 +41,15 @@ export async function GET(request: NextRequest) {
     );
     const boxSize = parseFloat(searchParams.get('boxSize') || '11');
 
-    // 🎯 Create bounding box around center point
-    const northLat = (centerLat + boxSize).toString();
-    const southLat = (centerLat - boxSize).toString();
-    const eastLon = (centerLng + boxSize).toString();
-    const westLon = (centerLng - boxSize).toString();
+    // 🎯 Create bounding box around center point, clamped to the ranges Windy
+    // accepts. Same helper the cron sweep uses — a panned map near the pole or
+    // across the antimeridian otherwise builds northLat > 90 or eastLon > 180,
+    // which Windy 400s on and this route reports as "no results".
+    const box = boundingBox({ lat: centerLat, lng: centerLng }, boxSize);
+    const northLat = box.northLat.toString();
+    const southLat = box.southLat.toString();
+    const eastLon = box.eastLon.toString();
+    const westLon = box.westLon.toString();
 
     console.log(`📍 Center: ${centerLat}, ${centerLng}`);
     console.log(

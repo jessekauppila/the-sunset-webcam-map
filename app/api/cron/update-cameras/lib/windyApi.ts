@@ -171,11 +171,15 @@ export async function fetchCoordsCounted(
   delayMs = 1000
 ): Promise<CoordFetchResult> {
   if (coords.length === 0) return { webcams: [], attempted: 0, empty: 0 };
-  const batches = await fetchWebcamsInBatches(coords, batchSize, delayMs);
+  // One entry per COORDINATE, not per batch: fetchWebcamsInBatches spreads
+  // each batch's results back in, so the array is 1:1 with `coords`. That
+  // invariant is what makes `attempted` and `empty` correct, and the old
+  // `batches` name hid it.
+  const perCoord = await fetchWebcamsInBatches(coords, batchSize, delayMs);
   return {
-    webcams: batches.flat(),
+    webcams: perCoord.flat(),
     attempted: coords.length,
-    empty: batches.filter((b) => b.length === 0).length,
+    empty: perCoord.filter((r) => r.length === 0).length,
   };
 }
 

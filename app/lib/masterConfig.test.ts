@@ -1,8 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { SEARCH_RADIUS_DEG } from './masterConfig';
 import {
+  SEARCH_RADIUS_DEG,
   TERMINATOR_CAMERA_FLOOR,
   TERMINATOR_WIDEN_OFFSETS_DEG,
+  TERMINATOR_SWEEP_BUDGET_MS,
+  TICK_DEADLINE_MS,
   YOUTUBE_MAX_LOCATION_RADIUS_KM,
 } from './masterConfig';
 
@@ -30,18 +32,27 @@ describe('terminator widening constants', () => {
     expect(TERMINATOR_CAMERA_FLOOR).toBe(15);
   });
 
-  it('tries the day side before the night side', () => {
+  it('pins the two measured offsets, day side before night side', () => {
     // Positive offset shrinks the ring radius, moving it toward the sun.
+    //
+    // 15.75 is EMPIRICAL, not derived. Measured 2026-09-02: a 3-degree offset
+    // returned 26-35% cameras the base ring had not seen; 15.75 returned
+    // 92-100%. Note it is well under the 22-degree box span, so the query
+    // boxes at this offset do overlap the base ring's -- the yield is a
+    // measurement, and no inequality against SEARCH_RADIUS_DEG stands in for
+    // it. A new offset needs its own live measurement, which is why this test
+    // pins exact values rather than a threshold a guess could clear.
     expect(TERMINATOR_WIDEN_OFFSETS_DEG[0]).toBeGreaterThan(0);
     expect(TERMINATOR_WIDEN_OFFSETS_DEG).toEqual([15.75, -15.75]);
   });
 
-  it('offsets the ring by more than a box width, or it re-finds the same cameras', () => {
-    // Measured 2026-09-02: a 3-degree offset against an 18-degree box returned
-    // only 26-35% new cameras; 15.75 returned 92-100%.
-    for (const off of TERMINATOR_WIDEN_OFFSETS_DEG) {
-      expect(Math.abs(off)).toBeGreaterThanOrEqual(SEARCH_RADIUS_DEG);
-    }
+  it('leaves the scoring loop at least as long as the sweep may take', () => {
+    // hasBudget is a START gate, checked once before each ring and never
+    // during one, so a ring beginning just under the budget runs to
+    // completion. Worst case the sweep spends close to twice its budget, and
+    // the scoring loop gets what is left of TICK_DEADLINE_MS. The two numbers
+    // used to live in different files with only a comment between them.
+    expect(TERMINATOR_SWEEP_BUDGET_MS * 2).toBeLessThanOrEqual(TICK_DEADLINE_MS);
   });
 });
 

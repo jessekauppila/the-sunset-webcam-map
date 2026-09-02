@@ -19,6 +19,7 @@ import {
   TERMINATOR_CAMERA_FLOOR,
   TERMINATOR_WIDEN_OFFSETS_DEG,
   TERMINATOR_SWEEP_BUDGET_MS,
+  TICK_DEADLINE_MS,
   TERMINATOR_PRECISION_DEG,
   TERMINATOR_SUN_ALTITUDE_DEG,
   WINDY_FETCH_BATCH_SIZE,
@@ -62,11 +63,11 @@ import { downloadImage, uploadToFirebase } from '@/app/lib/webcamSnapshot';
 // tick at least that long; 60s leaves a 10s margin over it. Adaptive widening made
 // a slow tick likelier — tickStartedAt now starts before the Windy fetch, and an
 // escalated sweep can spend up to TERMINATOR_SWEEP_BUDGET_MS of the tick — so the
-// two numbers need to stay pinned together. Raising TICK_DEADLINE_MS means raising
-// this too.
+// two numbers need to stay pinned together. Raising TICK_DEADLINE_MS (now in
+// masterConfig.ts, where a test guards its ratio to the sweep budget) means
+// raising this too.
 export const maxDuration = 60;
 
-const TICK_DEADLINE_MS = 50_000;
 const PER_IMAGE_TIMEOUT_MS = 3_000;
 // Concurrency limit for ONNX scoring — distinct from WINDY_FETCH_BATCH_SIZE
 // (API call batch size in masterConfig).

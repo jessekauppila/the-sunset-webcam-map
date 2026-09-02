@@ -50,4 +50,24 @@ describe('API Route Test', () => {
     expect(data).toHaveProperty('error');
     expect(data.error).toContain('Windy API error: 401');
   });
+
+  it('clamps the query box to the bounds Windy accepts', async () => {
+    // A user-panned map near the pole and across the antimeridian produces
+    // northLat > 90 and eastLon > 180. Windy 400s on either, and the route
+    // surfaces that as "no results" rather than as an error, so the failure
+    // is invisible. Clamping shrinks the box and keeps the call.
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => [] });
+    global.fetch = fetchMock;
+
+    const request = new NextRequest(
+      'http://test.com/api/webcams?centerLat=85&centerLng=175&boxSize=11',
+    );
+    await GET(request);
+
+    const url = String(fetchMock.mock.calls[0][0]);
+    expect(url).toContain('northLat=90');
+    expect(url).toContain('southLat=74');
+    expect(url).toContain('eastLon=180');
+    expect(url).toContain('westLon=164');
+  });
 });

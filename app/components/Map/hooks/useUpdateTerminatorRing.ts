@@ -58,24 +58,22 @@ export function useUpdateTerminatorRing(
     return createTerminatorRingHiRes(currentTime);
   }, [currentTime]);
 
-  // One ring at offset 0. Escalation rings are a fetch-time concern that
-  // varies tick to tick; drawing them would imply the map is showing cameras
-  // from all of them. Do not import TERMINATOR_WIDEN_OFFSETS_DEG here.
-  const ringResults = useMemo(() => {
-    return [
-      createTerminatorVisualizationRing(
-        currentTime,
-        raHours,
-        gmstHours,
-        precisionDeg,
-        TERMINATOR_SUN_ALTITUDE_DEG,
-        0,
-      ),
-    ];
+  // Exactly one ring, at offset 0. Escalation rings are a fetch-time concern
+  // that varies tick to tick; drawing them would imply the map is showing
+  // cameras from all of them. Do not import TERMINATOR_WIDEN_OFFSETS_DEG here.
+  // Kept singular rather than a one-element list: the list shape carried a
+  // `ringResults[1]` reader and a GeoJSON layer for a ring that could never
+  // exist, which read as if a second ring might appear.
+  const ring = useMemo(() => {
+    return createTerminatorVisualizationRing(
+      currentTime,
+      raHours,
+      gmstHours,
+      precisionDeg,
+      TERMINATOR_SUN_ALTITUDE_DEG,
+      0,
+    );
   }, [currentTime, raHours, gmstHours, precisionDeg]);
-
-  const mainRing = ringResults[0];
-  const offsetRing = ringResults[1];
 
   const {
     sunriseCoords,
@@ -84,7 +82,7 @@ export function useUpdateTerminatorRing(
     sunrise,
     sunset,
     entireTerminatorRing,
-  } = mainRing;
+  } = ring;
 
   // Memoize the coordinate arrays to prevent unnecessary re-renders
 
@@ -99,17 +97,13 @@ export function useUpdateTerminatorRing(
 
   // Combine sunrise and sunset coords to get all terminator points used for API queries
   const allTerminatorPoints: TerminatorLocation[] = useMemo(() => {
-    const allPoints = ringResults.flatMap((ring) => [
-      ...ring.sunriseCoords,
-      ...ring.sunsetCoords,
-    ]);
     const byKey = new Map<string, TerminatorLocation>();
-    for (const point of allPoints) {
+    for (const point of [...ring.sunriseCoords, ...ring.sunsetCoords]) {
       const key = `${point.lat.toFixed(6)},${point.lng.toFixed(6)}`;
       if (!byKey.has(key)) byKey.set(key, point);
     }
     return [...byKey.values()];
-  }, [ringResults]);
+  }, [ring]);
 
   // Convert GeoJSON features to format for Mapbox
   const terminatorGeoJSON = useMemo(() => {
@@ -121,14 +115,6 @@ export function useUpdateTerminatorRing(
     }
     return entireHiResTerminatorRing;
   }, [entireHiResTerminatorRing]);
-
-  const offsetTerminatorGeoJSON = useMemo(() => {
-    if (!offsetRing) return null;
-    return {
-      type: 'FeatureCollection' as const,
-      features: [offsetRing.entireTerminatorRing],
-    };
-  }, [offsetRing]);
 
   // Create search radius circles GeoJSON if enabled
   const searchRadiusGeoJSON = useMemo(() => {
@@ -229,40 +215,6 @@ export function useUpdateTerminatorRing(
       } else {
         // Update existing layer opacity when data changes
         map.setPaintProperty(terminatorLayerId, 'line-opacity', 0);
-      }
-
-      // Add offset terminator line if configured
-      if (offsetTerminatorGeoJSON) {
-        const offsetSourceId = 'terminator-line-offset-source';
-        const offsetLayerId = 'terminator-line-offset-layer';
-
-        if (!map.getSource(offsetSourceId)) {
-          map.addSource(offsetSourceId, {
-            type: 'geojson',
-            data: offsetTerminatorGeoJSON,
-          });
-          sourcesAddedRef.current.add(offsetSourceId);
-        } else {
-          (
-            map.getSource(offsetSourceId) as mapboxgl.GeoJSONSource
-          ).setData(offsetTerminatorGeoJSON);
-        }
-
-        if (!map.getLayer(offsetLayerId)) {
-          map.addLayer({
-            id: offsetLayerId,
-            type: 'line',
-            source: offsetSourceId,
-            paint: {
-              'line-color': '#96a6c8', // Slightly bluish gray for offset ring
-              'line-width': 2,
-              'line-opacity': 0.2,
-            },
-          });
-          layersAddedRef.current.add(offsetLayerId);
-        } else {
-          map.setPaintProperty(offsetLayerId, 'line-opacity', 0.2);
-        }
       }
 
       // Add search radius circles if enabled
@@ -389,7 +341,6 @@ export function useUpdateTerminatorRing(
     mapLoaded,
     attachToMap,
     terminatorGeoJSON,
-    offsetTerminatorGeoJSON,
     searchRadiusGeoJSON,
     pointsGeoJSON,
     showSearchRadius,
