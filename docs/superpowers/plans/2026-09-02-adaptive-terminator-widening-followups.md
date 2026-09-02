@@ -80,6 +80,32 @@ is its second natural call site.
   `|offset| >= SEARCH_RADIUS_DEG`, pinning a qualitative threshold. It would
   pass for an unmeasured value between 11 and 15.75.
 
+## Requested follow-on work (not review findings)
+
+These came from Jesse on 2026-09-02, after the branch was finished.
+
+**Put widening frequency and its cost into the daily digest.** The digest
+(`app/api/cron/update-cameras/lib/dailyDigest.ts`, sent ~5pm PT) is where
+this feature's behaviour should surface day to day: how often a feed fell
+under the floor, which rings got swept, and what that did to the API call
+count. The sweep telemetry already carries everything needed
+(`RingTelemetry.attempted` / `empty` / `newWebcams` / `newWebcamIds`, and
+`SweepTelemetry.escalations`), but it currently reaches only the cron's JSON
+response and one log line — nothing persists it. This is the deferred
+`daily_sunset_stats` migration from the spec, now with a concrete consumer
+and a concrete reason. Cost framing matters more than raw counts: calls/day
+attributable to escalation, against the ~3,000/day baseline.
+
+**Understand camera refresh and what it costs.** Deliberately excluded from
+the widening spec as a separate decision with its own price. Two distinct
+clocks were conflated during that design conversation and should stay
+separate: the *camera list* turns over as the terminator sweeps, roughly
+every 90 minutes, which a 15-minute tick already tracks six times over; the
+*images themselves* are what wanted a 1-2 minute cadence for the exhibit.
+Only the second is a real ask. Price it properly before changing
+`vercel.json` — the cron currently runs 96 times a day, and every-2-minutes
+is 720.
+
 ## Process note, worth keeping
 
 The gaps the final review found were concentrated exactly where the plan's
@@ -89,3 +115,48 @@ constant with seven call sites and verified two. The YouTube ceiling bug
 have been caught by a "who else reads this constant, and what does each one
 assume" step with a named verdict per call site. Worth adding to any future
 plan that changes a shared constant.
+
+---
+
+## Ready-to-use prompt for the next session
+
+Paste this to pick the work up cold.
+
+> Read `docs/superpowers/plans/2026-09-02-adaptive-terminator-widening-followups.md`
+> and its spec, `docs/superpowers/specs/2026-09-02-adaptive-terminator-widening-design.md`.
+> The adaptive terminator widening feature shipped; these are the threads it
+> left open.
+>
+> Do these three, in this order:
+>
+> 1. **Persist the sweep telemetry and surface it in the daily digest.** This
+>    needs the `daily_sunset_stats` migration the spec deferred. The digest
+>    should answer two questions at a glance: how often did a feed fall under
+>    the camera floor today, and what did the extra rings cost in API calls
+>    against the ~3,000/day baseline. Ring attribution (`newWebcamIds`) is
+>    already recorded per ring — use it.
+>
+> 2. **Answer the spec's two open risks from real data**, once the telemetry
+>    has a few days of history. Whether golden-hour frames from the +15.75
+>    ring actually pass the detection gate, which decides if day-side-first
+>    is the right ordering at all; and whether an undiscovered Windy quota
+>    ceiling exists, which reads as `empty` rising while `newWebcams` stays
+>    flat. If the gate rejects most golden-hour frames, revisit whether the
+>    camera floor should count only gate-passers — see the first section of
+>    the follow-ups doc for why that failure mode is self-concealing.
+>
+> 3. **Price camera refresh as its own decision.** Not the camera *list*,
+>    which a 15-minute tick already over-samples, but image freshness for the
+>    exhibit. Measure before proposing a cadence.
+>
+> Then triage the deferred findings in that doc. Three want production
+> telemetry and should wait for step 2. The rest are latent traps and dead
+> code; the `app/api/webcams/route.ts` bounding-box clamp is the one with a
+> user-visible failure mode.
+>
+> Constraints that still bind: `SEARCH_RADIUS_DEG` may never exceed 11.25
+> (Windy caps the box span at 22.5° on zoom 4, and rejects zoom < 4); any new
+> ring offset must exceed `2 × SEARCH_RADIUS_DEG` or it re-finds cameras the
+> base ring already has; and before changing any shared constant, enumerate
+> every call site and give each one a named verdict — that step's absence is
+> how a silent YouTube API breach reached a commit on the original branch.
