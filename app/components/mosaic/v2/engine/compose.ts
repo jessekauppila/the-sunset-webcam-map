@@ -82,9 +82,11 @@ export function compose(
   }
   candidates = capTiles(candidates, cfg.maxTiles);
 
-  const droppedIds = new Set(
-    tiles.filter((t) => !candidates.includes(t)).map((t) => t.id)
-  );
+  // `dropped` reports overflow casualties ONLY. Tiles the operator's own
+  // visibility policy removed (failedCamPolicy: 'hide', or a maxTiles cap)
+  // were configured away, not dropped — conflating the two makes the setup
+  // overlay's counter claim the composition is struggling when it isn't.
+  const droppedIds = new Set<number>();
 
   let sized = sizeTiles(candidates, cfg);
   let scale = 1;
@@ -95,6 +97,17 @@ export function compose(
     const next = Math.max(MIN_COMPOSITION_SCALE, scale * needed);
     if (next === scale) break;
     scale = next;
+    sized = scaleTiles(sizeTiles(candidates, cfg), scale);
+    placement = arrange(sized, viewport, cfg);
+  }
+
+  // The iterative step above can exhaust its passes while still overflowing
+  // and still above the floor — extent is not linear in scale (gaps do not
+  // scale, and re-formed rows repack at smaller widths). Force the floor
+  // before considering any drop, so "nothing is dropped until scaling has
+  // bottomed out" holds literally rather than approximately.
+  if (placement.extent > viewport.height && scale > MIN_COMPOSITION_SCALE) {
+    scale = MIN_COMPOSITION_SCALE;
     sized = scaleTiles(sizeTiles(candidates, cfg), scale);
     placement = arrange(sized, viewport, cfg);
   }

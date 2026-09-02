@@ -54,6 +54,19 @@ describe('compose — visibility policies', () => {
     expect(layout.tiles.map((t) => t.id)).toEqual([1]);
   });
 
+  it('does not report policy-hidden tiles as dropped', () => {
+    const layout = compose(pool, viewport, cfg({ failedCamPolicy: 'hide' }), 'sunset');
+    expect(layout.tiles).toHaveLength(1);
+    expect(layout.dropped).toEqual([]);
+    expect(layout.scale).toBe(1);
+  });
+
+  it('does not report maxTiles-capped tiles as dropped', () => {
+    const layout = compose(pool, viewport, cfg({ maxTiles: 2 }), 'sunset');
+    expect(layout.tiles).toHaveLength(2);
+    expect(layout.dropped).toEqual([]);
+  });
+
   it('showAtFloor keeps failers at exactly the floor', () => {
     const layout = compose(pool, viewport, cfg({ failedCamPolicy: 'showAtFloor' }), 'sunset');
     expect(layout.tiles).toHaveLength(3);
