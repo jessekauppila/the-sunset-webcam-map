@@ -115,4 +115,21 @@ describe('useLoadedTiles', () => {
     expect(result.current.skipped).toBe(1);
     expect(result.current.tiles).toEqual([]);
   });
+
+  it('bails out instead of re-rendering when an empty pool is rebuilt', async () => {
+    // PreviewPane hands the mosaic a fresh `[]` on every render while a scene
+    // is still resolving. Without the bail-out, each new array reference fires
+    // the effect, which writes a new state object, which re-renders — forever.
+    // Returning `prev` unchanged is what breaks that cycle, so pin it.
+    const { result, rerender } = renderHook(
+      ({ cams }) => useLoadedTiles(cams, opts),
+      { initialProps: { cams: [] as WindyWebcam[] } }
+    );
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    const first = result.current;
+    rerender({ cams: [] }); // new array, identical content
+
+    expect(result.current).toBe(first);
+  });
 });
