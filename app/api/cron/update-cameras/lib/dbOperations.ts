@@ -901,3 +901,61 @@ export async function insertCalibrationHistoryBatch(
     )
   `;
 }
+
+export interface CalibrationDigestSummary {
+  tempered: number;
+  newlyTempered: { webcamId: number; title: string | null; multiplier: number }[];
+  healed: number;
+}
+
+/**
+ * Fleet-level calibration summary for the daily digest.
+ *
+ * Returns null rather than throwing when the calibration tables are absent
+ * (an environment where the migration has not run). The digest's job is the
+ * cost email; a missing calibration surface must degrade to silence, never
+ * take the whole email down with it.
+ */
+export async function getCalibrationDigestSummary(): Promise<CalibrationDigestSummary | null> {
+  try {
+    const totals = (await sql`
+      select count(*)::int as tempered
+      from webcams
+      where calibration_multiplier is not null and calibration_multiplier < 1
+    `) as { tempered: number }[];
+
+    // "Newly tempered" = crossed from neutral into tempered in the last day.
+    const newly = (await sql`
+      select h.webcam_id, w.title, h.multiplier::float as multiplier
+      from camera_calibration_history h
+      join webcams w on w.id = h.webcam_id
+      where h.computed_at > now() - interval '1 day'
+        and h.multiplier < 1
+        and (h.previous_multiplier is null or h.previous_multiplier >= 1)
+      order by h.multiplier asc
+      limit 5
+    `) as { webcam_id: number; title: string | null; multiplier: number }[];
+
+    const healedRows = (await sql`
+      select count(*)::int as healed
+      from camera_calibration_history
+      where computed_at > now() - interval '1 day'
+        and multiplier >= 1
+        and previous_multiplier is not null
+        and previous_multiplier < 1
+    `) as { healed: number }[];
+
+    return {
+      tempered: Number(totals[0]?.tempered ?? 0),
+      newlyTempered: newly.map((r) => ({
+        webcamId: Number(r.webcam_id),
+        title: r.title,
+        multiplier: Number(r.multiplier),
+      })),
+      healed: Number(healedRows[0]?.healed ?? 0),
+    };
+  } catch (error) {
+    console.warn('[calibrationDigest] summary unavailable:', error);
+    return null;
+  }
+}
