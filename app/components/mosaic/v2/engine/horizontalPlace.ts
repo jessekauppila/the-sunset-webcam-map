@@ -81,12 +81,18 @@ function packByAltitude(
     if (anchored[i].x < minX) anchored[i].x = minX;
   }
 
-  // De-overlapping only pushes right, so the row can run off the edge —
-  // slide the whole row back so the last tile lands on the panel edge.
+  // De-overlapping only pushes right, so the row can run off the edge.
+  // Slide the whole row back by ONE shift — clamping each tile at 0
+  // independently would break the uniform-shift property the pass above
+  // established and let tiles overlap again. formRows guarantees a row's
+  // tiles plus gaps fit the panel, so in practice `shift === overflow`;
+  // the min() only matters for an over-constrained row, which then bleeds
+  // off the right edge rather than overlapping — the better failure.
   const last = anchored[anchored.length - 1];
   const overflow = last.x + last.tile.width - viewportWidth;
   if (overflow > 0) {
-    for (const a of anchored) a.x = Math.max(0, a.x - overflow);
+    const shift = Math.min(overflow, anchored[0].x);
+    for (const a of anchored) a.x -= shift;
   }
 
   return anchored.map(({ tile, x }) => ({

@@ -141,4 +141,16 @@ describe('placeRowHorizontally — solarAltitude anchoring', () => {
     const out = placeRowHorizontally(row([tile(1, 0, -13, 100)]), 1000, altCfg, 'sunset', range);
     expect(out[0].y).toBe(450); // centreY 500 - height/2
   });
+
+  it('never reintroduces overlap when sliding an over-constrained row back', () => {
+    // Wider than the panel can hold: formRows would not emit this row, but the
+    // function must not corrupt the layout if it ever sees one.
+    const wide = (id: number, alt: number) => ({ ...tile(id, 0, alt), width: 200, height: 100 });
+    const out = placeRowHorizontally(
+      row([wide(1, -13), wide(2, -13)]), 300, altCfg, 'sunset', range
+    );
+    for (let i = 1; i < out.length; i++) {
+      expect(out[i].x).toBeGreaterThanOrEqual(out[i - 1].x + out[i - 1].width);
+    }
+  });
 });
