@@ -8,6 +8,7 @@ import type { SceneSource } from './useSceneWebcams';
 import type { SceneState, SceneSummary } from '@/app/lib/scenes/types';
 import { StudioPanelFrame } from './StudioPanelFrame';
 import { SaveSceneButton } from './SaveSceneButton';
+import { poolFor } from './previewPool';
 
 export type FeedView = 'sunrise' | 'sunset' | 'both';
 
@@ -72,10 +73,11 @@ export function PreviewPane({
   // it under the scene's header, and don't render live tiles at all.
   const sceneUnresolved = sceneSource.kind === 'scene' && !sceneState;
 
-  const webcamsFor = (feed: 'sunrise' | 'sunset') => {
-    if (sceneSource.kind === 'scene') return sceneState ? sceneState[feed] : [];
-    return feed === 'sunrise' ? liveSunrise : liveSunset;
-  };
+  const webcamsFor = (feed: 'sunrise' | 'sunset') =>
+    poolFor(feed, sceneSource, sceneState, {
+      sunrise: liveSunrise,
+      sunset: liveSunset,
+    });
 
   // Handed to each panel even in single-feed view: the point of the shared
   // scale is that one screen looks the same whether or not you happen to be

@@ -13,11 +13,19 @@ export interface PanelSize {
   height: number;
 }
 
-/** The panels actually in play, portrait — the orientation they hang in. */
-const PRESETS: Record<string, PanelSize> = {
+/**
+ * The panels actually in play, portrait — the orientation they hang in.
+ *
+ * The single definition. `?panel=` parses against it, the shared settings
+ * schema builds its enum and its help text from it, and /studio sizes the
+ * preview with it. Adding a panel here is the whole change.
+ */
+export const PANEL_PRESETS: Record<string, PanelSize> = {
   dell: { width: 1080, height: 1920 },
   ktc: { width: 1440, height: 2560 },
 };
+
+export const DEFAULT_PANEL_PRESET = 'dell';
 
 const MIN_EDGE_PX = 1;
 const MAX_EDGE_PX = 8000;
@@ -34,7 +42,7 @@ export function parsePanelPreview(
   const raw = params.get('panel')?.trim().toLowerCase();
   if (!raw) return null;
 
-  const preset = PRESETS[raw];
+  const preset = PANEL_PRESETS[raw];
   if (preset) return { ...preset };
 
   const match = DIMENSIONS.exec(raw);

@@ -1,7 +1,13 @@
 import { SettingsSchema } from './schema';
 import { MOSAIC_VERSIONS, DEFAULT_MOSAIC_VERSION } from '@/app/components/mosaic/registry';
+import { PANEL_PRESETS, DEFAULT_PANEL_PRESET } from '@/app/kiosk/panelPreview';
 
 export const SHARED_NAMESPACE = 'shared';
+
+const describePanels = (): string =>
+  Object.entries(PANEL_PRESETS)
+    .map(([name, { width, height }]) => `${name} = ${width}×${height}`)
+    .join(', ');
 
 /**
  * Shared settings apply across all mosaic versions and the UI.
@@ -21,10 +27,12 @@ export const SHARED_SCHEMA: SettingsSchema = [
   {
     key: 'panelPreset',
     kind: 'enum',
-    options: ['dell', 'ktc'] as const,
-    default: 'dell',
+    // Built from PANEL_PRESETS rather than restated, so a new panel cannot
+    // exist for `?panel=` and be missing from the dial (or vice versa).
+    options: Object.keys(PANEL_PRESETS),
+    default: DEFAULT_PANEL_PRESET,
     label: 'panel',
-    description: 'Panel size: dell = 1080×1920, ktc = 1440×2560. Both physical screens share one geometry.',
+    description: `Panel size: ${describePanels()}. Both physical screens share one geometry.`,
     section: 'glass',
   },
 ] as const;

@@ -13,8 +13,9 @@ import { StatusStrip } from './StatusStrip';
 import { resolveMosaicName } from '@/app/components/mosaic/registry';
 import { mergeSettings } from '@/app/lib/settings/schema';
 import { SHARED_NAMESPACE, SHARED_SCHEMA } from '@/app/lib/settings/sharedSchema';
-import { passesGate } from '@/app/components/mosaic/v1/qualitySignal';
-import type { PanelSize } from '@/app/kiosk/panelPreview';
+import { countGatePasses, resolveGate } from '@/app/components/mosaic/gate';
+import { PANEL_PRESETS, DEFAULT_PANEL_PRESET } from '@/app/kiosk/panelPreview';
+import { poolFor } from './previewPool';
 
 /**
  * `/studio` chrome: left rail (dial controls, Task 11) + preview + a bottom
@@ -23,11 +24,6 @@ import type { PanelSize } from '@/app/kiosk/panelPreview';
  * store. The rail (Task 11) and its settings wiring are now real: panel
  * size, version, and preview settings all flow from `useStudioSettings`.
  */
-
-const PANEL_PRESETS: Record<string, PanelSize> = {
-  dell: { width: 1080, height: 1920 },
-  ktc: { width: 1440, height: 2560 },
-};
 
 const bg = '#0b0e14';
 const railBg = '#10141d';
@@ -50,8 +46,8 @@ export function StudioClient() {
   const [view, setView] = useState<FeedView>('both');
 
   const sharedSettings = settingsApi.effective('shared');
-  const panelPreset = (sharedSettings.panelPreset as string) ?? 'dell';
-  const panel = PANEL_PRESETS[panelPreset] ?? PANEL_PRESETS.dell;
+  const panelPreset = (sharedSettings.panelPreset as string) ?? DEFAULT_PANEL_PRESET;
+  const panel = PANEL_PRESETS[panelPreset] ?? PANEL_PRESETS[DEFAULT_PANEL_PRESET];
   const panelPresetLabel = `${panelPreset} · ${panel.width}×${panel.height}`;
   const versionName = resolveMosaicName(sharedSettings.activeVersion as string | undefined);
   const previewSettings = settingsApi.effective(versionName);
@@ -65,19 +61,31 @@ export function StudioClient() {
       .activeVersion as string | undefined
   );
 
+  // The strip must describe the picture beside it: the pool actually being
+  // previewed (scene or live), judged by the version being previewed with the
+  // dials currently set. Reading v1's frozen gate over the live store while
+  // previewing v2 on a scene got both halves wrong at once.
+  const live = useMemo(
+    () => ({ sunrise: sunriseWebcams, sunset: sunsetWebcams }),
+    [sunriseWebcams, sunsetWebcams]
+  );
   const sunrisePass = useMemo(
-    () => ({
-      pass: sunriseWebcams.filter(passesGate).length,
-      total: sunriseWebcams.length,
-    }),
-    [sunriseWebcams]
+    () =>
+      countGatePasses(
+        poolFor('sunrise', sceneSource, sceneState, live),
+        resolveGate(versionName),
+        previewSettings
+      ),
+    [sceneSource, sceneState, live, versionName, previewSettings]
   );
   const sunsetPass = useMemo(
-    () => ({
-      pass: sunsetWebcams.filter(passesGate).length,
-      total: sunsetWebcams.length,
-    }),
-    [sunsetWebcams]
+    () =>
+      countGatePasses(
+        poolFor('sunset', sceneSource, sceneState, live),
+        resolveGate(versionName),
+        previewSettings
+      ),
+    [sceneSource, sceneState, live, versionName, previewSettings]
   );
 
   return (
