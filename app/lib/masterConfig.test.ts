@@ -3,6 +3,7 @@ import { SEARCH_RADIUS_DEG } from './masterConfig';
 import {
   TERMINATOR_CAMERA_FLOOR,
   TERMINATOR_WIDEN_OFFSETS_DEG,
+  YOUTUBE_MAX_LOCATION_RADIUS_KM,
 } from './masterConfig';
 
 // Verified live against the Windy clusters endpoint 2026-09-02:
@@ -41,5 +42,26 @@ describe('terminator widening constants', () => {
     for (const off of TERMINATOR_WIDEN_OFFSETS_DEG) {
       expect(Math.abs(off)).toBeGreaterThanOrEqual(SEARCH_RADIUS_DEG);
     }
+  });
+});
+
+describe('YOUTUBE_MAX_LOCATION_RADIUS_KM', () => {
+  // The YouTube Data API v3 documents `locationRadius` as capped at 1000 km.
+  // This is a SEPARATE ceiling from Windy's 22.5-degree box-span cap above,
+  // even though the YouTube cron derives its radius from SEARCH_RADIUS_DEG —
+  // and searchYouTubeLiveNear swallows a non-OK response as an empty array, so
+  // a breach reads as "no live streams anywhere" rather than as an error.
+  it('is the documented YouTube Data API v3 ceiling', () => {
+    expect(YOUTUBE_MAX_LOCATION_RADIUS_KM).toBe(1000);
+  });
+
+  it('keeps the radius the YouTube cron sends inside the cap', () => {
+    // Mirrors the derivation in app/api/cron/update-youtube/route.ts:
+    // 1 degree ~ 111 km, then clamped. At SEARCH_RADIUS_DEG = 11 the raw value
+    // is 1221 km, so the clamp is load-bearing today, not decorative.
+    const rawKm = SEARCH_RADIUS_DEG * 111;
+    const sentKm = Math.min(rawKm, YOUTUBE_MAX_LOCATION_RADIUS_KM);
+    expect(sentKm).toBeLessThanOrEqual(YOUTUBE_MAX_LOCATION_RADIUS_KM);
+    expect(sentKm).toBe(Math.min(rawKm, 1000));
   });
 });

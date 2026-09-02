@@ -255,6 +255,19 @@ export const WINDY_FETCH_STAGGER_WITHIN_BATCH_MS = 200;
 export const YOUTUBE_FETCH_BATCH_SIZE = 5;
 export const YOUTUBE_FETCH_DELAY_BETWEEN_BATCHES_MS = 800;
 
+// Documented maximum for the YouTube Data API v3 `locationRadius` search
+// parameter. Anything larger is rejected, and the caller swallows a non-OK
+// response as an empty result, so breaching this yields silent zeroes rather
+// than an error.
+//
+// This is a DIFFERENT ceiling from Windy's 22.5-degree box-span cap, even
+// though the YouTube cron derives its radius from SEARCH_RADIUS_DEG. Widening
+// SEARCH_RADIUS_DEG for Windy (9 -> 11 on 2026-09-02) pushed the derived
+// YouTube radius from 999 km to 1221 km, past this cap. Keep the two ceilings
+// separate: one constant must never be silently load-bearing for both APIs.
+// The YouTube call site clamps against this; guarded by masterConfig.test.ts.
+export const YOUTUBE_MAX_LOCATION_RADIUS_KM = 1000;
+
 // ---------------------------------------------------------------------------
 // Ops tab (owner-only cost/health panel in the drawer)
 // ---------------------------------------------------------------------------

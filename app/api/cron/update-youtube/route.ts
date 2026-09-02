@@ -16,6 +16,7 @@ import {
   SEARCH_RADIUS_DEG,
   YOUTUBE_FETCH_BATCH_SIZE,
   YOUTUBE_FETCH_DELAY_BETWEEN_BATCHES_MS,
+  YOUTUBE_MAX_LOCATION_RADIUS_KM,
 } from '@/app/lib/masterConfig';
 
 type YTItem = {
@@ -121,8 +122,15 @@ export async function GET(req: Request) {
   // Batch requests to respect quotas
   const batchSize = YOUTUBE_FETCH_BATCH_SIZE;
   const delayMs = YOUTUBE_FETCH_DELAY_BETWEEN_BATCHES_MS; // between batches
-  // Convert SEARCH_RADIUS_DEG to km: 1° ≈ 111 km
-  const searchRadiusKm = SEARCH_RADIUS_DEG * 111;
+  // Convert SEARCH_RADIUS_DEG to km: 1° ≈ 111 km, then clamp to YouTube's own
+  // ceiling. SEARCH_RADIUS_DEG is tuned against Windy's box-span cap, which is
+  // a different limit; without the clamp a Windy-driven widening silently
+  // pushes every YouTube search past `locationRadius` max and the API's 400 is
+  // swallowed as zero results by searchYouTubeLiveNear.
+  const searchRadiusKm = Math.min(
+    SEARCH_RADIUS_DEG * 111,
+    YOUTUBE_MAX_LOCATION_RADIUS_KM
+  );
   const ytItems: (YTItem & { searchLocation: Location })[] = [];
   for (let i = 0; i < allCoords.length; i += batchSize) {
     const batch = allCoords.slice(i, i + batchSize);
