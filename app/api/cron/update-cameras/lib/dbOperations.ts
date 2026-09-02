@@ -324,6 +324,10 @@ export async function insertWindyDisagreementSnapshot(opts: {
   aiBinaryScore?: number;
   aiBinaryIsSunset?: boolean;
   aiModelVersionBinary?: string;
+  // Why this row entered the archive. 'trickle' is the unbiased control arm
+  // (masterConfig SAVE_RANDOM_TRICKLE_RATE) and must stay separable from the
+  // model-gated reasons, or the arm is unrecoverable after the fact.
+  intakeReason?: 'disagreement' | 'high_rated' | 'trickle' | 'all_rated';
 }): Promise<number> {
   const [row] = (await sql`
     insert into webcam_snapshots (
@@ -340,6 +344,7 @@ export async function insertWindyDisagreementSnapshot(opts: {
       ai_model_version_binary,
       scoring_path,
       model_disagreement_kind,
+      intake_reason,
       captured_at
     )
     values (
@@ -356,6 +361,7 @@ export async function insertWindyDisagreementSnapshot(opts: {
       ${opts.aiModelVersionBinary ?? null},
       ${opts.scoringPath},
       ${opts.disagreementKind},
+      ${opts.intakeReason ?? null},
       now()
     )
     returning id

@@ -101,6 +101,26 @@ export const AI_SNAPSHOT_RECENT_WINDOW_MINUTES = 30;
 export const SAVE_HIGH_RATED_SNAPSHOTS = true;
 export const SAVE_ALL_RATED_SNAPSHOTS = false;
 
+// SAVE_RANDOM_TRICKLE_RATE — the control arm for the two toggles above.
+//
+// Every other reason a frame enters the archive is model-gated: the heads
+// disagree, or the incumbent model scored it highly. That is a feedback loop —
+// the archive drifts toward what the incumbent already understands, so each
+// generation trains on a distribution its predecessor chose. A uniformly
+// sampled trickle, saved regardless of score, keeps an unbiased stream coming
+// in as a control against that drift.
+// (Roadmap: docs/superpowers/plans/2026-08-30-quality-ceiling-and-labeling-roadmap.md,
+// "Same-camera-pool skew" + side item 1.)
+//
+// 0.02 = 1 in 50. At ~4k scored frames/day that is ~80 extra rows/day — the
+// cost is a rounding error against the $0.44/day measured in the ops work, and
+// it is deliberately small because an unbiased sample only has to accumulate,
+// not keep up. Set to 0 to disable the arm entirely.
+//
+// Rows are stamped intake_reason='trickle' so the arm stays separable from the
+// gated archive; an unlabelable control arm is not a control arm.
+export const SAVE_RANDOM_TRICKLE_RATE = 0.02;
+
 // ---------------------------------------------------------------------------
 // Hard-example mining — model-disagreement thresholds
 // ---------------------------------------------------------------------------
