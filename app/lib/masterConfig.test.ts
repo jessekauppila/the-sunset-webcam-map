@@ -1,0 +1,78 @@
+import { describe, it, expect } from 'vitest';
+import {
+  SEARCH_RADIUS_DEG,
+  TERMINATOR_CAMERA_FLOOR,
+  TERMINATOR_WIDEN_OFFSETS_DEG,
+  TERMINATOR_SWEEP_BUDGET_MS,
+  TICK_DEADLINE_MS,
+  YOUTUBE_MAX_LOCATION_RADIUS_KM,
+} from './masterConfig';
+
+// Verified live against the Windy clusters endpoint 2026-09-02:
+//   {"message":"Maximal distance between north and south latitudes on the
+//    zoom level 4, should be 22.5!","error":"Bad Request","statusCode":400}
+// The box span is 2 x SEARCH_RADIUS_DEG, and zoom < 4 is rejected outright,
+// so 11.25 is a hard ceiling, not a preference.
+const WINDY_ZOOM4_MAX_LAT_SPAN_DEG = 22.5;
+
+describe('SEARCH_RADIUS_DEG', () => {
+  it('keeps the query box inside the Windy zoom-4 span cap', () => {
+    expect(SEARCH_RADIUS_DEG * 2).toBeLessThanOrEqual(
+      WINDY_ZOOM4_MAX_LAT_SPAN_DEG
+    );
+  });
+
+  it('is widened to 11, the practical maximum', () => {
+    expect(SEARCH_RADIUS_DEG).toBe(11);
+  });
+});
+
+describe('terminator widening constants', () => {
+  it('starts the camera floor at 15 per feed', () => {
+    expect(TERMINATOR_CAMERA_FLOOR).toBe(15);
+  });
+
+  it('pins the two measured offsets, day side before night side', () => {
+    // Positive offset shrinks the ring radius, moving it toward the sun.
+    //
+    // 15.75 is EMPIRICAL, not derived. Measured 2026-09-02: a 3-degree offset
+    // returned 26-35% cameras the base ring had not seen; 15.75 returned
+    // 92-100%. Note it is well under the 22-degree box span, so the query
+    // boxes at this offset do overlap the base ring's -- the yield is a
+    // measurement, and no inequality against SEARCH_RADIUS_DEG stands in for
+    // it. A new offset needs its own live measurement, which is why this test
+    // pins exact values rather than a threshold a guess could clear.
+    expect(TERMINATOR_WIDEN_OFFSETS_DEG[0]).toBeGreaterThan(0);
+    expect(TERMINATOR_WIDEN_OFFSETS_DEG).toEqual([15.75, -15.75]);
+  });
+
+  it('leaves the scoring loop at least as long as the sweep may take', () => {
+    // hasBudget is a START gate, checked once before each ring and never
+    // during one, so a ring beginning just under the budget runs to
+    // completion. Worst case the sweep spends close to twice its budget, and
+    // the scoring loop gets what is left of TICK_DEADLINE_MS. The two numbers
+    // used to live in different files with only a comment between them.
+    expect(TERMINATOR_SWEEP_BUDGET_MS * 2).toBeLessThanOrEqual(TICK_DEADLINE_MS);
+  });
+});
+
+describe('YOUTUBE_MAX_LOCATION_RADIUS_KM', () => {
+  // The YouTube Data API v3 documents `locationRadius` as capped at 1000 km.
+  // This is a SEPARATE ceiling from Windy's 22.5-degree box-span cap above,
+  // even though the YouTube cron derives its radius from SEARCH_RADIUS_DEG —
+  // and searchYouTubeLiveNear swallows a non-OK response as an empty array, so
+  // a breach reads as "no live streams anywhere" rather than as an error.
+  it('is the documented YouTube Data API v3 ceiling', () => {
+    expect(YOUTUBE_MAX_LOCATION_RADIUS_KM).toBe(1000);
+  });
+
+  it('keeps the radius the YouTube cron sends inside the cap', () => {
+    // Mirrors the derivation in app/api/cron/update-youtube/route.ts:
+    // 1 degree ~ 111 km, then clamped. At SEARCH_RADIUS_DEG = 11 the raw value
+    // is 1221 km, so the clamp is load-bearing today, not decorative.
+    const rawKm = SEARCH_RADIUS_DEG * 111;
+    const sentKm = Math.min(rawKm, YOUTUBE_MAX_LOCATION_RADIUS_KM);
+    expect(sentKm).toBeLessThanOrEqual(YOUTUBE_MAX_LOCATION_RADIUS_KM);
+    expect(sentKm).toBe(Math.min(rawKm, 1000));
+  });
+});

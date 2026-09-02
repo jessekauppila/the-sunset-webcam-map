@@ -8,7 +8,9 @@ vi.mock('@/app/lib/db', () => ({
 
 import { computeTickStats, upsertDailyStats } from './dailyStats';
 
-beforeEach(() => sqlMock.mockReset());
+beforeEach(() => {
+  sqlMock.mockReset();
+});
 
 describe('computeTickStats', () => {
   it('computes count, avg, percentiles, and above-threshold count', () => {

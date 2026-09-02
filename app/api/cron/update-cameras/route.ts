@@ -16,7 +16,10 @@ import { NextResponse } from 'next/server';
 import { subsolarPoint } from '@/app/components/Map/lib/subsolarLocation';
 import { createTerminatorQueryRing } from '@/app/components/Map/lib/terminatorRing';
 import {
-  TERMINATOR_RING_OFFSETS_DEG,
+  TERMINATOR_CAMERA_FLOOR,
+  TERMINATOR_WIDEN_OFFSETS_DEG,
+  TERMINATOR_SWEEP_BUDGET_MS,
+  TICK_DEADLINE_MS,
   TERMINATOR_PRECISION_DEG,
   TERMINATOR_SUN_ALTITUDE_DEG,
   WINDY_FETCH_BATCH_SIZE,
@@ -30,12 +33,15 @@ import {
 } from '@/app/lib/masterConfig';
 import { classifyCustomCamerasForTick } from './lib/customClassification';
 import { verifyCronAuth } from './lib/auth';
-import {
-  dedupeCoords,
-  fetchWebcamsInBatches,
-  dedupeWebcams,
-} from './lib/windyApi';
+import { dedupeCoords, fetchCoordsCounted } from './lib/windyApi';
 import { classifyWebcamsByPhase } from './lib/webcamClassification';
+import { sweepWithEscalation } from './lib/terminatorSweep';
+import {
+  ringOffsetByWebcamId,
+  computeSweepTickStats,
+  upsertSweepStats,
+  type RingGateCounts,
+} from './lib/sweepStats';
 import {
   upsertWebcams,
   getWebcamIdMap,
@@ -52,7 +58,16 @@ import { captureProviderUsageDaily } from './lib/providerUsage';
 import { sendDailyUsageDigest } from './lib/dailyDigest';
 import { downloadImage, uploadToFirebase } from '@/app/lib/webcamSnapshot';
 
-const TICK_DEADLINE_MS = 50_000;
+// Platform ceiling for this route, declared rather than inherited. TICK_DEADLINE_MS
+// below is the in-process budget and only means anything if the platform gives the
+// tick at least that long; 60s leaves a 10s margin over it. Adaptive widening made
+// a slow tick likelier — tickStartedAt now starts before the Windy fetch, and an
+// escalated sweep can spend up to TERMINATOR_SWEEP_BUDGET_MS of the tick — so the
+// two numbers need to stay pinned together. Raising TICK_DEADLINE_MS (now in
+// masterConfig.ts, where a test guards its ratio to the sweep budget) means
+// raising this too.
+export const maxDuration = 60;
+
 const PER_IMAGE_TIMEOUT_MS = 3_000;
 // Concurrency limit for ONNX scoring — distinct from WINDY_FETCH_BATCH_SIZE
 // (API call batch size in masterConfig).
@@ -73,48 +88,60 @@ export async function GET(req: Request) {
   const now = new Date();
   const { raHours, gmstHours } = subsolarPoint(now);
 
-  // Generate terminator rings for all configured offsets
-  const ringResults = TERMINATOR_RING_OFFSETS_DEG.map((offsetDeg) =>
-    createTerminatorQueryRing(
-      now,
-      raHours,
-      gmstHours,
-      TERMINATOR_PRECISION_DEG,
-      TERMINATOR_SUN_ALTITUDE_DEG,
-      offsetDeg,
-    ),
-  );
-
-  // Deduplicate coordinates across all rings
-  const sunriseCoords = dedupeCoords(
-    ringResults.flatMap((r) => r.sunriseCoords),
-  );
-  const sunsetCoords = dedupeCoords(
-    ringResults.flatMap((r) => r.sunsetCoords),
-  );
-
-  console.log('📍 Coords:', {
-    sunrise: sunriseCoords.length,
-    sunset: sunsetCoords.length,
-    offsets: TERMINATOR_RING_OFFSETS_DEG,
+  const tickStartedAt = Date.now();
+  const sweep = await sweepWithEscalation({
+    buildRing: (offsetDeg) => {
+      const r = createTerminatorQueryRing(
+        now,
+        raHours,
+        gmstHours,
+        TERMINATOR_PRECISION_DEG,
+        TERMINATOR_SUN_ALTITUDE_DEG,
+        offsetDeg,
+      );
+      return {
+        sunriseCoords: dedupeCoords(r.sunriseCoords),
+        sunsetCoords: dedupeCoords(r.sunsetCoords),
+      };
+    },
+    fetchCoords: (coords) =>
+      fetchCoordsCounted(
+        dedupeCoords(coords),
+        WINDY_FETCH_BATCH_SIZE,
+        WINDY_FETCH_DELAY_BETWEEN_BATCHES_MS,
+      ),
+    classify: classifyWebcamsByPhase,
+    floor: TERMINATOR_CAMERA_FLOOR,
+    offsets: TERMINATOR_WIDEN_OFFSETS_DEG,
+    // Escalation rings are the first thing sacrificed on a slow tick: the
+    // scoring loop below needs the remaining budget more than the pool needs
+    // extra cameras. See TERMINATOR_SWEEP_BUDGET_MS for the cutoff rationale.
+    hasBudget: () => Date.now() - tickStartedAt < TERMINATOR_SWEEP_BUDGET_MS,
   });
 
-  // Fetch webcams at all coordinates
-  const allCoords = dedupeCoords([...sunriseCoords, ...sunsetCoords]);
-  console.log(`🌐 Total terminator coordinates: ${allCoords.length}`);
+  const sunriseCoords = sweep.coords.sunriseCoords;
+  const sunsetCoords = sweep.coords.sunsetCoords;
+  const windyAll = sweep.webcams.filter((w) => w.location);
 
-  // Fetch webcams in batches with rate limiting
-  const batches = await fetchWebcamsInBatches(
-    allCoords,
-    WINDY_FETCH_BATCH_SIZE,
-    WINDY_FETCH_DELAY_BETWEEN_BATCHES_MS,
-  );
-  console.log('📦 All batches received:', batches.length);
+  console.log('🛰️ terminator sweep:', JSON.stringify(sweep.telemetry));
 
-  // Deduplicate webcams by webcamId
-  const windyById = dedupeWebcams(batches.flat());
-  const windyAll = [...windyById.values()].filter((w) => w.location);
-  console.log('🗂️ Total unique webcams:', windyAll.length);
+  // Ring attribution for the detection-gate comparison. Each camera is
+  // credited to the ring that first saw it this tick, so the digest can print
+  // the day-side ring's gate-pass rate beside the base ring's. That
+  // comparison is the only way to tell widening that adds sunsets from
+  // widening that adds cameras the gate then floors — the failure the spec
+  // flags as self-concealing, because escalations and newWebcams both read as
+  // success while the panel stays exactly as empty.
+  const ringOffsetOf = ringOffsetByWebcamId(sweep.telemetry);
+  const gateByOffset = new Map<number, RingGateCounts>();
+  function recordGateOutcome(externalId: number, isSunset: boolean) {
+    const offsetDeg = ringOffsetOf.get(externalId);
+    if (offsetDeg === undefined) return;
+    const acc = gateByOffset.get(offsetDeg) ?? { scored: 0, gatePassed: 0 };
+    acc.scored += 1;
+    if (isSunset) acc.gatePassed += 1;
+    gateByOffset.set(offsetDeg, acc);
+  }
 
   // Upsert all webcams to database (only updates if fields changed)
   await upsertWebcams(windyAll);
@@ -138,7 +165,6 @@ export async function GET(req: Request) {
   const hashByWebcamId = await getWebcamImageHashMap([...idByExternal.values()]);
 
   // AI scoring via real image pipeline — per-tick counters.
-  const tickStartedAt = Date.now();
   const windyScores: number[] = [];
   let cacheHits = 0;
   let fallbacks = 0;
@@ -189,6 +215,13 @@ export async function GET(req: Request) {
       }
       scoringPaths.onnx += 1;
       windyScores.push(scored.rawScore);
+      // Only frames carrying a real binary verdict are counted. Without the
+      // binary head configured there is no gate outcome to attribute, and a
+      // scored-but-ungated frame would deflate the ring's rate rather than
+      // leave it undefined.
+      if (typeof scored.binaryIsSunset === 'boolean') {
+        recordGateOutcome(webcam.webcamId, scored.binaryIsSunset);
+      }
 
       // Write Neon first: if the DB write fails, Redis hash is not committed
       // and the next tick will re-score. Committing the hash before the DB
@@ -420,6 +453,18 @@ export async function GET(req: Request) {
     console.error('[update-cameras] daily_sunset_stats UPSERT failed:', err);
   }
 
+  // Sweep telemetry, persisted so the daily digest can still answer "how
+  // often did a feed go thin" and "what did widening cost" a day later. Until
+  // now it reached only this response and one log line, neither of which
+  // survives the tick. Same model version as the rollup above: either writer
+  // may be the one that creates the day's row, and the column is NOT NULL.
+  const sweepStats = computeSweepTickStats({
+    telemetry: sweep.telemetry,
+    floor: TERMINATOR_CAMERA_FLOOR,
+    gateByOffset,
+  });
+  await upsertSweepStats(new Date(), sweepStats, tickStats.modelVersion);
+
   // Once per UTC day, snapshot Neon usage counters for the Ops tab. Never
   // allowed to fail the tick.
   let providerUsage: Awaited<ReturnType<typeof captureProviderUsageDaily>> | { error: true };
@@ -455,5 +500,6 @@ export async function GET(req: Request) {
     archiveBackfill: backfillResult,
     providerUsage,
     digest,
+    sweep: sweep.telemetry,
   });
 }

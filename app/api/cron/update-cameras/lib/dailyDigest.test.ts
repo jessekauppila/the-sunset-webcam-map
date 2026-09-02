@@ -7,7 +7,11 @@ vi.mock('@/app/lib/db', () => ({
     sqlMock(strings, ...values),
 }));
 
-import { sendDailyUsageDigest, formatCalibrationLine } from './dailyDigest';
+import {
+  sendDailyUsageDigest,
+  formatCalibrationLine,
+  formatSweepLine,
+} from './dailyDigest';
 
 const NOW = new Date('2026-08-03T00:20:00Z');
 const SUNSET = 'noisy-leaf-96391119';
@@ -182,5 +186,93 @@ describe('formatCalibrationLine', () => {
       healed: 0,
     });
     expect(html).toContain('1 newly tempered');
+  });
+});
+
+describe('formatSweepLine', () => {
+  const quiet = {
+    ticks: 96,
+    escalatedTicks: 0,
+    budgetExhaustedTicks: 0,
+    sunriseThinTicks: 0,
+    sunsetThinTicks: 0,
+    sunriseShortTicks: 0,
+    sunsetShortTicks: 0,
+    baseBoxes: 2976,
+    escalationBoxes: 0,
+    rings: [
+      {
+        offsetDeg: 0,
+        ringsSwept: 96,
+        boxesAttempted: 2976,
+        boxesEmpty: 300,
+        newWebcams: 400,
+        framesScored: 380,
+        framesGatePassed: 130,
+      },
+    ],
+  };
+
+  it('renders nothing when no sweep was recorded', () => {
+    expect(formatSweepLine(null)).toBe('');
+  });
+
+  it('collapses a quiet day to one clause', () => {
+    const html = formatSweepLine(quiet);
+    expect(html).toContain('no feed fell under the floor');
+    expect(html).toContain('2,976');
+    // Nothing was widened, so there is no cost and no per-ring comparison.
+    expect(html).not.toContain('gate-passed');
+  });
+
+  it('names the thin feed, the escalation cost, and its share of the baseline', () => {
+    const html = formatSweepLine({
+      ...quiet,
+      escalatedTicks: 12,
+      sunsetThinTicks: 12,
+      sunsetShortTicks: 4,
+      escalationBoxes: 180,
+    });
+    expect(html).toContain('sunset thin on 12 of 96 ticks');
+    expect(html).toContain('4 still short');
+    expect(html).toContain('+180 boxes');
+    expect(html).toContain('2,976 base');
+    expect(html).toContain('+6%');
+    expect(html).not.toContain('sunrise thin');
+  });
+
+  it('compares gate-pass rates per ring, which is the golden-hour question', () => {
+    const html = formatSweepLine({
+      ...quiet,
+      escalatedTicks: 12,
+      sunsetThinTicks: 12,
+      escalationBoxes: 180,
+      rings: [
+        ...quiet.rings,
+        {
+          offsetDeg: 15.75,
+          ringsSwept: 12,
+          boxesAttempted: 180,
+          boxesEmpty: 20,
+          newWebcams: 45,
+          framesScored: 40,
+          framesGatePassed: 4,
+        },
+      ],
+    });
+    expect(html).toContain('base 130/380 gate-passed (34%)');
+    expect(html).toContain('+15.75');
+    expect(html).toContain('4/40');
+    expect(html).toContain('10%');
+  });
+
+  it('flags a budget-starved day and a rising empty-box share', () => {
+    const html = formatSweepLine({
+      ...quiet,
+      budgetExhaustedTicks: 7,
+      rings: [{ ...quiet.rings[0], boxesEmpty: 1500 }],
+    });
+    expect(html).toContain('7 ticks hit the sweep budget');
+    expect(html).toContain('50% of boxes empty');
   });
 });

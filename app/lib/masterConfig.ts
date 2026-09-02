@@ -24,15 +24,51 @@ export const TERMINATOR_SUN_ALTITUDE_DEG = -13;
 // -10 works when precision is 14 and radius is 11
 // -8 showed too much day time
 
-export const SEARCH_RADIUS_DEG = 9; // Search radius per API call in degrees
-// 12 doesn't work
-// 11 is the widest that works
-// 10 works
-// 6 works
+// Search radius per Windy API call, in degrees. The query box spans
+// 2 x this value, and Windy's clusters endpoint caps the north-south span
+// at 22.5 degrees on zoom 4 (and rejects zoom < 4), so 11.25 is a hard
+// ceiling. Verified live 2026-09-02; guarded by masterConfig.test.ts.
+export const SEARCH_RADIUS_DEG = 11;
 
-// West-only offset ring for parallel search/visualization, in degrees.
-// 0 = main ring, positive values shift the ring westward from the subsolar geometry.
-export const TERMINATOR_RING_OFFSETS_DEG = [0]; //was   0,1.75 * SEARCH_RADIUS_DEG,//was 1,.75
+// Per-feed camera count below which that feed sweeps an extra ring. Chosen
+// against a single observation (4 sunrise, 21 sunset on 2026-09-02); expect
+// to tune it once the sweep telemetry has a few days of history.
+export const TERMINATOR_CAMERA_FLOOR = 15;
+
+// Extra rings to sweep when a feed is under the floor, tried in this order.
+// radius = 90 - (sunAltitude + offset), so POSITIVE MOVES TOWARD DAY: +15.75
+// puts the ring near +2.75 degrees solar altitude (golden hour, which the base
+// ring at -13 misses entirely), and -15.75 puts it near -28.75 (deep night,
+// where the detection gate floors the frames anyway). Day side first.
+//
+// The magnitude is EMPIRICAL, not derived. Measured 2026-09-02 at
+// SEARCH_RADIUS_DEG = 11: a 3-degree offset returned 26-35% cameras the base
+// ring had not seen, for a full ring's worth of API calls; 15.75 returned
+// 92-100%. Note 15.75 is well under the 22-degree box span, so these rings'
+// query boxes DO overlap the base ring's — overlap is not what predicts
+// yield here, and no inequality against SEARCH_RADIUS_DEG substitutes for a
+// live measurement of a new offset.
+export const TERMINATOR_WIDEN_OFFSETS_DEG = [15.75, -15.75] as const;
+
+// Wall-clock budget for the whole terminator sweep (base ring + any
+// escalation rings), in milliseconds. The scoring loop that follows needs
+// the remaining tick more than the pool needs extra cameras, so escalation
+// rings are the first thing sacrificed on a slow tick. Chosen against a
+// single observation (half of the 50s tick deadline, 2026-09-02); expect to
+// tune it once the sweep telemetry has a few days of history.
+export const TERMINATOR_SWEEP_BUDGET_MS = 25_000;
+
+// In-process deadline for one update-cameras tick, after which the scoring
+// loop stops starting batches. Lives here rather than in the route so its
+// relationship to TERMINATOR_SWEEP_BUDGET_MS is a guarded invariant instead of
+// a comment: the sweep may burn its budget before the escalation loop stops,
+// and the scoring loop needs at least as long again. masterConfig.test.ts
+// pins TERMINATOR_SWEEP_BUDGET_MS * 2 <= TICK_DEADLINE_MS.
+//
+// The route's `maxDuration` stays a literal there: Next.js reads it by static
+// analysis of the route module and an imported constant is not guaranteed to
+// resolve. Raising this means raising that too.
+export const TICK_DEADLINE_MS = 50_000;
 
 // How recent a custom camera's most-recent snapshot must be for the camera
 // to qualify for terminator visibility. Mirrors Windy's "API returned it
@@ -233,6 +269,19 @@ export const WINDY_FETCH_STAGGER_WITHIN_BATCH_MS = 200;
 // ---------------------------------------------------------------------------
 export const YOUTUBE_FETCH_BATCH_SIZE = 5;
 export const YOUTUBE_FETCH_DELAY_BETWEEN_BATCHES_MS = 800;
+
+// Documented maximum for the YouTube Data API v3 `locationRadius` search
+// parameter. Anything larger is rejected, and the caller swallows a non-OK
+// response as an empty result, so breaching this yields silent zeroes rather
+// than an error.
+//
+// This is a DIFFERENT ceiling from Windy's 22.5-degree box-span cap, even
+// though the YouTube cron derives its radius from SEARCH_RADIUS_DEG. Widening
+// SEARCH_RADIUS_DEG for Windy (9 -> 11 on 2026-09-02) pushed the derived
+// YouTube radius from 999 km to 1221 km, past this cap. Keep the two ceilings
+// separate: one constant must never be silently load-bearing for both APIs.
+// The YouTube call site clamps against this; guarded by masterConfig.test.ts.
+export const YOUTUBE_MAX_LOCATION_RADIUS_KM = 1000;
 
 // ---------------------------------------------------------------------------
 // Ops tab (owner-only cost/health panel in the drawer)
