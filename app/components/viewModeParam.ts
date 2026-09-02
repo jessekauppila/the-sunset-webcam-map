@@ -10,8 +10,6 @@ export const VIEW_PARAM = 'view';
 const KNOWN: ViewMode[] = [
   'map',
   'globe',
-  'sunrise-mosaic',
-  'sunset-mosaic',
   'rating',
   'swipe',
   'gallery',
