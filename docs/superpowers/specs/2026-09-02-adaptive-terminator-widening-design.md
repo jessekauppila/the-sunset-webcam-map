@@ -147,12 +147,27 @@ Extra rings are swept only if the tick has time left, reusing the existing
 drops the extra rings rather than overrunning. Budget is checked before
 each escalation step, not per call.
 
-### 5. Pole clamp
+### 5. Clamp the query box to the ranges Windy accepts
 
-At some declinations the ring passes within a degree of the pole and a box
-is built past ±90° latitude. That call fails and returns nothing. Measured:
-1 of 31 boxes on the sweep run for this design. Clamp the latitude bounds
-and keep the call.
+The box is built by unclamped arithmetic on the ring point, and Windy rejects
+four different out-of-range bounds. Verified live 2026-09-02:
+
+```
+northLat must not be greater than 90
+eastLon must not be greater than 180
+westLon must not be less than -180
+```
+
+Both edges are reached in practice. At some declinations the ring passes
+within a degree of the pole; and it crosses the antimeridian on every sweep.
+Measured on the run done for this design: **2 of 31 boxes lost**, one to each
+cause. `fetchWebcamsFor` swallows both as an empty array, so this has been
+invisible.
+
+Clamp all four bounds and keep the call. Clamping *shrinks* a box at the
+antimeridian rather than wrapping it, so a sliver on the far side is still
+lost; splitting into two boxes would recover it, but that stretch is open
+ocean and a shrunken box already beats a 400.
 
 ### 6. Instrumentation
 
@@ -164,9 +179,17 @@ Per tick, record and log:
 
 - escalation level reached, per feed
 - unique cameras contributed by each ring, per feed
-- boxes attempted, boxes failed, boxes skipped
+- boxes attempted, and boxes that came back empty
 
-Surfaced in the Ops tab alongside the existing cron counters.
+The empty count deliberately conflates "no cameras there" with "the call
+failed", because `fetchWebcamsFor` swallows non-OK responses. That
+conflation is the useful signal: a rising empty count against a flat camera
+count is the signature of an API wall.
+
+**Surface:** the cron's JSON response plus one structured log line. Persisting
+to `daily_sunset_stats` for the Ops tab needs a migration and is deferred
+until the telemetry shape has settled — the response is enough to answer both
+open risks below.
 
 ## Explicitly not doing
 
