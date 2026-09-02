@@ -48,7 +48,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ id, source: 'historical', reconstructed, skipped }, { status: 201 });
   }
 
-  const { state, provenance, pinned, pinFailures } = await captureLiveScene();
+  // Default 'live' so a capture with no opinion records what was on glass;
+  // /studio asks for 'studio' because it is saving the view being tuned.
+  const provenanceProfile = body.provenanceProfile === 'studio' ? 'studio' : 'live';
+  const { state, provenance, pinned, pinFailures } =
+    await captureLiveScene(provenanceProfile);
   const id = await createScene({
     label, tags, notes, representsAt: new Date(), source: 'live', state, provenance,
   });

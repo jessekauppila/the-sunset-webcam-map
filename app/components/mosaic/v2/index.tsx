@@ -65,8 +65,18 @@ export function MosaicV2({
         onSelect={onSelect}
       />
       {cfg.showFeedLabel && <FeedLabel feed={feed} />}
-      {cfg.showTileRatings && <TileRatings layout={layout} byId={byId} />}
-      {modelsMode && <ModelReadout layout={layout} byId={byId} />}
+      {cfg.showTileRatings && (
+        <TileRatings
+          layout={layout}
+          byId={byId}
+          qualitySource={cfg.qualitySource}
+          gateThreshold={cfg.gateThreshold}
+          scale={cfg.overlayScale}
+        />
+      )}
+      {modelsMode && (
+        <ModelReadout layout={layout} byId={byId} scale={cfg.overlayScale} />
+      )}
       {setupMode && <SetupOverlay layout={layout} feed={feed} skipped={skipped} />}
     </div>
   );

@@ -63,13 +63,6 @@ export function HomeClient({ manifestRuns }: Props) {
     }
   }, [visibleTabs, tabKey]);
 
-  // If the operator signs out while on the My Cameras view, drop back to globe.
-  useEffect(() => {
-    if (!isOperator && mode === 'my-cameras') {
-      setMode('globe');
-    }
-  }, [isOperator, mode]);
-
   // Bellingham, Washington location need to put in user's location eventually
   const userLocation = useMemo(
     () => ({ lat: 48.7519, lng: -122.4787 }),
@@ -97,11 +90,7 @@ export function HomeClient({ manifestRuns }: Props) {
         <MainViewContainer userLocation={userLocation} mode={mode} />
 
         {/* Mode Toggle */}
-        <MapMosaicModeToggle
-          mode={mode}
-          onModeChange={setMode}
-          showMyCameras={isOperator}
-        />
+        <MapMosaicModeToggle mode={mode} onModeChange={setMode} />
 
         {/* Drawer Toggle Button - positioned over the map */}
         <IconButton

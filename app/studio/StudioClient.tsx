@@ -39,7 +39,7 @@ const pillBorder = '#232a38';
 export function StudioClient() {
   const [sceneSource, setSceneSource] = useState<SceneSource>({ kind: 'live' });
   useLoadTerminatorWebcams({ paused: sceneSource.kind === 'scene' });
-  const { scenes, sceneState, sceneRepresentsAt, error: sceneError } =
+  const { scenes, sceneState, sceneRepresentsAt, error: sceneError, refreshScenes } =
     useSceneWebcams(sceneSource);
   const settingsApi = useStudioSettings();
   const sunriseWebcams = useTerminatorStore((t) => t.sunrise);
@@ -141,6 +141,7 @@ export function StudioClient() {
           sceneState={sceneState}
           error={sceneError}
           at={sceneRepresentsAt ?? undefined}
+          onSceneSaved={refreshScenes}
         />
 
         {railCollapsed && (

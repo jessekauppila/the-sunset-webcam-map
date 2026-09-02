@@ -34,7 +34,15 @@ export interface LiveCaptureResult {
 // push against the POST route's maxDuration=60s by running fully serially.
 const PIN_CONCURRENCY = 5;
 
-export async function captureLiveScene(): Promise<LiveCaptureResult> {
+/**
+ * `provenanceProfile` decides WHICH dial positions the scene records. 'live'
+ * is what the glass was running. 'studio' is what the operator was looking
+ * at when they hit save, which is the one that matters when the point of the
+ * capture is to reference a composition you were mid-way through tuning.
+ */
+export async function captureLiveScene(
+  provenanceProfile: 'studio' | 'live' = 'live'
+): Promise<LiveCaptureResult> {
   const webcams = await fetchTerminatorWebcams();
   let pinned = 0;
   let pinFailures = 0;
@@ -78,7 +86,7 @@ export async function captureLiveScene(): Promise<LiveCaptureResult> {
     sunset: frozen.filter((c) => c.phase === 'sunset'),
   };
 
-  const profile = await getProfileSettings('live');
+  const profile = await getProfileSettings(provenanceProfile);
   const settings: SceneProvenance['settings'] = profile.namespaces;
   const activeVersion =
     (profile.namespaces.shared?.activeVersion as string | undefined) ?? DEFAULT_MOSAIC_VERSION;

@@ -8,7 +8,7 @@ const cfg = (over: Partial<V2Config> = {}): V2Config => ({
   scoreFloor: 0, scoreCeiling: 1, sharedScale: true,
   strategy: 'anchorRelax', bandCount: 8, horizontalAnchor: 'solarAltitude',
   rowAlign: 'center', geographicFidelity: 1, tileGapPx: 0, latNorth: 70, latSouth: -60,
-  showFeedLabel: true, showTileRatings: false, showModelReadout: false,
+  showFeedLabel: true, showTileRatings: false, overlayScale: 1, showModelReadout: false,
   ...over,
 });
 

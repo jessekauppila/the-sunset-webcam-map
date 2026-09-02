@@ -7,6 +7,7 @@ import type { SettingsValues } from '@/app/lib/settings/schema';
 import type { SceneSource } from './useSceneWebcams';
 import type { SceneState, SceneSummary } from '@/app/lib/scenes/types';
 import { StudioPanelFrame } from './StudioPanelFrame';
+import { SaveSceneButton } from './SaveSceneButton';
 
 export type FeedView = 'sunrise' | 'sunset' | 'both';
 
@@ -37,6 +38,7 @@ export function PreviewPane({
   sceneState = null,
   error = null,
   at,
+  onSceneSaved,
 }: {
   view: FeedView;
   onViewChange: (v: FeedView) => void;
@@ -50,6 +52,7 @@ export function PreviewPane({
   sceneState?: SceneState | null;
   error?: string | null;
   at?: string;
+  onSceneSaved?: (id: number) => void;
 }) {
   const liveSunrise = useTerminatorStore((t) => t.sunrise);
   const liveSunset = useTerminatorStore((t) => t.sunset);
@@ -158,6 +161,8 @@ export function PreviewPane({
             </option>
           ))}
         </select>
+
+        <SaveSceneButton onSaved={onSceneSaved} />
 
         {sceneUnresolved && (
           <span

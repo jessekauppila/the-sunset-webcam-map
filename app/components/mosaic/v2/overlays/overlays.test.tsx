@@ -35,15 +35,47 @@ describe('FeedLabel', () => {
   });
 });
 
+const ratingProps = { qualitySource: 'auto' as const, gateThreshold: 0.55 };
+
 describe('TileRatings', () => {
   it('renders a chip per tile showing the score', () => {
-    render(<TileRatings layout={layout()} byId={byId()} />);
+    render(<TileRatings layout={layout()} byId={byId()} {...ratingProps} />);
     expect(screen.getAllByTestId('v2-rating-chip')).toHaveLength(1);
   });
 
   it('marks gate-passers distinctly from floored tiles', () => {
-    render(<TileRatings layout={layout()} byId={byId()} />);
+    render(<TileRatings layout={layout()} byId={byId()} {...ratingProps} />);
     expect(screen.getByTestId('v2-rating-chip')).toHaveAttribute('data-passes', 'true');
+  });
+
+  it('names the judge, because the gate dial only acts on the model one', () => {
+    render(<TileRatings layout={layout()} byId={byId()} {...ratingProps} />);
+    expect(screen.getByTestId('v2-rating-chip')).toHaveAttribute('data-judge', 'model');
+  });
+
+  it('shows the two numbers the gate compared, on the rating scale', () => {
+    render(<TileRatings layout={layout()} byId={byId()} {...ratingProps} />);
+    // aiRatingBinary 4 against a 0.55 threshold, which is 3.20 as a rating.
+    expect(screen.getByTestId('v2-rating-chip')).toHaveTextContent('4.00 / 3.20');
+  });
+
+  it('says the gate is inert rather than printing a dead number for llm frames', () => {
+    const llmCam = { webcamId: 1, title: 'cam', llmIsSunset: true, llmQuality: 0.8 } as WindyWebcam;
+    render(
+      <TileRatings
+        layout={layout()}
+        byId={new Map([[1, { img: {} as HTMLImageElement, webcam: llmCam }]])}
+        {...ratingProps}
+      />
+    );
+    const chip = screen.getByTestId('v2-rating-chip');
+    expect(chip).toHaveAttribute('data-judge', 'llm');
+    expect(chip).toHaveTextContent('gate n/a');
+  });
+
+  it('scales the text so it is readable across a room', () => {
+    render(<TileRatings layout={layout()} byId={byId()} {...ratingProps} scale={3} />);
+    expect(screen.getByTestId('v2-rating-chip')).toHaveStyle({ fontSize: '30px' });
   });
 });
 

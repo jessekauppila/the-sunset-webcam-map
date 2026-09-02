@@ -4,6 +4,7 @@ import { useRef, useState, useEffect } from 'react';
 import SimpleMap from './Map/SimpleMap';
 import { RatingPanel } from './Rating/RatingPanel';
 import { resolveMosaic } from './mosaic/registry';
+import { OwnerGate } from './auth/OwnerGate';
 import { useTerminatorStore } from '@/app/store/useTerminatorStore';
 import { SwipeSnapshotGallery } from './SwipeSnapshotGallery';
 import { MyCamerasView } from './MyCameras/MyCamerasView';
@@ -106,7 +107,11 @@ export default function MainViewContainer({
       return <SimpleMap userLocation={userLocation} mode={mode} />;
 
     case 'my-cameras':
-      return <MyCamerasView userLocation={userLocation} />;
+      return (
+        <OwnerGate label="My Cameras">
+          <MyCamerasView userLocation={userLocation} />
+        </OwnerGate>
+      );
 
     case 'rating':
       return (
