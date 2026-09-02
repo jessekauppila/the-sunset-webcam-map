@@ -15,6 +15,7 @@ export function useSceneWebcams(source: SceneSource): {
   scenes: SceneSummary[];
   sceneState: SceneState | null;
   sceneLabel: string | null;
+  sceneRepresentsAt: string | null;
   error: string | null;
 } {
   const list = useSWR<{ scenes: SceneSummary[] }>('/api/kiosk/scenes', fetcher);
@@ -27,6 +28,7 @@ export function useSceneWebcams(source: SceneSource): {
     scenes: list.data?.scenes ?? [],
     sceneState: scene.data?.state ?? null,
     sceneLabel: scene.data?.label ?? null,
+    sceneRepresentsAt: scene.data?.representsAt ?? null,
     error: (list.error ?? scene.error)?.message ?? null,
   };
 }

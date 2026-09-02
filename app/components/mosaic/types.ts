@@ -16,6 +16,15 @@ export interface MosaicProps {
   onSelect?: (webcam: WindyWebcam) => void;
   /** Raw query string of the hosting page, for version-specific params. */
   search?: string;
+  /**
+   * The moment this composition represents, for solar-position math. Live
+   * surfaces omit it (render time is correct); /studio passes the selected
+   * scene's representsAt so a replayed scene computes the sun where it
+   * actually was. Deliberately explicit: `lastUpdatedOn` cannot serve here —
+   * it is `last_fetched_at` (Windy metadata) in the live payload but
+   * `snapshot_captured_at` in reconstructed scenes.
+   */
+  at?: string | number;
   /** Merged-or-deviation knob values for THIS version's namespace (server profile). */
   settings?: Record<string, number | boolean | string>;
 }

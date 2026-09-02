@@ -1,6 +1,8 @@
 import type { MosaicComponent } from './types';
 import { MosaicV1 } from './v1';
 import { V1_SETTINGS_SCHEMA } from './v1/settingsSchema';
+import { MosaicV2 } from './v2';
+import { V2_SETTINGS_SCHEMA } from './v2/settingsSchema';
 import type { SettingsSchema } from '@/app/lib/settings/schema';
 
 /**
@@ -12,6 +14,7 @@ import type { SettingsSchema } from '@/app/lib/settings/schema';
  */
 export const MOSAIC_VERSIONS: Record<string, MosaicComponent> = {
   v1: MosaicV1,
+  v2: MosaicV2,
 };
 
 export const DEFAULT_MOSAIC_VERSION = 'v1';
@@ -19,6 +22,7 @@ export const DEFAULT_MOSAIC_VERSION = 'v1';
 /** Settings schemas for each mosaic version. */
 export const MOSAIC_SETTINGS_SCHEMAS: Record<string, SettingsSchema> = {
   v1: V1_SETTINGS_SCHEMA,
+  v2: V2_SETTINGS_SCHEMA,
 };
 
 /** Unknown or missing names fall back to the pinned default. */

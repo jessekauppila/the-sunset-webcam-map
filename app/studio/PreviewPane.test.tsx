@@ -26,18 +26,25 @@ class StubResizeObserver {
 global.ResizeObserver = StubResizeObserver;
 
 let capturedFeeds: string[] = [];
+let capturedAt: Array<string | number | undefined> = [];
 
 vi.mock('@/app/components/mosaic/registry', () => ({
-  resolveMosaic: () => (props: { feed: string; webcams: Array<{ webcamId: number }> }) => {
-    capturedFeeds.push(props.feed);
-    return (
-      <div data-testid={`mosaic-${props.feed}`}>
-        {props.webcams.map((w) => (
-          <div key={w.webcamId} data-testid={`tile-${w.webcamId}`} />
-        ))}
-      </div>
-    );
-  },
+  resolveMosaic: () =>
+    (props: {
+      feed: string;
+      webcams: Array<{ webcamId: number }>;
+      at?: string | number;
+    }) => {
+      capturedFeeds.push(props.feed);
+      capturedAt.push(props.at);
+      return (
+        <div data-testid={`mosaic-${props.feed}`}>
+          {props.webcams.map((w) => (
+            <div key={w.webcamId} data-testid={`tile-${w.webcamId}`} />
+          ))}
+        </div>
+      );
+    },
   resolveMosaicName: (v: string | null | undefined) => v ?? 'v1',
 }));
 
@@ -54,6 +61,7 @@ function fakeWebcams(): WindyWebcam[] {
 describe('PreviewPane', () => {
   beforeEach(() => {
     capturedFeeds = [];
+    capturedAt = [];
     useTerminatorStore.setState({
       sunrise: fakeWebcams(),
       sunset: fakeWebcams(),
@@ -212,5 +220,24 @@ describe('PreviewPane', () => {
 
     expect(screen.queryByTestId('tile-1')).toBeNull();
     expect(screen.getByText('/api/kiosk/scenes/1: 404')).toBeTruthy();
+  });
+
+  it('passes the scene moment down to the mosaic', () => {
+    // The brief's DOM-text assertion doesn't fit this file's mock (feed
+    // labels render lowercase, not "SUNSET") — assert on the `at` prop the
+    // mocked Mosaic actually receives instead, per this file's existing
+    // capture-and-inspect pattern.
+    render(
+      <PreviewPane
+        view="sunset"
+        onViewChange={() => {}}
+        panel={PANEL}
+        panelPresetLabel="test"
+        versionName="v2"
+        at="2026-03-14T17:30:00.000Z"
+      />
+    );
+
+    expect(capturedAt).toEqual(['2026-03-14T17:30:00.000Z']);
   });
 });
