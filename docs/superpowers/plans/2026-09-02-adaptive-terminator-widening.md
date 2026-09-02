@@ -359,6 +359,23 @@ git commit -m "feat(cron): report attempted and empty box counts from a sweep"
 
 The heart of the feature, and deliberately pure. Every dependency arrives as a function argument so the policy is tested with no network, no clock, and no database.
 
+**Two amendments to the code sketched below, folded back in from review. The
+sketch is otherwise as shipped.**
+
+1. **`RingTelemetry` also carries `newWebcamIds: number[]`**, populated from the
+   same `byId` delta as `newWebcams` — record an id before inserting it, so the
+   delta is against every *earlier* ring rather than against the current one.
+   `newWebcams` stays as the cheap scalar. The ids are required, not a nicety:
+   "Verification after merge" step 4 asks which ring each camera came from, and
+   a bare count cannot answer that.
+2. **The base ring is swept as `sweep(0, [...FEEDS])`, not `sweep(0, FEEDS)`.**
+   `sweep` stores the array it is handed straight into the returned telemetry,
+   so passing the module-level constant makes `telemetry.rings[0].feedsSwept`
+   an alias of `FEEDS`; any caller that sorted or mutated the telemetry would
+   permanently reorder `FEEDS` and flip escalation priority for the rest of the
+   process. (`feedsBelowFloor` already returns a fresh array, so escalation
+   rings were never affected.)
+
 **Files:**
 - Create: `app/api/cron/update-cameras/lib/terminatorSweep.ts`
 - Test: `app/api/cron/update-cameras/lib/terminatorSweep.test.ts` (create)
@@ -837,10 +854,26 @@ git commit -m "feat(cron): add widening constants, retire the fixed offset ring 
 
 **Files:**
 - Modify: `app/api/cron/update-cameras/route.ts:75-115` (the ring + fetch block) and the final `NextResponse.json`
+- Modify: `app/lib/masterConfig.ts` (add `TERMINATOR_SWEEP_BUDGET_MS`, delete `TERMINATOR_RING_OFFSETS_DEG`)
 
 **Interfaces:**
 - Consumes: `sweepWithEscalation`, `SweepTelemetry` (Task 4); `fetchCoordsCounted` (Task 3); `TERMINATOR_CAMERA_FLOOR`, `TERMINATOR_WIDEN_OFFSETS_DEG` (Task 5)
-- Produces: a `sweep: SweepTelemetry` field on the cron's JSON response
+- Produces: `TERMINATOR_SWEEP_BUDGET_MS`; a `sweep: SweepTelemetry` field on the cron's JSON response
+
+**The sweep budget is a named constant, not an inline expression.** An earlier
+draft of this task wrote `hasBudget` as `Date.now() - tickStartedAt <
+TICK_DEADLINE_MS / 2`. Review replaced it: `TICK_DEADLINE_MS / 2` is a tuning
+number living inline in a route, which the Global Constraints forbid, and it
+tied the sweep budget to the scoring deadline by arithmetic accident rather
+than by decision — halving `TICK_DEADLINE_MS` would silently halve the sweep
+budget too. It is now `TERMINATOR_SWEEP_BUDGET_MS = 25_000` in
+`masterConfig.ts`, added by this task, and the two numbers are free to move
+independently. The steps below reflect that.
+
+Note that `hasBudget` is a **start-gate, not a deadline**: it is checked once
+before each escalation ring and never during one, so a ring that starts just
+under the budget runs to completion (roughly 5–7s for a half-ring). Accepted;
+see the spec's Risks.
 
 - [ ] **Step 1: Replace the sweep block**
 
@@ -873,8 +906,8 @@ In `route.ts`, replace everything from `// Generate terminator rings for all con
     offsets: TERMINATOR_WIDEN_OFFSETS_DEG,
     // Escalation rings are the first thing sacrificed on a slow tick: the
     // scoring loop below needs the remaining budget more than the pool needs
-    // extra cameras. Half the deadline is the cutoff.
-    hasBudget: () => Date.now() - tickStartedAt < TICK_DEADLINE_MS / 2,
+    // extra cameras. See TERMINATOR_SWEEP_BUDGET_MS for the cutoff rationale.
+    hasBudget: () => Date.now() - tickStartedAt < TERMINATOR_SWEEP_BUDGET_MS,
   });
 
   const sunriseCoords = sweep.coords.sunriseCoords;
@@ -890,16 +923,42 @@ Three edits, all verified against the current file rather than left as checks:
 
 1. **`tickStartedAt` must move.** It is declared at `route.ts:141`, *after* the sweep block you just replaced at 75–116, so `hasBudget` would hit a temporal-dead-zone `ReferenceError`. Move `const tickStartedAt = Date.now();` up so it sits immediately above the `sweepWithEscalation` call, and delete the old line 141 declaration.
 2. **`dedupeWebcams` is now unused.** Its only reader was line 115, which the replacement deleted. Remove it from the `./lib/windyApi` import or lint fails. `fetchWebcamsInBatches` is not imported by `route.ts` at all — leave it exported from `windyApi.ts`, since `fetchCoordsCounted` wraps it.
-3. **Swap the constants.** Remove `TERMINATOR_RING_OFFSETS_DEG` from the `masterConfig` import, add `TERMINATOR_CAMERA_FLOOR` and `TERMINATOR_WIDEN_OFFSETS_DEG`, and add `fetchCoordsCounted` to the `./lib/windyApi` import. Then add:
+3. **Swap the constants.** Remove `TERMINATOR_RING_OFFSETS_DEG` from the `masterConfig` import, add `TERMINATOR_CAMERA_FLOOR`, `TERMINATOR_WIDEN_OFFSETS_DEG` and `TERMINATOR_SWEEP_BUDGET_MS`, and add `fetchCoordsCounted` to the `./lib/windyApi` import. Then add:
 
 ```ts
 import { sweepWithEscalation } from './lib/terminatorSweep';
 ```
 
-- [ ] **Step 2b: Delete the retired constant**
+4. **Declare the route's ceiling.** `TICK_DEADLINE_MS` only means anything if
+   the platform grants the tick at least that long, and this route inherited
+   its limit rather than declaring one. Add `export const maxDuration = 60;`
+   above `TICK_DEADLINE_MS`, as `app/api/kiosk/scenes/route.ts` and
+   `app/api/snapshots/capture/route.ts` do. Widening makes a slow tick likelier
+   — `tickStartedAt` now starts before the Windy fetch, and an escalated sweep
+   can spend up to `TERMINATOR_SWEEP_BUDGET_MS` — so the two numbers stay
+   pinned together: raising `TICK_DEADLINE_MS` means raising `maxDuration`.
 
-`route.ts` was its last reader. In `app/lib/masterConfig.ts`, delete the
-`TERMINATOR_RING_OFFSETS_DEG` export and its comment block. Confirm with:
+- [ ] **Step 2b: Add the budget constant and delete the retired one**
+
+In `app/lib/masterConfig.ts`, add the sweep budget beside the other terminator
+constants Task 5 introduced:
+
+```ts
+// Wall-clock budget for the whole terminator sweep (base ring + any
+// escalation rings), in milliseconds. The scoring loop that follows needs
+// the remaining tick more than the pool needs extra cameras, so escalation
+// rings are the first thing sacrificed on a slow tick. Chosen against a
+// single observation (half of the 50s tick deadline, 2026-09-02); expect to
+// tune it once the sweep telemetry has a few days of history.
+export const TERMINATOR_SWEEP_BUDGET_MS = 25_000;
+```
+
+It starts at half of `TICK_DEADLINE_MS`, but as a value rather than as an
+expression — the two are independently tunable and must not drift together by
+accident.
+
+Then delete the `TERMINATOR_RING_OFFSETS_DEG` export and its comment block;
+`route.ts` was its last reader. Confirm with:
 
 Run: `grep -rn "TERMINATOR_RING_OFFSETS_DEG" app/ --include=*.ts --include=*.tsx`
 Expected: no hits.
@@ -946,7 +1005,8 @@ The telemetry is the whole point; check it before trusting the feature.
 1. Hit the cron endpoint and read `sweep` in the JSON response. On a healthy tick expect `escalations: 0` and one ring entry.
 2. Wait for a thin period and confirm `escalations` rises, `rings[1].offsetDeg` is `15.75`, and `rings[1].newWebcams` is a meaningful fraction of `attempted`.
 3. **Watch `empty` across rings.** A rising `empty` count against a flat `newWebcams` count is the signature of a Windy quota wall, which is the one risk the spec calls out and cannot be measured from outside.
-4. **Check whether golden-hour frames actually pass the gate.** The spec's second risk: if the +15.75 ring's cameras are all gated to floor size, the day-side-first ordering is buying tiles that do not read as sunsets. Compare `passesGate` rates for cameras first seen on ring 1 versus ring 0.
+4. **Check whether golden-hour frames actually pass the gate.** The spec's second risk: if the +15.75 ring's cameras are all gated to floor size, the day-side-first ordering is buying tiles that do not read as sunsets. Compare `passesGate` rates for the ids in `rings[1].newWebcamIds` against those in `rings[0].newWebcamIds` — `RingTelemetry` carries the ids for exactly this, since the `newWebcams` scalar alone cannot answer it.
+5. **Then ask whether the floor should count only gate-passers.** The floor is compared against every camera the sweep found, gate-failers included, so a day-side ring that adds 16 floored daylight cameras clears the floor of 15 and stops escalation while the panel stays blank. Step 4's gate-pass rates decide this. If golden-hour frames largely pass, it is moot. If they do not, the fix is to count gate-passers — **not** to raise the floor, which buys more calls for more floored tiles.
 
 ## Deferred, deliberately
 

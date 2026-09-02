@@ -188,8 +188,38 @@ count is the signature of an API wall.
 
 **Surface:** the cron's JSON response plus one structured log line. Persisting
 to `daily_sunset_stats` for the Ops tab needs a migration and is deferred
-until the telemetry shape has settled — the response is enough to answer both
+until the telemetry shape has settled — the response is enough to answer the
 open risks below.
+
+`RingTelemetry` carries both `newWebcams` (a scalar, for logs and dashboards)
+and `newWebcamIds` (the ids behind it). The ids are what make the golden-hour
+risk below *measurable*: without knowing which ring a camera came from, the
+gate-pass comparison the risk asks for cannot be run against what shipped.
+
+### 7. Escalation rings also widen custom-camera eligibility — accepted
+
+`sweep.coords` is the **union across every ring swept this tick**, and that
+union is what `classifyCustomCamerasForTick` receives. It uses
+`SEARCH_RADIUS_DEG` as a hard distance threshold against those coordinates,
+so on an escalated tick the eligible set includes the golden-hour ring's
+points, and a custom camera can be classified as an active sunset camera
+while it is in broad daylight.
+
+This is accepted, not a defect:
+
+- It is the same rule the Windy half already follows. An escalated tick pulls
+  Windy cameras from the day-side ring too; excluding custom cams from the
+  widening would make the operator's own cameras *less* visible than
+  third-party ones on exactly the ticks where the panel is thin.
+- Custom cams are the cameras the operator can actually inspect. A daylight
+  frame from one is diagnostic, not noise.
+- The detection gate still applies downstream. A daylight custom frame is
+  pinned to floor size like any other gate-failer; nothing claims it is a
+  sunset.
+
+Passing the base ring's coordinates alone to the custom classifier would
+undo this, and is the change to make if daylight custom cams turn out to be
+a problem in practice. Do not make it speculatively.
 
 ## Explicitly not doing
 
@@ -246,6 +276,35 @@ these tests. No live API calls in the suite.
 - **Golden-hour frames may not read as sunsets.** The +15.75 ring reaches sun
   altitudes above the horizon. Whether the detection head passes those frames
   is unmeasured. If it gates most of them, the day-side ring adds tiles at
-  floor size rather than real sunsets. Worth measuring once live.
+  floor size rather than real sunsets. Worth measuring once live — compare
+  gate-pass rates for the ids in `rings[1].newWebcamIds` against
+  `rings[0].newWebcamIds`.
+- **The floor counts cameras, not gate-passers — so widening can report
+  success while the panel stays blank.** `TERMINATOR_CAMERA_FLOOR` is compared
+  against every camera the sweep found, gate-failers included; the escalation
+  loop has no visibility into the detection gate at all. Combine that with the
+  risk above and there is a specific failure the telemetry will look healthy
+  through: the day-side ring adds 16 daylight cameras, all of them floored by
+  the gate, the count clears 15, escalation stops, and the panel is exactly as
+  empty as before. `escalations: 1` and a fat `newWebcams` would both read as
+  the feature working.
+
+  Recorded here so that when the telemetry arrives the right question gets
+  asked. The question is **"should the floor count only gate-passers?"** — not
+  "should the floor be 20?" Raising the floor treats the symptom and buys more
+  API calls for more floored tiles. Answering it needs the gate-pass rates
+  from the risk above; if golden-hour frames largely pass, this is moot and
+  the floor stays a plain camera count.
+- **`hasBudget` is a start-gate, not a deadline.** It is checked once before
+  each escalation ring, never during one, so a ring that starts just under
+  `TERMINATOR_SWEEP_BUDGET_MS` runs to completion — roughly 5–7s for a
+  half-ring at the current settings (~15 points at `WINDY_FETCH_BATCH_SIZE` 5
+  is 3 batches, each carrying up to 800 ms of within-batch stagger plus fetch
+  latency, with two 1s inter-batch delays). Worst case the sweep
+  overshoots its budget by about that much, still comfortably inside
+  `TICK_DEADLINE_MS` (50s) and the route's declared `maxDuration` (60s).
+  Accepted as-is: per-call budget checks would leave a ring half-swept, which
+  is worse telemetry than a slightly long one. Revisit if production ticks
+  show the sweep crowding the scoring loop.
 - **The 15 floor is a guess.** Chosen against a single observation (4 sunrise,
   21 sunset). Expect to tune it.
