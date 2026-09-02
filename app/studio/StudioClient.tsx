@@ -5,6 +5,7 @@ import { useLoadTerminatorWebcams } from '@/app/store/useLoadTerminatorWebcams';
 import { useTerminatorStore } from '@/app/store/useTerminatorStore';
 import { PreviewPane, type FeedView } from './PreviewPane';
 import { StudioRail } from './StudioRail';
+import { MapMosaicModeToggle } from '@/app/components/MapMosaicModeToggle';
 import { useStudioSettings } from './useStudioSettings';
 import { useSceneWebcams, type SceneSource } from './useSceneWebcams';
 import { DeployButton } from './DeployButton';
@@ -143,6 +144,11 @@ export function StudioClient() {
           at={sceneRepresentsAt ?? undefined}
           onSceneSaved={refreshScenes}
         />
+
+        {/* Same control as the homepage, so the two surfaces are reachable
+            from each other. No onModeChange: there is no homepage view state
+            here, so picking one navigates. */}
+        <MapMosaicModeToggle mode="studio" />
 
         {railCollapsed && (
           <div

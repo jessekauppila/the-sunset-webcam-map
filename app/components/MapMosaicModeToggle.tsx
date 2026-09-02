@@ -3,17 +3,28 @@
 import { Box, ToggleButton, ToggleButtonGroup } from '@mui/material';
 import { useRouter } from 'next/navigation';
 import type { ViewMode } from './MainViewContainer';
+import { homeHrefFor } from './viewModeParam';
+
+/** Studio is a route, not a homepage view, so it is not a ViewMode. */
+export type ToggleTarget = ViewMode | 'studio';
 
 interface MapMosaicModeToggleProps {
-  mode: ViewMode;
-  onModeChange: (mode: ViewMode) => void;
+  /** Which entry reads as current. 'studio' when rendered inside /studio. */
+  mode: ToggleTarget;
+  /**
+   * Switch a homepage view in place. Omitted on surfaces that are not the
+   * homepage (/studio), where every homepage entry has to navigate instead.
+   */
+  onModeChange?: (mode: ViewMode) => void;
 }
 
 /**
+ * The one navigation control, rendered on the homepage and in /studio so the
+ * two are reachable from each other.
+ *
  * The two mosaic entries are gone: a single-feed mosaic on a desktop browser
  * was never the thing being designed, and /studio shows both panels at true
- * kiosk geometry with the dials attached. Studio is a route, not a view mode,
- * so it navigates instead of switching `mode`.
+ * kiosk geometry with the dials attached.
  *
  * Studio and My Cameras are both shown to everyone. Each gates itself on
  * arrival (OwnerGate), which puts the sign-in prompt where someone actually
@@ -36,13 +47,16 @@ export function MapMosaicModeToggle({
       <ToggleButtonGroup
         value={mode}
         exclusive
-        onChange={(_, newMode) => {
-          if (newMode === null) return;
-          if (newMode === 'studio') {
+        onChange={(_, newTarget: ToggleTarget | null) => {
+          if (newTarget === null || newTarget === mode) return;
+          if (newTarget === 'studio') {
             router.push('/studio');
             return;
           }
-          onModeChange(newMode);
+          // On the homepage this is a state flip; from /studio there is no
+          // state to flip, so the view rides along in the URL instead.
+          if (onModeChange) onModeChange(newTarget);
+          else router.push(homeHrefFor(newTarget));
         }}
         size="small"
         sx={{

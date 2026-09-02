@@ -34,6 +34,33 @@ describe('MapMosaicModeToggle', () => {
     expect(onModeChange).not.toHaveBeenCalled();
   });
 
+  it('navigates home with the view in the URL when there is no local mode state', async () => {
+    // How /studio renders it: no onModeChange, so Globe cannot be a state flip.
+    render(<MapMosaicModeToggle mode="studio" />);
+
+    await userEvent.click(screen.getByRole('button', { name: /globe/i }));
+
+    expect(push).toHaveBeenCalledWith('/?view=globe');
+  });
+
+  it('marks the current surface as selected inside studio', () => {
+    render(<MapMosaicModeToggle mode="studio" />);
+    expect(screen.getByRole('button', { name: /studio/i })).toHaveAttribute(
+      'aria-pressed',
+      'true'
+    );
+  });
+
+  it('does nothing when the current entry is clicked again', async () => {
+    const onModeChange = vi.fn();
+    render(<MapMosaicModeToggle mode="globe" onModeChange={onModeChange} />);
+
+    await userEvent.click(screen.getByRole('button', { name: /globe/i }));
+
+    expect(onModeChange).not.toHaveBeenCalled();
+    expect(push).not.toHaveBeenCalled();
+  });
+
   it('still switches the view mode for real modes', async () => {
     const onModeChange = vi.fn();
     render(<MapMosaicModeToggle mode="globe" onModeChange={onModeChange} />);
