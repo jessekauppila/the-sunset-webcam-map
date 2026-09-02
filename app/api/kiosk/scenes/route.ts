@@ -3,6 +3,18 @@ import { requireOwner } from '@/app/lib/owner';
 import { createScene, listScenes } from '@/app/lib/scenes/store';
 import { reconstructScene } from '@/app/lib/scenes/reconstruct';
 import { captureLiveScene } from '@/app/lib/scenes/captureLive';
+import {
+  parseSceneInstant,
+  clampWindowMinutes,
+  SCENE_INSTANT_MESSAGE,
+} from '@/app/lib/scenes/sceneTime';
+
+/**
+ * Half-width of the window a live capture represents. Pinning a ~25-camera
+ * pool runs inside one request, so every frame's captured_at lands within a
+ * couple of minutes; 15 is slack, not a guess at spread.
+ */
+const LIVE_CAPTURE_WINDOW_MINUTES = 15;
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60; // live capture may pin several frames
@@ -30,11 +42,15 @@ export async function POST(request: Request) {
   const notes = typeof body.notes === 'string' ? body.notes : '';
 
   if (body.at !== undefined) {
-    const at = new Date(String(body.at));
-    if (Number.isNaN(at.getTime())) {
-      return NextResponse.json({ error: 'unparseable at timestamp' }, { status: 400 });
+    // Requires an explicit offset. A bare wall-clock string is read in the
+    // server's zone and shifts the scene silently, which no downstream check
+    // can catch. See app/lib/scenes/sceneTime.ts.
+    const parsed = parseSceneInstant(body.at);
+    if (!parsed.ok) {
+      return NextResponse.json({ error: SCENE_INSTANT_MESSAGE[parsed.error] }, { status: 400 });
     }
-    const windowMinutes = Math.min(180, Math.max(5, Number(body.windowMinutes) || 45));
+    const at = parsed.value;
+    const windowMinutes = clampWindowMinutes(body.windowMinutes);
     const { state, reconstructed, skipped } = await reconstructScene(at, windowMinutes);
     if (reconstructed === 0) {
       return NextResponse.json(
@@ -43,7 +59,8 @@ export async function POST(request: Request) {
       );
     }
     const id = await createScene({
-      label, tags, notes, representsAt: at, source: 'historical', state, provenance: null,
+      label, tags, notes, representsAt: at, windowMinutes,
+      source: 'historical', state, provenance: null,
     });
     return NextResponse.json({ id, source: 'historical', reconstructed, skipped }, { status: 201 });
   }
@@ -53,8 +70,13 @@ export async function POST(request: Request) {
   const provenanceProfile = body.provenanceProfile === 'studio' ? 'studio' : 'live';
   const { state, provenance, pinned, pinFailures } =
     await captureLiveScene(provenanceProfile);
+  // A live capture's frames all land within one request, so its window is
+  // tight. It still stores `state`: the pointer path is not switched on for
+  // live captures until they file their frames into the archive.
   const id = await createScene({
-    label, tags, notes, representsAt: new Date(), source: 'live', state, provenance,
+    label, tags, notes, representsAt: new Date(),
+    windowMinutes: LIVE_CAPTURE_WINDOW_MINUTES,
+    source: 'live', state, provenance,
   });
   return NextResponse.json({ id, source: 'live', pinned, pinFailures }, { status: 201 });
 }

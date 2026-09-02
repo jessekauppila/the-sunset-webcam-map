@@ -10,6 +10,8 @@ const row = (over: Partial<HistoricalSnapshotRow>): HistoricalSnapshotRow => ({
   firebase_url: 'https://firebasestorage.googleapis.com/x.jpg',
   snapshot_captured_at: '2026-06-21T11:40:00Z',
   llm_quality: '0.8125', llm_is_sunset: true, llm_model: 'claude-sonnet-4-5',
+  ai_binary_score: null, ai_regression_score: null,
+  ai_model_version_binary: null, ai_model_version_regression: null,
   title: 'Cam', status: 'active', view_count: 10,
   lat: '47.606200', lng: '-122.332100',
   city: 'Seattle', region: 'WA', country: 'US', continent: 'NA',
@@ -91,5 +93,37 @@ describe('reconstructScene', () => {
     const query = (sqlMock.mock.calls[0][0] as string[]).join('?');
     expect(query).toContain('DISTINCT ON (s.webcam_id)');
     expect(query).toContain('FROM webcam_snapshots s');
+  });
+});
+
+describe('rowsToSceneState — both judges', () => {
+  it('converts archive probabilities onto the 1-5 rating scale the gate reads', () => {
+    // 0.800 as a probability is 1 + 0.8 * 4 = 4.2 as a rating. Passing the
+    // raw 0.800 through would sit below every gate setting.
+    const [cam] = rowsToSceneState([
+      row({ ai_binary_score: '0.800', ai_regression_score: '0.500' }),
+    ]).state.sunset;
+    expect(cam.aiRatingBinary).toBeCloseTo(4.2, 6);
+    expect(cam.aiRatingRegression).toBeCloseTo(3, 6);
+  });
+
+  it('leaves the model fields undefined when the archive never scored the frame', () => {
+    const [cam] = rowsToSceneState([row({})]).state.sunset;
+    expect(cam.aiRatingBinary).toBeUndefined();
+    expect(cam.aiRatingRegression).toBeUndefined();
+  });
+
+  it('still carries Claude alongside, so auto can fall back', () => {
+    const [cam] = rowsToSceneState([row({ ai_binary_score: '0.900' })]).state.sunset;
+    expect(cam.aiRatingBinary).toBeCloseTo(4.6, 6);
+    expect(cam.llmQuality).toBeCloseTo(0.8125, 6);
+  });
+
+  it('records the model versions, so a re-scored scene is traceable', () => {
+    const [cam] = rowsToSceneState([
+      row({ ai_model_version_binary: 'v5_binary', ai_model_version_regression: 'v5_quality' }),
+    ]).state.sunset;
+    expect(cam.aiModelVersionBinary).toBe('v5_binary');
+    expect(cam.aiModelVersionRegression).toBe('v5_quality');
   });
 });
