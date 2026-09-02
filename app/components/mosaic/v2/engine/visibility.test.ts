@@ -9,6 +9,7 @@ const tile = (id: number, passes: boolean, score: number | null): TileInput => (
 const cfg = (over: Partial<V2Config> = {}): V2Config => ({
   qualitySource: 'auto', gateThreshold: 0.55, failedCamPolicy: 'showAtFloor', maxTiles: 0,
   floorPx: 100, ceilingPx: 480, curve: 'percentileAmongPassers',
+  scoreFloor: 0, scoreCeiling: 1, sharedScale: true,
   strategy: 'anchorRelax', bandCount: 8, horizontalAnchor: 'solarAltitude',
   rowAlign: 'center', geographicFidelity: 0.7, tileGapPx: 6, latNorth: 70, latSouth: -60,
   showFeedLabel: true, showTileRatings: false, showModelReadout: false,

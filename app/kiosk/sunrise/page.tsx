@@ -16,6 +16,8 @@ function SunriseKioskContent() {
   const { dozing, liveSettings } = useKioskRuntime();
   useLoadTerminatorWebcams({ paused: dozing });
   const webcams = useTerminatorStore((t) => t.sunrise);
+  // The twin screen's pool, so both panels shrink by the same amount.
+  const peerWebcams = useTerminatorStore((t) => t.sunset);
   const searchParams = useSearchParams();
   const queryString = searchParams.toString();
   const liveShared = mergeSettings(SHARED_SCHEMA, liveSettings?.namespaces.shared);
@@ -52,6 +54,7 @@ function SunriseKioskContent() {
         width={stage.width}
         height={stage.height}
         feed="sunrise"
+        peerWebcams={peerWebcams}
         setupMode={searchParams.get('setup') === '1'}
         search={queryString}
         settings={liveSettings?.namespaces[versionName]}

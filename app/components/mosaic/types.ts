@@ -12,6 +12,13 @@ export interface MosaicProps {
   width: number;
   height: number;
   feed: 'sunrise' | 'sunset';
+  /**
+   * The OTHER feed's pool. Purely for cross-panel coordination: a version
+   * may use it to size or scale this panel on the same ruler as its twin,
+   * and must render nothing from it. Surfaces showing one panel alone omit
+   * it, and every version must still compose correctly without it.
+   */
+  peerWebcams?: WindyWebcam[];
   setupMode?: boolean;
   onSelect?: (webcam: WindyWebcam) => void;
   /** Raw query string of the hosting page, for version-specific params. */

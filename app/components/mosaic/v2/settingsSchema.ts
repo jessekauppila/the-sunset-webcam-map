@@ -42,8 +42,23 @@ export const V2_SETTINGS_SCHEMA: SettingsSchema = [
   {
     key: 'curve', kind: 'enum',
     options: ['linear', 'easeIn', 'percentileAmongPassers'] as const,
-    default: 'percentileAmongPassers', label: 'curve', section: 'sizing',
-    description: 'How passer scores map onto the floor-to-ceiling range. percentileAmongPassers ranks within the passers only.',
+    default: 'linear', label: 'curve', section: 'sizing',
+    description: 'How passer scores map onto the floor-to-ceiling range. linear and easeIn are absolute, so the same score is the same height on both screens. percentileAmongPassers ranks within one panel and cannot agree across two.',
+  },
+  {
+    key: 'scoreFloor', kind: 'number', min: 0, max: 1, step: 0.01, default: 0,
+    label: 'score at floor', section: 'sizing',
+    description: 'Score that renders at floor height. Raise it to stop weak passers looking big. Ignored by percentileAmongPassers.',
+  },
+  {
+    key: 'scoreCeiling', kind: 'number', min: 0, max: 1, step: 0.01, default: 1,
+    label: 'score at ceiling', section: 'sizing',
+    description: 'Score that renders at ceiling height. Lower it when real scores never reach 1 and the panel looks uniformly small. Ignored by percentileAmongPassers.',
+  },
+  {
+    key: 'sharedScale', kind: 'boolean', default: true,
+    label: 'match both screens', section: 'sizing',
+    description: 'Shrink both panels by the same amount, taken from whichever is more crowded. Off, each panel shrinks to its own tile count and a sunrise floor tile can outgrow a sunset ceiling tile.',
   },
   {
     key: 'strategy', kind: 'enum',
@@ -115,6 +130,9 @@ export function configFromSettings(values: SettingsValues): V2Config {
     floorPx: values.floorPx as number,
     ceilingPx: values.ceilingPx as number,
     curve: values.curve as V2Config['curve'],
+    scoreFloor: values.scoreFloor as number,
+    scoreCeiling: values.scoreCeiling as number,
+    sharedScale: values.sharedScale as boolean,
     strategy: values.strategy as V2Config['strategy'],
     bandCount: values.bandCount as number,
     horizontalAnchor: values.horizontalAnchor as V2Config['horizontalAnchor'],

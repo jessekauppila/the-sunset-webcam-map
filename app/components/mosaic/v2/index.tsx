@@ -12,6 +12,9 @@ import { TileRatings } from './overlays/TileRatings';
 import { V2_SETTINGS_SCHEMA, configFromSettings } from './settingsSchema';
 import { useLoadedTiles } from './useLoadedTiles';
 
+/** Stable identity: a fresh [] each render would re-run the loader effect. */
+const NO_PEERS: NonNullable<MosaicProps['peerWebcams']> = [];
+
 /**
  * v2 — latitude anchoring plus depth-into-twilight arrangement, entirely
  * schema-driven. Precedence, as everywhere: URL param, then profile setting,
@@ -22,6 +25,7 @@ export function MosaicV2({
   width,
   height,
   feed,
+  peerWebcams = NO_PEERS,
   setupMode = false,
   onSelect,
   search = '',
@@ -39,15 +43,16 @@ export function MosaicV2({
     };
   }, [search, settings]);
 
-  const { tiles, byId, skipped } = useLoadedTiles(webcams, {
-    qualitySource: cfg.qualitySource,
-    gateThreshold: cfg.gateThreshold,
-    at,
-  });
+  const signal = { qualitySource: cfg.qualitySource, gateThreshold: cfg.gateThreshold, at };
+  const { tiles, byId, skipped } = useLoadedTiles(webcams, signal);
+  // Loaded, never drawn: the peer pool exists only so both panels can settle
+  // on one overflow scale. Its images cost a fetch each, but they are the
+  // same frames the twin screen is already loading.
+  const { tiles: peerTiles } = useLoadedTiles(peerWebcams, signal);
 
   const layout = useMemo(
-    () => compose(tiles, { width, height }, cfg, feed),
-    [tiles, width, height, cfg, feed]
+    () => compose(tiles, { width, height }, cfg, feed, peerTiles),
+    [tiles, peerTiles, width, height, cfg, feed]
   );
 
   return (
