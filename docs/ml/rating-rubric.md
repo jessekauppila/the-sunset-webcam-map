@@ -148,7 +148,12 @@ composition (N 59.8%, 1: 6.2%, 2: 7.6%, 3: 11.2%, 4: 10.6%, 5: 4.5%):
 
 Two conclusions, and they point in different directions:
 
-- **Rating 4 is the noisiest label in the set.** Four in five frames rated 4
+- **Rating 4 is the noisiest label *that matters*.** Be precise about this:
+  by raw stability rating 4 is not the worst — 2 holds 1/14 (7.1%), 3 holds
+  1/15 (6.7%), 4 holds 2/15 (13.3%), so **4 is twice as stable as 3**. What
+  singles it out is that its instability is the only kind that changes a
+  training label, and it falls to N rather than drifting a notch. Four in five
+  frames rated 4
   come back with the opposite `rating ≥ 4` training label. Restricted to the
   current rubric regime (originals labeled 2026-08-26 → 08-30, excluding the
   2026-08-08 cohort below), it is still 4 of 7 — and every one of those drops

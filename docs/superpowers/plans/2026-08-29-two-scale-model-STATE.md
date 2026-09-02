@@ -355,6 +355,50 @@ is the verdict.
 | detection self-F1 | **0.807** | ~0.80 |
 | detection agreement / kappa | 0.760 / 0.515 | — |
 
+**Read `0.807` as: 0.8 IS the operator.** The detection head has been asked
+"shouldn't it be better than 0.8?" repeatedly; the answer is that 0.8 is what
+the operator reproduces against himself, so that question closes permanently.
+It also retro-explains the three detection "improvements" that failed to
+replicate — they were fitting label noise, and a fresh draw had nothing for
+them to fit. (Ported from PR #103, which recorded this verdict first and is
+closed as superseded by this block.)
+
+**Caveat on the ceiling number: 140 of the 146 retested originals were
+hard-example frames** (`originals_by_origin`: hard_example 140,
+random_ordinary_v2 6) — the hardest ~15% of the corpus. Self-consistency on
+ordinary frames is likely somewhat higher, which would *lower* the measured
+gap further, not raise it. The verdict is safe in that direction.
+
+**Two claims from the first write-up that did NOT survive checking:**
+
+- ~~"Original 4s were the least stable label of all."~~ **False.** Raw
+  stability by original rating is 2: 1/14 (7.1%), 3: 1/15 (6.7%), **4: 2/15
+  (13.3%)** — rating 4 is *twice as stable* as rating 3. What makes 4 the one
+  worth fixing is not fragility: it is the only rating whose instability
+  **crosses a training threshold** (`rating ≥ 4`), and it falls all the way to
+  N rather than drifting one notch. A 2↔3 wobble costs the model nothing. That
+  argument is stronger than "least stable" precisely because it survives this
+  correction.
+- ~~"Agreement decays with label age (fresh 0.768 / ≥14d 0.428)."~~ The
+  numbers are straight from the report, but the causal reading is confounded:
+  the stale bucket is essentially the 2026-08-08 session, and that same
+  session's `N` labels are 94% stable at the same age. It is one bad session,
+  not memory decay — so the corollary "the pooled 0.673 may still flatter"
+  does not follow.
+
+**⚠️ THE CEILING NUMBER CANNOT BE RE-DERIVED FROM THE DATABASE.** Applying the
+24 corrections (below) copied pass 2's ratings onto the pass-1 gold rows, so
+those frames now agree with themselves by construction. Re-running
+`ml/analyze_retest.py --sample-name retest_v1` today yields self-Pearson
+**0.779** and gap **+0.082** — inflated, with the confusion matrix's `4` row
+having lost all seven of its N entries. That reads as "the operator is more
+consistent than the model, so there is headroom," reopening this settled
+question on an artifact, while the verdict line still prints CEILING REACHED.
+`ml/artifacts/reports/retest_v1_ceiling.json` is **frozen evidence and the
+only valid record.** The script now refuses to run on a corrected sample
+unless passed `--allow-corrected`, and stamps `circular_rows` into any report
+produced that way.
+
 Pre-registered rule: `gap = self-Pearson − model-Pearson ≤ 0.10` → **CEILING
 REACHED** (gap −0.024). **Both heads are at or above the operator's own
 reproducibility. The big labeling push (Phase 1) is cancelled and chasing

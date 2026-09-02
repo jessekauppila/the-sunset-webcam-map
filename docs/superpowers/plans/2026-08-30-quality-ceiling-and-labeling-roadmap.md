@@ -20,6 +20,12 @@ status: Phase 0 answered 2026-08-31 (ceiling reached); failure-mode track active
 > `docs/ml/rating-rubric.md` "Boundary sharpening" for the anchors and the
 > numbers. Side items 1–3 below are all **DONE** (2026-08-31).
 >
+> **The 0.673 is frozen evidence, not a reproducible query.** The 24 label
+> corrections copied pass 2 onto pass 1, so re-running `analyze_retest.py`
+> now returns an inflated **0.779** (gap +0.082). The script refuses to run
+> on a corrected sample without `--allow-corrected`. Quote
+> `ml/artifacts/reports/retest_v1_ceiling.json`, never a fresh run.
+>
 > Companion to `2026-08-29-two-scale-model-STATE.md` (read that first — it
 > holds the settled findings this plan builds on).
 
