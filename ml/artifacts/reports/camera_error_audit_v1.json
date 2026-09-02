@@ -1,0 +1,518 @@
+{
+  "gate": 0.55,
+  "big_tile": 0.5,
+  "min_events": 3,
+  "min_days": 2,
+  "binary_onnx": "ml/artifacts/models/binary_resnet18/20260829_062437_v5_binary_gold/model.onnx",
+  "quality_onnx": "ml/artifacts/models/regression_resnet18/20260830_190519_v5_quality_llm_backbone_finetune/model.onnx",
+  "frames_scored": 9118,
+  "skipped": 0,
+  "cameras": 1382,
+  "operator_N": 5538,
+  "false_shows": 169,
+  "big_false_shows": 27,
+  "offenders": [
+    {
+      "webcam_id": 4057187,
+      "meta": "Broome \u203a West: Broome International Airp \u00b7 Broome \u00b7 Australia",
+      "labeled": 34,
+      "n_N": 11,
+      "false_shows": 11,
+      "big_false_shows": 3,
+      "distinct_days": 9,
+      "fs_rate": 1.0,
+      "mean_tile_on_N": 0.463,
+      "sample_frames": [
+        {
+          "tile": 0.641,
+          "snapshot_id": 120199,
+          "url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/4057187/1785708070319.jpg"
+        },
+        {
+          "tile": 0.536,
+          "snapshot_id": 119837,
+          "url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/4057187/1785617121961.jpg"
+        },
+        {
+          "tile": 0.532,
+          "snapshot_id": 120800,
+          "url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/4057187/1785880863885.jpg"
+        }
+      ]
+    },
+    {
+      "webcam_id": 2947112,
+      "meta": "Coober Pedy: Umoona Opal Mine & Museum \u00b7 Coober Pedy \u00b7 Australia",
+      "labeled": 5,
+      "n_N": 5,
+      "false_shows": 4,
+      "big_false_shows": 3,
+      "distinct_days": 4,
+      "fs_rate": 0.8,
+      "mean_tile_on_N": 0.442,
+      "sample_frames": [
+        {
+          "tile": 0.613,
+          "snapshot_id": 119738,
+          "url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/2947112/1785574996700.jpg"
+        },
+        {
+          "tile": 0.594,
+          "snapshot_id": 122267,
+          "url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/2947112/1786352507736.jpg"
+        },
+        {
+          "tile": 0.506,
+          "snapshot_id": 120048,
+          "url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/2947112/1785661276045.jpg"
+        }
+      ]
+    },
+    {
+      "webcam_id": 29095214,
+      "meta": "Wandilo \u203a North-west: Mount Gambier Airp \u00b7 unknown \u00b7 Australia",
+      "labeled": 22,
+      "n_N": 15,
+      "false_shows": 4,
+      "big_false_shows": 2,
+      "distinct_days": 4,
+      "fs_rate": 0.27,
+      "mean_tile_on_N": 0.117,
+      "sample_frames": [
+        {
+          "tile": 0.598,
+          "snapshot_id": 119843,
+          "url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/29095214/1785618070669.jpg"
+        },
+        {
+          "tile": 0.554,
+          "snapshot_id": 120449,
+          "url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/29095214/1785787319659.jpg"
+        },
+        {
+          "tile": 0.397,
+          "snapshot_id": 123919,
+          "url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/29095214/1786913193710.jpg"
+        }
+      ]
+    },
+    {
+      "webcam_id": 29275205,
+      "meta": "Wagga Wagga \u203a North-east: Waga Wagga Air \u00b7 Wagga Wagga \u00b7 Australia",
+      "labeled": 15,
+      "n_N": 7,
+      "false_shows": 3,
+      "big_false_shows": 1,
+      "distinct_days": 2,
+      "fs_rate": 0.43,
+      "mean_tile_on_N": 0.169,
+      "sample_frames": [
+        {
+          "tile": 0.548,
+          "snapshot_id": 124794,
+          "url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/29275205/1787256942975.jpg"
+        },
+        {
+          "tile": 0.447,
+          "snapshot_id": 124025,
+          "url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/29275205/1786953803299.jpg"
+        },
+        {
+          "tile": 0.185,
+          "snapshot_id": 124700,
+          "url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/29275205/1787213749339.jpg"
+        }
+      ]
+    },
+    {
+      "webcam_id": 97,
+      "meta": "North Slope: Toolik Lake \u00b7 unknown \u00b7 United States",
+      "labeled": 87,
+      "n_N": 39,
+      "false_shows": 6,
+      "big_false_shows": 0,
+      "distinct_days": 4,
+      "fs_rate": 0.15,
+      "mean_tile_on_N": 0.028,
+      "sample_frames": [
+        {
+          "tile": 0.368,
+          "snapshot_id": 121517,
+          "url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/97/1786095945424.jpg"
+        },
+        {
+          "tile": 0.226,
+          "snapshot_id": 121238,
+          "url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/97/1786012300139.jpg"
+        },
+        {
+          "tile": 0.191,
+          "snapshot_id": 123299,
+          "url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/97/1786700755887.jpg"
+        }
+      ]
+    },
+    {
+      "webcam_id": 3914190,
+      "meta": "Tondo \u00b7 Tondo \u00b7 Philippines",
+      "labeled": 32,
+      "n_N": 8,
+      "false_shows": 5,
+      "big_false_shows": 0,
+      "distinct_days": 5,
+      "fs_rate": 0.62,
+      "mean_tile_on_N": 0.198,
+      "sample_frames": [
+        {
+          "tile": 0.399,
+          "snapshot_id": 77156,
+          "url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/3914190/1772705809427.jpg"
+        },
+        {
+          "tile": 0.345,
+          "snapshot_id": 73210,
+          "url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/3914190/1771753429360.jpg"
+        },
+        {
+          "tile": 0.327,
+          "snapshot_id": 72859,
+          "url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/3914190/1771666969226.jpg"
+        }
+      ]
+    },
+    {
+      "webcam_id": 5961510,
+      "meta": "Gamsha \u203a North-east \u00b7 Gamsha \u00b7 Egypt",
+      "labeled": 48,
+      "n_N": 13,
+      "false_shows": 5,
+      "big_false_shows": 0,
+      "distinct_days": 4,
+      "fs_rate": 0.38,
+      "mean_tile_on_N": 0.038,
+      "sample_frames": [
+        {
+          "tile": 0.299,
+          "snapshot_id": 122715,
+          "url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/5961510/1786501841956.jpg"
+        },
+        {
+          "tile": 0.105,
+          "snapshot_id": 121030,
+          "url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/5961510/1785951079917.jpg"
+        },
+        {
+          "tile": 0.071,
+          "snapshot_id": 123121,
+          "url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/5961510/1786641352219.jpg"
+        }
+      ]
+    },
+    {
+      "webcam_id": 160,
+      "meta": "Utqia\u0121vik \u203a North: Arctic Slope Telephon \u00b7 Utqia\u0121vik \u00b7 United States",
+      "labeled": 43,
+      "n_N": 37,
+      "false_shows": 4,
+      "big_false_shows": 0,
+      "distinct_days": 3,
+      "fs_rate": 0.11,
+      "mean_tile_on_N": 0.02,
+      "sample_frames": [
+        {
+          "tile": 0.349,
+          "snapshot_id": 74811,
+          "url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/160/1772146849544.jpg"
+        },
+        {
+          "tile": 0.313,
+          "snapshot_id": 74819,
+          "url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/160/1772148709614.jpg"
+        },
+        {
+          "tile": 0.17,
+          "snapshot_id": 72709,
+          "url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/160/1771631689539.jpg"
+        }
+      ]
+    },
+    {
+      "webcam_id": 28894257,
+      "meta": "Simkot-05 \u203a South-east: Simikot Airport  \u00b7 unknown \u00b7 Nepal",
+      "labeled": 16,
+      "n_N": 14,
+      "false_shows": 4,
+      "big_false_shows": 0,
+      "distinct_days": 3,
+      "fs_rate": 0.29,
+      "mean_tile_on_N": 0.06,
+      "sample_frames": [
+        {
+          "tile": 0.346,
+          "snapshot_id": 126684,
+          "url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/28894257/1788010265072.jpg"
+        },
+        {
+          "tile": 0.332,
+          "snapshot_id": 121559,
+          "url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/28894257/1786110336906.jpg"
+        },
+        {
+          "tile": 0.095,
+          "snapshot_id": 121650,
+          "url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/28894257/1786146336314.jpg"
+        }
+      ]
+    },
+    {
+      "webcam_id": 2051,
+      "meta": "ingeyri \u203a North-west: H\u00f6f\u00f0i Westfjords \u00b7 ingeyri \u00b7 Iceland",
+      "labeled": 13,
+      "n_N": 5,
+      "false_shows": 4,
+      "big_false_shows": 0,
+      "distinct_days": 2,
+      "fs_rate": 0.8,
+      "mean_tile_on_N": 0.284,
+      "sample_frames": [
+        {
+          "tile": 0.446,
+          "snapshot_id": 126547,
+          "url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/2051/1787962556238.jpg"
+        },
+        {
+          "tile": 0.416,
+          "snapshot_id": 126562,
+          "url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/2051/1787966209671.jpg"
+        },
+        {
+          "tile": 0.335,
+          "snapshot_id": 124847,
+          "url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/2051/1787269553229.jpg"
+        }
+      ]
+    },
+    {
+      "webcam_id": 3236,
+      "meta": "Tasiilaq \u203a North-east: The Red House \u00b7 Tasiilaq \u00b7 Greenland",
+      "labeled": 75,
+      "n_N": 61,
+      "false_shows": 3,
+      "big_false_shows": 0,
+      "distinct_days": 3,
+      "fs_rate": 0.05,
+      "mean_tile_on_N": -0.001,
+      "sample_frames": [
+        {
+          "tile": 0.052,
+          "snapshot_id": 124396,
+          "url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/3236/1787099509095.jpg"
+        },
+        {
+          "tile": -0.032,
+          "snapshot_id": 121919,
+          "url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/3236/1786236356790.jpg"
+        },
+        {
+          "tile": -0.085,
+          "snapshot_id": 126100,
+          "url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/3236/1787785258776.jpg"
+        }
+      ]
+    },
+    {
+      "webcam_id": 404,
+      "meta": "Storuman \u203a North-west: Square \u00b7 Storuman \u00b7 Sweden",
+      "labeled": 90,
+      "n_N": 20,
+      "false_shows": 3,
+      "big_false_shows": 0,
+      "distinct_days": 2,
+      "fs_rate": 0.15,
+      "mean_tile_on_N": 0.019,
+      "sample_frames": [
+        {
+          "tile": 0.283,
+          "snapshot_id": 120178,
+          "url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/404/1785705369008.jpg"
+        },
+        {
+          "tile": 0.085,
+          "snapshot_id": 120201,
+          "url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/404/1785708082347.jpg"
+        },
+        {
+          "tile": 0.015,
+          "snapshot_id": 123426,
+          "url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/404/1786742150060.jpg"
+        }
+      ]
+    },
+    {
+      "webcam_id": 3309592,
+      "meta": "York \u203a South-east: White Gum Air Park \u00b7 York \u00b7 Australia",
+      "labeled": 8,
+      "n_N": 7,
+      "false_shows": 3,
+      "big_false_shows": 0,
+      "distinct_days": 3,
+      "fs_rate": 0.43,
+      "mean_tile_on_N": 0.075,
+      "sample_frames": [
+        {
+          "tile": 0.347,
+          "snapshot_id": 121527,
+          "url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/3309592/1786097749544.jpg"
+        },
+        {
+          "tile": 0.11,
+          "snapshot_id": 120971,
+          "url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/3309592/1785924945766.jpg"
+        },
+        {
+          "tile": 0.065,
+          "snapshot_id": 119751,
+          "url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/3309592/1785579336309.jpg"
+        }
+      ]
+    },
+    {
+      "webcam_id": 2972357,
+      "meta": "Valleyview: Hwy 43: South of Twp Rd 700  \u00b7 unknown \u00b7 Canada",
+      "labeled": 28,
+      "n_N": 17,
+      "false_shows": 3,
+      "big_false_shows": 0,
+      "distinct_days": 3,
+      "fs_rate": 0.18,
+      "mean_tile_on_N": -0.021,
+      "sample_frames": [
+        {
+          "tile": -0.052,
+          "snapshot_id": 125962,
+          "url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/2972357/1787715125621.jpg"
+        },
+        {
+          "tile": -0.129,
+          "snapshot_id": 121469,
+          "url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/2972357/1786077939157.jpg"
+        },
+        {
+          "tile": -0.168,
+          "snapshot_id": 125108,
+          "url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/2972357/1787370353196.jpg"
+        }
+      ]
+    },
+    {
+      "webcam_id": 29048102,
+      "meta": "Albany \u203a West: I 80 Cooper Cove - West \u00b7 unknown \u00b7 United States",
+      "labeled": 20,
+      "n_N": 8,
+      "false_shows": 3,
+      "big_false_shows": 0,
+      "distinct_days": 2,
+      "fs_rate": 0.38,
+      "mean_tile_on_N": 0.042,
+      "sample_frames": [
+        {
+          "tile": 0.198,
+          "snapshot_id": 119767,
+          "url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/29048102/1785583882018.jpg"
+        },
+        {
+          "tile": 0.108,
+          "snapshot_id": 121541,
+          "url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/29048102/1786103136143.jpg"
+        },
+        {
+          "tile": 0.028,
+          "snapshot_id": 121539,
+          "url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/29048102/1786102293243.jpg"
+        }
+      ]
+    },
+    {
+      "webcam_id": 27660488,
+      "meta": "South Slave Region: Taltson River Airstr \u00b7 unknown \u00b7 Canada",
+      "labeled": 50,
+      "n_N": 6,
+      "false_shows": 3,
+      "big_false_shows": 0,
+      "distinct_days": 2,
+      "fs_rate": 0.5,
+      "mean_tile_on_N": 0.129,
+      "sample_frames": [
+        {
+          "tile": 0.319,
+          "snapshot_id": 120897,
+          "url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/27660488/1785904528717.jpg"
+        },
+        {
+          "tile": 0.293,
+          "snapshot_id": 121967,
+          "url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/27660488/1786250750639.jpg"
+        },
+        {
+          "tile": 0.16,
+          "snapshot_id": 121964,
+          "url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/27660488/1786249847119.jpg"
+        }
+      ]
+    },
+    {
+      "webcam_id": 29182812,
+      "meta": "Mullaquana \u203a South-west: Ceduna -> Facin \u00b7 unknown \u00b7 Australia",
+      "labeled": 6,
+      "n_N": 4,
+      "false_shows": 3,
+      "big_false_shows": 0,
+      "distinct_days": 3,
+      "fs_rate": 0.75,
+      "mean_tile_on_N": 0.295,
+      "sample_frames": [
+        {
+          "tile": 0.488,
+          "snapshot_id": 122797,
+          "url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/29182812/1786525307492.jpg"
+        },
+        {
+          "tile": 0.476,
+          "snapshot_id": 123289,
+          "url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/29182812/1786698115719.jpg"
+        },
+        {
+          "tile": 0.217,
+          "snapshot_id": 123809,
+          "url": "https://storage.googleapis.com/sunrisesunset-32a25.firebasestorage.app/snapshots/29182812/1786871755525.jpg"
+        }
+      ]
+    }
+  ],
+  "miss_offenders": [
+    {
+      "webcam_id": 28588659,
+      "meta": "Oriental \u203a North: Cartago \u00b7 Oriental \u00b7 Costa Rica",
+      "labeled": 67,
+      "n_ge4": 2,
+      "miss4": 2,
+      "distinct_days": 2
+    },
+    {
+      "webcam_id": 5358806,
+      "meta": "Cochrane \u00b7 Cochrane \u00b7 Canada",
+      "labeled": 131,
+      "n_ge4": 2,
+      "miss4": 2,
+      "distinct_days": 2
+    },
+    {
+      "webcam_id": 27046337,
+      "meta": "Arica \u203a North: Aeropuerto Internacional  \u00b7 Arica \u00b7 Chile",
+      "labeled": 40,
+      "n_ge4": 6,
+      "miss4": 2,
+      "distinct_days": 2
+    }
+  ]
+}
