@@ -64,4 +64,19 @@ describe('placeBands', () => {
   it('returns nothing for an empty pool', () => {
     expect(placeBands([], { width: 1000, height: 800 }, cfg())).toEqual({ rows: [], extent: 0 });
   });
+
+  it('never overlaps rows, even when bands are crowded', () => {
+    const crowded = Array.from({ length: 40 }, (_, i) => tile(i + 1, 75 - (i % 2) * 40));
+    const { rows } = placeBands(crowded, { width: 400, height: 800 }, cfg({ bandCount: 8 }));
+    for (let i = 1; i < rows.length; i++) {
+      const prevBottom = rows[i - 1].centerY + rows[i - 1].height / 2;
+      expect(rows[i].centerY - rows[i].height / 2).toBeGreaterThanOrEqual(prevBottom - 0.001);
+    }
+  });
+
+  it('never places a row above the top of the panel', () => {
+    const crowded = Array.from({ length: 30 }, (_, i) => tile(i + 1, 78));
+    const { rows } = placeBands(crowded, { width: 400, height: 800 }, cfg({ bandCount: 8 }));
+    expect(rows[0].centerY - rows[0].height / 2).toBeGreaterThanOrEqual(-0.001);
+  });
 });

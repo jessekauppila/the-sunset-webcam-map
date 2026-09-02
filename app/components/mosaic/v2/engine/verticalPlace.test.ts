@@ -42,8 +42,11 @@ describe('mapLatToY', () => {
 
 describe('placeRowsVertically — fidelity 1 (true latitude)', () => {
   it('anchors a lone row at its own latitude, not the middle', () => {
+    // True latitude puts this row's centre at y=0 (the north edge), but that
+    // would put half of it above the panel — the top-edge correction shifts
+    // the whole (single-row) block down by half its height.
     const { rows } = placeRowsVertically([row(70)], 1000, cfg({ geographicFidelity: 1 }));
-    expect(rows[0].centerY).toBe(0);
+    expect(rows[0].centerY).toBe(50);
   });
 
   it('leaves a real gap between distant latitudes', () => {
@@ -90,5 +93,14 @@ describe('placeRowsVertically — the relax pass', () => {
 
   it('handles an empty row list', () => {
     expect(placeRowsVertically([], 1000, cfg())).toEqual({ rows: [], extent: 0 });
+  });
+
+  it('never places the northernmost row above the panel', () => {
+    // A row at the very north edge anchors its CENTRE to y=0, which would put
+    // half of it in the bezel.
+    const { rows } = placeRowsVertically(
+      [row(70), row(20), row(-55)], 1000, cfg({ geographicFidelity: 1 })
+    );
+    expect(rows[0].centerY - rows[0].height / 2).toBeGreaterThanOrEqual(-0.001);
   });
 });

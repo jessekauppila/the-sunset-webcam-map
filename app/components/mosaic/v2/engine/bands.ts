@@ -43,6 +43,22 @@ export function placeBands(
     }
   }
 
+  // Bands are centred independently, so a crowded band's stack spills into its
+  // neighbour and the northernmost band can start above the panel. Apply the
+  // discipline anchorRelax already uses: pin the first row inside the top edge,
+  // then relax downward so no row overlaps the one before it. Without this the
+  // overlap is invisible to the caller — `extent` is derived from these rows,
+  // so compose() would be told the composition fits.
+  const firstTop = rows[0].centerY - rows[0].height / 2;
+  if (firstTop < 0) {
+    for (const row of rows) row.centerY -= firstTop;
+  }
+  for (let i = 1; i < rows.length; i++) {
+    const minCenter =
+      rows[i - 1].centerY + rows[i - 1].height / 2 + cfg.tileGapPx + rows[i].height / 2;
+    if (rows[i].centerY < minCenter) rows[i].centerY = minCenter;
+  }
+
   const top = Math.min(...rows.map((r) => r.centerY - r.height / 2));
   const bottom = Math.max(...rows.map((r) => r.centerY + r.height / 2));
   return { rows, extent: bottom - top };

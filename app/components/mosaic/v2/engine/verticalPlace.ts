@@ -52,6 +52,15 @@ export function placeRowsVertically(
     if (placed[i].centerY < minCenter) placed[i].centerY = minCenter;
   }
 
+  // mapLatToY returns a row CENTRE, so a row anchored at the north edge of the
+  // window sits half above the panel. Shift the block down so nothing is drawn
+  // into the bezel. The shift is uniform, so every gap the relax pass just
+  // established survives it, and `extent` is unchanged.
+  const overshootTop = placed[0].centerY - placed[0].height / 2;
+  if (overshootTop < 0) {
+    for (const r of placed) r.centerY -= overshootTop;
+  }
+
   const top = placed[0].centerY - placed[0].height / 2;
   const last = placed[placed.length - 1];
   const bottom = last.centerY + last.height / 2;
