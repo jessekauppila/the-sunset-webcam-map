@@ -996,9 +996,10 @@ describe('formRows', () => {
   });
 
   it('counts the gap toward the width budget', () => {
-    // 2x95 fits in 200 alone, but not with a 20px gap between them.
-    expect(formRows([sized(1, 50, 95), sized(2, 40, 95)], 200, 20)).toHaveLength(1);
-    expect(formRows([sized(1, 50, 95), sized(2, 40, 95)], 200, 30)).toHaveLength(2);
+    // 2x95 = 190 fits in 200 on its own. With a 10px gap it exactly fills the
+    // 200px budget and still fits; a 20px gap pushes it to 210 and it must wrap.
+    expect(formRows([sized(1, 50, 95), sized(2, 40, 95)], 200, 10)).toHaveLength(1);
+    expect(formRows([sized(1, 50, 95), sized(2, 40, 95)], 200, 20)).toHaveLength(2);
   });
 
   it('always places an over-wide tile rather than looping forever', () => {
