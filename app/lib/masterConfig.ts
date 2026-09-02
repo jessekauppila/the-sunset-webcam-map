@@ -24,11 +24,11 @@ export const TERMINATOR_SUN_ALTITUDE_DEG = -13;
 // -10 works when precision is 14 and radius is 11
 // -8 showed too much day time
 
-export const SEARCH_RADIUS_DEG = 9; // Search radius per API call in degrees
-// 12 doesn't work
-// 11 is the widest that works
-// 10 works
-// 6 works
+// Search radius per Windy API call, in degrees. The query box spans
+// 2 x this value, and Windy's clusters endpoint caps the north-south span
+// at 22.5 degrees on zoom 4 (and rejects zoom < 4), so 11.25 is a hard
+// ceiling. Verified live 2026-09-02; guarded by masterConfig.test.ts.
+export const SEARCH_RADIUS_DEG = 11;
 
 // West-only offset ring for parallel search/visualization, in degrees.
 // 0 = main ring, positive values shift the ring westward from the subsolar geometry.
