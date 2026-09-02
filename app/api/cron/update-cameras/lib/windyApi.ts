@@ -147,3 +147,35 @@ export function dedupeWebcams(webcams: WindyWebcam[]): Map<number, WindyWebcam> 
   return windyById;
 }
 
+export interface CoordFetchResult {
+  webcams: WindyWebcam[];
+  /** Boxes we sent to Windy. */
+  attempted: number;
+  /**
+   * Boxes that returned nothing. Conflates "no cameras there" with "the call
+   * failed", because `fetchWebcamsFor` swallows non-OK responses. That
+   * conflation is the point: a rising `empty` count against a flat camera
+   * count is the signature of an API wall, which is the thing we need to be
+   * able to see.
+   */
+  empty: number;
+}
+
+/**
+ * Batched sweep over ring coordinates that reports coverage, not just
+ * results. Wraps `fetchWebcamsInBatches` so rate limiting stays in one place.
+ */
+export async function fetchCoordsCounted(
+  coords: Location[],
+  batchSize = 5,
+  delayMs = 1000
+): Promise<CoordFetchResult> {
+  if (coords.length === 0) return { webcams: [], attempted: 0, empty: 0 };
+  const batches = await fetchWebcamsInBatches(coords, batchSize, delayMs);
+  return {
+    webcams: batches.flat(),
+    attempted: coords.length,
+    empty: batches.filter((b) => b.length === 0).length,
+  };
+}
+

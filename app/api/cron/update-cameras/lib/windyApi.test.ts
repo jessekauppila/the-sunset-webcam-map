@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest';
-import { boundingBox } from './windyApi';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { boundingBox, fetchCoordsCounted } from './windyApi';
 
 describe('boundingBox', () => {
   it('returns an unclamped box away from the edges', () => {
@@ -30,5 +30,34 @@ describe('boundingBox', () => {
       const box = boundingBox({ lat, lng: 0 }, 11);
       expect(box.northLat - box.southLat).toBeLessThanOrEqual(22.5);
     }
+  });
+});
+
+describe('fetchCoordsCounted', () => {
+  beforeEach(() => {
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      // Boxes centred on lng 99 answer with one webcam; everything else 400s.
+      if (url.includes('westLon=88')) {
+        return { ok: true, json: async () => [{ webcamId: 1, location: {} }] };
+      }
+      return { ok: false, status: 400, statusText: 'Bad Request' };
+    }));
+  });
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('reports how many boxes were tried and how many came back empty', async () => {
+    const res = await fetchCoordsCounted(
+      [{ lat: 0, lng: 99 }, { lat: 0, lng: 5 }, { lat: 0, lng: 20 }],
+      5,
+      0
+    );
+    expect(res.attempted).toBe(3);
+    expect(res.empty).toBe(2);
+    expect(res.webcams).toHaveLength(1);
+  });
+
+  it('is a no-op on an empty coordinate list', async () => {
+    const res = await fetchCoordsCounted([], 5, 0);
+    expect(res).toEqual({ webcams: [], attempted: 0, empty: 0 });
   });
 });
