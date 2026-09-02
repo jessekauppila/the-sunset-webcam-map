@@ -261,3 +261,31 @@ export const KIOSK_TICK_INTERVAL_MS = 60_000;
 // app/components/mosaic/<version>/config.ts. Each mosaic version owns its
 // own constants so tuning one never disturbs another.
 // ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// Per-camera calibration (tempering prior)
+// Spec: docs/superpowers/specs/2026-08-31-per-camera-calibration-design.md
+//
+// A bounded multiplier on the TILE/QUALITY signal only. It must never move the
+// detection verdict — passesGate does not read any of these.
+// ---------------------------------------------------------------------------
+
+// Recurrence bar: one bad frame is noise. Same standard that caught three
+// non-replicating detection "wins".
+export const CALIBRATION_MIN_EVENTS = 3;
+export const CALIBRATION_MIN_DAYS = 2;
+
+// Smoothing prior, so a camera with 3 false-shows out of 3 N frames does not
+// slam straight to the floor.
+export const CALIBRATION_PRIOR_K = 2;
+
+// MAX_TEMPER 0.5 was chosen because it DOMINATES 0.65: identical benefit
+// (8 big false-shows fixed) at 60% less harm (10 genuine >=4 frames demoted
+// vs 25). Lower to 0.35 to back off; that needs no other change.
+export const CALIBRATION_MAX_TEMPER = 0.5;
+export const CALIBRATION_MIN_MULTIPLIER = 0.5;
+
+// Decay shapes MAGNITUDE; the window governs ELIGIBILITY. Both are needed:
+// with an undecayed recurrence bar a camera could never fully heal.
+export const CALIBRATION_HALF_LIFE_DAYS = 90;
+export const CALIBRATION_WINDOW_DAYS = 365;

@@ -7,7 +7,7 @@ vi.mock('@/app/lib/db', () => ({
     sqlMock(strings, ...values),
 }));
 
-import { sendDailyUsageDigest } from './dailyDigest';
+import { sendDailyUsageDigest, formatCalibrationLine } from './dailyDigest';
 
 const NOW = new Date('2026-08-03T00:20:00Z');
 const SUNSET = 'noisy-leaf-96391119';
@@ -82,5 +82,105 @@ describe('sendDailyUsageDigest', () => {
     fetchMock.mockRejectedValueOnce(new Error('resend down'));
     const result = await sendDailyUsageDigest(NOW);
     expect(result).toEqual({ skipped: 'send-failed' });
+  });
+});
+
+describe('calibration section is isolated from the cost email', () => {
+  const fetchMock = vi.fn();
+  beforeEach(() => {
+    sqlMock.mockReset();
+    fetchMock.mockReset();
+    vi.stubGlobal('fetch', fetchMock);
+    process.env.RESEND_API_KEY = 'test-key';
+    process.env.DIGEST_EMAIL_TO = 'jesse@example.com';
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    delete process.env.RESEND_API_KEY;
+    delete process.env.DIGEST_EMAIL_TO;
+  });
+
+  // The digest's job is the cost email. If the calibration tables are missing
+  // (migration not run on some environment) the email must still go out.
+  it('still sends the cost email when the calibration query throws', async () => {
+    sqlMock
+      .mockResolvedValueOnce(usageRows)
+      .mockResolvedValueOnce(eventRows)
+      .mockRejectedValue(new Error('relation "camera_calibration_history" does not exist'));
+    fetchMock.mockResolvedValueOnce({ ok: true, json: async () => ({ id: 'em_1' }) });
+
+    const result = await sendDailyUsageDigest(NOW);
+
+    expect(result).toEqual({ sent: true });
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(body.html).toContain('CU-hr');        // cost content survived
+    expect(body.html).not.toContain('Calibration:'); // section degraded to silence
+  });
+
+  it('includes the calibration line when the data is available', async () => {
+    sqlMock
+      .mockResolvedValueOnce(usageRows)
+      .mockResolvedValueOnce(eventRows)
+      .mockResolvedValueOnce([{ tempered: 17 }])
+      .mockResolvedValueOnce([
+        { webcam_id: 4057187, title: 'Broome International Airport', multiplier: 0.59 },
+      ])
+      .mockResolvedValueOnce([{ healed: 1 }]);
+    fetchMock.mockResolvedValueOnce({ ok: true, json: async () => ({ id: 'em_1' }) });
+
+    await sendDailyUsageDigest(NOW);
+
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(body.html).toContain('17 cameras tempered');
+    expect(body.html).toContain('Broome International Airport 0.59');
+    expect(body.html).toContain('1 healed');
+  });
+});
+
+describe('formatCalibrationLine', () => {
+  it('renders total, newly tempered with names, and healed', () => {
+    const html = formatCalibrationLine({
+      tempered: 17,
+      newlyTempered: [
+        { webcamId: 4057187, title: 'Broome International Airport', multiplier: 0.59 },
+        { webcamId: 29182812, title: 'Ceduna', multiplier: 0.72 },
+      ],
+      healed: 1,
+    });
+    expect(html).toContain('17 cameras tempered');
+    expect(html).toContain('2 newly tempered');
+    expect(html).toContain('Broome International Airport 0.59');
+    expect(html).toContain('Ceduna 0.72');
+    expect(html).toContain('1 healed');
+  });
+
+  it('omits the newly/healed clauses when nothing changed', () => {
+    const html = formatCalibrationLine({ tempered: 17, newlyTempered: [], healed: 0 });
+    expect(html).toContain('17 cameras tempered');
+    expect(html).toContain('no changes');
+    expect(html).not.toContain('newly tempered');
+    expect(html).not.toContain('healed');
+  });
+
+  it('renders nothing at all when calibration data is unavailable', () => {
+    expect(formatCalibrationLine(null)).toBe('');
+  });
+
+  it('falls back to the webcam id when a camera has no title', () => {
+    const html = formatCalibrationLine({
+      tempered: 1,
+      newlyTempered: [{ webcamId: 4057187, title: null, multiplier: 0.59 }],
+      healed: 0,
+    });
+    expect(html).toContain('#4057187 0.59');
+  });
+
+  it('singularises one newly tempered camera', () => {
+    const html = formatCalibrationLine({
+      tempered: 3,
+      newlyTempered: [{ webcamId: 1, title: 'A', multiplier: 0.8 }],
+      healed: 0,
+    });
+    expect(html).toContain('1 newly tempered');
   });
 });

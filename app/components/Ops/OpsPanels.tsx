@@ -4,6 +4,7 @@ import { pct } from './opsMath';
 import { Sparkline } from './Sparkline';
 import { UsageChart } from './UsageChart';
 import { DozeControl } from './DozeControl';
+import { CalibrationPanel } from './CalibrationPanel';
 
 function Stat({
   label,
@@ -71,6 +72,10 @@ export function OpsPanels({ data }: { data: OpsStatsResponse }) {
           })()}
         </>
       )}
+      <CalibrationPanel
+        cameras={data.calibrationCameras ?? []}
+        history={data.calibrationHistory ?? []}
+      />
     </>
   );
 }

@@ -18,7 +18,8 @@ export async function GET() {
            w.last_fetched_at, w.created_at, w.updated_at,
            w.rating, w.orientation, w.ai_rating, w.ai_model_version,
            w.ai_rating_binary, w.ai_model_version_binary,
-           w.ai_rating_regression, w.ai_model_version_regression
+           w.ai_rating_regression, w.ai_model_version_regression,
+           w.calibration_multiplier
     from webcams w
     where (w.source <> 'custom'
            or (w.state = 'deployed' and w.ended_at is null and w.paused = false))
@@ -78,6 +79,7 @@ export async function GET() {
     ai_rating: number | string | null;
     ai_model_version: string | null;
     ai_rating_binary: number | string | null;
+    calibration_multiplier: number | string | null;
     ai_model_version_binary: string | null;
     ai_rating_regression: number | string | null;
     ai_model_version_regression: string | null;
@@ -112,6 +114,7 @@ export async function GET() {
     aiRating: toMaybeNumber(row.ai_rating),
     aiModelVersion: row.ai_model_version ?? undefined,
     aiRatingBinary: toMaybeNumber(row.ai_rating_binary),
+    calibrationMultiplier: toMaybeNumber(row.calibration_multiplier),
     aiModelVersionBinary: row.ai_model_version_binary ?? undefined,
     aiRatingRegression: toMaybeNumber(row.ai_rating_regression),
     aiModelVersionRegression:
