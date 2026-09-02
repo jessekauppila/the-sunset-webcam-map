@@ -54,6 +54,23 @@ def cat(is_sunset: bool, rating) -> str:
     return str(rating) if rating is not None else "?"
 
 
+def corrected_origin(sample_name: str) -> str:
+    """The origin stamp ml/apply_label_corrections.py writes onto gold rows it
+    overwrites with THIS retest's ratings. Kept in one place so the two scripts
+    cannot drift into disagreeing about what a corrected row looks like."""
+    return f"correction_{sample_name}"
+
+
+def count_circular(origins, sample_name: str) -> int:
+    """How many gold rows had their pass-1 label replaced by pass 2.
+
+    Those frames agree with themselves by construction, so any statistic
+    computed over them measures the copy, not the operator.
+    """
+    stamp = corrected_origin(sample_name)
+    return sum(1 for o in origins if o == stamp)
+
+
 def cohens_kappa(a: np.ndarray, b: np.ndarray) -> float:
     """Binary kappa; a, b are bool arrays."""
     po = float(np.mean(a == b))
@@ -88,6 +105,10 @@ def main() -> None:
                    help="shipping quality head on the pooled 500 (the bar)")
     p.add_argument("--gap-threshold", type=float, default=0.10)
     p.add_argument("--stale-days", type=int, default=14)
+    p.add_argument("--allow-corrected", action="store_true",
+                   help="proceed even though a correction campaign has overwritten "
+                        "gold rows with this retest's own ratings. Inspection only — "
+                        "the resulting ceiling is circular and must not be quoted.")
     p.add_argument("--out", default=None,
                    help="JSON report path (default: ml/artifacts/reports/<sample>_ceiling.json)")
     args = p.parse_args()
@@ -122,6 +143,35 @@ def main() -> None:
     print(f"  {args.sample_name}: {n} / {sample_size} re-rated")
     if n == 0:
         sys.exit("  nothing to analyze yet")
+
+    # CIRCULARITY GUARD. This script measures pass 1 against pass 2. If a
+    # correction campaign has since copied pass 2's ratings ONTO the pass-1
+    # gold rows (ml/apply_label_corrections.py), those frames now agree with
+    # themselves by construction and the ceiling is inflated — in the wrong
+    # direction. Measured on retest_v1 after its 24 corrections landed:
+    # self-Pearson 0.673 -> 0.779, gap -0.024 -> +0.082, and the '4' row of
+    # the confusion matrix lost all seven of its N entries.
+    #
+    # That reads as "the operator is MORE consistent than the model, so there
+    # is headroom" — reopening a question this program closed, on an artifact.
+    # The verdict line still prints CEILING REACHED, which makes it look sound.
+    # So refuse by default rather than warn: a wrong number nobody questions is
+    # worse than no number.
+    stamp = corrected_origin(args.sample_name)
+    circular = count_circular([r[2] for r in rows], args.sample_name)
+    if circular and not args.allow_corrected:
+        sys.exit(
+            f"  ABORT: {circular} of {n} gold rows carry origin"
+            f" '{stamp}' — their pass-1 label WAS pass 2, so this\n"
+            f"  measurement is circular and would overstate the ceiling.\n"
+            f"  The pre-correction result is frozen in"
+            f" ml/artifacts/reports/{args.sample_name}_ceiling.json; treat that\n"
+            f"  as the record. Re-run with --allow-corrected only to inspect the\n"
+            f"  post-correction confusion matrix, never to quote a ceiling."
+        )
+    if circular:
+        print(f"  ⚠️  CIRCULAR: {circular} gold rows were overwritten by this"
+              f" retest; the ceiling below is INFLATED and must not be quoted.")
 
     o_sun = np.array([r[0] for r in rows], dtype=bool)
     t_sun = np.array([r[4] for r in rows], dtype=bool)
@@ -192,6 +242,9 @@ def main() -> None:
         "model_pearson": args.model_pearson,
         "gap": gap,
         "verdict": verdict,
+        # >0 means gold rows were overwritten by this retest: the numbers above
+        # are circular. A report carrying a nonzero value here is not a ceiling.
+        "circular_rows": circular,
     }, indent=2))
     print(f"  report: {out.relative_to(Path.cwd()) if out.is_relative_to(Path.cwd()) else out}")
 

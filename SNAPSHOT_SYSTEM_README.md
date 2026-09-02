@@ -9,8 +9,36 @@ This system automatically captures and archives snapshots of highly-rated termin
 ✅ **Automatic Capture**: Monitors terminator webcams with rating ≥ 4 and captures snapshots every 15 minutes  
 ✅ **Firebase Storage**: Images stored in Firebase for scalable, cost-effective hosting  
 ✅ **User Ratings**: Anonymous users can rate snapshots (1-5 stars)  
-✅ **Smart Retention**: Automatically deletes snapshots older than 7 days  
+⛔ **Retention: nothing is ever deleted.** The 7-day cleanup described below has never run. `CLEANUP_ENABLED = false` in `app/lib/masterConfig.ts`, and `vercel.json` schedules no cleanup cron — the endpoint exists but returns early. See "Retention — what actually happens" below.  
 ✅ **Future-Ready**: AI rating field reserved for future image quality assessment
+
+## Retention — what actually happens
+
+**Nothing is ever deleted.** Every "7-day retention" statement in this file
+describes a design that was never switched on, and several downstream
+decisions now depend on that being true.
+
+- `CLEANUP_ENABLED = false` (`app/lib/masterConfig.ts`) makes
+  `POST /api/snapshots/cleanup` return early.
+- `vercel.json` schedules only `/api/cron/update-cameras` and
+  `/api/cron/recompute-disagreements`. No cleanup cron has ever existed.
+- The flag was added 2026-06-02 after an audit found the endpoint would have
+  deleted star-rated snapshots indiscriminately. At that point ~33k snapshots
+  had accumulated and none had been auto-deleted.
+
+Even if `CLEANUP_ENABLED` were flipped on, the endpoint excludes snapshots
+carrying a rating or verdict and snapshots flagged with a
+`model_disagreement_kind`.
+
+This matters beyond bookkeeping: the ML program treats the archive as a
+permanent, growing pool ("images are not the constraint; labels are" —
+`docs/superpowers/plans/2026-08-30-quality-ceiling-and-labeling-roadmap.md`),
+and every training export assumes historical frames are still resolvable.
+The storage and record-count estimates later in this file are therefore
+**7-day-window figures for a window that never closes** — read them as
+per-week growth, not as steady state.
+
+The accurate operational description lives in `ml/OPERATING_GUIDE.md`.
 
 ## Architecture
 
@@ -85,7 +113,7 @@ UNIQUE(snapshot_id, user_session_id) -- One rating per user
 - **`POST /api/snapshots/capture`** - Capture and store snapshots
 - **`GET /api/snapshots`** - Fetch snapshots with filtering
 - **`POST /api/snapshots/[id]/rate`** - Rate a snapshot
-- **`POST /api/snapshots/cleanup`** - Delete snapshots older than 7 days
+- **`POST /api/snapshots/cleanup`** - Would delete snapshots older than 7 days. **Inert:** gated off by `CLEANUP_ENABLED = false` and scheduled by nothing.
 
 ### Hooks
 
@@ -238,7 +266,7 @@ const sessionId = getUserSessionId(); // Auto-generates if needed
 
 ### 7-Day Retention Policy
 
-- Snapshots older than 7 days are automatically deleted
+- ~~Snapshots older than 7 days are automatically deleted~~ **They are not — see "Retention — what actually happens".**
 - Cleanup includes both Firebase Storage and PostgreSQL
 - Cascade delete removes related ratings
 
@@ -395,13 +423,13 @@ Instead of JOINing on every read, we store the average rating directly:
 - ~50 webcams captured every 15 minutes
 - ~4,800 captures per day
 - ~960 MB per day
-- With 7-day retention: ~6.7 GB stored
+- With 7-day retention (hypothetical — retention does not run): ~6.7 GB stored
 - Firebase pricing: ~$0.026/GB/month = ~$0.17/month
 
 ### PostgreSQL
 
 - Metadata: ~500 bytes per snapshot
-- ~4,800 snapshots per day × 7 days = ~33,600 records
+- ~4,800 snapshots per day × 7 days = ~33,600 records **per week of growth** (nothing ages out; see "Retention — what actually happens")
 - ~16 MB total
 - Negligible cost in Neon free tier
 
