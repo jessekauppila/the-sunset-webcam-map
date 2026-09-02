@@ -30,10 +30,6 @@ export const TERMINATOR_SUN_ALTITUDE_DEG = -13;
 // ceiling. Verified live 2026-09-02; guarded by masterConfig.test.ts.
 export const SEARCH_RADIUS_DEG = 11;
 
-// West-only offset ring for parallel search/visualization, in degrees.
-// 0 = main ring, positive values shift the ring westward from the subsolar geometry.
-export const TERMINATOR_RING_OFFSETS_DEG = [0]; //was   0,1.75 * SEARCH_RADIUS_DEG,//was 1,.75
-
 // Per-feed camera count below which that feed sweeps an extra ring. Chosen
 // against a single observation (4 sunrise, 21 sunset on 2026-09-02); expect
 // to tune it once the sweep telemetry has a few days of history.

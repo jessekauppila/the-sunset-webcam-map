@@ -41,12 +41,16 @@ vi.mock('@/app/lib/webcamSnapshot', () => ({
 vi.mock('./lib/auth', () => ({ verifyCronAuth: () => verifyAuthMock() }));
 vi.mock('./lib/windyApi', () => ({
   dedupeCoords: (x: unknown) => x,
-  dedupeWebcams: (webcams: Array<{ webcamId: number | string; [k: string]: unknown }>) => {
-    const m = new Map<string, typeof webcams[number]>();
-    for (const w of webcams) m.set(String(w.webcamId), w);
-    return m;
+  fetchCoordsCounted: async (coords: unknown[], ...rest: unknown[]) => {
+    const batches = (await fetchBatchesMock(coords, ...rest)) as Array<
+      Array<{ webcamId: number | string; [k: string]: unknown }>
+    >;
+    return {
+      webcams: batches.flat(),
+      attempted: Array.isArray(coords) ? coords.length : 0,
+      empty: batches.filter((b) => b.length === 0).length,
+    };
   },
-  fetchWebcamsInBatches: (...a: unknown[]) => fetchBatchesMock(...a),
 }));
 vi.mock('./lib/webcamClassification', () => ({
   classifyWebcamsByPhase: (...a: unknown[]) => classifyMock(...a),

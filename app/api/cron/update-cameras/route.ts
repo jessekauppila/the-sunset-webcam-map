@@ -16,7 +16,8 @@ import { NextResponse } from 'next/server';
 import { subsolarPoint } from '@/app/components/Map/lib/subsolarLocation';
 import { createTerminatorQueryRing } from '@/app/components/Map/lib/terminatorRing';
 import {
-  TERMINATOR_RING_OFFSETS_DEG,
+  TERMINATOR_CAMERA_FLOOR,
+  TERMINATOR_WIDEN_OFFSETS_DEG,
   TERMINATOR_PRECISION_DEG,
   TERMINATOR_SUN_ALTITUDE_DEG,
   WINDY_FETCH_BATCH_SIZE,
@@ -30,12 +31,9 @@ import {
 } from '@/app/lib/masterConfig';
 import { classifyCustomCamerasForTick } from './lib/customClassification';
 import { verifyCronAuth } from './lib/auth';
-import {
-  dedupeCoords,
-  fetchWebcamsInBatches,
-  dedupeWebcams,
-} from './lib/windyApi';
+import { dedupeCoords, fetchCoordsCounted } from './lib/windyApi';
 import { classifyWebcamsByPhase } from './lib/webcamClassification';
+import { sweepWithEscalation } from './lib/terminatorSweep';
 import {
   upsertWebcams,
   getWebcamIdMap,
@@ -73,48 +71,42 @@ export async function GET(req: Request) {
   const now = new Date();
   const { raHours, gmstHours } = subsolarPoint(now);
 
-  // Generate terminator rings for all configured offsets
-  const ringResults = TERMINATOR_RING_OFFSETS_DEG.map((offsetDeg) =>
-    createTerminatorQueryRing(
-      now,
-      raHours,
-      gmstHours,
-      TERMINATOR_PRECISION_DEG,
-      TERMINATOR_SUN_ALTITUDE_DEG,
-      offsetDeg,
-    ),
-  );
-
-  // Deduplicate coordinates across all rings
-  const sunriseCoords = dedupeCoords(
-    ringResults.flatMap((r) => r.sunriseCoords),
-  );
-  const sunsetCoords = dedupeCoords(
-    ringResults.flatMap((r) => r.sunsetCoords),
-  );
-
-  console.log('📍 Coords:', {
-    sunrise: sunriseCoords.length,
-    sunset: sunsetCoords.length,
-    offsets: TERMINATOR_RING_OFFSETS_DEG,
+  const tickStartedAt = Date.now();
+  const sweep = await sweepWithEscalation({
+    buildRing: (offsetDeg) => {
+      const r = createTerminatorQueryRing(
+        now,
+        raHours,
+        gmstHours,
+        TERMINATOR_PRECISION_DEG,
+        TERMINATOR_SUN_ALTITUDE_DEG,
+        offsetDeg,
+      );
+      return {
+        sunriseCoords: dedupeCoords(r.sunriseCoords),
+        sunsetCoords: dedupeCoords(r.sunsetCoords),
+      };
+    },
+    fetchCoords: (coords) =>
+      fetchCoordsCounted(
+        dedupeCoords(coords),
+        WINDY_FETCH_BATCH_SIZE,
+        WINDY_FETCH_DELAY_BETWEEN_BATCHES_MS,
+      ),
+    classify: classifyWebcamsByPhase,
+    floor: TERMINATOR_CAMERA_FLOOR,
+    offsets: TERMINATOR_WIDEN_OFFSETS_DEG,
+    // Escalation rings are the first thing sacrificed on a slow tick: the
+    // scoring loop below needs the remaining budget more than the pool needs
+    // extra cameras. Half the deadline is the cutoff.
+    hasBudget: () => Date.now() - tickStartedAt < TICK_DEADLINE_MS / 2,
   });
 
-  // Fetch webcams at all coordinates
-  const allCoords = dedupeCoords([...sunriseCoords, ...sunsetCoords]);
-  console.log(`🌐 Total terminator coordinates: ${allCoords.length}`);
+  const sunriseCoords = sweep.coords.sunriseCoords;
+  const sunsetCoords = sweep.coords.sunsetCoords;
+  const windyAll = sweep.webcams.filter((w) => w.location);
 
-  // Fetch webcams in batches with rate limiting
-  const batches = await fetchWebcamsInBatches(
-    allCoords,
-    WINDY_FETCH_BATCH_SIZE,
-    WINDY_FETCH_DELAY_BETWEEN_BATCHES_MS,
-  );
-  console.log('📦 All batches received:', batches.length);
-
-  // Deduplicate webcams by webcamId
-  const windyById = dedupeWebcams(batches.flat());
-  const windyAll = [...windyById.values()].filter((w) => w.location);
-  console.log('🗂️ Total unique webcams:', windyAll.length);
+  console.log('🛰️ terminator sweep:', JSON.stringify(sweep.telemetry));
 
   // Upsert all webcams to database (only updates if fields changed)
   await upsertWebcams(windyAll);
@@ -138,7 +130,6 @@ export async function GET(req: Request) {
   const hashByWebcamId = await getWebcamImageHashMap([...idByExternal.values()]);
 
   // AI scoring via real image pipeline — per-tick counters.
-  const tickStartedAt = Date.now();
   const windyScores: number[] = [];
   let cacheHits = 0;
   let fallbacks = 0;
@@ -455,5 +446,6 @@ export async function GET(req: Request) {
     archiveBackfill: backfillResult,
     providerUsage,
     digest,
+    sweep: sweep.telemetry,
   });
 }
