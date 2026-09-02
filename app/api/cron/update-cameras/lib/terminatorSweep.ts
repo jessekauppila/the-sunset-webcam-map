@@ -15,6 +15,17 @@ export interface RingTelemetry {
   empty: number;
   /** Cameras this ring contributed that no earlier ring had seen. */
   newWebcams: number;
+  /**
+   * The ids behind `newWebcams`, in the order the ring returned them.
+   *
+   * Carried so the spec's open question is answerable from telemetry alone:
+   * do golden-hour frames (the +15.75 ring) actually pass the detection gate,
+   * or does the day-side ring only add tiles that get floored? Answering that
+   * means comparing gate-pass rates for cameras first seen on ring 1 against
+   * ring 0, which needs the ids and not just the count. `newWebcams` stays as
+   * the cheap scalar for logs and dashboards.
+   */
+  newWebcamIds: number[];
 }
 
 export interface SweepTelemetry {
@@ -94,13 +105,20 @@ export async function sweepWithEscalation(
     }
     const before = byId.size;
     const res = await opts.fetchCoords(coords);
-    for (const w of res.webcams) byId.set(w.webcamId, w);
+    // Record the ids this ring is first to see, before inserting them, so the
+    // delta is against every EARLIER ring rather than against this one.
+    const newWebcamIds: number[] = [];
+    for (const w of res.webcams) {
+      if (!byId.has(w.webcamId)) newWebcamIds.push(w.webcamId);
+      byId.set(w.webcamId, w);
+    }
     rings.push({
       offsetDeg,
       feedsSwept: feeds,
       attempted: res.attempted,
       empty: res.empty,
       newWebcams: byId.size - before,
+      newWebcamIds,
     });
   };
 
@@ -117,7 +135,12 @@ export async function sweepWithEscalation(
     return { sunrise: split.sunrise.length, sunset: split.sunset.length };
   };
 
-  await sweep(0, FEEDS);
+  // Copy FEEDS: `sweep` stores the array it is handed straight into the
+  // returned telemetry, so passing the module-level constant would make
+  // `telemetry.rings[0].feedsSwept` an alias of FEEDS. Any caller that sorted
+  // or otherwise mutated the telemetry would permanently reorder FEEDS and
+  // flip escalation priority for the rest of the process.
+  await sweep(0, [...FEEDS]);
   let counts = currentCounts();
 
   for (const offsetDeg of opts.offsets) {

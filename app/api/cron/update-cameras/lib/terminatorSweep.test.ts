@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { feedsBelowFloor, sweepWithEscalation } from './terminatorSweep';
 import type { Location, WindyWebcam } from '@/app/lib/types';
 
@@ -57,6 +57,8 @@ describe('sweepWithEscalation', () => {
     expect(res.telemetry.escalations).toBe(0);
     expect(res.telemetry.rings).toHaveLength(1);
     expect(seen).toHaveLength(1);
+    expect(res.telemetry.rings[0].newWebcams).toBe(4);
+    expect(res.telemetry.rings[0].newWebcamIds).toEqual([1, 2, 3, 4]);
   });
 
   it('escalates to the day ring for the thin feed only', async () => {
@@ -77,6 +79,11 @@ describe('sweepWithEscalation', () => {
     expect(res.telemetry.rings[1].feedsSwept).toEqual(['sunrise']);
     // Only the sunrise half of the day ring was requested.
     expect(seen[1]).toEqual([{ lat: 15.75, lng: 1 }]);
+    // Which ring each camera came from, not just how many. Without the ids
+    // the spec's "do golden-hour frames pass the gate?" question is not
+    // answerable from telemetry.
+    expect(res.telemetry.rings[0].newWebcamIds).toEqual([2, 4]);
+    expect(res.telemetry.rings[1].newWebcamIds).toEqual([1, 3]);
   });
 
   it('tries the day side before the night side', async () => {
@@ -117,6 +124,9 @@ describe('sweepWithEscalation', () => {
     });
     expect(res.webcams.map((w) => w.webcamId).sort()).toEqual([1, 3]);
     expect(res.telemetry.rings[1].newWebcams).toBe(1);
+    // Camera 1 was already seen on the base ring, so only 3 is credited here.
+    expect(res.telemetry.rings[0].newWebcamIds).toEqual([1]);
+    expect(res.telemetry.rings[1].newWebcamIds).toEqual([3]);
   });
 
   it('unions coordinates across every ring it swept', async () => {
@@ -130,6 +140,32 @@ describe('sweepWithEscalation', () => {
     });
     expect(res.coords.sunriseCoords).toEqual([
       { lat: 0, lng: 1 }, { lat: 15.75, lng: 1 },
+    ]);
+  });
+
+  it('does not hand out its module-level feed list in the telemetry', async () => {
+    // The base ring sweeps both feeds. If `feedsSwept` aliased the module-level
+    // FEEDS constant, mutating the returned telemetry (a sort, a reverse) would
+    // permanently flip escalation priority for the rest of the process.
+    const run = () =>
+      sweepWithEscalation({
+        buildRing: ring,
+        fetchCoords: stubFetcher({ 0: [] }),
+        classify,
+        floor: 5,
+        offsets: [],
+        hasBudget: () => true,
+      });
+
+    const first = await run();
+    expect(first.telemetry.rings[0].feedsSwept).toEqual([
+      'sunrise', 'sunset',
+    ]);
+    first.telemetry.rings[0].feedsSwept.reverse();
+
+    const second = await run();
+    expect(second.telemetry.rings[0].feedsSwept).toEqual([
+      'sunrise', 'sunset',
     ]);
   });
 });

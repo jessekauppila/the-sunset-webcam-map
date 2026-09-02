@@ -51,6 +51,15 @@ import { captureProviderUsageDaily } from './lib/providerUsage';
 import { sendDailyUsageDigest } from './lib/dailyDigest';
 import { downloadImage, uploadToFirebase } from '@/app/lib/webcamSnapshot';
 
+// Platform ceiling for this route, declared rather than inherited. TICK_DEADLINE_MS
+// below is the in-process budget and only means anything if the platform gives the
+// tick at least that long; 60s leaves a 10s margin over it. Adaptive widening made
+// a slow tick likelier — tickStartedAt now starts before the Windy fetch, and an
+// escalated sweep can spend up to TERMINATOR_SWEEP_BUDGET_MS of the tick — so the
+// two numbers need to stay pinned together. Raising TICK_DEADLINE_MS means raising
+// this too.
+export const maxDuration = 60;
+
 const TICK_DEADLINE_MS = 50_000;
 const PER_IMAGE_TIMEOUT_MS = 3_000;
 // Concurrency limit for ONNX scoring — distinct from WINDY_FETCH_BATCH_SIZE
