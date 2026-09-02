@@ -28,6 +28,18 @@ describe('fetchTerminatorWebcams query shape', () => {
     expect(fullQuery).toMatch(/limit 1/);
   });
 
+  // The kiosk reads THIS payload, not db-all-webcams. A column added to only
+  // one of the two queries disables the feature on the surface that matters
+  // while everything still renders — which is exactly how per-camera
+  // tempering shipped dead to the kiosk once already.
+  it('selects calibration_multiplier so tempering reaches the kiosk', async () => {
+    await fetchTerminatorWebcams();
+
+    const [strings] = sqlMock.mock.calls[0];
+    const fullQuery = strings.join('?').toLowerCase();
+    expect(fullQuery).toMatch(/w\.calibration_multiplier/);
+  });
+
   it('joins the cameras table for device traceability', async () => {
     await fetchTerminatorWebcams();
 
@@ -65,6 +77,7 @@ describe('fetchTerminatorWebcams row mapping', () => {
     ai_rating: null, ai_model_version: null,
     ai_rating_binary: null, ai_model_version_binary: null,
     ai_rating_regression: null, ai_model_version_regression: null,
+    calibration_multiplier: null,
     latest_snapshot_url: null,
     latest_snapshot_captured_at: null,
     device_class: null, firmware_version: null, hardware_id: null,
@@ -136,6 +149,47 @@ describe('fetchTerminatorWebcams row mapping', () => {
 
     expect(result[0].images).toBeUndefined();
     expect(result[0].liveAssetKind).toBe('windy_bundle');
+  });
+});
+
+describe('calibration multiplier survives the terminator payload', () => {
+  const baseRow = {
+    webcam_id: 100, phase: 'sunset', rank: 1,
+    id: 100, source: 'windy', external_id: 'ext-100', title: 'A cam',
+    status: 'active', view_count: 10,
+    lat: 10, lng: 20,
+    city: 'X', region: 'Y', country: 'Z', continent: 'NA',
+    images: null, urls: null, player: null, categories: null,
+    last_fetched_at: null, created_at: null, updated_at: null,
+    rating: null, orientation: null,
+    ai_rating: null, ai_model_version: null,
+    ai_rating_binary: null, ai_model_version_binary: null,
+    ai_rating_regression: null, ai_model_version_regression: null,
+    calibration_multiplier: null,
+    latest_snapshot_url: null, latest_snapshot_captured_at: null,
+    device_class: null, firmware_version: null, hardware_id: null,
+  };
+
+  beforeEach(() => sqlMock.mockReset());
+
+  // NUMERIC(4,3) arrives as a STRING through the Neon driver, so this asserts
+  // the type as well as the value — a string would silently break the
+  // arithmetic in applyTempering.
+  it('coerces a tempered camera to a number', async () => {
+    sqlMock.mockResolvedValue([{ ...baseRow, calibration_multiplier: '0.590' }]);
+
+    const [cam] = await fetchTerminatorWebcams();
+
+    expect(cam.calibrationMultiplier).toBe(0.59);
+    expect(typeof cam.calibrationMultiplier).toBe('number');
+  });
+
+  it('leaves an untempered camera undefined so tempering is a no-op', async () => {
+    sqlMock.mockResolvedValue([{ ...baseRow, calibration_multiplier: null }]);
+
+    const [cam] = await fetchTerminatorWebcams();
+
+    expect(cam.calibrationMultiplier).toBeUndefined();
   });
 });
 
