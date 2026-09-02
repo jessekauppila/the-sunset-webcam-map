@@ -36,6 +36,7 @@ export function PreviewPane({
   onSceneSourceChange,
   sceneState = null,
   error = null,
+  at,
 }: {
   view: FeedView;
   onViewChange: (v: FeedView) => void;
@@ -48,6 +49,7 @@ export function PreviewPane({
   onSceneSourceChange?: (source: SceneSource) => void;
   sceneState?: SceneState | null;
   error?: string | null;
+  at?: string;
 }) {
   const liveSunrise = useTerminatorStore((t) => t.sunrise);
   const liveSunset = useTerminatorStore((t) => t.sunset);
@@ -209,6 +211,7 @@ export function PreviewPane({
                   feed={feed}
                   search=""
                   settings={settings}
+                  at={at}
                 />
               </StudioPanelFrame>
             </div>
