@@ -23,6 +23,7 @@ import {
   WINDY_FETCH_DELAY_BETWEEN_BATCHES_MS,
   CUSTOM_CAM_FRESHNESS_WINDOW_MINUTES,
   SAVE_HIGH_RATED_SNAPSHOTS,
+  SAVE_RANDOM_TRICKLE_RATE,
   SAVE_ALL_RATED_SNAPSHOTS,
   AI_SNAPSHOT_MIN_RATING_THRESHOLD,
   ARCHIVE_BACKFILL_ENABLED,
@@ -237,8 +238,28 @@ export async function GET(req: Request) {
       const isHighRated =
         SAVE_HIGH_RATED_SNAPSHOTS &&
         scored.aiRating >= AI_SNAPSHOT_MIN_RATING_THRESHOLD;
+      // Control arm for the two model-gated reasons above: a uniform sample
+      // taken WITHOUT looking at the score, so the archive keeps receiving an
+      // unbiased stream instead of only what the incumbent model already likes.
+      // Drawn independently per frame — no seed, because the point is that
+      // nothing about the frame influences whether it is kept.
+      const isTrickle = Math.random() < SAVE_RANDOM_TRICKLE_RATE;
       const shouldPersist =
-        disagreementKind !== null || isHighRated || SAVE_ALL_RATED_SNAPSHOTS;
+        disagreementKind !== null ||
+        isHighRated ||
+        isTrickle ||
+        SAVE_ALL_RATED_SNAPSHOTS;
+      // Precedence matters for the analysis, not for the write: a frame that
+      // would have been saved anyway is NOT part of the unbiased arm, so the
+      // gated reasons win and 'trickle' marks only frames nothing else caught.
+      const intakeReason: 'disagreement' | 'high_rated' | 'trickle' | 'all_rated' =
+        disagreementKind !== null
+          ? 'disagreement'
+          : isHighRated
+            ? 'high_rated'
+            : isTrickle
+              ? 'trickle'
+              : 'all_rated';
       if (shouldPersist) {
         try {
           const capturedAt = new Date();
@@ -259,6 +280,7 @@ export async function GET(req: Request) {
             aiBinaryScore: scored.binaryRawScore,
             aiBinaryIsSunset: scored.binaryIsSunset,
             aiModelVersionBinary: scored.binaryModelVersion,
+            intakeReason,
           });
         } catch (persistError) {
           console.warn(

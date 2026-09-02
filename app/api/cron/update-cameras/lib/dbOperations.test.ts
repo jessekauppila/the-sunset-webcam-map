@@ -117,6 +117,30 @@ describe('insertWindyDisagreementSnapshot', () => {
     expect(values).toContain('v4-binary');
   });
 
+  it('stamps intake_reason so the unbiased trickle arm stays separable', async () => {
+    await insertWindyDisagreementSnapshot({
+      ...baseOpts,
+      disagreementKind: null,
+      intakeReason: 'trickle',
+    });
+
+    const query = (sqlMock.mock.calls[0][0] as readonly string[]).join(' ');
+    expect(query).toContain('intake_reason');
+    expect(sqlMock.mock.calls[0].slice(1)).toContain('trickle');
+  });
+
+  it('writes NULL intake_reason when the caller does not supply one', async () => {
+    // Other write paths (backfills, custom cams) share this insert; a guessed
+    // reason would pollute the column the trickle analysis filters on.
+    await insertWindyDisagreementSnapshot(baseOpts);
+
+    const query = (sqlMock.mock.calls[0][0] as readonly string[]).join(' ');
+    expect(query).toContain('intake_reason');
+    const values = sqlMock.mock.calls[0].slice(1);
+    expect(values).not.toContain('trickle');
+    expect(values).not.toContain('high_rated');
+  });
+
   it('writes NULL binary columns when the binary head is not configured', async () => {
     await insertWindyDisagreementSnapshot(baseOpts);
 

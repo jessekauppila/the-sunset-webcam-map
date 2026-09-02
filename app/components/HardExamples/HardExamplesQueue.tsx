@@ -78,13 +78,34 @@ const COUNT_KEY: Record<Provenance, keyof Counts> = {
 // The condensed rating rubric, kept on-screen so the scale doesn't drift
 // between sessions. Labels normalize to (rating - 1) / 4, and the binary head
 // trains on >= 0.75 — so the 3/4 line is the only boundary the model sees.
+//
+// Wording follows the retest_v1 measurement (2026-08-31, see
+// docs/ml/rating-rubric.md "Boundary sharpening"): 80% of frames rated 4 came
+// back with the opposite rating>=4 label, always drifting DOWN to a 3, and the
+// N/1 split was a coin flip because it was phrased as a question about the
+// sun's position rather than about what is in the frame. Both lines are now
+// stated as things you can see.
 const RUBRIC: { key: string; text: string; positive?: boolean }[] = [
-  { key: 'N', text: 'not a sunset at all — day, night, fully obstructed' },
-  { key: '1', text: 'sunset, but zero color — flat gray' },
+  { key: 'N', text: 'no usable sky — absent, obstructed, or full dark' },
+  { key: '1', text: 'readable sky, twilight light, zero color' },
   { key: '2', text: 'trace of color, washed out' },
-  { key: '3', text: 'real color, unremarkable' },
-  { key: '4', text: "vivid — you'd stop and look", positive: true },
+  { key: '3', text: 'color you can name — frame still reads dark' },
+  { key: '4', text: 'sky is the BRIGHTEST thing in frame', positive: true },
   { key: '5', text: 'spectacular — keep it rare', positive: true },
+];
+
+// The two boundary tests, shown under the scale. These are the only two lines
+// that change a training label (is_sunset, and rating >= 4); 4-vs-5 and 2-vs-3
+// drift costs nothing, so the legend deliberately says not to agonise there.
+const BOUNDARY_TESTS: { line: string; test: string }[] = [
+  {
+    line: '3 / 4',
+    test: 'brightest thing in the frame, or least dark thing? Structure is not brightness — an interesting shape does not lift a 3.',
+  },
+  {
+    line: 'N / 1',
+    test: 'is there a readable sky at all? Sliver of sky at the edge = N, even in good light.',
+  },
 ];
 
 const WHY: Record<string, string> = {
@@ -777,8 +798,32 @@ export function HardExamplesQueue({
                   </Typography>
                 </Box>
               ))}
+              {BOUNDARY_TESTS.map((b) => (
+                <Box
+                  key={b.line}
+                  data-testid={`boundary-test-${b.line.replace(/\s\/\s/, '-')}`}
+                  sx={{ display: 'flex', gap: 0.75, alignItems: 'baseline', mt: 0.75 }}
+                >
+                  <Box
+                    component="span"
+                    sx={{
+                      flexShrink: 0,
+                      fontSize: 9,
+                      fontWeight: 700,
+                      fontFamily: 'monospace',
+                      color: '#fbbf24',
+                    }}
+                  >
+                    {b.line}
+                  </Box>
+                  <Typography sx={{ fontSize: 9, lineHeight: 1.4, color: '#cbd5e1' }}>
+                    {b.test}
+                  </Typography>
+                </Box>
+              ))}
               <Typography sx={{ mt: 0.75, fontSize: 9, lineHeight: 1.4, color: '#64748b' }}>
                 4–5 = positive class for training; judge the sky, not the framing.
+                4-vs-5 and 2-vs-3 never change a training label — don&apos;t agonise.
               </Typography>
               <Typography sx={{ fontSize: 9, lineHeight: 1.4, color: '#64748b' }}>
                 keys: <b>N</b>/<b>1</b>–<b>5</b> rate · <b>␣</b> skip · <b>z</b> undo
