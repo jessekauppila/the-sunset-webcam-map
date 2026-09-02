@@ -69,6 +69,9 @@ def main() -> None:
     p.add_argument("--quality-onnx", default=QUALITY_DEFAULT)
     p.add_argument("--cache-dir", default="ml/artifacts/image_cache")
     p.add_argument("--limit", type=int, default=None, help="frame cap, for smoke runs")
+    p.add_argument("--dump-frames", default=None,
+                   help="also write per-frame scores to this CSV (the input for "
+                        "hard-negative mining — see the 2026-08-31 emphasis plan)")
     args = p.parse_args()
 
     load_env_local()
@@ -105,6 +108,7 @@ def main() -> None:
         meta="", worst=[],  # (tile, snapshot_id, url) for op-N frames shown
     ))
     skipped = 0
+    dump_rows = []
     for i, (sid, wid, is_sunset, rating, day, url, title, city, country) in enumerate(frames):
         if i and i % 1000 == 0:
             print(f"  …{i}/{len(frames)} (skipped {skipped})")
@@ -117,6 +121,11 @@ def main() -> None:
         q = float(np.asarray(qsess.run(None, {q_name: arr})[0]).squeeze())
         shown = p_sun >= args.gate
         tile = q if shown else 0.0
+        if args.dump_frames:
+            dump_rows.append((sid, wid, int(bool(is_sunset)),
+                              "" if rating is None else rating, str(day),
+                              round(p_sun, 4), round(q, 4), int(shown),
+                              round(tile, 4), url))
 
         c = cams[wid]
         c["n"] += 1
@@ -186,6 +195,15 @@ def main() -> None:
     for r in miss_offenders[:10]:
         print(f"    cam {r['webcam_id']:>8}  miss4 {r['miss4']} / {r['n_ge4']} "
               f"over {r['distinct_days']}d  {r['meta']}")
+
+    if args.dump_frames:
+        import csv
+        with open(args.dump_frames, "w", newline="") as fh:
+            w = csv.writer(fh)
+            w.writerow(["snapshot_id", "webcam_id", "is_sunset", "rating", "day",
+                        "p_sunset", "quality", "shown", "tile", "url"])
+            w.writerows(dump_rows)
+        print(f"  per-frame dump: {args.dump_frames} ({len(dump_rows)} rows)")
 
     out = Path("ml/artifacts/reports/camera_error_audit_v1.json")
     out.write_text(json.dumps(dict(
