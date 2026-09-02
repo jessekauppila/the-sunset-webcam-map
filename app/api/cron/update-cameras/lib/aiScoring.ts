@@ -103,7 +103,7 @@ function resolveBinaryModelPath(): string {
     AI_ONNX_BINARY_MODEL_PATH_DEFAULT;
   return path.isAbsolute(ref) ? ref : path.join(process.cwd(), ref);
 }
-function resolveBinaryModelVersion(): string {
+export function resolveBinaryModelVersion(): string {
   return (
     process.env.AI_BINARY_MODEL_VERSION?.trim() ||
     AI_BINARY_MODEL_VERSION_DEFAULT

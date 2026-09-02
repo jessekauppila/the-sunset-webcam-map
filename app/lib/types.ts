@@ -93,6 +93,12 @@ export interface WindyWebcam {
   aiModelVersionBinary?: string; // Model version for binary score
   aiRatingRegression?: number; // 1-5 normalized regression score
   aiModelVersionRegression?: string; // Model version for regression score
+  /**
+   * Per-camera tempering multiplier in [0.5, 1]. Undefined = neutral.
+   * Applies to the TILE signal only — never the detection verdict.
+   * Spec: docs/superpowers/specs/2026-08-31-per-camera-calibration-design.md
+   */
+  calibrationMultiplier?: number;
 
   // Claude (LLM) judge — the third opinion, distinct from the two model
   // heads above. Do NOT proxy these into the aiRating* slots: that hides

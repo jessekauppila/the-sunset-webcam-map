@@ -791,3 +791,177 @@ export async function updateExternalImageDisagreementsBatch(
   `;
 }
 
+
+/* -------------------------------------------------------------------------- */
+/* Per-camera calibration (tempering prior)                                    */
+/* Spec: docs/superpowers/specs/2026-08-31-per-camera-calibration-design.md    */
+/* -------------------------------------------------------------------------- */
+
+export interface CameraCalibrationRow {
+  webcamId: number;
+  falseShows: number;
+  negativeFrames: number;
+  falseShowDays: number;
+  rawFalseShows: number;
+  previousMultiplier: number | null;
+}
+
+/**
+ * Aggregate calibration evidence per camera, scoped to ONE model generation
+ * and a rolling window, with exponential decay applied in SQL.
+ *
+ * The window governs eligibility (so a camera with no recent false-show heals
+ * completely); the decay governs magnitude (so it relaxes smoothly first).
+ */
+export async function findCalibrationEvidenceByCamera(
+  modelVersion: string,
+  windowDays: number,
+  halfLifeDays: number,
+): Promise<CameraCalibrationRow[]> {
+  const rows = (await sql`
+    select e.webcam_id                                             as webcam_id,
+           sum(case when e.is_negative and e.fired
+                    then power(0.5, (current_date - e.captured_on)::numeric
+                                    / ${halfLifeDays}::numeric)
+                    else 0 end)                                    as false_shows,
+           sum(case when e.is_negative
+                    then power(0.5, (current_date - e.captured_on)::numeric
+                                    / ${halfLifeDays}::numeric)
+                    else 0 end)                                    as negative_frames,
+           count(distinct case when e.is_negative and e.fired
+                               then e.captured_on end)             as false_show_days,
+           count(*) filter (where e.is_negative and e.fired)       as raw_false_shows,
+           max(w.calibration_multiplier)                           as previous_multiplier
+    from camera_calibration_evidence e
+    join webcams w on w.id = e.webcam_id
+    where e.model_version = ${modelVersion}
+      and e.captured_on > current_date - ${windowDays}::int
+    group by e.webcam_id
+  `) as {
+    webcam_id: number;
+    false_shows: number | string;
+    negative_frames: number | string;
+    false_show_days: number | string;
+    raw_false_shows: number | string;
+    previous_multiplier: number | string | null;
+  }[];
+
+  // NUMERIC comes back as a STRING through the Neon driver — coerce every one.
+  return rows.map((r) => ({
+    webcamId: Number(r.webcam_id),
+    falseShows: Number(r.false_shows),
+    negativeFrames: Number(r.negative_frames),
+    falseShowDays: Number(r.false_show_days),
+    rawFalseShows: Number(r.raw_false_shows),
+    previousMultiplier:
+      r.previous_multiplier == null ? null : Number(r.previous_multiplier),
+  }));
+}
+
+/** One batched UPDATE for the whole fleet rather than a round-trip per camera. */
+export async function updateCameraCalibrationBatch(
+  updates: { webcamId: number; multiplier: number; evidence: unknown }[],
+): Promise<void> {
+  if (updates.length === 0) return;
+  const ids = updates.map((u) => u.webcamId);
+  const mults = updates.map((u) => u.multiplier);
+  const evidence = updates.map((u) => JSON.stringify(u.evidence));
+  await sql`
+    update webcams w
+    set calibration_multiplier = v.mult,
+        calibration_evidence = v.evidence::jsonb,
+        calibration_computed_at = now()
+    from unnest(${ids}::bigint[], ${mults}::numeric[], ${evidence}::text[])
+      as v(id, mult, evidence)
+    where w.id = v.id
+  `;
+}
+
+/** Append-only. Called only for cameras whose multiplier actually changed. */
+export async function insertCalibrationHistoryBatch(
+  rows: {
+    webcamId: number;
+    multiplier: number;
+    previousMultiplier: number | null;
+    falseShows: number;
+    negativeFrames: number;
+    rawFalseShows: number;
+    falseShowDays: number;
+    modelVersion: string;
+  }[],
+): Promise<void> {
+  if (rows.length === 0) return;
+  await sql`
+    insert into camera_calibration_history
+      (webcam_id, multiplier, previous_multiplier, false_shows,
+       negative_frames, raw_false_shows, false_show_days, model_version)
+    select * from unnest(
+      ${rows.map((r) => r.webcamId)}::bigint[],
+      ${rows.map((r) => r.multiplier)}::numeric[],
+      ${rows.map((r) => r.previousMultiplier)}::numeric[],
+      ${rows.map((r) => r.falseShows)}::numeric[],
+      ${rows.map((r) => r.negativeFrames)}::numeric[],
+      ${rows.map((r) => r.rawFalseShows)}::int[],
+      ${rows.map((r) => r.falseShowDays)}::int[],
+      ${rows.map((r) => r.modelVersion)}::text[]
+    )
+  `;
+}
+
+export interface CalibrationDigestSummary {
+  tempered: number;
+  newlyTempered: { webcamId: number; title: string | null; multiplier: number }[];
+  healed: number;
+}
+
+/**
+ * Fleet-level calibration summary for the daily digest.
+ *
+ * Returns null rather than throwing when the calibration tables are absent
+ * (an environment where the migration has not run). The digest's job is the
+ * cost email; a missing calibration surface must degrade to silence, never
+ * take the whole email down with it.
+ */
+export async function getCalibrationDigestSummary(): Promise<CalibrationDigestSummary | null> {
+  try {
+    const totals = (await sql`
+      select count(*)::int as tempered
+      from webcams
+      where calibration_multiplier is not null and calibration_multiplier < 1
+    `) as { tempered: number }[];
+
+    // "Newly tempered" = crossed from neutral into tempered in the last day.
+    const newly = (await sql`
+      select h.webcam_id, w.title, h.multiplier::float as multiplier
+      from camera_calibration_history h
+      join webcams w on w.id = h.webcam_id
+      where h.computed_at > now() - interval '1 day'
+        and h.multiplier < 1
+        and (h.previous_multiplier is null or h.previous_multiplier >= 1)
+      order by h.multiplier asc
+      limit 5
+    `) as { webcam_id: number; title: string | null; multiplier: number }[];
+
+    const healedRows = (await sql`
+      select count(*)::int as healed
+      from camera_calibration_history
+      where computed_at > now() - interval '1 day'
+        and multiplier >= 1
+        and previous_multiplier is not null
+        and previous_multiplier < 1
+    `) as { healed: number }[];
+
+    return {
+      tempered: Number(totals[0]?.tempered ?? 0),
+      newlyTempered: newly.map((r) => ({
+        webcamId: Number(r.webcam_id),
+        title: r.title,
+        multiplier: Number(r.multiplier),
+      })),
+      healed: Number(healedRows[0]?.healed ?? 0),
+    };
+  } catch (error) {
+    console.warn('[calibrationDigest] summary unavailable:', error);
+    return null;
+  }
+}

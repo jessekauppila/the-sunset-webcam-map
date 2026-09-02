@@ -67,3 +67,49 @@ describe('passesGate', () => {
     expect(passesGate({ ...base, aiRatingBinary: SHOWN })).toBe(true);
   });
 });
+
+describe('per-camera tempering', () => {
+  it('shrinks the tile score for a tempered camera', () => {
+    const score = getQualityScore({
+      ...base,
+      aiRatingBinary: SHOWN,
+      aiRatingRegression: 5,
+      calibrationMultiplier: 0.5,
+    } as WindyWebcam);
+    expect(score).toBe(3);
+  });
+
+  it('is a no-op for an untempered camera', () => {
+    expect(
+      getQualityScore({
+        ...base,
+        aiRatingBinary: SHOWN,
+        aiRatingRegression: 3.7,
+      })
+    ).toBe(3.7);
+  });
+
+  it('keeps the floor at 1 for a rejected frame regardless of multiplier', () => {
+    expect(
+      getQualityScore({
+        ...base,
+        aiRatingBinary: REJECTED,
+        aiRatingRegression: 4.2,
+        calibrationMultiplier: 0.5,
+      } as WindyWebcam)
+    ).toBe(1);
+  });
+
+  it('leaves passesGate bit-identical with and without a multiplier (clause 4)', () => {
+    const atGate = 1 + 0.55 * 4; // 3.2
+    for (const binary of [REJECTED, atGate, SHOWN]) {
+      const without = passesGate({ ...base, aiRatingBinary: binary });
+      const with05 = passesGate({
+        ...base,
+        aiRatingBinary: binary,
+        calibrationMultiplier: 0.5,
+      } as WindyWebcam);
+      expect(with05).toBe(without);
+    }
+  });
+});

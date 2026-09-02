@@ -30,4 +30,38 @@ export interface OpsStatsResponse {
   dailyStats: DailyStatsRow[];
   providerUsage: ProviderUsageRow[];
   costEvents: CostEventRow[];
+  calibrationCameras: CalibrationCameraRow[];
+  calibrationHistory: CalibrationHistoryRow[];
+}
+
+/** A tempered camera and the evidence behind it. */
+export interface CalibrationCameraRow {
+  webcam_id: number;
+  title: string | null;
+  multiplier: number;
+  false_shows: number;
+  negative_frames: number;
+  false_show_days: number;
+  computed_at: string | null;
+}
+
+/** One multiplier change, for the over-time view. */
+export interface CalibrationHistoryRow {
+  webcam_id: number;
+  computed_at: string;
+  multiplier: number;
+  previous_multiplier: number | null;
+}
+
+/**
+ * One false-show frame behind a camera's tempering — the "was this camera
+ * fairly tempered?" check. Fetched per-camera on expand, never bulk-loaded:
+ * the evidence table holds ~9k rows and grows.
+ */
+export interface CalibrationFrameRow {
+  snapshot_id: number;
+  captured_on: string;
+  p_sunset: number;
+  tile: number | null;
+  firebase_url: string;
 }

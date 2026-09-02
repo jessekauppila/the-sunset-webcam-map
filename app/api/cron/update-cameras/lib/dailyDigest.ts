@@ -1,4 +1,8 @@
 import { sql } from '@/app/lib/db';
+import {
+  getCalibrationDigestSummary,
+  type CalibrationDigestSummary,
+} from './dbOperations';
 import { deriveDailyDeltas } from '@/app/components/Ops/opsMath';
 import type { ProviderUsageRow, CostEventRow } from '@/app/lib/opsTypes';
 import {
@@ -13,6 +17,35 @@ const LABELS: Record<string, string> = {
   [SUNSET_PROJECT]: 'sunrise-sunset (this site)',
   [NWAC_PROJECT]: 'nwac-observations',
 };
+
+/**
+ * One-line per-camera calibration summary for the digest.
+ *
+ * Ambient awareness, not an audit surface: the Ops tab answers "why is this
+ * camera at 0.59"; this answers "did anything change while I wasn't looking".
+ * Steady state is one clause; the events worth knowing are cameras newly
+ * tempered and cameras that healed.
+ *
+ * `null` (calibration unavailable) renders nothing rather than an error line.
+ */
+export function formatCalibrationLine(
+  summary: CalibrationDigestSummary | null,
+): string {
+  if (!summary) return '';
+  const { tempered, newlyTempered, healed } = summary;
+
+  const parts: string[] = [`<b>${tempered} cameras tempered</b>`];
+  if (newlyTempered.length > 0) {
+    const named = newlyTempered
+      .map((c) => `${c.title ?? `#${c.webcamId}`} ${c.multiplier.toFixed(2)}`)
+      .join(', ');
+    parts.push(`${newlyTempered.length} newly tempered (${named})`);
+  }
+  if (healed > 0) parts.push(`${healed} healed`);
+  if (newlyTempered.length === 0 && healed === 0) parts.push('no changes');
+
+  return `<p style="font:12px sans-serif">Calibration: ${parts.join(' · ')}</p>`;
+}
 
 // Daily usage digest email, sent right after the once-per-UTC-day provider
 // snapshot lands (the caller gates on that, which gives once-a-day semantics
@@ -40,6 +73,11 @@ export async function sendDailyUsageDigest(
       WHERE occurred_on > CURRENT_DATE - ${DIGEST_LOOKBACK_DAYS}::int
       ORDER BY occurred_on ASC
     `) as unknown as CostEventRow[];
+
+    // Isolated on purpose: getCalibrationDigestSummary swallows its own
+    // failures and returns null, so a missing calibration table degrades this
+    // section to silence instead of killing the cost email.
+    const calibration = await getCalibrationDigestSummary();
 
     const rows = usage.map((r) => ({ ...r, compute_time_s: Number(r.compute_time_s) }));
     const deltas = deriveDailyDeltas(rows);
@@ -110,6 +148,7 @@ export async function sendDailyUsageDigest(
             : '<p style="font:12px sans-serif">Daily chart appears after two snapshots.</p>'
         }
         ${eventList}
+        ${formatCalibrationLine(calibration)}
         <p style="font:11px sans-serif;color:#6b7280">
           Same data as the Ops tab. Estimate uses $${NEON_COST_PER_CU_HOUR}/CU-hr;
           the invoice of record is Vercel → Settings → Billing.

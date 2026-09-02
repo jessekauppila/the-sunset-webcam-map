@@ -59,6 +59,11 @@ def load_env_local() -> None:
         os.environ.setdefault(key.strip(), val.strip().strip('"').strip("'"))
 
 
+def model_version_from_path(onnx_path: str) -> str:
+    """The run directory name is the model version stamped on webcams rows."""
+    return Path(onnx_path).parent.name
+
+
 def main() -> None:
     p = argparse.ArgumentParser(description="Per-camera error audit vs operator truth")
     p.add_argument("--gate", type=float, default=0.55)
@@ -69,6 +74,15 @@ def main() -> None:
     p.add_argument("--quality-onnx", default=QUALITY_DEFAULT)
     p.add_argument("--cache-dir", default="ml/artifacts/image_cache")
     p.add_argument("--limit", type=int, default=None, help="frame cap, for smoke runs")
+    p.add_argument("--emit-evidence", action="store_true",
+                   help="upsert per-frame rows into camera_calibration_evidence "
+                        "(the calibration job's input; see the 2026-08-31 "
+                        "per-camera calibration spec). Append-only: re-running "
+                        "refreshes scores for the same model generation and "
+                        "never deletes.")
+    p.add_argument("--dump-frames", default=None,
+                   help="also write per-frame scores to this CSV (the input for "
+                        "hard-negative mining — see the 2026-08-31 emphasis plan)")
     args = p.parse_args()
 
     load_env_local()
@@ -105,6 +119,9 @@ def main() -> None:
         meta="", worst=[],  # (tile, snapshot_id, url) for op-N frames shown
     ))
     skipped = 0
+    dump_rows = []
+    evidence_rows: list = []
+    model_version = model_version_from_path(args.binary_onnx)
     for i, (sid, wid, is_sunset, rating, day, url, title, city, country) in enumerate(frames):
         if i and i % 1000 == 0:
             print(f"  …{i}/{len(frames)} (skipped {skipped})")
@@ -117,6 +134,21 @@ def main() -> None:
         q = float(np.asarray(qsess.run(None, {q_name: arr})[0]).squeeze())
         shown = p_sun >= args.gate
         tile = q if shown else 0.0
+        if args.dump_frames:
+            dump_rows.append((sid, wid, int(bool(is_sunset)),
+                              "" if rating is None else rating, str(day),
+                              round(p_sun, 4), round(q, 4), int(shown),
+                              round(tile, 4), url))
+
+        if args.emit_evidence:
+            evidence_rows.append((
+                int(wid), int(sid), model_version, "operator_label",
+                not bool(is_sunset), bool(shown), day,
+                round(float(p_sun), 4),
+                round(float(q), 4),
+                round(float(tile), 4),
+                str(url),
+            ))
 
         c = cams[wid]
         c["n"] += 1
@@ -186,6 +218,50 @@ def main() -> None:
     for r in miss_offenders[:10]:
         print(f"    cam {r['webcam_id']:>8}  miss4 {r['miss4']} / {r['n_ge4']} "
               f"over {r['distinct_days']}d  {r['meta']}")
+
+    if args.emit_evidence:
+        conn2 = psycopg2.connect(os.environ["DATABASE_URL"])
+        cur2 = conn2.cursor()
+        # ON CONFLICT DO UPDATE, never DELETE: re-running refreshes scores for
+        # this model generation; a different model_version inserts a NEW
+        # generation beside the old so both stay answerable.
+        cur2.executemany(
+            """
+            INSERT INTO camera_calibration_evidence
+              (webcam_id, snapshot_id, model_version, evidence_source,
+               is_negative, fired, captured_on, p_sunset, quality, tile,
+               firebase_url)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+            ON CONFLICT (snapshot_id, model_version, evidence_source)
+            DO UPDATE SET
+              is_negative = EXCLUDED.is_negative,
+              fired       = EXCLUDED.fired,
+              p_sunset    = EXCLUDED.p_sunset,
+              quality     = EXCLUDED.quality,
+              tile        = EXCLUDED.tile,
+              scored_at   = now()
+            """,
+            evidence_rows,
+        )
+        conn2.commit()
+        cur2.execute(
+            "SELECT count(*) FROM camera_calibration_evidence "
+            "WHERE model_version = %s",
+            (model_version,),
+        )
+        total = cur2.fetchone()[0]
+        conn2.close()
+        print(f"  emitted {len(evidence_rows)} evidence rows; "
+              f"{total} total for model_version={model_version}")
+
+    if args.dump_frames:
+        import csv
+        with open(args.dump_frames, "w", newline="") as fh:
+            w = csv.writer(fh)
+            w.writerow(["snapshot_id", "webcam_id", "is_sunset", "rating", "day",
+                        "p_sunset", "quality", "shown", "tile", "url"])
+            w.writerows(dump_rows)
+        print(f"  per-frame dump: {args.dump_frames} ({len(dump_rows)} rows)")
 
     out = Path("ml/artifacts/reports/camera_error_audit_v1.json")
     out.write_text(json.dumps(dict(

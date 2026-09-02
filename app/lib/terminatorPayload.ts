@@ -31,6 +31,7 @@ type TerminatorRow = {
   ai_rating_binary: number | string | null;
   ai_model_version_binary: string | null;
   ai_rating_regression: number | string | null;
+  calibration_multiplier: number | string | null;
   ai_model_version_regression: string | null;
   // From LEFT JOIN LATERAL on webcam_snapshots (only populated for source='custom')
   latest_snapshot_url: string | null;
@@ -72,6 +73,7 @@ export async function fetchTerminatorWebcams(): Promise<WindyWebcam[]> {
            w.rating, w.orientation, w.ai_rating, w.ai_model_version,
            w.ai_rating_binary, w.ai_model_version_binary,
            w.ai_rating_regression, w.ai_model_version_regression,
+           w.calibration_multiplier,
            ls.firebase_url      as latest_snapshot_url,
            ls.captured_at       as latest_snapshot_captured_at,
            c.device_class,
@@ -139,6 +141,10 @@ export async function fetchTerminatorWebcams(): Promise<WindyWebcam[]> {
       aiRatingBinary: toMaybeNumber(row.ai_rating_binary),
       aiModelVersionBinary: row.ai_model_version_binary ?? undefined,
       aiRatingRegression: toMaybeNumber(row.ai_rating_regression),
+      // Per-camera tempering. The kiosk reads THIS payload, not
+      // db-all-webcams, so omitting it here would silently disable
+      // tempering on the one surface the showing runs on.
+      calibrationMultiplier: toMaybeNumber(row.calibration_multiplier),
       aiModelVersionRegression:
         row.ai_model_version_regression ?? undefined,
       liveAssetKind,
