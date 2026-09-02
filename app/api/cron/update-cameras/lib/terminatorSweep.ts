@@ -31,6 +31,15 @@ export interface RingTelemetry {
 export interface SweepTelemetry {
   rings: RingTelemetry[];
   counts: Record<Feed, number>;
+  /**
+   * Feeds under the floor once the base ring was in, before any widening.
+   *
+   * This, not `rings[1].feedsSwept`, is the honest "a feed went thin today"
+   * signal the daily digest counts: a tick that ran out of sweep budget
+   * before the first escalation ring had a thin feed and no escalation ring
+   * to record it.
+   */
+  thinAfterBase: Feed[];
   escalations: number;
   budgetExhausted: boolean;
 }
@@ -142,6 +151,7 @@ export async function sweepWithEscalation(
   // flip escalation priority for the rest of the process.
   await sweep(0, [...FEEDS]);
   let counts = currentCounts();
+  const thinAfterBase = feedsBelowFloor(counts, opts.floor);
 
   for (const offsetDeg of opts.offsets) {
     const thin = feedsBelowFloor(counts, opts.floor);
@@ -160,6 +170,7 @@ export async function sweepWithEscalation(
     telemetry: {
       rings,
       counts,
+      thinAfterBase,
       escalations: rings.length - 1,
       budgetExhausted,
     },

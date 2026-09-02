@@ -44,6 +44,35 @@ describe('feedsBelowFloor', () => {
 });
 
 describe('sweepWithEscalation', () => {
+  it('records which feeds were thin after the base ring, budget aside', async () => {
+    // thinAfterBase is what the daily digest counts, so it must be true of
+    // the base ring's own result and not of whether an escalation ring got
+    // to run. A budget-starved tick still had a thin feed.
+    const res = await sweepWithEscalation({
+      buildRing: ring,
+      fetchCoords: stubFetcher({ 0: [cam(1), cam(2), cam(4)] }),
+      classify,
+      floor: 2,
+      offsets: [15.75],
+      hasBudget: () => false,
+    });
+    expect(res.telemetry.thinAfterBase).toEqual(['sunrise']);
+    expect(res.telemetry.budgetExhausted).toBe(true);
+    expect(res.telemetry.escalations).toBe(0);
+  });
+
+  it('reports no thin feed when the base ring clears the floor for both', async () => {
+    const res = await sweepWithEscalation({
+      buildRing: ring,
+      fetchCoords: stubFetcher({ 0: [cam(1), cam(2), cam(3), cam(4)] }),
+      classify,
+      floor: 2,
+      offsets: [15.75, -15.75],
+      hasBudget: () => true,
+    });
+    expect(res.telemetry.thinAfterBase).toEqual([]);
+  });
+
   it('does not escalate when the base ring already clears the floor', async () => {
     const seen: Location[][] = [];
     const res = await sweepWithEscalation({

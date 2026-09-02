@@ -36,6 +36,12 @@ import { dedupeCoords, fetchCoordsCounted } from './lib/windyApi';
 import { classifyWebcamsByPhase } from './lib/webcamClassification';
 import { sweepWithEscalation } from './lib/terminatorSweep';
 import {
+  ringOffsetByWebcamId,
+  computeSweepTickStats,
+  upsertSweepStats,
+  type RingGateCounts,
+} from './lib/sweepStats';
+import {
   upsertWebcams,
   getWebcamIdMap,
   getWebcamImageHashMap,
@@ -118,6 +124,24 @@ export async function GET(req: Request) {
 
   console.log('🛰️ terminator sweep:', JSON.stringify(sweep.telemetry));
 
+  // Ring attribution for the detection-gate comparison. Each camera is
+  // credited to the ring that first saw it this tick, so the digest can print
+  // the day-side ring's gate-pass rate beside the base ring's. That
+  // comparison is the only way to tell widening that adds sunsets from
+  // widening that adds cameras the gate then floors — the failure the spec
+  // flags as self-concealing, because escalations and newWebcams both read as
+  // success while the panel stays exactly as empty.
+  const ringOffsetOf = ringOffsetByWebcamId(sweep.telemetry);
+  const gateByOffset = new Map<number, RingGateCounts>();
+  function recordGateOutcome(externalId: number, isSunset: boolean) {
+    const offsetDeg = ringOffsetOf.get(externalId);
+    if (offsetDeg === undefined) return;
+    const acc = gateByOffset.get(offsetDeg) ?? { scored: 0, gatePassed: 0 };
+    acc.scored += 1;
+    if (isSunset) acc.gatePassed += 1;
+    gateByOffset.set(offsetDeg, acc);
+  }
+
   // Upsert all webcams to database (only updates if fields changed)
   await upsertWebcams(windyAll);
 
@@ -190,6 +214,13 @@ export async function GET(req: Request) {
       }
       scoringPaths.onnx += 1;
       windyScores.push(scored.rawScore);
+      // Only frames carrying a real binary verdict are counted. Without the
+      // binary head configured there is no gate outcome to attribute, and a
+      // scored-but-ungated frame would deflate the ring's rate rather than
+      // leave it undefined.
+      if (typeof scored.binaryIsSunset === 'boolean') {
+        recordGateOutcome(webcam.webcamId, scored.binaryIsSunset);
+      }
 
       // Write Neon first: if the DB write fails, Redis hash is not committed
       // and the next tick will re-score. Committing the hash before the DB
@@ -420,6 +451,18 @@ export async function GET(req: Request) {
   } catch (err) {
     console.error('[update-cameras] daily_sunset_stats UPSERT failed:', err);
   }
+
+  // Sweep telemetry, persisted so the daily digest can still answer "how
+  // often did a feed go thin" and "what did widening cost" a day later. Until
+  // now it reached only this response and one log line, neither of which
+  // survives the tick. Same model version as the rollup above: either writer
+  // may be the one that creates the day's row, and the column is NOT NULL.
+  const sweepStats = computeSweepTickStats({
+    telemetry: sweep.telemetry,
+    floor: TERMINATOR_CAMERA_FLOOR,
+    gateByOffset,
+  });
+  await upsertSweepStats(new Date(), sweepStats, tickStats.modelVersion);
 
   // Once per UTC day, snapshot Neon usage counters for the Ops tab. Never
   // allowed to fail the tick.

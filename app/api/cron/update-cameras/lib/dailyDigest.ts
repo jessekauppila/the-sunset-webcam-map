@@ -3,6 +3,7 @@ import {
   getCalibrationDigestSummary,
   type CalibrationDigestSummary,
 } from './dbOperations';
+import { getSweepDigestSummary, type SweepDigestSummary } from './sweepStats';
 import { deriveDailyDeltas } from '@/app/components/Ops/opsMath';
 import type { ProviderUsageRow, CostEventRow } from '@/app/lib/opsTypes';
 import {
@@ -47,6 +48,92 @@ export function formatCalibrationLine(
   return `<p style="font:12px sans-serif">Calibration: ${parts.join(' · ')}</p>`;
 }
 
+const pct = (n: number, d: number) => (d > 0 ? Math.round((n / d) * 100) : 0);
+const count = (n: number) => n.toLocaleString('en-US');
+
+/** `base`, `+15.75°`, `-15.75°`. */
+function ringLabel(offsetDeg: number): string {
+  if (offsetDeg === 0) return 'base';
+  return `${offsetDeg > 0 ? '+' : ''}${offsetDeg}°`;
+}
+
+/**
+ * Two-line adaptive-widening summary for the digest.
+ *
+ * Answers the two questions the feature was built to make answerable day to
+ * day: how often did a feed fall under the camera floor, and what did the
+ * extra rings cost against the ~3,000 boxes/day baseline.
+ *
+ * The per-ring gate-pass rates are the second line, and they are the whole
+ * point of splitting the telemetry by ring. The widening's self-concealing
+ * failure mode is a day-side ring that adds cameras the detection gate then
+ * floors: escalations and new cameras both read as success while the panel
+ * stays exactly as empty. A day-side rate far under the base rate is what
+ * that looks like, and it is the evidence for making the floor count only
+ * gate-passers rather than for raising the floor.
+ *
+ * `null` (no sweep recorded, or the tables are not migrated yet) renders
+ * nothing rather than an error line, like the calibration section.
+ */
+export function formatSweepLine(summary: SweepDigestSummary | null): string {
+  if (!summary) return '';
+  const s = summary;
+  const totalBoxes = s.baseBoxes + s.escalationBoxes;
+  const emptyBoxes = s.rings.reduce((sum, r) => sum + r.boxesEmpty, 0);
+
+  const parts: string[] = [];
+  const thin: Array<[string, number, number]> = [
+    ['sunrise', s.sunriseThinTicks, s.sunriseShortTicks],
+    ['sunset', s.sunsetThinTicks, s.sunsetShortTicks],
+  ];
+  const thinClauses = thin
+    .filter(([, ticks]) => ticks > 0)
+    .map(([feed, ticks, short]) => {
+      const clause = `<b>${feed} thin on ${ticks} of ${s.ticks} ticks</b>`;
+      // thin minus short is what widening recovered; short is what it did not.
+      return short > 0 ? `${clause} (${short} still short)` : clause;
+    });
+  parts.push(
+    thinClauses.length > 0
+      ? thinClauses.join(', ')
+      : `no feed fell under the floor in ${s.ticks} ticks`,
+  );
+
+  parts.push(
+    s.escalationBoxes > 0
+      ? `+${count(s.escalationBoxes)} boxes on ${count(s.baseBoxes)} base (+${pct(
+          s.escalationBoxes,
+          s.baseBoxes,
+        )}%)`
+      : `${count(totalBoxes)} boxes`,
+  );
+
+  if (s.budgetExhaustedTicks > 0) {
+    parts.push(`${s.budgetExhaustedTicks} ticks hit the sweep budget`);
+  }
+  // Empty conflates "no cameras there" with "the call failed". Rising empty
+  // against flat discovery is the signature of a Windy quota ceiling, which
+  // is why it rides in the summary line rather than waiting for a dashboard.
+  parts.push(`${pct(emptyBoxes, totalBoxes)}% of boxes empty`);
+
+  const lines = [`Widening: ${parts.join(' · ')}`];
+
+  if (s.rings.length > 1) {
+    const ringClauses = s.rings.map((r, i) => {
+      const rate =
+        r.framesScored > 0
+          ? `${r.framesGatePassed}/${r.framesScored}${
+              i === 0 ? ' gate-passed' : ''
+            } (${pct(r.framesGatePassed, r.framesScored)}%)`
+          : `${count(r.newWebcams)} new, unscored`;
+      return `${ringLabel(r.offsetDeg)} ${rate}`;
+    });
+    lines.push(`Rings: ${ringClauses.join(' · ')}`);
+  }
+
+  return `<p style="font:12px sans-serif">${lines.join('<br/>')}</p>`;
+}
+
 // Daily usage digest email, sent right after the once-per-UTC-day provider
 // snapshot lands (the caller gates on that, which gives once-a-day semantics
 // for free). Reads the same table the Ops chart reads, so the email can never
@@ -78,6 +165,9 @@ export async function sendDailyUsageDigest(
     // failures and returns null, so a missing calibration table degrades this
     // section to silence instead of killing the cost email.
     const calibration = await getCalibrationDigestSummary();
+    // Same isolation contract: swallows its own failures and returns null, so
+    // an unmigrated sweep table degrades this section to silence.
+    const sweep = await getSweepDigestSummary();
 
     const rows = usage.map((r) => ({ ...r, compute_time_s: Number(r.compute_time_s) }));
     const deltas = deriveDailyDeltas(rows);
@@ -149,6 +239,7 @@ export async function sendDailyUsageDigest(
         }
         ${eventList}
         ${formatCalibrationLine(calibration)}
+        ${formatSweepLine(sweep)}
         <p style="font:11px sans-serif;color:#6b7280">
           Same data as the Ops tab. Estimate uses $${NEON_COST_PER_CU_HOUR}/CU-hr;
           the invoice of record is Vercel → Settings → Billing.

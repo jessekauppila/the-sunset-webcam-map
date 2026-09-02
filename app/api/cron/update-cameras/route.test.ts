@@ -89,6 +89,18 @@ vi.mock('./lib/providerUsage', () => ({
   captureProviderUsageDaily: (...a: unknown[]) =>
     captureProviderUsageDailyMock(...a),
 }));
+// sweepStats is only partially mocked below, so importOriginal pulls in the
+// real module -- and with it @/app/lib/db, which calls neon() at import time
+// and throws without DATABASE_URL. Nothing in this file uses sql directly.
+vi.mock('@/app/lib/db', () => ({ sql: vi.fn() }));
+
+const upsertSweepStatsMock = vi.fn();
+// Only the write is stubbed. computeSweepTickStats and ringOffsetByWebcamId
+// stay real so this file exercises the actual telemetry -> row mapping.
+vi.mock('./lib/sweepStats', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./lib/sweepStats')>()),
+  upsertSweepStats: (...a: unknown[]) => upsertSweepStatsMock(...a),
+}));
 const sendDailyUsageDigestMock = vi.fn();
 vi.mock('./lib/dailyDigest', () => ({
   sendDailyUsageDigest: (...a: unknown[]) => sendDailyUsageDigestMock(...a),
@@ -168,6 +180,7 @@ beforeEach(() => {
   upsertStatsMock.mockReset().mockResolvedValue(undefined);
   captureProviderUsageDailyMock.mockReset().mockResolvedValue({ captured: 0 });
   sendDailyUsageDigestMock.mockReset().mockResolvedValue({ sent: true });
+  upsertSweepStatsMock.mockReset().mockResolvedValue(undefined);
   setCachedMock.mockReset().mockResolvedValue(undefined);
   markKioskTickRanMock.mockReset().mockResolvedValue(undefined);
   fetchTerminatorWebcamsMock.mockReset().mockResolvedValue([]);
@@ -251,6 +264,12 @@ describe('GET /api/cron/update-cameras', () => {
     expect(markKioskTickRanMock).toHaveBeenCalled();
   });
 
+  // The next three tests override classifyMock with sub-floor counts, so the
+  // sweep escalates through all three rings as a side effect. Harmless here —
+  // they assert on upsertStateMock/deactivateMock, not on sweep-derived
+  // values. But a `fetchBatchesMock.mockResolvedValueOnce` added to any of
+  // them applies to ring 0 only; rings 1 and 2 fall back to the beforeEach
+  // default.
   it('unions custom cams into the upsert active set', async () => {
     classifyMock.mockReturnValue({
       sunrise: [{ webcamId: 'wA', location: { latitude: 0, longitude: 0 } }],
@@ -567,6 +586,83 @@ describe('GET /api/cron/update-cameras', () => {
       // Only the thin feed's half of each escalation ring is swept.
       expect(body.sweep.rings[1].feedsSwept).toEqual(['sunrise']);
       expect(body.sweep.rings[2].feedsSwept).toEqual(['sunrise']);
+    });
+
+    it('persists the tick to daily_sunset_stats, split base vs escalation', async () => {
+      classifyMock.mockReturnValue({
+        sunrise: Array.from(
+          { length: TERMINATOR_CAMERA_FLOOR - 1 },
+          (_, i) => ({ webcamId: `thin-${i}` }),
+        ),
+        sunset: HEALTHY_CLASSIFY_RESULT.sunset,
+      });
+      const res = await GET(makeReq());
+      expect(res.status).toBe(200);
+
+      expect(upsertSweepStatsMock).toHaveBeenCalledTimes(1);
+      const [, stats, modelVersion] = upsertSweepStatsMock.mock.calls[0] as [
+        Date,
+        {
+          ticks: number;
+          escalatedTicks: number;
+          sunriseThinTicks: number;
+          sunsetThinTicks: number;
+          sunriseShortTicks: number;
+          baseBoxes: number;
+          escalationBoxes: number;
+          rings: Array<{ offsetDeg: number }>;
+        },
+        string,
+      ];
+      expect(stats.ticks).toBe(1);
+      expect(stats.escalatedTicks).toBe(1);
+      expect(stats.sunriseThinTicks).toBe(1);
+      expect(stats.sunsetThinTicks).toBe(0);
+      // The classify mock is fixed, so widening never lifts sunrise over the
+      // floor: thin and short are both set, which is the "widening did not
+      // recover the feed" case the digest calls out.
+      expect(stats.sunriseShortTicks).toBe(1);
+      expect(stats.baseBoxes).toBe(2);
+      expect(stats.escalationBoxes).toBe(2);
+      expect(stats.rings.map((r) => r.offsetDeg)).toEqual([0, 15.75, -15.75]);
+      // Shares daily_sunset_stats.model_version with the rollup writer;
+      // either call may be the one that creates the day's row.
+      expect(modelVersion).toBe('v4');
+    });
+
+    it('attributes a gate verdict to the ring that first saw the camera', async () => {
+      scoreMock.mockResolvedValue({
+        rawScore: 0.6,
+        aiRating: 3.0,
+        modelVersion: 'v4',
+        imageHash: 'newhash',
+        source: 'windy',
+        pathTaken: 'onnx',
+        binaryIsSunset: true,
+      });
+      const res = await GET(makeReq());
+      expect(res.status).toBe(200);
+
+      const [, stats] = upsertSweepStatsMock.mock.calls[0] as [
+        Date,
+        { rings: Array<{ offsetDeg: number; framesScored: number; framesGatePassed: number }> },
+      ];
+      const base = stats.rings.find((r) => r.offsetDeg === 0)!;
+      expect(base.framesScored).toBe(1);
+      expect(base.framesGatePassed).toBe(1);
+    });
+
+    it('leaves gate counts empty when the binary head produced no verdict', async () => {
+      // Default scoreMock omits binaryIsSunset. A scored-but-ungated frame
+      // must not land in framesScored, or the per-ring rate reads as a gate
+      // failure when in fact no gate ran.
+      const res = await GET(makeReq());
+      expect(res.status).toBe(200);
+      const [, stats] = upsertSweepStatsMock.mock.calls[0] as [
+        Date,
+        { rings: Array<{ framesScored: number }> },
+      ];
+      expect(stats.rings.every((r) => r.framesScored === 0)).toBe(true);
     });
   });
 });
