@@ -39,12 +39,18 @@ export function ModelReadout({
               textShadow: '0 1px 2px rgba(0,0,0,.9)',
             }}
           >
-            <div>
-              {detection
-                ? `${detection.verdict} ${detection.probability.toFixed(2)}`
-                : '—'}
-            </div>
-            <div>{quality === null ? '—' : quality.toFixed(1)}</div>
+            {!detection && quality === null ? (
+              <div>not scored</div>
+            ) : (
+              <>
+                <div>
+                  {detection
+                    ? `${detection.verdict} ${detection.probability.toFixed(2)}`
+                    : '—'}
+                </div>
+                <div>{quality === null ? '—' : quality.toFixed(1)}</div>
+              </>
+            )}
             {tile.pinnedToFloor && <div>floored</div>}
           </div>
         );

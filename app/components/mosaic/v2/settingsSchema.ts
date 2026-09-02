@@ -71,7 +71,7 @@ export const V2_SETTINGS_SCHEMA: SettingsSchema = [
   {
     key: 'geographicFidelity', kind: 'number', min: 0, max: 1, step: 0.05, default: 0.7,
     label: 'geographic fidelity', section: 'arrangement',
-    description: '1 keeps rows at true latitude so gaps stay gaps; 0 packs them densely and leaves geography as ordering only.',
+    description: '1 keeps rows at true latitude so gaps stay gaps; 0 packs them densely and leaves geography as ordering only. Only used by the anchorRelax strategy.',
   },
   {
     key: 'tileGapPx', kind: 'number', min: 0, max: 40, step: 1, default: 6,

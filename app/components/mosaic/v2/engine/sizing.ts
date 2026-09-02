@@ -54,6 +54,6 @@ export function sizeTiles(tiles: TileInput[], cfg: V2Config): SizedTile[] {
       height = cfg.floorPx + span * unit;
     }
     const aspect = t.srcHeight > 0 ? t.srcWidth / t.srcHeight : 4 / 3;
-    return { ...t, height, width: height * aspect, pinnedToFloor: !t.passes };
+    return { ...t, height, width: height * aspect, pinnedToFloor: !(t.passes && t.score !== null) };
   });
 }

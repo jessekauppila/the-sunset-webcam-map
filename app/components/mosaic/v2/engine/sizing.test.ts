@@ -77,6 +77,12 @@ describe('sizeTiles — curves', () => {
     const out = sizeTiles([tile(1, true, null)], cfg({ curve: 'linear' }));
     expect(out[0].height).toBe(100);
   });
+
+  it('marks a scored-null passer as pinned, because it IS at the floor', () => {
+    const [t] = sizeTiles([tile(1, true, null)], cfg());
+    expect(t.height).toBe(100);
+    expect(t.pinnedToFloor).toBe(true);
+  });
 });
 
 describe('sizeTiles — geometry', () => {

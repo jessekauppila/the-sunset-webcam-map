@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { sunAltitudeDeg, TERMINATOR_ALTITUDE_DEG } from './solarPosition';
+import { sunAltitudeDeg } from './solarPosition';
 
 describe('sunAltitudeDeg', () => {
   it('is high near local solar noon at the equator on an equinox', () => {
@@ -21,9 +21,5 @@ describe('sunAltitudeDeg', () => {
   it('returns degrees, not radians', () => {
     const alt = sunAltitudeDeg(new Date('2026-03-20T12:00:00Z'), 0, 0);
     expect(Math.abs(alt)).toBeGreaterThan(Math.PI);
-  });
-
-  it('pins the terminator constant to the value masterConfig uses', () => {
-    expect(TERMINATOR_ALTITUDE_DEG).toBe(-13);
   });
 });

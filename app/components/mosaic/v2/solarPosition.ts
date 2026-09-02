@@ -1,13 +1,10 @@
 import SunCalc from 'suncalc';
 
 /**
- * The altitude the terminator band is centred on. Mirrors
- * masterConfig.TERMINATOR_SUN_ALTITUDE_DEG, which is what the camera-finding
- * cron actually searches around — the pool IS a band of solar altitudes, and
- * that is why altitude works as v2's horizontal axis.
+ * The camera-finding cron searches around masterConfig.TERMINATOR_SUN_ALTITUDE_DEG
+ * — the pool IS a band of solar altitudes centred on that value, and that is
+ * why altitude works as v2's horizontal axis.
  */
-export const TERMINATOR_ALTITUDE_DEG = -13;
-
 const DEG_PER_RAD = 180 / Math.PI;
 
 /**
