@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import {
   computeTemperingMultiplier,
   decayWeight,
@@ -158,6 +158,39 @@ describe('applyTempering', () => {
 
   it('halves the distance above the floor at multiplier 0.5', () => {
     expect(applyTempering(5, 0.5)).toBe(3);
+  });
+
+  // The scale contract. mosaic v2 normalizes its score to [0,1]; feeding one
+  // of those through this 1-5 helper inverts the multiplier — 0.0 would render
+  // at 0.423 while 1.0 stays 1.0, boosting the worst offenders hardest and
+  // landing WORSE than shipping no tempering at all.
+  it('refuses a normalized [0,1] score instead of inverting it', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    // 1 + (0.5-1)*0.577 = 0.712 — the inverted answer we must NOT return.
+    expect(applyTempering(0.5, 0.577)).toBe(0.5);
+    expect(warn).toHaveBeenCalledOnce();
+
+    warn.mockRestore();
+  });
+
+  it('refuses a score of 0 rather than boosting it to 0.423', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    expect(applyTempering(0, 0.577)).toBe(0);
+    warn.mockRestore();
+  });
+
+  it('refuses NaN rather than propagating it through the arithmetic', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    expect(Number.isNaN(applyTempering(NaN, 0.577))).toBe(true);
+    warn.mockRestore();
+  });
+
+  it('accepts a rating of exactly 1 (the legal floor) without warning', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    expect(applyTempering(1, 0.577)).toBe(1);
+    expect(warn).not.toHaveBeenCalled();
+    warn.mockRestore();
   });
 
   it('is a no-op when the multiplier is undefined', () => {

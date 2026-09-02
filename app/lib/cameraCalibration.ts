@@ -70,5 +70,27 @@ export function applyTempering(
   multiplier: number | undefined
 ): number {
   if (multiplier == null || !Number.isFinite(multiplier)) return score;
+
+  // SCALE CONTRACT. `score` is a 1-5 RATING with a floor of 1 — not a
+  // normalized [0,1] signal. The distinction is load-bearing, because on a
+  // [0,1] scale this formula INVERTS: at multiplier 0.577 a score of 0.0
+  // becomes 0.423 while 1.0 is untouched, so the frames the evidence flagged
+  // as worst get boosted hardest and a tempered camera renders LARGER than
+  // with no tempering at all. Refuse rather than invert.
+  //
+  // Fail-visible, not fail-hard: this runs in the kiosk render path, and the
+  // quality head can emit negatives (769 of 9,118 evidence rows do), so a
+  // throw could blank the display if the write-path clamp ever changed.
+  // Warn loudly and return untempered — wrong-but-visible beats inverted.
+  if (!(score >= 1)) {
+    console.warn(
+      `[cameraCalibration] applyTempering received score=${score}, below the ` +
+        `1-5 rating floor. Expected a rating, not a normalized [0,1] signal ` +
+        `(mosaic v2 normalizes — use score * multiplier there). Returning ` +
+        `untempered to avoid inverting the multiplier.`
+    );
+    return score;
+  }
+
   return 1 + (score - 1) * multiplier;
 }
