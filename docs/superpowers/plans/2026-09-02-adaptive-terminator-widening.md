@@ -419,7 +419,7 @@ function stubFetcher(perRing: Record<number, WindyWebcam[]>, seen: Location[][] 
   };
 }
 
-/** Splits by longitude: lng 1 is sunrise, everything else sunset. */
+/** Splits on webcamId parity: odd ids are sunrise, even ids are sunset. */
 const classify = (webcams: WindyWebcam[]) => ({
   sunrise: webcams.filter((w) => w.webcamId % 2 === 1),
   sunset: webcams.filter((w) => w.webcamId % 2 === 0),
@@ -719,7 +719,12 @@ git commit -m "feat(cron): per-feed terminator widening, decided within the tick
 
 **Interfaces:**
 - Produces: `TERMINATOR_CAMERA_FLOOR = 15`, `TERMINATOR_WIDEN_OFFSETS_DEG = [15.75, -15.75]`
-- Removes: `TERMINATOR_RING_OFFSETS_DEG`
+
+**Do NOT delete `TERMINATOR_RING_OFFSETS_DEG` in this task.** `route.ts:19`
+imports it until Task 6 rewrites that block, so deleting it here leaves the
+branch failing `tsc` at a committed checkpoint. Task 6 deletes it, where its
+last reader disappears. Leave the old constant in place and add the new ones
+beneath it.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -785,10 +790,10 @@ export const TERMINATOR_WIDEN_OFFSETS_DEG = [15.75, -15.75] as const;
 Run: `npm run test -- --run app/lib/masterConfig.test.ts`
 Expected: PASS, 5 tests.
 
-- [ ] **Step 5: Confirm the old constant has no remaining readers**
+- [ ] **Step 5: Take the map hook off the old constant**
 
 Run: `grep -rn "TERMINATOR_RING_OFFSETS_DEG" app/ --include=*.ts --include=*.tsx`
-Expected: two hits, both in files Task 6 rewrites — `app/api/cron/update-cameras/route.ts` and `app/components/Map/hooks/useUpdateTerminatorRing.ts`.
+Expected before this step: two readers — `app/api/cron/update-cameras/route.ts` (Task 6 handles it) and `app/components/Map/hooks/useUpdateTerminatorRing.ts` (this step). After this step, only `route.ts` should remain.
 
 The map hook draws the ring the operator sees. In `useUpdateTerminatorRing.ts`, replace the `ringResults` memo:
 
@@ -879,15 +884,25 @@ In `route.ts`, replace everything from `// Generate terminator rings for all con
   console.log('🛰️ terminator sweep:', JSON.stringify(sweep.telemetry));
 ```
 
-- [ ] **Step 2: Fix the imports**
+- [ ] **Step 2: Fix the imports and the `tickStartedAt` ordering**
 
-Remove `TERMINATOR_RING_OFFSETS_DEG` from the `masterConfig` import and add the two new constants. Remove `fetchWebcamsInBatches` and `dedupeWebcams` from the `./lib/windyApi` import if nothing else in the file uses them (check with `grep -n "dedupeWebcams\|fetchWebcamsInBatches" app/api/cron/update-cameras/route.ts`), and add `fetchCoordsCounted`. Add:
+Three edits, all verified against the current file rather than left as checks:
+
+1. **`tickStartedAt` must move.** It is declared at `route.ts:141`, *after* the sweep block you just replaced at 75–116, so `hasBudget` would hit a temporal-dead-zone `ReferenceError`. Move `const tickStartedAt = Date.now();` up so it sits immediately above the `sweepWithEscalation` call, and delete the old line 141 declaration.
+2. **`dedupeWebcams` is now unused.** Its only reader was line 115, which the replacement deleted. Remove it from the `./lib/windyApi` import or lint fails. `fetchWebcamsInBatches` is not imported by `route.ts` at all — leave it exported from `windyApi.ts`, since `fetchCoordsCounted` wraps it.
+3. **Swap the constants.** Remove `TERMINATOR_RING_OFFSETS_DEG` from the `masterConfig` import, add `TERMINATOR_CAMERA_FLOOR` and `TERMINATOR_WIDEN_OFFSETS_DEG`, and add `fetchCoordsCounted` to the `./lib/windyApi` import. Then add:
 
 ```ts
 import { sweepWithEscalation } from './lib/terminatorSweep';
 ```
 
-`tickStartedAt` is already defined in this handler; confirm it is assigned before the sweep block and move its declaration up if not.
+- [ ] **Step 2b: Delete the retired constant**
+
+`route.ts` was its last reader. In `app/lib/masterConfig.ts`, delete the
+`TERMINATOR_RING_OFFSETS_DEG` export and its comment block. Confirm with:
+
+Run: `grep -rn "TERMINATOR_RING_OFFSETS_DEG" app/ --include=*.ts --include=*.tsx`
+Expected: no hits.
 
 - [ ] **Step 3: Surface the telemetry on the response**
 
@@ -911,7 +926,7 @@ Expected: PASS. If a test asserted the old response shape, update it to expect t
 
 ```bash
 git rev-parse --abbrev-ref HEAD   # must print feat/adaptive-terminator-widening
-git add app/api/cron/update-cameras/route.ts
+git add app/api/cron/update-cameras/route.ts app/lib/masterConfig.ts
 git commit -m "feat(cron): sweep extra terminator rings when a feed runs thin"
 ```
 
