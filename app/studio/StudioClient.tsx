@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLoadTerminatorWebcams } from '@/app/store/useLoadTerminatorWebcams';
 import { useTerminatorStore } from '@/app/store/useTerminatorStore';
 import { PreviewPane, type FeedView } from './PreviewPane';
@@ -17,6 +17,12 @@ import { countGatePasses, resolveGate } from '@/app/components/mosaic/gate';
 import { PANEL_PRESETS, DEFAULT_PANEL_PRESET } from '@/app/kiosk/panelPreview';
 import { poolFor } from './previewPool';
 import { restoreSceneDials } from './restoreSceneDials';
+import {
+  RAIL_WIDTH_DEFAULT,
+  clampRailWidth,
+  readStoredRailWidth,
+  writeStoredRailWidth,
+} from './railWidth';
 
 /**
  * `/studio` chrome: left rail (dial controls, Task 11) + preview + a bottom
@@ -31,8 +37,60 @@ const railBg = '#10141d';
 const railBorder = '#1d2432';
 const stripBg = '#0e1119';
 const stripBorder = '#1d2432';
+const handleHover = '#4a90d9';
 const pillBg = 'rgba(16,20,29,.85)';
 const pillBorder = '#232a38';
+
+/**
+ * Rail width, dragged from the rail's right edge and remembered per browser.
+ * Starts at the default on the server and swaps in the stored width after
+ * mount so SSR and the first client paint agree.
+ */
+function useRailWidth() {
+  const [railWidth, setRailWidth] = useState(RAIL_WIDTH_DEFAULT);
+  const [resizing, setResizing] = useState(false);
+  const dragRef = useRef<{ startX: number; startWidth: number } | null>(null);
+
+  useEffect(() => {
+    setRailWidth(readStoredRailWidth());
+  }, []);
+
+  const startResize = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      e.preventDefault();
+      dragRef.current = { startX: e.clientX, startWidth: railWidth };
+      setResizing(true);
+    },
+    [railWidth]
+  );
+
+  useEffect(() => {
+    if (!resizing) return;
+    const onMove = (e: PointerEvent) => {
+      const drag = dragRef.current;
+      if (!drag) return;
+      setRailWidth(clampRailWidth(drag.startWidth + (e.clientX - drag.startX)));
+    };
+    const onUp = () => {
+      dragRef.current = null;
+      setResizing(false);
+      setRailWidth((w) => {
+        writeStoredRailWidth(w);
+        return w;
+      });
+    };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onUp);
+    return () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
+    };
+  }, [resizing]);
+
+  return { railWidth, startResize, resizing };
+}
 
 export function StudioClient() {
   const [sceneSource, setSceneSource] = useState<SceneSource>({ kind: 'live' });
@@ -46,6 +104,7 @@ export function StudioClient() {
   const sunsetWebcams = useTerminatorStore((t) => t.sunset);
 
   const [railCollapsed, setRailCollapsed] = useState(false);
+  const { railWidth, startResize, resizing } = useRailWidth();
   const [view, setView] = useState<FeedView>('both');
 
   const sharedSettings = settingsApi.effective('shared');
@@ -95,7 +154,7 @@ export function StudioClient() {
     <div
       style={{
         display: 'grid',
-        gridTemplateColumns: railCollapsed ? '1fr' : '320px 1fr',
+        gridTemplateColumns: railCollapsed ? '1fr' : `${railWidth}px 1fr`,
         gridTemplateRows: '1fr 28px',
         height: '100vh',
         width: '100%',
@@ -114,6 +173,9 @@ export function StudioClient() {
             overflow: 'hidden',
             padding: 16,
             boxSizing: 'border-box',
+            position: 'relative',
+            // Reading the rail while dragging its edge shouldn't select text.
+            userSelect: resizing ? 'none' : undefined,
           }}
         >
           <StudioRail
@@ -126,6 +188,23 @@ export function StudioClient() {
                 onRevert={settingsApi.revert}
               />
             }
+          />
+          <div
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="resize dials"
+            title="drag to widen the dials"
+            onPointerDown={startResize}
+            style={{
+              position: 'absolute',
+              top: 0,
+              right: 0,
+              width: 6,
+              height: '100%',
+              cursor: 'col-resize',
+              background: resizing ? handleHover : 'transparent',
+              zIndex: 1,
+            }}
           />
         </aside>
       )}

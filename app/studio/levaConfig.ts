@@ -14,6 +14,7 @@ export interface LevaFolderSpec {
     {
       value: KnobValue;
       label: string; // '● floorPx' when the knob differs from live, else 'floorPx'
+      hint: string; // knob.description — leva renders it as a hover tooltip on the label
       min?: number;
       max?: number;
       step?: number; // number knobs
@@ -44,6 +45,7 @@ export function buildFolderSpecs(
       spec.controls[knob.key] = {
         value,
         label,
+        hint: knob.description,
         min: knob.min,
         max: knob.max,
         step: knob.step,
@@ -52,10 +54,11 @@ export function buildFolderSpecs(
       spec.controls[knob.key] = {
         value,
         label,
+        hint: knob.description,
         options: knob.options,
       };
     } else {
-      spec.controls[knob.key] = { value, label };
+      spec.controls[knob.key] = { value, label, hint: knob.description };
     }
   }
 
