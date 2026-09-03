@@ -60,6 +60,19 @@ export interface SweepOptions {
   ) => { sunrise: WindyWebcam[]; sunset: WindyWebcam[] };
   floor: number;
   offsets: readonly number[];
+  /**
+   * Offsets to sweep on every tick regardless of the camera floor, both feeds.
+   *
+   * The floor-based trigger asks "is a panel too empty to look at". This asks
+   * a different question: "does the pool reach the altitudes where sunsets
+   * actually happen". Good frames peak at 0 to +6 degrees solar altitude and
+   * the base ring at -13 never sees them, so the day-side ring is worth
+   * paying for even when nothing is thin. Additive to the floor trigger,
+   * never a replacement for it.
+   *
+   * Empty or absent means today's behaviour exactly.
+   */
+  forcedOffsets?: readonly number[];
   hasBudget: () => boolean;
 }
 
@@ -154,13 +167,21 @@ export async function sweepWithEscalation(
   const thinAfterBase = feedsBelowFloor(counts, opts.floor);
 
   for (const offsetDeg of opts.offsets) {
+    const forced = opts.forcedOffsets?.includes(offsetDeg) ?? false;
     const thin = feedsBelowFloor(counts, opts.floor);
-    if (thin.length === 0) break;
+    // Forced rings sweep both feeds; floor-triggered rings sweep only the
+    // thin half, which is what halves the cost of the common case.
+    const feeds: Feed[] = forced ? [...FEEDS] : thin;
+    // `continue`, not `break`. With no forced offsets the two are observably
+    // identical -- feedsBelowFloor is pure, counts have not changed, and
+    // neither path pushes a ring or sets budgetExhausted -- but `break` would
+    // skip a forced offset that sat after a non-forced one in the list.
+    if (feeds.length === 0) continue;
     if (!opts.hasBudget()) {
       budgetExhausted = true;
       break;
     }
-    await sweep(offsetDeg, thin);
+    await sweep(offsetDeg, feeds);
     counts = currentCounts();
   }
 
