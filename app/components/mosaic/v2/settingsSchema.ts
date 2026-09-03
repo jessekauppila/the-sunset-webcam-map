@@ -126,7 +126,7 @@ export const V2_SETTINGS_SCHEMA: SettingsSchema = [
   },
   {
     key: 'motionMode', kind: 'enum',
-    options: ['cut', 'tween', 'drift'] as const, default: 'cut',
+    options: ['cut', 'tween', 'drift'] as const, default: 'drift',
     label: 'motion', section: 'motion',
     description: 'cut snaps to each new composition, which is what the wall did before this section existed. tween travels between them. drift never arrives — it chases the composition continuously, so the wall is always moving and never jumps.',
   },
@@ -137,7 +137,7 @@ export const V2_SETTINGS_SCHEMA: SettingsSchema = [
     description: 'Which tile moves first. sweep runs one wave across both panels in the direction the terminator travels, so the wall reads as the world turning; latitude and magnitude are arbitrary orderings kept for comparison. Needs a stagger span to have any effect.',
   },
   {
-    key: 'motionDurationMs', kind: 'number', min: 0, max: 60_000, step: 100, default: 900,
+    key: 'motionDurationMs', kind: 'number', min: 0, max: 60_000, step: 100, default: 30_000,
     label: 'travel (ms)', section: 'motion',
     description: 'How long a tile takes to reach its new place. In drift mode this is the time constant instead: the wall closes 99.9% of the gap in this long, so a big number is what makes the movement too slow to catch.',
   },
@@ -147,7 +147,7 @@ export const V2_SETTINGS_SCHEMA: SettingsSchema = [
     description: 'Spread between the first tile to move and the last. 0 moves everything at once.',
   },
   {
-    key: 'crossfadeMs', kind: 'number', min: 0, max: 8_000, step: 100, default: 0,
+    key: 'crossfadeMs', kind: 'number', min: 0, max: 8_000, step: 100, default: 1_500,
     label: 'frame crossfade (ms)', section: 'motion',
     description: 'How long a newly published frame takes to fade up over the one it replaces. Independent of tile movement: a camera publishes roughly every ten minutes, whenever it likes.',
   },
