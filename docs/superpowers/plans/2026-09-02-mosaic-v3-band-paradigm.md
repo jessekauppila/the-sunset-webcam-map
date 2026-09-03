@@ -22,7 +22,9 @@
 - **Do not chase the small-to-large-to-small arc.** Spec §1 states v3 cannot produce it on today's pool; that is the sibling spec's job.
 - **Do not migrate `webcam_snapshots.captured_at` to `timestamptz`.** Spec §2 investigated and closed that question. The timestamps are correct.
 - **`compose()` is pure.** No module-level state, no clock reads, no hooks inside `app/components/mosaic/v3/engine/`. State and clock arrive as arguments.
-- Run `npm run test` (vitest) for tests, `npm run lint` and `npx tsc --noEmit` before the final commit of each task.
+- Run `npm run test` (vitest) for tests and `npm run lint` before the final commit of each task.
+- **Do not use `npx tsc --noEmit` as a gate.** It reports 185 pre-existing errors on `main`, all in test files whose jest-dom matchers are not wired into `tsconfig.json`. Typecheck with `npm run build` instead, which is what checks app code here. Measured 2026-09-02.
+- **Never `git stash` or `git checkout` another branch.** Other sessions' uncommitted files live in this checkout and a stash sweeps them up.
 - Exact default values, copied from the spec: `hysteresisMargin` `0.05`, `minDwellMs` `90000`, `axisNightEdgeDeg` `-24`, `axisDayEdgeDeg` `-2`.
 
 ---
