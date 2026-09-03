@@ -82,9 +82,15 @@ boots/config → `snap-now.sh` on the device.
 
 ## Where knowledge lives
 
-`docs/solutions/` holds accumulated lessons; also `docs/ops/`, `docs/ml/`
+`docs/solutions/` holds accumulated lessons, filed by category
+(`integration-issues/`, `best-practices/`, …) with YAML frontmatter — grep
+`module:`, `tags:`, or `problem_type:` to find one. Also `docs/ops/`, `docs/ml/`
 (incl. `rating-rubric.md`), `docs/hardware/`, `docs/plans/`. Check there before
 re-deriving something.
+
+`CONCEPTS.md` at the repo root is the shared domain vocabulary — the display
+chain (Feed, Pool, Gate, Mosaic, Composition, Tile, Glass, Dial) — relevant when
+orienting or naming things.
 
 The repo root has accumulated a lot of loose planning `.md` files — treat
 `docs/` as authoritative over root-level notes.
