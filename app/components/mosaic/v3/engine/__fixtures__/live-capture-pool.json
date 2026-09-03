@@ -1,0 +1,575 @@
+{
+ "label": "first live capture",
+ "representsAt": "2026-08-31T18:27:18.396Z",
+ "sunrise": [
+  {
+   "webcamId": 2921342,
+   "latitude": 63.92419,
+   "longitude": 127.48329,
+   "previewWidth": 400,
+   "previewHeight": 224,
+   "aiRatingBinary": 1,
+   "aiRatingRegression": 4.04
+  },
+  {
+   "webcamId": 3923636,
+   "latitude": 61.9726,
+   "longitude": 129.6472,
+   "previewWidth": 400,
+   "previewHeight": 224,
+   "aiRatingBinary": 1,
+   "aiRatingRegression": 3.62
+  },
+  {
+   "webcamId": 29440216,
+   "latitude": 60.71867,
+   "longitude": 114.94047,
+   "previewWidth": 400,
+   "previewHeight": 224,
+   "aiRatingBinary": 1.08,
+   "aiRatingRegression": 2.88
+  },
+  {
+   "webcamId": 28862758,
+   "latitude": 60.42041,
+   "longitude": 134.55784,
+   "previewWidth": 400,
+   "previewHeight": 224,
+   "aiRatingBinary": 1,
+   "aiRatingRegression": 1.05
+  },
+  {
+   "webcamId": 28847767,
+   "latitude": 60.37437,
+   "longitude": 120.45389,
+   "previewWidth": 320,
+   "previewHeight": 224,
+   "aiRatingBinary": 1,
+   "aiRatingRegression": 3.64
+  },
+  {
+   "webcamId": 28802944,
+   "latitude": 57.783,
+   "longitude": 108.11164,
+   "previewWidth": 355,
+   "previewHeight": 224,
+   "aiRatingBinary": 1.07,
+   "aiRatingRegression": 3.37
+  },
+  {
+   "webcamId": 2988,
+   "latitude": 50.73371,
+   "longitude": 136.53438,
+   "previewWidth": 400,
+   "previewHeight": 224,
+   "aiRatingBinary": 1.03,
+   "aiRatingRegression": 3.17
+  },
+  {
+   "webcamId": 3663,
+   "latitude": 49.78731,
+   "longitude": 129.40683,
+   "previewWidth": 400,
+   "previewHeight": 224,
+   "aiRatingBinary": 1,
+   "aiRatingRegression": 1.98
+  },
+  {
+   "webcamId": 28484517,
+   "latitude": 45.27736,
+   "longitude": 141.04111,
+   "previewWidth": 400,
+   "previewHeight": 224,
+   "aiRatingBinary": 1.01,
+   "aiRatingRegression": 3.55
+  },
+  {
+   "webcamId": 28794621,
+   "latitude": 44.12548,
+   "longitude": 143.97051,
+   "previewWidth": 400,
+   "previewHeight": 224,
+   "aiRatingBinary": 1.02,
+   "aiRatingRegression": 2.65
+  },
+  {
+   "webcamId": 10081819,
+   "latitude": 42.42234,
+   "longitude": 139.84455,
+   "previewWidth": 400,
+   "previewHeight": 224,
+   "aiRatingBinary": 1,
+   "aiRatingRegression": 1.96
+  },
+  {
+   "webcamId": 28982060,
+   "latitude": 39.32624,
+   "longitude": 141.52749,
+   "previewWidth": 400,
+   "previewHeight": 224,
+   "aiRatingBinary": 1.02,
+   "aiRatingRegression": 2.69
+  },
+  {
+   "webcamId": 85453,
+   "latitude": -16.25175,
+   "longitude": 168.11623,
+   "previewWidth": 400,
+   "previewHeight": 224,
+   "aiRatingBinary": 1,
+   "aiRatingRegression": 4.29
+  },
+  {
+   "webcamId": 106964,
+   "latitude": -19.53148,
+   "longitude": 169.44798,
+   "previewWidth": 400,
+   "previewHeight": 224,
+   "aiRatingBinary": 1,
+   "aiRatingRegression": 3.45
+  },
+  {
+   "webcamId": 1336,
+   "latitude": -21.61667,
+   "longitude": 165.45,
+   "previewWidth": 400,
+   "previewHeight": 224,
+   "aiRatingBinary": 1,
+   "aiRatingRegression": 3.22
+  },
+  {
+   "webcamId": 1165,
+   "latitude": -29.03535,
+   "longitude": 167.941,
+   "previewWidth": 400,
+   "previewHeight": 224,
+   "aiRatingBinary": 3.51,
+   "aiRatingRegression": 2.7
+  },
+  {
+   "webcamId": 4584560,
+   "latitude": -31.54092,
+   "longitude": 159.06059,
+   "previewWidth": 400,
+   "previewHeight": 224,
+   "aiRatingBinary": 1,
+   "aiRatingRegression": 2.95
+  },
+  {
+   "webcamId": 20437397,
+   "latitude": -35.26282,
+   "longitude": 173.91278,
+   "previewWidth": 400,
+   "previewHeight": 224,
+   "aiRatingBinary": 4.99,
+   "aiRatingRegression": 2.35
+  },
+  {
+   "webcamId": 29182100,
+   "latitude": -41.17432,
+   "longitude": 173.05206,
+   "previewWidth": 400,
+   "previewHeight": 224,
+   "aiRatingBinary": 1.13,
+   "aiRatingRegression": 1.44
+  },
+  {
+   "webcamId": 28818598,
+   "latitude": -45.8505,
+   "longitude": 170.51377,
+   "previewWidth": 400,
+   "previewHeight": 224,
+   "aiRatingBinary": 1.29,
+   "aiRatingRegression": 2.35
+  },
+  {
+   "webcamId": 1854,
+   "latitude": -54.49882,
+   "longitude": 158.93872,
+   "previewWidth": 400,
+   "previewHeight": 224,
+   "aiRatingBinary": 1,
+   "aiRatingRegression": 3.01
+  }
+ ],
+ "sunset": [
+  {
+   "webcamId": 155,
+   "latitude": -80.90542,
+   "longitude": 21.22269,
+   "previewWidth": 400,
+   "previewHeight": 224,
+   "aiRatingBinary": 1,
+   "aiRatingRegression": 2.7
+  },
+  {
+   "webcamId": 21846,
+   "latitude": -72.01121,
+   "longitude": 2.53722,
+   "previewWidth": 400,
+   "previewHeight": 224,
+   "aiRatingBinary": 1,
+   "aiRatingRegression": 1.42
+  },
+  {
+   "webcamId": 333,
+   "latitude": -70.82251,
+   "longitude": 11.64445,
+   "previewWidth": 400,
+   "previewHeight": 224,
+   "aiRatingBinary": 1.03,
+   "aiRatingRegression": 3.13
+  },
+  {
+   "webcamId": 4582505,
+   "latitude": -22.68076,
+   "longitude": 14.52043,
+   "previewWidth": 400,
+   "previewHeight": 224,
+   "aiRatingBinary": 1.71,
+   "aiRatingRegression": 4.12
+  },
+  {
+   "webcamId": 422,
+   "latitude": 33.63936,
+   "longitude": 11.00787,
+   "previewWidth": 400,
+   "previewHeight": 224,
+   "aiRatingBinary": 1.73,
+   "aiRatingRegression": 2.2
+  },
+  {
+   "webcamId": 2929847,
+   "latitude": 35.23808,
+   "longitude": 23.63025,
+   "previewWidth": 400,
+   "previewHeight": 224,
+   "aiRatingBinary": 1,
+   "aiRatingRegression": 3.37
+  },
+  {
+   "webcamId": 29169387,
+   "latitude": 38.00233,
+   "longitude": 15.31705,
+   "previewWidth": 400,
+   "previewHeight": 224,
+   "aiRatingBinary": 1.08,
+   "aiRatingRegression": 1.99
+  },
+  {
+   "webcamId": 20868788,
+   "latitude": 38.02464,
+   "longitude": 23.83322,
+   "previewWidth": 400,
+   "previewHeight": 224,
+   "aiRatingBinary": 1.03,
+   "aiRatingRegression": 3.65
+  },
+  {
+   "webcamId": 28820838,
+   "latitude": 40.05501,
+   "longitude": 17.97404,
+   "previewWidth": 400,
+   "previewHeight": 224,
+   "aiRatingBinary": 1.06,
+   "aiRatingRegression": 3.1
+  },
+  {
+   "webcamId": 6257085,
+   "latitude": 41.34966,
+   "longitude": 26.49691,
+   "previewWidth": 400,
+   "previewHeight": 224,
+   "aiRatingBinary": 1.03,
+   "aiRatingRegression": 4.08
+  },
+  {
+   "webcamId": 29258520,
+   "latitude": 41.94023,
+   "longitude": 13.882,
+   "previewWidth": 400,
+   "previewHeight": 224,
+   "aiRatingBinary": 1.07,
+   "aiRatingRegression": 2.86
+  },
+  {
+   "webcamId": 28863768,
+   "latitude": 42.1817,
+   "longitude": 21.0331,
+   "previewWidth": 400,
+   "previewHeight": 224,
+   "aiRatingBinary": 1.03,
+   "aiRatingRegression": 2.83
+  },
+  {
+   "webcamId": 28765915,
+   "latitude": 43.87422,
+   "longitude": 28.60257,
+   "previewWidth": 400,
+   "previewHeight": 224,
+   "aiRatingBinary": 1.01,
+   "aiRatingRegression": 2.71
+  },
+  {
+   "webcamId": 29130636,
+   "latitude": 44.02111,
+   "longitude": 23.34468,
+   "previewWidth": 400,
+   "previewHeight": 224,
+   "aiRatingBinary": 3.21,
+   "aiRatingRegression": 2.47
+  },
+  {
+   "webcamId": 28791093,
+   "latitude": 45.09903,
+   "longitude": 15.35532,
+   "previewWidth": 400,
+   "previewHeight": 224,
+   "aiRatingBinary": 1.01,
+   "aiRatingRegression": 2.56
+  },
+  {
+   "webcamId": 29097983,
+   "latitude": 45.22589,
+   "longitude": 19.85809,
+   "previewWidth": 400,
+   "previewHeight": 224,
+   "aiRatingBinary": 3.91,
+   "aiRatingRegression": 3.47
+  },
+  {
+   "webcamId": 5423374,
+   "latitude": 46.57659,
+   "longitude": 26.91732,
+   "previewWidth": 400,
+   "previewHeight": 224,
+   "aiRatingBinary": 1,
+   "aiRatingRegression": 3.34
+  },
+  {
+   "webcamId": 29197594,
+   "latitude": 47.34572,
+   "longitude": 12.76841,
+   "previewWidth": 400,
+   "previewHeight": 224,
+   "aiRatingBinary": 1.06,
+   "aiRatingRegression": 3.49
+  },
+  {
+   "webcamId": 29053542,
+   "latitude": 49.55101,
+   "longitude": 22.21241,
+   "previewWidth": 400,
+   "previewHeight": 224,
+   "aiRatingBinary": 1.02,
+   "aiRatingRegression": 2.35
+  },
+  {
+   "webcamId": 17568819,
+   "latitude": 51.52756,
+   "longitude": 46.05968,
+   "previewWidth": 400,
+   "previewHeight": 224,
+   "aiRatingBinary": 1.01,
+   "aiRatingRegression": 3.05
+  },
+  {
+   "webcamId": 16360,
+   "latitude": 51.72993,
+   "longitude": 36.13269,
+   "previewWidth": 400,
+   "previewHeight": 224,
+   "aiRatingBinary": 1.06,
+   "aiRatingRegression": 2
+  },
+  {
+   "webcamId": 15431403,
+   "latitude": 51.84644,
+   "longitude": 19.41426,
+   "previewWidth": 300,
+   "previewHeight": 200,
+   "aiRatingBinary": 1.13,
+   "aiRatingRegression": 2.38
+  },
+  {
+   "webcamId": 6315601,
+   "latitude": 52.1115,
+   "longitude": 26.1006,
+   "previewWidth": 400,
+   "previewHeight": 224,
+   "aiRatingBinary": 1.11,
+   "aiRatingRegression": 3.13
+  },
+  {
+   "webcamId": 28840967,
+   "latitude": 52.76139,
+   "longitude": 39.66944,
+   "previewWidth": 400,
+   "previewHeight": 224,
+   "aiRatingBinary": 1.27,
+   "aiRatingRegression": 4.01
+  },
+  {
+   "webcamId": 28984151,
+   "latitude": 53.79727,
+   "longitude": 21.56439,
+   "previewWidth": 400,
+   "previewHeight": 224,
+   "aiRatingBinary": 1,
+   "aiRatingRegression": 2.2
+  },
+  {
+   "webcamId": 29021741,
+   "latitude": 54.50691,
+   "longitude": 36.25338,
+   "previewWidth": 400,
+   "previewHeight": 224,
+   "aiRatingBinary": 1.06,
+   "aiRatingRegression": 2.85
+  },
+  {
+   "webcamId": 28916295,
+   "latitude": 54.69324,
+   "longitude": 25.27467,
+   "previewWidth": 400,
+   "previewHeight": 224,
+   "aiRatingBinary": 1,
+   "aiRatingRegression": 2.56
+  },
+  {
+   "webcamId": 28629957,
+   "latitude": 55.50497,
+   "longitude": 47.46374,
+   "previewWidth": 400,
+   "previewHeight": 224,
+   "aiRatingBinary": 3.2,
+   "aiRatingRegression": 3.98
+  },
+  {
+   "webcamId": 28788928,
+   "latitude": 55.99959,
+   "longitude": 21.07392,
+   "previewWidth": 400,
+   "previewHeight": 224,
+   "aiRatingBinary": 5,
+   "aiRatingRegression": 3.55
+  },
+  {
+   "webcamId": 25604272,
+   "latitude": 56.22174,
+   "longitude": 32.7706,
+   "previewWidth": 400,
+   "previewHeight": 224,
+   "aiRatingBinary": 1.01,
+   "aiRatingRegression": 2.69
+  },
+  {
+   "webcamId": 28615436,
+   "latitude": 56.35759,
+   "longitude": 41.2937,
+   "previewWidth": 400,
+   "previewHeight": 224,
+   "aiRatingBinary": 1,
+   "aiRatingRegression": 2.48
+  },
+  {
+   "webcamId": 28954453,
+   "latitude": 56.73545,
+   "longitude": 37.16243,
+   "previewWidth": 400,
+   "previewHeight": 224,
+   "aiRatingBinary": 1,
+   "aiRatingRegression": 2.54
+  },
+  {
+   "webcamId": 24204639,
+   "latitude": 57.17988,
+   "longitude": 24.81857,
+   "previewWidth": 400,
+   "previewHeight": 224,
+   "aiRatingBinary": 1.02,
+   "aiRatingRegression": 3.65
+  },
+  {
+   "webcamId": 4157615,
+   "latitude": 58.09846,
+   "longitude": 57.79386,
+   "previewWidth": 400,
+   "previewHeight": 224,
+   "aiRatingBinary": 1,
+   "aiRatingRegression": 2.42
+  },
+  {
+   "webcamId": 13611,
+   "latitude": 59.76403,
+   "longitude": 60.19521,
+   "previewWidth": 400,
+   "previewHeight": 224,
+   "aiRatingBinary": 1,
+   "aiRatingRegression": 2.97
+  },
+  {
+   "webcamId": 94,
+   "latitude": 59.85718,
+   "longitude": 38.36641,
+   "previewWidth": 400,
+   "previewHeight": 224,
+   "aiRatingBinary": 1.94,
+   "aiRatingRegression": 3.67
+  },
+  {
+   "webcamId": 7400374,
+   "latitude": 59.92343,
+   "longitude": 30.2417,
+   "previewWidth": 400,
+   "previewHeight": 224,
+   "aiRatingBinary": 1.18,
+   "aiRatingRegression": 2.59
+  },
+  {
+   "webcamId": 15140,
+   "latitude": 61.32192,
+   "longitude": 47.16696,
+   "previewWidth": 400,
+   "previewHeight": 224,
+   "aiRatingBinary": 1,
+   "aiRatingRegression": 3.09
+  },
+  {
+   "webcamId": 12669,
+   "latitude": 63.71596,
+   "longitude": 66.66662,
+   "previewWidth": 400,
+   "previewHeight": 224,
+   "aiRatingBinary": 1.05,
+   "aiRatingRegression": 3.79
+  },
+  {
+   "webcamId": 2928830,
+   "latitude": 65.99423,
+   "longitude": 57.54698,
+   "previewWidth": 400,
+   "previewHeight": 224,
+   "aiRatingBinary": 1,
+   "aiRatingRegression": 2.23
+  },
+  {
+   "webcamId": 12761,
+   "latitude": 67.47017,
+   "longitude": 64.02626,
+   "previewWidth": 400,
+   "previewHeight": 224,
+   "aiRatingBinary": 1,
+   "aiRatingRegression": 3.61
+  },
+  {
+   "webcamId": 2944099,
+   "latitude": 67.6128,
+   "longitude": 33.75069,
+   "previewWidth": 400,
+   "previewHeight": 224,
+   "aiRatingBinary": 1,
+   "aiRatingRegression": 2.09
+  }
+ ]
+}
