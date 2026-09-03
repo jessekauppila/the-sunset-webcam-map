@@ -105,6 +105,16 @@ export const V3_SETTINGS_SCHEMA: SettingsSchema = [
     description: 'Latitude mapped to the bottom of the panel.',
   },
   {
+    key: 'axisNightEdgeDeg', kind: 'number', min: -40, max: 0, step: 0.5, default: -24,
+    label: 'night edge (deg)', section: 'arrangement',
+    description: 'Solar altitude at the deep-twilight edge of the panel. Frames deeper than this clamp to the edge rather than widening the axis.',
+  },
+  {
+    key: 'axisDayEdgeDeg', kind: 'number', min: -30, max: 20, step: 0.5, default: -2,
+    label: 'day edge (deg)', section: 'arrangement',
+    description: 'Solar altitude at the day-side edge of the panel. Narrowing the window spreads a pool that crowds into one third of the glass; widening it past what the sweep gathers just leaves dead space.',
+  },
+  {
     key: 'showFeedLabel', kind: 'boolean', default: true,
     label: 'feed label', section: 'overlays',
     description: 'SUNRISE / SUNSET title across the top.',

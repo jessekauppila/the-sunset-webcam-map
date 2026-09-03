@@ -50,6 +50,23 @@ export const TERMINATOR_CAMERA_FLOOR = 15;
 // live measurement of a new offset.
 export const TERMINATOR_WIDEN_OFFSETS_DEG = [15.75, -15.75] as const;
 
+// The solar-altitude range the terminator sweep actually gathers, as the
+// UNION of every ring swept. This is the one contract between the pool and
+// the display: a camera the sweep found must have somewhere on the panel to
+// be, and `app/components/mosaic/v3/engine/axis.test.ts` asserts the mosaic's
+// display window covers this range.
+//
+// Today only the base ring sweeps unconditionally, so the union is the base
+// ring alone: -24 to -2. The escalation rings in TERMINATOR_WIDEN_OFFSETS_DEG
+// only fire under TERMINATOR_CAMERA_FLOOR and are NOT counted here. The
+// pool-coverage plan owns widening this value alongside the rings it turns
+// on; widening it without moving the v3 axis dials is exactly what that test
+// exists to catch.
+export const POOL_ALTITUDE_COVERAGE_DEG = {
+  min: TERMINATOR_SUN_ALTITUDE_DEG - SEARCH_RADIUS_DEG,
+  max: TERMINATOR_SUN_ALTITUDE_DEG + SEARCH_RADIUS_DEG,
+} as const;
+
 // Wall-clock budget for the whole terminator sweep (base ring + any
 // escalation rings), in milliseconds. The scoring loop that follows needs
 // the remaining tick more than the pool needs extra cameras, so escalation
