@@ -233,7 +233,9 @@ function summaryWithDayRing(): SweepDigestSummary {
     sunsetThinTicks: 12,
     escalationBoxes: 2880,
     escalationMs: 960_000,
-    rings: [ringStat(0), ringStat(15.75)],
+    // Desc by offset_deg, like getSweepDigestSummary's real ORDER BY — a
+    // base-first fixture here would mask the i===0 ring-labeling bug (M4).
+    rings: [ringStat(15.75), ringStat(0)],
   };
 }
 
@@ -286,7 +288,7 @@ describe('formatSweepLine', () => {
     expect(formatSweepLine(null)).toBe('');
   });
 
-  it('collapses a quiet day to one clause', () => {
+  it('prints only the summary and efficiency lines on a quiet day', () => {
     const html = formatSweepLine(quiet);
     expect(html).toContain('no feed fell under the floor');
     expect(html).toContain('2,976');
@@ -301,6 +303,37 @@ describe('formatSweepLine', () => {
     expect(formatSweepLine(summaryWithDayRing())).toContain('-24° to +14°');
   });
 
+  it('shows a partial-escalation ring share against the base ring\'s ticks, not just the full-day hull', () => {
+    // Base ran all 96 ticks; the day-side ring ran only 12 of them. The span
+    // alone would print the same "-24° to +14°" as a day where +15.75 ran
+    // every tick, which over-claims how much of the day it actually covered.
+    const html = formatSweepLine({
+      ...quiet,
+      escalatedTicks: 12,
+      sunsetThinTicks: 12,
+      escalationBoxes: 180,
+      rings: [
+        quiet.rings[0], // base, ringsSwept: 96
+        {
+          offsetDeg: 15.75,
+          ringsSwept: 12,
+          boxesAttempted: 180,
+          boxesEmpty: 20,
+          boxesFailed: 0,
+          newWebcams: 45,
+          framesScored: 40,
+          framesGatePassed: 4,
+          elapsedMs: 60_000,
+        },
+      ],
+    });
+    expect(html).toContain('12/96 ticks');
+  });
+
+  it('prints no ticks-share parenthetical on a base-only day', () => {
+    expect(formatSweepLine(summaryBaseOnly())).not.toContain('ticks)');
+  });
+
   it('prints the widening bill as seconds and frames, not just boxes', () => {
     const html = formatSweepLine(summaryWithDayRing());
     expect(html).toContain('Widening cost');
@@ -312,7 +345,7 @@ describe('formatSweepLine', () => {
     // gate-passed frame as the base ring is the one to narrow or drop, and
     // that ratio is invisible in any total.
     const html = formatSweepLine(summaryWithDayRing());
-    expect(html).toContain('per gate-passed');
+    expect(html).toContain('Per gate-passed');
   });
 
   it('says nothing about widening cost when nothing escalated', () => {

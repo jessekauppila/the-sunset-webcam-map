@@ -84,7 +84,10 @@ export function sweptAltitudeSpan(
   );
 }
 
-/** `-24° to +14°`. Rounded outward, so the printed band never overstates. */
+/**
+ * `-24° to +14°`. Rounded outward to whole degrees; the printed band may
+ * overstate by under 1° and never understates.
+ */
 function formatSpan(span: { min: number; max: number }): string {
   const lo = Math.floor(span.min);
   const hi = Math.ceil(span.max);
@@ -143,7 +146,26 @@ export function formatSweepLine(summary: SweepDigestSummary | null): string {
   );
 
   const span = sweptAltitudeSpan(s.rings);
-  if (span) parts.push(`swept ${formatSpan(span)} solar altitude`);
+  if (span) {
+    // The span alone over-claims on a partial-escalation day: one ring that
+    // ran a single tick prints the same band as one that ran all day. The
+    // parenthetical says how many of the base ring's ticks each other ring
+    // actually shared, against the base ring's ringsSwept.
+    const base = s.rings.find((r) => r.offsetDeg === 0);
+    const shares = base
+      ? s.rings
+          .filter((r) => r.offsetDeg !== 0)
+          .map(
+            (r) => `${ringLabel(r.offsetDeg)} on ${r.ringsSwept}/${base.ringsSwept} ticks`,
+          )
+          .join(', ')
+      : '';
+    parts.push(
+      shares
+        ? `swept ${formatSpan(span)} solar altitude (${shares})`
+        : `swept ${formatSpan(span)} solar altitude`,
+    );
+  }
 
   if (s.budgetExhaustedTicks > 0) {
     parts.push(`${s.budgetExhaustedTicks} ticks hit the sweep budget`);
@@ -167,6 +189,10 @@ export function formatSweepLine(summary: SweepDigestSummary | null): string {
   // multiplying boxes by a rate would mean inventing the rate. What widening
   // provably consumes is function wall-clock and scoring work, and both are
   // measured here.
+  // Rows written before the timing migration have elapsed_ms = 0 alongside a
+  // non-zero escalationBoxes, so this gate silently omits the Widening cost
+  // line for those days. Acceptable: it only means pre-migration days don't
+  // get the section, not that they print a wrong number.
   if (s.escalationMs > 0) {
     const escalationMin = s.escalationMs / 60_000;
     const escalationFrames = s.rings
@@ -195,14 +221,14 @@ export function formatSweepLine(summary: SweepDigestSummary | null): string {
       ` + ${secondsEach.toFixed(1)}s`
     );
   });
-  lines.push(`per gate-passed frame: ${efficiency.join(' · ')}`);
+  lines.push(`Per gate-passed frame: ${efficiency.join(' · ')}`);
 
   if (s.rings.length > 1) {
-    const ringClauses = s.rings.map((r, i) => {
+    const ringClauses = s.rings.map((r) => {
       const rate =
         r.framesScored > 0
           ? `${r.framesGatePassed}/${r.framesScored}${
-              i === 0 ? ' gate-passed' : ''
+              r.offsetDeg === 0 ? ' gate-passed' : ''
             } (${pct(r.framesGatePassed, r.framesScored)}%)`
           : `${count(r.newWebcams)} new, unscored`;
       return `${ringLabel(r.offsetDeg)} ${rate}`;

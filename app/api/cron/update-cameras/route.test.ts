@@ -108,6 +108,21 @@ vi.mock('./lib/sweepStats', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./lib/sweepStats')>()),
   upsertSweepStats: (...a: unknown[]) => upsertSweepStatsMock(...a),
 }));
+const upsertSweepGeometryMock = vi.fn();
+// Only the write is stubbed. sweepGeometry stays real (it reads only
+// masterConfig constants, no DB) so the assertion below checks REAL output —
+// a regression that drops forcedOffsets from the geometry record would
+// otherwise break no test.
+vi.mock('./lib/sweepGeometry', async () => {
+  const actual =
+    await vi.importActual<typeof import('./lib/sweepGeometry')>(
+      './lib/sweepGeometry',
+    );
+  return {
+    ...actual,
+    upsertSweepGeometry: (...a: unknown[]) => upsertSweepGeometryMock(...a),
+  };
+});
 const sendDailyUsageDigestMock = vi.fn();
 vi.mock('./lib/dailyDigest', () => ({
   sendDailyUsageDigest: (...a: unknown[]) => sendDailyUsageDigestMock(...a),
@@ -188,6 +203,7 @@ beforeEach(() => {
   captureProviderUsageDailyMock.mockReset().mockResolvedValue({ captured: 0 });
   sendDailyUsageDigestMock.mockReset().mockResolvedValue({ sent: true });
   upsertSweepStatsMock.mockReset().mockResolvedValue(undefined);
+  upsertSweepGeometryMock.mockReset().mockResolvedValue(undefined);
   setCachedMock.mockReset().mockResolvedValue(undefined);
   markKioskTickRanMock.mockReset().mockResolvedValue(undefined);
   fetchTerminatorWebcamsMock.mockReset().mockResolvedValue([]);
@@ -565,6 +581,10 @@ describe('GET /api/cron/update-cameras', () => {
     const body = await res.json();
     expect(body.forcedDayRing).toBe(false);
     expect(body.sweep.rings).toHaveLength(1);
+    expect(upsertSweepGeometryMock).toHaveBeenCalledTimes(1);
+    expect(upsertSweepGeometryMock.mock.calls[0][1]).toMatchObject({
+      forcedOffsetsDeg: '',
+    });
   });
 
   it('sweeps the day-side ring on a healthy tick when the switch is on', async () => {
@@ -575,6 +595,10 @@ describe('GET /api/cron/update-cameras', () => {
     expect(body.sweep.rings.map((r: { offsetDeg: number }) => r.offsetDeg))
       .toEqual([0, 15.75]);
     expect(body.sweep.rings[1].feedsSwept).toEqual(['sunrise', 'sunset']);
+    expect(upsertSweepGeometryMock).toHaveBeenCalledTimes(1);
+    expect(upsertSweepGeometryMock.mock.calls[0][1]).toMatchObject({
+      forcedOffsetsDeg: '15.75',
+    });
   });
 
   describe('terminator sweep telemetry', () => {

@@ -91,13 +91,14 @@ export async function GET(req: Request) {
   const now = new Date();
   const { raHours, gmstHours } = subsolarPoint(now);
 
+  const tickStartedAt = Date.now();
+
   // Read per tick, so the operator can bring the spending back down without a
   // redeploy. Fails closed inside isFlagEnabled: an unreachable database
   // gives today's behaviour, never extra cost.
   const forcedDayRing = await isFlagEnabled(SWEEP_FORCE_DAY_RING);
   const forcedOffsets = forcedDayRing ? TERMINATOR_DAY_SIDE_OFFSETS_DEG : [];
 
-  const tickStartedAt = Date.now();
   const sweep = await sweepWithEscalation({
     buildRing: (offsetDeg) => {
       const r = createTerminatorQueryRing(

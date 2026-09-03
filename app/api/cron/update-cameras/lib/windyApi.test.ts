@@ -38,7 +38,7 @@ describe('fetchCoordsCounted', () => {
     vi.stubGlobal('fetch', vi.fn(async (url: string) => {
       // Boxes centred on lng 99 answer with one webcam; everything else 400s.
       if (url.includes('westLon=88')) {
-        return { ok: true, json: async () => [{ webcamId: 1, location: {} }] };
+        return { ok: true, status: 200, json: async () => [{ webcamId: 1, location: {} }] };
       }
       return { ok: false, status: 400, statusText: 'Bad Request' };
     }));
