@@ -218,6 +218,7 @@ export function StudioClient() {
           diffCount={settingsApi.diffCount}
           sunrisePass={sunrisePass}
           sunsetPass={sunsetPass}
+          droppedKeys={settingsApi.droppedKeys}
         />
       </div>
     </div>

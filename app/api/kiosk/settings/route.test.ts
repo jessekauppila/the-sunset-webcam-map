@@ -155,7 +155,47 @@ describe('PATCH /api/kiosk/settings', () => {
     expect(res.status).toBe(200);
     expect(putStudioNamespaceMock).toHaveBeenCalledWith('v1', { floorPx: 800 });
     const body = await res.json();
-    expect(body).toEqual({ revision: 2 });
+    expect(body.revision).toBe(2);
+  });
+
+  it('names a posted key the schema does not know, so an undeployed dial is not swallowed', async () => {
+    requireOwnerMock.mockResolvedValueOnce(null);
+    putStudioNamespaceMock.mockResolvedValueOnce(3);
+
+    const res = await PATCH(
+      reqPatch({ namespace: 'v1', values: { floorPx: 200, motionMode: 'drift' } }),
+    );
+    const body = await res.json();
+    expect(body.dropped).toEqual([{ key: 'motionMode', reason: 'unknown' }]);
+  });
+
+  it('still stores the values that did survive alongside the warning', async () => {
+    requireOwnerMock.mockResolvedValueOnce(null);
+    putStudioNamespaceMock.mockResolvedValueOnce(3);
+
+    await PATCH(reqPatch({ namespace: 'v1', values: { floorPx: 200, motionMode: 'drift' } }));
+    expect(putStudioNamespaceMock).toHaveBeenCalledWith('v1', { floorPx: 200 });
+  });
+
+  it('warns on the server so a dropped key is greppable in the deploy logs', async () => {
+    requireOwnerMock.mockResolvedValueOnce(null);
+    putStudioNamespaceMock.mockResolvedValueOnce(3);
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    await PATCH(reqPatch({ namespace: 'v1', values: { motionMode: 'drift' } }));
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('motionMode'),
+    );
+    warn.mockRestore();
+  });
+
+  it('omits the warning entirely when every posted key survived', async () => {
+    requireOwnerMock.mockResolvedValueOnce(null);
+    putStudioNamespaceMock.mockResolvedValueOnce(4);
+
+    const res = await PATCH(reqPatch({ namespace: 'v1', values: { floorPx: 200 } }));
+    const body = await res.json();
+    expect(body).toEqual({ revision: 4 });
   });
 
   it('strips defaults: omits values equal to schema defaults', async () => {

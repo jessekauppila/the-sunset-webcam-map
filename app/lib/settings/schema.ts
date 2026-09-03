@@ -100,3 +100,28 @@ export function diffKeys(
   }
   return keys;
 }
+
+export type DroppedKey = { key: string; reason: 'unknown' | 'invalid' };
+
+/**
+ * The keys a caller posted that `sanitizeValues` will silently discard.
+ *
+ * Sanitizing is deliberately quiet so a stale stored blob cannot poison a
+ * profile, but that same silence hides the case where a dial is posted
+ * against a build whose schema predates it: the value vanishes, the studio
+ * row never changes, and Deploy goes on truthfully reporting "in sync with
+ * glass" about a setting the glass has never been told. Callers use this to
+ * say so out loud. A clamped number is not dropped — the value survives.
+ */
+export function droppedKeys(schema: SettingsSchema, input: unknown): DroppedKey[] {
+  if (typeof input !== 'object' || input === null || Array.isArray(input)) return [];
+  const raw = input as Record<string, unknown>;
+  const known = new Set(schema.map((knob) => knob.key));
+  const survived = sanitizeValues(schema, input);
+  const out: DroppedKey[] = [];
+  for (const key of Object.keys(raw)) {
+    if (key in survived) continue;
+    out.push({ key, reason: known.has(key) ? 'invalid' : 'unknown' });
+  }
+  return out;
+}

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  schemaDefaults, sanitizeValues, stripDefaults, mergeSettings, diffKeys,
+  schemaDefaults, sanitizeValues, stripDefaults, mergeSettings, diffKeys, droppedKeys,
   type SettingsSchema,
 } from './schema';
 
@@ -68,5 +68,25 @@ describe('diffKeys', () => {
   });
   it('treats an explicit default and an absent key as identical', () => {
     expect(diffKeys(SCHEMA, { floorPx: 100 }, {})).toEqual([]);
+  });
+});
+
+describe('droppedKeys', () => {
+  it('flags a key the schema has never heard of, which is what an undeployed dial looks like', () => {
+    expect(droppedKeys(SCHEMA, { floorPx: 140, motionMode: 'drift' })).toEqual([
+      { key: 'motionMode', reason: 'unknown' },
+    ]);
+  });
+  it('flags a known key whose value could not survive sanitizing', () => {
+    expect(droppedKeys(SCHEMA, { activeVersion: 'v9' })).toEqual([
+      { key: 'activeVersion', reason: 'invalid' },
+    ]);
+  });
+  it('says nothing when every posted key survives, clamping included', () => {
+    expect(droppedKeys(SCHEMA, { floorPx: 5000, cullOverflow: false })).toEqual([]);
+  });
+  it('says nothing for input that was never an object', () => {
+    expect(droppedKeys(SCHEMA, null)).toEqual([]);
+    expect(droppedKeys(SCHEMA, [1, 2])).toEqual([]);
   });
 });
