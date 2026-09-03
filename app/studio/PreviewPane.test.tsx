@@ -27,16 +27,19 @@ global.ResizeObserver = StubResizeObserver;
 
 let capturedFeeds: string[] = [];
 let capturedAt: Array<string | number | undefined> = [];
+const capturedPeers = new Map<string, Array<{ webcamId: number }>>();
 
 vi.mock('@/app/components/mosaic/registry', () => ({
   resolveMosaic: () =>
     (props: {
       feed: string;
       webcams: Array<{ webcamId: number }>;
+      peerWebcams?: Array<{ webcamId: number }>;
       at?: string | number;
     }) => {
       capturedFeeds.push(props.feed);
       capturedAt.push(props.at);
+      capturedPeers.set(props.feed, props.peerWebcams ?? []);
       return (
         <div data-testid={`mosaic-${props.feed}`}>
           {props.webcams.map((w) => (
@@ -62,6 +65,7 @@ describe('PreviewPane', () => {
   beforeEach(() => {
     capturedFeeds = [];
     capturedAt = [];
+    capturedPeers.clear();
     useTerminatorStore.setState({
       sunrise: fakeWebcams(),
       sunset: fakeWebcams(),
@@ -84,6 +88,45 @@ describe('PreviewPane', () => {
 
     expect(screen.getAllByTestId('studio-panel-stage')).toHaveLength(2);
     expect(capturedFeeds.sort()).toEqual(['sunrise', 'sunset']);
+  });
+
+  it('gives each panel the other feed as its peer', () => {
+    useTerminatorStore.setState({
+      sunrise: [{ webcamId: 11 }] as unknown as WindyWebcam[],
+      sunset: [{ webcamId: 22 }, { webcamId: 33 }] as unknown as WindyWebcam[],
+    });
+
+    render(
+      <PreviewPane
+        view="both"
+        onViewChange={() => {}}
+        panel={PANEL}
+        panelPresetLabel="ktc · 1440×2560"
+        versionName="v1"
+      />
+    );
+
+    expect(capturedPeers.get('sunrise')!.map((w) => w.webcamId)).toEqual([22, 33]);
+    expect(capturedPeers.get('sunset')!.map((w) => w.webcamId)).toEqual([11]);
+  });
+
+  it('still supplies the peer in single-feed view, so one panel looks the same alone', () => {
+    useTerminatorStore.setState({
+      sunrise: [{ webcamId: 11 }] as unknown as WindyWebcam[],
+      sunset: [{ webcamId: 22 }, { webcamId: 33 }] as unknown as WindyWebcam[],
+    });
+
+    render(
+      <PreviewPane
+        view="sunrise"
+        onViewChange={() => {}}
+        panel={PANEL}
+        panelPresetLabel="ktc · 1440×2560"
+        versionName="v1"
+      />
+    );
+
+    expect(capturedPeers.get('sunrise')!.map((w) => w.webcamId)).toEqual([22, 33]);
   });
 
   it("renders one stage for view='sunset'", () => {

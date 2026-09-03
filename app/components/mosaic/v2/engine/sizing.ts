@@ -31,11 +31,28 @@ function percentilesAmongPassers(passers: TileInput[]): Map<number, number> {
 }
 
 /**
+ * Maps a raw score onto [0, 1] through the absolute score window. This is
+ * what makes sunrise and sunset comparable: the same score is the same
+ * height on either panel, regardless of what else is on that panel. A
+ * degenerate window (ceiling at or below floor) becomes a hard step.
+ */
+export function normalizeScore(score: number, cfg: V2Config): number {
+  const span = cfg.scoreCeiling - cfg.scoreFloor;
+  if (span <= 0) return score >= cfg.scoreCeiling ? 1 : 0;
+  return Math.min(1, Math.max(0, (score - cfg.scoreFloor) / span));
+}
+
+/**
  * Sizes every tile by height, then derives width from the source aspect
  * ratio. Two rules are fixed directives, not knobs:
  *   - gate-failers pin to the EXACT floor, never spreading across the curve
  *   - there is no upscale clamp (v1's upscaleMax), because a clamp would
  *     silently push small sources below the floor
+ *
+ * `linear` and `easeIn` are ABSOLUTE: height is a function of the score
+ * alone, so a mediocre night looks mediocre instead of promoting its own
+ * best frame to the ceiling. `percentileAmongPassers` is relative and is
+ * kept only for comparison — it cannot agree across two panels.
  */
 export function sizeTiles(tiles: TileInput[], cfg: V2Config): SizedTile[] {
   const span = cfg.ceilingPx - cfg.floorPx;
@@ -49,8 +66,10 @@ export function sizeTiles(tiles: TileInput[], cfg: V2Config): SizedTile[] {
     if (t.passes && t.score !== null) {
       let unit: number;
       if (percentiles) unit = percentiles.get(t.id) ?? 0;
-      else if (cfg.curve === 'easeIn') unit = t.score * t.score;
-      else unit = t.score;
+      else {
+        const norm = normalizeScore(t.score, cfg);
+        unit = cfg.curve === 'easeIn' ? norm * norm : norm;
+      }
       height = cfg.floorPx + span * unit;
     }
     const aspect = t.srcHeight > 0 ? t.srcWidth / t.srcHeight : 4 / 3;

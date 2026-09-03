@@ -6,6 +6,7 @@ import type { SizedTile, V2Config } from './types';
 const cfg = (over: Partial<V2Config> = {}): V2Config => ({
   qualitySource: 'auto', gateThreshold: 0.55, failedCamPolicy: 'showAtFloor', maxTiles: 0,
   floorPx: 100, ceilingPx: 500, curve: 'linear',
+  scoreFloor: 0, scoreCeiling: 1, sharedScale: true,
   strategy: 'latitudeBands', bandCount: 4, horizontalAnchor: 'order',
   rowAlign: 'center', geographicFidelity: 0.7, tileGapPx: 0, latNorth: 80, latSouth: -80,
   showFeedLabel: true, showTileRatings: false, showModelReadout: false,

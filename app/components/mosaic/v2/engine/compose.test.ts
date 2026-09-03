@@ -5,6 +5,7 @@ import type { TileInput, V2Config } from './types';
 const cfg = (over: Partial<V2Config> = {}): V2Config => ({
   qualitySource: 'auto', gateThreshold: 0.55, failedCamPolicy: 'showAtFloor', maxTiles: 0,
   floorPx: 100, ceilingPx: 400, curve: 'percentileAmongPassers',
+  scoreFloor: 0, scoreCeiling: 1, sharedScale: true,
   strategy: 'anchorRelax', bandCount: 8, horizontalAnchor: 'solarAltitude',
   rowAlign: 'center', geographicFidelity: 0.7, tileGapPx: 6, latNorth: 70, latSouth: -60,
   showFeedLabel: true, showTileRatings: false, showModelReadout: false,
@@ -146,5 +147,58 @@ describe('compose — strategies', () => {
     const a = compose(pool, viewport, cfg(), 'sunset');
     const b = compose(pool, viewport, cfg(), 'sunset');
     expect(a).toEqual(b);
+  });
+});
+
+describe('compose — one scale across both panels', () => {
+  const panel = { width: 600, height: 800 };
+  const crowded = Array.from({ length: 80 }, (_, i) => tile(i + 1, 60 - i * 1.5, false, 0.1));
+  const sparse = [tile(901, 50, true, 0.9), tile(902, 20, true, 0.8)];
+
+  it('shrinks the sparse panel to match its crowded twin', () => {
+    const alone = compose(sparse, panel, cfg(), 'sunrise');
+    const paired = compose(sparse, panel, cfg(), 'sunrise', crowded);
+    expect(alone.scale).toBe(1);
+    expect(paired.scale).toBeLessThan(1);
+    expect(paired.scale).toBe(compose(crowded, panel, cfg(), 'sunset', sparse).scale);
+  });
+
+  it('leaves the crowded panel on the scale it already needed', () => {
+    const alone = compose(crowded, panel, cfg(), 'sunset');
+    const paired = compose(crowded, panel, cfg(), 'sunset', sparse);
+    expect(paired.scale).toBe(alone.scale);
+  });
+
+  it('renders a floor tile at the same height on both panels', () => {
+    const c = cfg({ curve: 'linear', floorPx: 100, ceilingPx: 400 });
+    const sunriseFloor = compose(
+      [...sparse, tile(903, 0, false, null)], panel, c, 'sunrise', crowded
+    ).tiles.find((t) => t.id === 903)!;
+    const sunsetFloor = compose(crowded, panel, c, 'sunset', sparse).tiles[0];
+    expect(sunriseFloor.height).toBeCloseTo(sunsetFloor.height, 6);
+  });
+
+  it('is off by the sharedScale knob', () => {
+    const paired = compose(sparse, panel, cfg({ sharedScale: false }), 'sunrise', crowded);
+    expect(paired.scale).toBe(1);
+  });
+
+  it('ignores an empty peer pool', () => {
+    expect(compose(sparse, panel, cfg(), 'sunrise', []).scale).toBe(1);
+  });
+
+  it('composes identically when no peer is supplied at all', () => {
+    expect(compose(crowded, panel, cfg(), 'sunset')).toEqual(
+      compose(crowded, panel, cfg(), 'sunset', [])
+    );
+  });
+
+  it('still drops rather than overflowing when the shared scale is not enough', () => {
+    const huge = Array.from({ length: 400 }, (_, i) =>
+      tile(i + 1, 60 - i * 0.3, i === 0, i === 0 ? 0.99 : 0.01)
+    );
+    const layout = compose(huge, { width: 300, height: 400 }, cfg(), 'sunset', sparse);
+    expect(layout.dropped.length).toBeGreaterThan(0);
+    expect(layout.tiles.some((t) => t.id === 1)).toBe(true);
   });
 });

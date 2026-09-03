@@ -66,6 +66,12 @@ export function PreviewPane({
     return feed === 'sunrise' ? liveSunrise : liveSunset;
   };
 
+  // Handed to each panel even in single-feed view: the point of the shared
+  // scale is that one screen looks the same whether or not you happen to be
+  // previewing its twin beside it.
+  const peerOf = (feed: 'sunrise' | 'sunset') =>
+    webcamsFor(feed === 'sunrise' ? 'sunset' : 'sunrise');
+
   return (
     <div
       style={{
@@ -209,6 +215,7 @@ export function PreviewPane({
                   width={panel.width}
                   height={panel.height}
                   feed={feed}
+                  peerWebcams={peerOf(feed)}
                   search=""
                   settings={settings}
                   at={at}

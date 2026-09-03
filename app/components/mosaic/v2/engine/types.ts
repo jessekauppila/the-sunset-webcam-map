@@ -56,6 +56,9 @@ export interface V2Config {
   floorPx: number;
   ceilingPx: number;
   curve: SizingCurve;
+  scoreFloor: number; // score that renders at floorPx (absolute curves only)
+  scoreCeiling: number; // score that renders at ceilingPx (absolute curves only)
+  sharedScale: boolean; // adopt one overflow scale across both feeds
   // arrangement
   strategy: ArrangementStrategy;
   bandCount: number;

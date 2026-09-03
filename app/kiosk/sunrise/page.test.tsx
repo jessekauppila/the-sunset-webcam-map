@@ -70,6 +70,16 @@ describe('SunriseKioskPage', () => {
     expect(canvas.getAttribute('data-count')).toBe('2');
   });
 
+  it('hands the sunset pool over as the peer, so both screens share one scale', () => {
+    vi.mocked(useTerminatorStore).mockImplementation(
+      (selector: (state: { sunrise: unknown[]; sunset: unknown[] }) => unknown) =>
+        selector({ sunrise: [{ webcamId: 1 }], sunset: [{ webcamId: 7 }, { webcamId: 8 }] })
+    );
+
+    render(<SunriseKioskPage />);
+    expect(getMosaicProps().peerWebcams).toHaveLength(2);
+  });
+
   it('does not set setupMode without ?setup=1', () => {
     useSearchParamsMock.mockReturnValue(new URLSearchParams());
     render(<SunriseKioskPage />);
