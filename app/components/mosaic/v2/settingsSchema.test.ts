@@ -11,6 +11,8 @@ describe('V2_SETTINGS_SCHEMA', () => {
       'strategy', 'bandCount', 'horizontalAnchor', 'rowAlign',
       'geographicFidelity', 'tileGapPx', 'latNorth', 'latSouth',
       'showFeedLabel', 'showTileRatings', 'showModelReadout',
+      'motionMode', 'motionOrder', 'motionDurationMs', 'motionStaggerMs',
+      'crossfadeMs', 'waveGridMs',
     ]) {
       expect(keys).toContain(key);
     }
@@ -24,7 +26,7 @@ describe('V2_SETTINGS_SCHEMA', () => {
   it('groups knobs into rail sections', () => {
     const sections = new Set(V2_SETTINGS_SCHEMA.map((k) => k.section));
     expect(sections).toEqual(
-      new Set(['signal', 'visibility', 'sizing', 'arrangement', 'overlays'])
+      new Set(['signal', 'visibility', 'sizing', 'arrangement', 'overlays', 'motion'])
     );
   });
 

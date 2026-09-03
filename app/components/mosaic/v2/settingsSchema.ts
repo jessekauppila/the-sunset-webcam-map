@@ -1,5 +1,6 @@
 import type { SettingsSchema, SettingsValues } from '@/app/lib/settings/schema';
 import type { V2Config } from './engine/types';
+import type { MotionConfig } from './motion';
 
 /**
  * Every v2 composition knob. Defaults here ARE what the engine does with no
@@ -123,6 +124,38 @@ export const V2_SETTINGS_SCHEMA: SettingsSchema = [
     label: 'model readout', section: 'overlays',
     description: 'What each model head said about each frame.',
   },
+  {
+    key: 'motionMode', kind: 'enum',
+    options: ['cut', 'tween', 'drift'] as const, default: 'drift',
+    label: 'motion', section: 'motion',
+    description: 'cut snaps to each new composition, which is what the wall did before this section existed. tween travels between them. drift never arrives — it chases the composition continuously, so the wall is always moving and never jumps.',
+  },
+  {
+    key: 'motionOrder', kind: 'enum',
+    options: ['none', 'latitude', 'sweep', 'magnitude'] as const, default: 'none',
+    label: 'stagger order', section: 'motion',
+    description: 'Which tile moves first. sweep runs one wave across both panels in the direction the terminator travels, so the wall reads as the world turning; latitude and magnitude are arbitrary orderings kept for comparison. Needs a stagger span to have any effect.',
+  },
+  {
+    key: 'motionDurationMs', kind: 'number', min: 0, max: 60_000, step: 100, default: 30_000,
+    label: 'travel (ms)', section: 'motion',
+    description: 'How long a tile takes to reach its new place. In drift mode this is the time constant instead: the wall closes 99.9% of the gap in this long, so a big number is what makes the movement too slow to catch.',
+  },
+  {
+    key: 'motionStaggerMs', kind: 'number', min: 0, max: 20_000, step: 100, default: 0,
+    label: 'stagger span (ms)', section: 'motion',
+    description: 'Spread between the first tile to move and the last. 0 moves everything at once.',
+  },
+  {
+    key: 'crossfadeMs', kind: 'number', min: 0, max: 8_000, step: 100, default: 1_500,
+    label: 'frame crossfade (ms)', section: 'motion',
+    description: 'How long a newly published frame takes to fade up over the one it replaces. Independent of tile movement: a camera publishes roughly every ten minutes, whenever it likes.',
+  },
+  {
+    key: 'waveGridMs', kind: 'number', min: 0, max: 5_000, step: 250, default: 1_000,
+    label: 'wave phase grid (ms)', section: 'motion',
+    description: 'The two panels are separate pages that commit at different moments. Rounding a sweep\'s start up to this shared grid puts both on the same wave with no messaging between them. Only used by the sweep ordering.',
+  },
 ] as const;
 
 /** Merged dial values to the engine's config shape. */
@@ -150,5 +183,25 @@ export function configFromSettings(values: SettingsValues): V2Config {
     showTileRatings: values.showTileRatings as boolean,
     overlayScale: values.overlayScale as number,
     showModelReadout: values.showModelReadout as boolean,
+  };
+}
+
+/**
+ * The motion dials, kept out of V2Config on purpose: the composition engine
+ * decides where a tile belongs and has no business knowing how it gets there.
+ */
+export function motionFromSettings(values: SettingsValues): {
+  motion: MotionConfig;
+  crossfadeMs: number;
+} {
+  return {
+    motion: {
+      mode: values.motionMode as MotionConfig['mode'],
+      order: values.motionOrder as MotionConfig['order'],
+      durationMs: values.motionDurationMs as number,
+      staggerMs: values.motionStaggerMs as number,
+      waveGridMs: values.waveGridMs as number,
+    },
+    crossfadeMs: values.crossfadeMs as number,
   };
 }

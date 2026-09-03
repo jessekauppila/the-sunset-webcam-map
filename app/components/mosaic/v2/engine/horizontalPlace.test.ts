@@ -1,6 +1,14 @@
 import { describe, it, expect } from 'vitest';
-import { altitudeToUnit, altitudeRange, placeRowHorizontally } from './horizontalPlace';
+import {
+  altitudeToUnit,
+  ALTITUDE_WINDOW,
+  placeRowHorizontally,
+} from './horizontalPlace';
 import type { PlacedRow, SizedTile, V2Config } from './types';
+import {
+  SEARCH_RADIUS_DEG,
+  TERMINATOR_SUN_ALTITUDE_DEG,
+} from '@/app/lib/masterConfig';
 
 const cfg = (over: Partial<V2Config> = {}): V2Config => ({
   qualitySource: 'auto', gateThreshold: 0.55, failedCamPolicy: 'showAtFloor', maxTiles: 0,
@@ -38,14 +46,27 @@ describe('altitudeToUnit — direction per feed', () => {
   });
 });
 
-describe('altitudeRange', () => {
-  it('spans the pool, ignoring nulls', () => {
-    expect(altitudeRange([{ sunAltitudeDeg: -5 }, { sunAltitudeDeg: null }, { sunAltitudeDeg: -20 }]))
-      .toEqual({ min: -20, max: -5 });
+describe('altitudeToUnit — clamping', () => {
+  it('clamps a sun outside the window to the edge, never past it', () => {
+    // The widening rings sweep near +2.75 and -28.75, both outside the window.
+    // They belong at an edge; they must not compute a position off the panel.
+    expect(altitudeToUnit(2.75, -24, -2, 'sunset')).toBe(0);
+    expect(altitudeToUnit(-28.75, -24, -2, 'sunset')).toBe(1);
+    expect(altitudeToUnit(2.75, -24, -2, 'sunrise')).toBe(1);
+    expect(altitudeToUnit(-28.75, -24, -2, 'sunrise')).toBe(0);
   });
+});
 
-  it('is null when nothing has an altitude', () => {
-    expect(altitudeRange([{ sunAltitudeDeg: null }])).toBeNull();
+describe('ALTITUDE_WINDOW', () => {
+  it('is the pool definition, not a number of its own', () => {
+    // Decision 6a chose solar altitude partly for "no pool-relative
+    // normalization, no dependence on pool membership". The window is
+    // therefore the ring the pool is gathered around, plus the radius it is
+    // gathered within, so it tracks when either constant moves.
+    expect(ALTITUDE_WINDOW).toEqual({
+      min: TERMINATOR_SUN_ALTITUDE_DEG - SEARCH_RADIUS_DEG,
+      max: TERMINATOR_SUN_ALTITUDE_DEG + SEARCH_RADIUS_DEG,
+    });
   });
 });
 

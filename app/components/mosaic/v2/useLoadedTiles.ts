@@ -67,7 +67,16 @@ export function useLoadedTiles(
       };
     }
 
-    setResult({ tiles: [], byId: new Map(), skipped: noPreviewCount, loading: true });
+    // Hold the last good batch while this one loads. Clearing here paints the
+    // canvas black for as long as the images take, and the pool refetches
+    // every 60s, so the wall blinked once a minute. The held tiles are at most
+    // one cycle stale; the swap below is atomic.
+    setResult((prev) => ({
+      tiles: prev.tiles,
+      byId: prev.byId,
+      skipped: prev.skipped,
+      loading: true,
+    }));
 
     const moment = momentOf(at);
     let settled = 0;

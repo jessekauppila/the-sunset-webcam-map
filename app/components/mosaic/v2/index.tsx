@@ -9,7 +9,7 @@ import { FeedLabel } from './overlays/FeedLabel';
 import { ModelReadout } from './overlays/ModelReadout';
 import { SetupOverlay } from './overlays/SetupOverlay';
 import { TileRatings } from './overlays/TileRatings';
-import { V2_SETTINGS_SCHEMA, configFromSettings } from './settingsSchema';
+import { V2_SETTINGS_SCHEMA, configFromSettings, motionFromSettings } from './settingsSchema';
 import { useLoadedTiles } from './useLoadedTiles';
 
 /** Stable identity: a fresh [] each render would re-run the loader effect. */
@@ -32,11 +32,12 @@ export function MosaicV2({
   settings,
   at,
 }: MosaicProps) {
-  const { cfg, modelsMode } = useMemo(() => {
+  const { cfg, motion, crossfadeMs, modelsMode } = useMemo(() => {
     const params = new URLSearchParams(search);
     const merged = mergeSettings(V2_SETTINGS_SCHEMA, settings);
     return {
       cfg: configFromSettings(merged),
+      ...motionFromSettings(merged),
       modelsMode: params.has('models')
         ? params.get('models') === '1'
         : merged.showModelReadout === true,
@@ -62,6 +63,9 @@ export function MosaicV2({
         byId={byId}
         width={width}
         height={height}
+        motion={motion}
+        crossfadeMs={crossfadeMs}
+        panelSlot={feed === 'sunrise' ? 0 : 1}
         onSelect={onSelect}
       />
       {cfg.showFeedLabel && <FeedLabel feed={feed} />}

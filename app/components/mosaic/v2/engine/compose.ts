@@ -1,5 +1,5 @@
 import { placeBands } from './bands';
-import { altitudeRange, placeRowHorizontally } from './horizontalPlace';
+import { ALTITUDE_WINDOW, placeRowHorizontally } from './horizontalPlace';
 import { MIN_COMPOSITION_SCALE, scaleTiles } from './overflow';
 import { formRows } from './rows';
 import { sizeTiles } from './sizing';
@@ -158,9 +158,10 @@ export function compose(
     placement = arrange(sized, viewport, cfg);
   }
 
-  const altRange = altitudeRange(sized);
+  // Fixed, not derived from `sized`. `sized` is post-drop, so a pool-relative
+  // range let an overflow event rescale X for every surviving tile too.
   const placed = placement.rows.flatMap((row) =>
-    placeRowHorizontally(row, viewport.width, cfg, feed, altRange)
+    placeRowHorizontally(row, viewport.width, cfg, feed, ALTITUDE_WINDOW)
   );
 
   return {
