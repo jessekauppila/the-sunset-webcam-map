@@ -1701,17 +1701,24 @@ ledger; re-run these to extend it to the day of the flip.
 
 - [ ] **Step 1b: Gate on the empty-box share before flipping**
 
-Compute `boxes_empty / boxes_attempted` per day from
-`daily_sweep_ring_stats`. The captured baseline shows it rising: 27% on
-2026-09-02 and 38% on 2026-09-03, while `new_webcams` fell from 40,042 to
-37,198. The sweep-telemetry migration names exactly that pattern as "the
-signature of an undiscovered Windy quota ceiling."
+Compute `boxes_empty / boxes_attempted` from `daily_sweep_ring_stats`, and
+**compare like with like**. The first capture appeared to show a jump, 26.9%
+on 2026-09-02 against 38.8% on 2026-09-03, which the sweep-telemetry
+migration would name as "the signature of an undiscovered Windy quota
+ceiling."
 
-Two days is not a trend, but it is the wrong direction in which to double
-call volume. **If the share is still climbing across three consecutive days,
-do not flip.** Report that instead: a pre-existing ceiling problem is a bigger
-finding than the widening question, and doubling the call rate into it would
-confound both.
+That comparison was invalid and the alarm is probably false. Both rows were
+partial days covering different UTC hours: 09-02 ran from the merge at 17:56Z
+to midnight, 09-03 from midnight to 06:27Z. The terminator crosses far more
+ocean in the early-UTC window, so empty boxes and cameras-found move together
+for purely geographic reasons. `new_webcams` per tick fell from 113.8 to 98.4
+across the same pair, which fits geography as well as it fits a ceiling.
+
+**Compare one full UTC day against another full UTC day, or the same UTC
+hours on two dates.** Never two partial days. If the share is genuinely
+climbing on a like-for-like comparison across three days, do not flip: a
+pre-existing ceiling is a bigger finding than the widening question, and
+doubling the call rate into it would confound both.
 
 - [ ] **Step 2: Log the change on the cost timeline**
 
@@ -1747,24 +1754,39 @@ with `feedsSwept: ["sunrise","sunset"]`.
 If `CRON_SECRET` is not pullable, read `forcedDayRing` from the Vercel function
 logs instead: it is in the `🛰️ terminator sweep:` line.
 
-**Expected magnitude, measured 2026-09-02/03, not assumed.** The base ring is
+**STOP. Do not flip the switch without the operator's explicit go-ahead on
+the numbers below.** The plan was written against an assumed baseline that
+the measurement disproved, and the gap is large enough to change the
+decision.
+
+**Expected magnitude, measured 2026-09-03, not assumed.** The base ring is
 exactly 30.0 boxes per tick. The tick rate is **not** the cron's 96/day:
 `/api/kiosk/tick` re-invokes this same handler in-process whenever a gallery
-screen is visible, throttled near one per minute by a Redis lock. Measured
-sweep ticks were 352 and 365 per day, giving ~10,700 boxes/day. A forced day
-ring on both feeds roughly doubles per-tick boxes.
+screen is visible, throttled to about one per minute by a Redis lock.
+Measured at 06:27Z on 2026-09-03: 388 ticks in 387 minutes, which is 1.003
+ticks per minute sustained. The kiosk is polling continuously.
 
-| | measured baseline | forced, at observed tick rate | forced, screens on all day |
-| --- | --- | --- | --- |
-| ticks/day | 352–365 | 352–365 | up to ~1,536 |
-| boxes/day | ~10,700 | ~21,400 | ~92,000 |
+| | per full day at the current rate |
+| --- | --- |
+| ticks, cron alone | 96 |
+| ticks, actual | ~1,444 |
+| kiosk share of sweep volume | 93% |
+| Windy boxes, switch OFF | ~43,300 |
+| Windy boxes, day ring forced | ~86,600 |
+| Windy risk point named by the camera-refresh spec | 22,300 |
 
-**The right-hand column is the risk.** The camera-refresh cost spec names
-22,300 calls/day as the most likely way to discover a Windy rate limit, and
-says discovering it makes panels *blanker* — the outcome this feature exists
-to prevent. Windy publishes no quota headers, so there is no warning before
-the wall. Cost here scales with **kiosk uptime**, not with the cron schedule,
-and a show is exactly when screens run all day.
+**Production already runs at roughly twice the stated risk point with this
+feature switched off.** Forcing the day ring would take it to nearly four
+times. The camera-refresh spec says discovering a Windy rate limit makes
+panels *blanker*, which is the outcome this feature exists to prevent, and
+Windy publishes no quota headers so there is no warning before the wall.
+
+**The dominant cost lever is not the ring configuration.** It is the kiosk
+poll cadence in `app/api/kiosk/tick/route.ts` and `KIOSK_TICK_LOCK_TTL_MS`.
+A full camera sweep runs every minute to score frames, which is fifteen times
+the cron's own rate. Any conversation about what this feature costs should
+start there, not with the offsets. That is a finding for the operator, and it
+is out of scope for this plan to change.
 
 A half-ring takes roughly 5–7 seconds, so a full forced ring adds 10–14
 seconds to a base sweep of similar length, against a 25-second budget.
@@ -1786,11 +1808,15 @@ Two indicators, and the leading one matters more.
 that can break the product rather than the budget. Read it as
 `sweep_base_boxes + sweep_escalation_boxes` for today.
 
+Absolute thresholds are useless here: the measured baseline is already about
+43,300/day, twice the spec's stated risk point. Judge the *change* instead,
+and judge it against whether Windy is still answering.
+
 | reading | action |
 | --- | --- |
-| under 18,000/day | continue |
-| 18,000–22,000/day | continue, check twice daily, and watch the empty-box share |
-| above 22,000/day, or empty-box share rising while `new_webcams` falls | **turn the switch off immediately.** That pair is the documented signature of a Windy quota ceiling, and the failure mode empties the panels |
+| boxes/day under 2x the like-for-like baseline **and** empty share flat | continue |
+| empty share up more than 5 points on a like-for-like comparison | check twice daily; this is the first thing a ceiling would move |
+| empty share climbing while `new_webcams` per tick falls, on a like-for-like comparison | **turn the switch off immediately.** That pair is the documented ceiling signature and its failure mode empties the panels |
 
 **Lagging — dollars per day**, from the digest or `node scripts/usage-report.mjs`.
 
