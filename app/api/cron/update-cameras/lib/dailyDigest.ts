@@ -170,6 +170,12 @@ export function formatSweepLine(summary: SweepDigestSummary | null): string {
   if (s.budgetExhaustedTicks > 0) {
     parts.push(`${s.budgetExhaustedTicks} ticks hit the sweep budget`);
   }
+  // A held tick is a tick Windy could not be trusted: the pool was kept, not
+  // rebuilt. One or two on a day is a Windy blip. A run of them is an outage
+  // the glass rode out, and the reason is in the tick log's `sweep hold` line.
+  if (s.heldTicks > 0) {
+    parts.push(`<b>${s.heldTicks} ticks held the last good pool</b>`);
+  }
   // Empty and failed are different facts and the digest keeps them apart.
   // Empty is ocean. Failed is a non-OK response, and a RISING failed count
   // is the only thing in this line that can mean a Windy ceiling; the empty
