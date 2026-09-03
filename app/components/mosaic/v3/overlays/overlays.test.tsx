@@ -22,6 +22,7 @@ const layout = (): Layout => ({
     },
   ],
   dropped: [7],
+  evicted: [8, 9],
   scale: 0.8,
   viewport: { width: 300, height: 500 },
 });
@@ -90,6 +91,15 @@ describe('SetupOverlay', () => {
   it('shows the applied composition scale so shrinking is visible', () => {
     render(<SetupOverlay layout={layout()} feed="sunset" skipped={0} />);
     expect(screen.getByTestId('v3-setup-counts')).toHaveTextContent('scale 0.80');
+  });
+
+  it('counts evictions separately from overflow drops', () => {
+    // Two mechanisms, two numbers (spec §5.6). Conflating them would make an
+    // ordinary crowded band read as an overflow emergency.
+    render(<SetupOverlay layout={layout()} feed="sunset" skipped={2} />);
+    const line = screen.getByTestId('v3-setup-counts').textContent ?? '';
+    expect(line).toContain('dropped 1');
+    expect(line).toContain('evicted 2');
   });
 });
 

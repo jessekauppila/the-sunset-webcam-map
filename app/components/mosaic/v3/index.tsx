@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { mergeSettings } from '@/app/lib/settings/schema';
 import type { MosaicProps } from '../types';
 import { compose } from './engine/compose';
@@ -51,10 +51,37 @@ export function MosaicV3({
   // same frames the twin screen is already loading.
   const { tiles: peerTiles } = useLoadedTiles(peerWebcams, signal);
 
+  // Hysteresis needs memory across compositions, and `compose` is pure, so
+  // the memory lives here: webcamId -> the clock reading at which the tile
+  // was first admitted (spec §5.4).
+  //
+  // Read during the memo, written only in the effect below. Nothing here
+  // re-triggers the memo, so there is no loop, and the dwell clock advances
+  // exactly when a new composition is computed — which is the only moment an
+  // eviction decision is ever made.
+  const admittedSinceRef = useRef(new Map<number, number>());
+
   const layout = useMemo(
-    () => compose(tiles, { width, height }, cfg, feed, peerTiles),
+    () =>
+      compose(tiles, { width, height }, cfg, feed, peerTiles, {
+        admittedSince: admittedSinceRef.current,
+        now: Date.now(),
+      }),
     [tiles, peerTiles, width, height, cfg, feed]
   );
+
+  useEffect(() => {
+    const now = Date.now();
+    const live = new Set(layout.tiles.map((t) => t.id));
+    // Stamp arrivals; forget anything no longer drawn, so a tile that leaves
+    // and comes back competes as a challenger rather than as an incumbent.
+    for (const id of live) {
+      if (!admittedSinceRef.current.has(id)) admittedSinceRef.current.set(id, now);
+    }
+    for (const id of [...admittedSinceRef.current.keys()]) {
+      if (!live.has(id)) admittedSinceRef.current.delete(id);
+    }
+  }, [layout]);
 
   return (
     <div style={{ position: 'relative', width, height, background: '#000' }}>

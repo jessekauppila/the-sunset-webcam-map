@@ -1,12 +1,18 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { MosaicV3 } from './index';
+import { compose } from './engine/compose';
 import {
   MOSAIC_VERSIONS,
   MOSAIC_SETTINGS_SCHEMAS,
   resolveMosaic,
   DEFAULT_MOSAIC_VERSION,
 } from '../registry';
+
+vi.mock('./engine/compose', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./engine/compose')>();
+  return { ...actual, compose: vi.fn(actual.compose) };
+});
 
 describe('v3 registration', () => {
   it('is reachable under the v3 key', () => {
@@ -74,5 +80,16 @@ describe('MosaicV3 wiring', () => {
       <MosaicV3 webcams={[]} width={300} height={500} feed="sunrise" setupMode />
     );
     expect(screen.getByTestId('v3-setup-counts')).toBeInTheDocument();
+  });
+});
+
+describe('v3 hands the engine a history instead of holding state inside it', () => {
+  it('passes an admittedSince map and a clock reading on every composition', () => {
+    // The engine stays pure (spec §5.4): the map and the clock are arguments,
+    // not module state and not a hook reached for inside compose().
+    render(<MosaicV3 webcams={[]} width={1080} height={1920} feed="sunset" settings={{}} />);
+    const history = vi.mocked(compose).mock.calls.at(-1)?.[5];
+    expect(history?.admittedSince).toBeInstanceOf(Map);
+    expect(typeof history?.now).toBe('number');
   });
 });

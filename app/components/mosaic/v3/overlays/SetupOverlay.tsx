@@ -1,6 +1,14 @@
 import type { Layout } from '../engine/types';
 
-/** Installer aid: per-tile coordinates plus a composition health footer. */
+/**
+ * Installer aid: per-tile coordinates plus a composition health footer.
+ *
+ * Four different ways a camera can be missing, four numbers. `evicted` lost a
+ * fight for its space to a better-scoring neighbour and is working as
+ * designed; `dropped` means the composition could not fit even at the scale
+ * floor and is the one that says the wall is struggling. Conflating them
+ * would make an ordinary crowded band read as an overflow emergency.
+ */
 export function SetupOverlay({
   layout,
   feed,
@@ -44,8 +52,9 @@ export function SetupOverlay({
           textShadow: '0 1px 2px rgba(0,0,0,.9)',
         }}
       >
-        {feed} · tiles {layout.tiles.length} · dropped {layout.dropped.length} ·
-        skipped {skipped} · scale {layout.scale.toFixed(2)}
+        {feed} · tiles {layout.tiles.length} · evicted {layout.evicted.length} ·
+        dropped {layout.dropped.length} · skipped {skipped} ·
+        scale {layout.scale.toFixed(2)}
       </div>
     </div>
   );
