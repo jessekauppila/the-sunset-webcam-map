@@ -125,3 +125,45 @@ describe('the centre line cannot reach the glass through a settings row', () => 
     expect(queryByTestId('v3-centre-line')).toBeNull();
   });
 });
+
+describe('URL dials beat the profile, the way ?models= already does', () => {
+  const cfgOfLastCompose = () => vi.mocked(compose).mock.calls.at(-1)?.[2];
+
+  it('applies number and enum dials from the query string', () => {
+    render(
+      <MosaicV3
+        webcams={[]} width={1080} height={1920} feed="sunset"
+        search="?bandCount=8&ceilingPx=240&bandGrid=inset"
+        settings={{ bandCount: 13 }}
+      />
+    );
+    expect(cfgOfLastCompose()).toMatchObject({ bandCount: 8, ceilingPx: 240, bandGrid: 'inset' });
+  });
+
+  it('clamps an out-of-range URL value instead of trusting it', () => {
+    render(
+      <MosaicV3 webcams={[]} width={1080} height={1920} feed="sunset" search="?bandCount=999" />
+    );
+    expect(cfgOfLastCompose()?.bandCount).toBe(40);
+  });
+
+  it('drops an unknown enum option and keeps the profile value', () => {
+    render(
+      <MosaicV3
+        webcams={[]} width={1080} height={1920} feed="sunset"
+        search="?bandGrid=sideways" settings={{ bandGrid: 'inset' }}
+      />
+    );
+    expect(cfgOfLastCompose()?.bandGrid).toBe('inset');
+  });
+
+  it('shows the URL geometry in the setup footer so a screenshot records it', () => {
+    render(
+      <MosaicV3
+        webcams={[]} width={1080} height={1920} feed="sunset"
+        search="?bandCount=8&bandGrid=inset" setupMode
+      />
+    );
+    expect(screen.getByTestId('v3-setup-counts').textContent).toContain('bands 8 inset');
+  });
+});

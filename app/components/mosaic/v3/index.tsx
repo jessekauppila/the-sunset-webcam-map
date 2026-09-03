@@ -10,7 +10,9 @@ import { ModelReadout } from './overlays/ModelReadout';
 import { CentreLine } from './overlays/CentreLine';
 import { SetupOverlay } from './overlays/SetupOverlay';
 import { TileRatings } from './overlays/TileRatings';
-import { V3_SETTINGS_SCHEMA, configFromSettings, motionFromSettings } from './settingsSchema';
+import {
+  V3_SETTINGS_SCHEMA, configFromSettings, motionFromSettings, urlOverrides,
+} from './settingsSchema';
 import { useLoadedTiles } from './useLoadedTiles';
 
 /** Stable identity: a fresh [] each render would re-run the loader effect. */
@@ -36,12 +38,10 @@ export function MosaicV3({
 }: MosaicProps) {
   const { cfg, motion, crossfadeMs, modelsMode } = useMemo(() => {
     const params = new URLSearchParams(search);
-    const merged = mergeSettings(V3_SETTINGS_SCHEMA, settings);
-    // URL param beats the profile setting, same precedence as ?models=.
-    // This one exists so the two band geometries can be put side by side in
-    // two windows rather than compared from memory across a dial flip.
-    const grid = params.get('bandGrid');
-    if (grid === 'full' || grid === 'inset') merged.bandGrid = grid;
+    // URL param, then profile setting, then code default. Any dial can be
+    // named in the query string, so two geometries can sit side by side in
+    // two windows instead of being compared from memory across a dial flip.
+    const merged = mergeSettings(V3_SETTINGS_SCHEMA, settings, urlOverrides(params));
     return {
       cfg: configFromSettings(merged),
       ...motionFromSettings(merged),

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { V3_SETTINGS_SCHEMA, configFromSettings } from './settingsSchema';
+import { V3_SETTINGS_SCHEMA, configFromSettings, urlOverrides } from './settingsSchema';
 import { schemaDefaults } from '@/app/lib/settings/schema';
 
 describe('V3_SETTINGS_SCHEMA', () => {
@@ -123,5 +123,32 @@ describe('configFromSettings', () => {
       if (motionKeys.has(knob.key)) continue;
       expect(`${knob.key}=${String(cfg[knob.key])}`).toBe(`${knob.key}=${String(knob.default)}`);
     }
+  });
+});
+
+describe('urlOverrides — any dial, from the query string', () => {
+  const parse = (qs: string) => urlOverrides(new URLSearchParams(qs));
+
+  it('reads a number dial', () => {
+    expect(parse('bandCount=8&ceilingPx=240')).toEqual({ bandCount: 8, ceilingPx: 240 });
+  });
+
+  it('reads an enum dial as the raw string', () => {
+    expect(parse('bandGrid=inset')).toEqual({ bandGrid: 'inset' });
+  });
+
+  it('reads booleans as 1/0 and true/false', () => {
+    expect(parse('showCentreLine=1')).toEqual({ showCentreLine: true });
+    expect(parse('showCentreLine=false')).toEqual({ showCentreLine: false });
+  });
+
+  it('ignores keys that are not dials, and non-numeric numbers', () => {
+    expect(parse('v=v3&panel=dell&setup=1&bandCount=abc')).toEqual({});
+  });
+
+  it('leaves range and option validation to the sanitizer downstream', () => {
+    // Out-of-range and unknown-option values are passed through here so one
+    // sanitizer, the same one the settings store uses, is the single judge.
+    expect(parse('bandCount=999&bandGrid=sideways')).toEqual({ bandCount: 999, bandGrid: 'sideways' });
   });
 });

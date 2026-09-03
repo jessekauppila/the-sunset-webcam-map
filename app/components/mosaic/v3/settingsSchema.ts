@@ -165,6 +165,38 @@ export const V3_SETTINGS_SCHEMA: SettingsSchema = [
   },
 ] as const;
 
+/**
+ * Every dial the query string names, parsed by its knob's kind. Precedence is
+ * the one v3 already uses for `?models=`: URL param, then profile setting,
+ * then code default — hand the result to `mergeSettings` as its overrides.
+ *
+ * This exists so two geometries can be put SIDE BY SIDE in two windows —
+ * `?bandCount=13&ceilingPx=480` next to `?bandCount=8&ceilingPx=240` — rather
+ * than compared from memory across a dial flip. It reaches the kiosk routes
+ * too, through the same `search` prop `?v=` and `?setup=` already ride.
+ *
+ * Deliberately permissive here: range and option checks are left to
+ * `sanitizeValues`, so the settings store and the URL have exactly one judge
+ * of what a valid value is.
+ */
+export function urlOverrides(params: URLSearchParams): SettingsValues {
+  const out: SettingsValues = {};
+  for (const knob of V3_SETTINGS_SCHEMA) {
+    const raw = params.get(knob.key);
+    if (raw === null) continue;
+    if (knob.kind === 'number') {
+      const n = Number(raw);
+      if (raw.trim() !== '' && Number.isFinite(n)) out[knob.key] = n;
+    } else if (knob.kind === 'boolean') {
+      if (raw === '1' || raw === 'true') out[knob.key] = true;
+      else if (raw === '0' || raw === 'false') out[knob.key] = false;
+    } else {
+      out[knob.key] = raw;
+    }
+  }
+  return out;
+}
+
 /** Merged dial values to the engine's config shape. */
 export function configFromSettings(values: SettingsValues): V3Config {
   return {
