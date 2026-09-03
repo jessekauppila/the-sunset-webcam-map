@@ -95,18 +95,20 @@ describe('the real pool, on the real axis', () => {
   it('records how dense the default dials actually leave the wall', () => {
     // Not a correctness property — a measurement, pinned so a tuning change
     // is visible rather than silent. On the live capture the sunset panel
-    // draws 5 of 42 and evicts 37, because the pool clusters hard in BOTH
+    // draws 8 of 42 and evicts 34, because the pool clusters hard in BOTH
     // latitude and altitude: every camera is near the terminator by
     // construction, and 38 of the 42 fail the gate and sit at the identical
     // floor size, so they land on top of each other.
     //
-    // Eviction is behaving as specified. Whether 5 tiles is the wall Jesse
-    // wants is a dial question for the glass — bandCount, floorPx, tileGapPx
-    // — not an engine question. Update these numbers when the dials move.
+    // Eviction is behaving as specified. The defaults moved once already:
+    // 13 x 480 drew 5 / evicted 37 here and showed 1 of the 4 real sunsets;
+    // 8 x 240 (decided 2026-09-03) shows 3 of 4. Update these numbers when
+    // the dials move again.
     const layout = compose(sunset, viewport, cfg, 'sunset');
-    expect(layout.tiles.length).toBe(5);
-    expect(layout.evicted.length).toBe(37);
-    expect(compose(sunrise, viewport, cfg, 'sunrise').tiles.length).toBe(10);
+    expect(layout.tiles.length).toBe(8);
+    expect(layout.evicted.length).toBe(34);
+    expect(layout.tiles.filter((t) => t.passes).length).toBe(3);
+    expect(compose(sunrise, viewport, cfg, 'sunrise').tiles.length).toBe(9);
   });
 
   it('keeps every drawn tile inside the panel horizontally', () => {

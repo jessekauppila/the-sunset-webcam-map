@@ -36,9 +36,9 @@ export const V3_SETTINGS_SCHEMA: SettingsSchema = [
     description: 'Height of the smallest tile. Gate-failers pin to exactly this.',
   },
   {
-    key: 'ceilingPx', kind: 'number', min: 50, max: 1200, step: 10, default: 480,
+    key: 'ceilingPx', kind: 'number', min: 50, max: 1200, step: 10, default: 240,
     label: 'ceiling (px)', section: 'sizing',
-    description: 'Height of the best-scoring gate-passer.',
+    description: 'Height of the best-scoring gate-passer. Bound to band count: the wall only renders whole when bandCount * ceilingPx <= panel height (8 * 240 = 1920, the dell panel). Past that, a tall tile in an end band overhangs and the whole wall shrinks.',
   },
   {
     key: 'curve', kind: 'enum',
@@ -62,9 +62,9 @@ export const V3_SETTINGS_SCHEMA: SettingsSchema = [
     description: 'Shrink both panels by the same amount, taken from whichever is more crowded. Off, each panel shrinks to its own tile count and a sunrise floor tile can outgrow a sunset ceiling tile.',
   },
   {
-    key: 'bandCount', kind: 'number', min: 2, max: 40, step: 1, default: 13,
+    key: 'bandCount', kind: 'number', min: 2, max: 40, step: 1, default: 8,
     label: 'band count', section: 'arrangement',
-    description: 'Number of fixed latitude strips. They never move: a band is the same pixels holding one camera or forty. 13 over the default window is one band per 10 degrees.',
+    description: 'Number of fixed latitude strips. They never move: a band is the same pixels holding one camera or forty. 8 over the default window is one band per 16 degrees. More bands with a smaller ceiling shows more of the pool, smaller; keep bandCount * ceilingPx at or under the panel height (decided 2026-09-03 on the live-capture fixture: 13 x 480 showed 1 of 4 real sunsets, 8 x 240 shows 3).',
   },
   {
     key: 'bandGrid', kind: 'enum', options: ['full', 'inset'] as const, default: 'full',
