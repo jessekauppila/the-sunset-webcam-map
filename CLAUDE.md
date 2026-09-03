@@ -48,6 +48,15 @@ npm run lint
 Backfills: `npm run backfill:archive` / `backfill:flickr` (each has a
 `:dry` variant — use it first).
 
+Migrations: `npm run migrate:status` lists `database/migrations/` against the
+`schema_migrations` ledger in production and exits 1 if anything is pending.
+Apply one with `node scripts/apply-migration.mjs <file> --apply` (dry by
+default; `--from <branch>` reads it off a PR branch without switching the
+shared checkout). There is no dev database: every `--apply` is production.
+**Apply before merging the code that reads the column** — writes in the cron
+swallow their own errors, so a missing column loses data silently, not loudly.
+Why: `docs/solutions/workflow-issues/migrations-need-a-ledger.md`.
+
 ## Deploy and env vars (Vercel)
 
 - **Env vars bake in at deploy time.** Rotating a secret is inert until you
