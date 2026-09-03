@@ -284,3 +284,27 @@ describe('PreviewPane', () => {
     expect(capturedAt).toEqual(['2026-03-14T17:30:00.000Z']);
   });
 });
+
+describe('PreviewPane — telling captures from rebuilds', () => {
+  it('marks each scene with the population it came from', () => {
+    render(
+      <PreviewPane
+        view="both"
+        onViewChange={() => {}}
+        panel={PANEL}
+        panelPresetLabel="ktc · 1440×2560"
+        versionName="v1"
+        scenes={[
+          { id: 1, label: 'tonight', tags: [], representsAt: '2026-08-31T02:00:00Z',
+            source: 'live', createdAt: '2026-08-31T02:00:00Z', windowMinutes: 15 },
+          { id: 2, label: 'equinox', tags: [], representsAt: '2026-03-20T02:00:00Z',
+            source: 'historical', createdAt: '2026-09-02T02:00:00Z', windowMinutes: 45 },
+        ]}
+      />
+    );
+
+    const select = screen.getByTestId('studio-scene-select');
+    expect(select).toHaveTextContent('tonight · captured');
+    expect(select).toHaveTextContent('equinox · rebuilt');
+  });
+});

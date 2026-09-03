@@ -71,5 +71,6 @@ export interface V2Config {
   // overlays
   showFeedLabel: boolean;
   showTileRatings: boolean;
+  overlayScale: number; // multiplier on readout text size
   showModelReadout: boolean;
 }

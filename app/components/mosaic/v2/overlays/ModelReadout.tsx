@@ -6,9 +6,11 @@ import type { Layout } from '../engine/types';
 export function ModelReadout({
   layout,
   byId,
+  scale = 1,
 }: {
   layout: Layout;
   byId: Map<number, { img: HTMLImageElement; webcam: WindyWebcam }>;
+  scale?: number;
 }) {
   return (
     <div
@@ -33,10 +35,12 @@ export function ModelReadout({
               overflow: 'hidden',
               whiteSpace: 'nowrap',
               color: '#fff',
+              background: 'rgba(0,0,0,.72)',
+              borderRadius: 2,
+              padding: `${Math.max(2, scale * 2)}px ${Math.max(3, scale * 3)}px`,
               fontFamily: 'monospace',
-              fontSize: 10,
+              fontSize: 10 * scale,
               lineHeight: 1.35,
-              textShadow: '0 1px 2px rgba(0,0,0,.9)',
             }}
           >
             {!detection && quality === null ? (

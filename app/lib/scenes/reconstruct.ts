@@ -12,6 +12,10 @@ export interface HistoricalSnapshotRow {
   llm_quality: string | number | null;
   llm_is_sunset: boolean | null;
   llm_model: string | null;
+  ai_binary_score: string | number | null;
+  ai_regression_score: string | number | null;
+  ai_model_version_binary: string | null;
+  ai_model_version_regression: string | null;
   title: string | null;
   status: string | null;
   view_count: number | null;
@@ -38,6 +42,21 @@ export interface ReconstructResult {
 
 const toMaybeNumber = (v: string | number | null): number | null =>
   v === null || v === undefined ? null : Number(v);
+
+/**
+ * Archive columns hold [0,1] probabilities; the webcams table (and therefore
+ * everything reading a WindyWebcam, including the mosaic's gate) holds the
+ * 1-5 rating those map onto. `rating = 1 + probability * 4`, the same
+ * relation qualitySignal.ratingGateFor encodes in the other direction.
+ *
+ * Handing a raw [0,1] straight through would put every reconstructed frame
+ * below even a gate of 0 — the normalized-vs-raw confusion that produced the
+ * 35k-rows-zero-positives export bug.
+ */
+const probabilityToRating = (v: string | number | null): number | undefined => {
+  const n = toMaybeNumber(v);
+  return n === null ? undefined : 1 + n * 4;
+};
 
 export function rowsToSceneState(rows: HistoricalSnapshotRow[]): ReconstructResult {
   const state: SceneState = { sunrise: [], sunset: [] };
@@ -67,6 +86,13 @@ export function rowsToSceneState(rows: HistoricalSnapshotRow[]): ReconstructResu
       llmQuality: toMaybeNumber(r.llm_quality),
       llmIsSunset: r.llm_is_sunset,
       llmModel: r.llm_model,
+      // Both judges, so a replayed scene reacts to the gate dial the way a
+      // live one does. Reconstruction used to carry Claude's columns alone,
+      // which made the gate inert on every historical scene.
+      aiRatingBinary: probabilityToRating(r.ai_binary_score),
+      aiRatingRegression: probabilityToRating(r.ai_regression_score),
+      aiModelVersionBinary: r.ai_model_version_binary ?? undefined,
+      aiModelVersionRegression: r.ai_model_version_regression ?? undefined,
       lastUpdatedOn: r.snapshot_captured_at,
     };
     state[r.phase].push(cam);
@@ -90,6 +116,8 @@ export async function reconstructScene(
       s.webcam_id, s.phase, s.rank, s.firebase_url,
       s.captured_at AS snapshot_captured_at,
       s.llm_quality, s.llm_is_sunset, s.llm_model,
+      s.ai_binary_score, s.ai_regression_score,
+      s.ai_model_version_binary, s.ai_model_version_regression,
       w.title, w.status, w.view_count, w.lat, w.lng,
       w.city, w.region, w.country, w.continent,
       w.categories, w.urls, w.player, w.rating, w.orientation,

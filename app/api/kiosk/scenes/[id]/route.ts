@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireOwner } from '@/app/lib/owner';
 import { deleteScene, getScene, updateSceneMeta } from '@/app/lib/scenes/store';
+import { resolveScene } from '@/app/lib/scenes/resolve';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,7 +19,9 @@ export async function GET(_request: Request, { params }: Ctx) {
   if (id === null) return NextResponse.json({ error: 'bad id' }, { status: 400 });
   const scene = await getScene(id);
   if (!scene) return NextResponse.json({ error: 'not found' }, { status: 404 });
-  return NextResponse.json(scene);
+  // Pointer scenes resolve on every read, so an improved model shows up on
+  // an old scene instead of being hidden behind a copy taken at save time.
+  return NextResponse.json(await resolveScene(scene));
 }
 
 export async function PATCH(request: Request, { params }: Ctx) {
