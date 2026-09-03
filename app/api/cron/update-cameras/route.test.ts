@@ -123,6 +123,20 @@ vi.mock('./lib/sweepGeometry', async () => {
     upsertSweepGeometry: (...a: unknown[]) => upsertSweepGeometryMock(...a),
   };
 });
+const sweepHoldMock = vi.fn();
+// Only assessSweepHold is stubbed, and only when a test sets an
+// implementation (beforeEach resets it to none) — otherwise the real
+// function runs, so this file exercises real hold logic by default.
+vi.mock('./lib/sweepHealth', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./lib/sweepHealth')>();
+  return {
+    ...actual,
+    assessSweepHold: (...a: Parameters<typeof actual.assessSweepHold>) =>
+      sweepHoldMock.getMockImplementation()
+        ? sweepHoldMock(...a)
+        : actual.assessSweepHold(...a),
+  };
+});
 const sendDailyUsageDigestMock = vi.fn();
 vi.mock('./lib/dailyDigest', () => ({
   sendDailyUsageDigest: (...a: unknown[]) => sendDailyUsageDigestMock(...a),
@@ -163,7 +177,10 @@ vi.mock('@/app/lib/masterConfig', async (importOriginal) => {
   };
 });
 
-import { TERMINATOR_CAMERA_FLOOR } from '@/app/lib/masterConfig';
+import {
+  TERMINATOR_CAMERA_FLOOR,
+  TERMINATOR_RETENTION_GRACE_MS,
+} from '@/app/lib/masterConfig';
 import { GET } from './route';
 
 // A classify result at/above the floor for both feeds, so the default tick
@@ -216,6 +233,7 @@ beforeEach(() => {
   });
   insertWindyDisagreementSnapshotMock.mockReset().mockReturnValue(999);
   isFlagEnabledMock.mockReset().mockResolvedValue(false);
+  sweepHoldMock.mockReset();
   toggles.high = false;
   toggles.all = false;
   toggles.trickleRate = 0;
@@ -337,7 +355,11 @@ describe('GET /api/cron/update-cameras', () => {
     expect((sunriseDeactCall![1] as number[]).sort()).toEqual([1, 999]);
   });
 
-  it('skips upsert/deactivate for empty buckets gracefully', async () => {
+  it('holds the pool when the sweep finds nothing: upserts still run, deactivate does not', async () => {
+    // Boxes went out (the ring mock gives one coord per feed) and nothing came
+    // back. Before retention this emptied both feeds within one tick. Now the
+    // last good pool stays until a tick that can see the world.
+    fetchBatchesMock.mockResolvedValue([[]]);
     classifyMock.mockReturnValue({ sunrise: [], sunset: [] });
     getIdMapMock.mockResolvedValue(new Map());
     customClassifyMock.mockResolvedValue({ sunrise: [], sunset: [] });
@@ -345,17 +367,52 @@ describe('GET /api/cron/update-cameras', () => {
     const res = await GET(makeReq());
     expect(res.status).toBe(200);
 
-    // Empty buckets must still flow through upsert + deactivate — otherwise a
-    // future "optimize away empty arrays" change would silently break the
-    // deactivation contract (rows would never get flipped to active=false
-    // when the active set is empty).
     const sunriseUpsertCall = upsertStateMock.mock.calls.find((c) => c[1] === 'sunrise');
     expect(sunriseUpsertCall).toBeDefined();
     expect(sunriseUpsertCall![0]).toEqual([]);
 
+    expect(deactivateMock).not.toHaveBeenCalled();
+
+    const body = await res.json();
+    expect(body.retention).toMatchObject({ held: true, reason: 'nothing-found' });
+  });
+
+  it('deactivates with the retention grace on a healthy tick', async () => {
+    classifyMock.mockReturnValue({
+      sunrise: [{ webcamId: 'wA', location: { latitude: 0, longitude: 0 } }],
+      sunset: [],
+    });
+    getIdMapMock.mockResolvedValue(new Map([['wA', 1]]));
+    customClassifyMock.mockResolvedValue({ sunrise: [], sunset: [] });
+
+    const res = await GET(makeReq());
+    expect(res.status).toBe(200);
+
     const sunriseDeactCall = deactivateMock.mock.calls.find((c) => c[0] === 'sunrise');
     expect(sunriseDeactCall).toBeDefined();
-    expect(sunriseDeactCall![1]).toEqual([]);
+    expect(sunriseDeactCall![2]).toBe(TERMINATOR_RETENTION_GRACE_MS);
+
+    const body = await res.json();
+    expect(body.retention).toMatchObject({ held: false, reason: 'none' });
+  });
+
+  it('skips deactivation whenever the assessment says hold', async () => {
+    sweepHoldMock.mockImplementation(() => ({
+      held: true, reason: 'failed-ratio', attempted: 30, failed: 20, found: 5,
+    }));
+    classifyMock.mockReturnValue({
+      sunrise: [{ webcamId: 'wA', location: { latitude: 0, longitude: 0 } }],
+      sunset: [],
+    });
+    getIdMapMock.mockResolvedValue(new Map([['wA', 1]]));
+    customClassifyMock.mockResolvedValue({ sunrise: [], sunset: [] });
+
+    const res = await GET(makeReq());
+    expect(res.status).toBe(200);
+    // What the failed sweep DID find is still added ...
+    expect(upsertStateMock).toHaveBeenCalled();
+    // ... but nothing is removed on its say-so.
+    expect(deactivateMock).not.toHaveBeenCalled();
   });
 
   it('returns a scoringPaths breakdown counted from scored.pathTaken', async () => {
