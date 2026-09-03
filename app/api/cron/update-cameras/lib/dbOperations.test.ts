@@ -210,7 +210,10 @@ describe('deactivateMissingTerminatorState', () => {
     // Empty-array fast path: no `<> all` filter ...
     expect(fullQuery).not.toContain('<> all');
     // ... but the grace still applies. An empty sweep used to empty the feed.
-    expect(fullQuery).toContain('last_seen_at <');
+    // Assert the whole fragment, not just `last_seen_at <` — that would
+    // still pass if the sign flipped to `now() + graceMs`, which would
+    // deactivate the entire pool every tick.
+    expect(fullQuery.replace(/\s+/g, ' ')).toContain('last_seen_at < now() - ');
   });
 
   it('passes the active ids array into the SQL parameters', async () => {
@@ -228,7 +231,10 @@ describe('deactivateMissingTerminatorState', () => {
     await deactivateMissingTerminatorState('sunrise', [42], GRACE_MS);
 
     const strings = sqlMock.mock.calls[0][0] as readonly string[];
-    expect(strings.join(' ')).toContain('last_seen_at <');
+    // Assert the whole fragment, not just `last_seen_at <` — that would
+    // still pass if the sign flipped to `now() + graceMs`, which would
+    // deactivate the entire pool every tick.
+    expect(strings.join(' ').replace(/\s+/g, ' ')).toContain('last_seen_at < now() - ');
     const values = sqlMock.mock.calls[0].slice(1);
     expect(values).toContain(GRACE_MS);
   });

@@ -802,6 +802,8 @@ PR body must state: the behaviour change (held ticks keep the pool; 20-minute gr
 1. **Grace visible.** `select count(*) from terminator_webcam_state where active` should exceed the per-tick camera count in the `📊 Webcam split` log line by roughly the 20-minute retention, about 15–20 cameras at today's turnover.
 2. **Held stays 0.** `sweep_held_ticks` stays 0 across a healthy day. If it climbs on a day with no Windy trouble, the ratio or the found check is misfiring; read the `sweep hold` log lines for the reason.
 3. **Nothing flickers.** Watch the glass for ten minutes. A camera that was there a minute ago is still there.
+4. **Per-feed failure is not a hold.** If one panel drains while the tick response shows `retention.held: false`, read `sweep.rings[].failedByStatus` in the same response before suspecting the pool; a one-feed Windy failure that stays under the 50% ratio is bounded only by the grace.
+5. **Boundary cameras may sit in both phases for the grace.** `select webcam_id from terminator_webcam_state where active group by webcam_id having count(*) > 1` should stay near zero (baseline 0 on 2026-09-03). Cosmetic if not: the camera shows on both walls briefly.
 
 ## Self-review
 

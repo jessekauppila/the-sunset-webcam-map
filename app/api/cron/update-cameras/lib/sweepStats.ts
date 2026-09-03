@@ -152,6 +152,8 @@ export async function upsertSweepStats(
 ): Promise<void> {
   const date = utcDateString(now);
   try {
+    // Column list, values, and on-conflict set below are positional and must
+    // stay aligned (verified: sweep_held_ticks is the 6th of 15 columns).
     await sql`
       insert into daily_sunset_stats (
         date, model_version,
@@ -197,8 +199,17 @@ export async function upsertSweepStats(
           daily_sunset_stats.sweep_escalation_ms + excluded.sweep_escalation_ms,
         updated_at = now()
     `;
+  } catch (error) {
+    console.warn('[sweepStats] persist failed:', error);
+  }
 
+  // Separate try: daily_sunset_stats and daily_sweep_ring_stats are
+  // independent tables (e.g. one may predate a migration that adds the
+  // other), so a failure in one insert must not cost the other its rows.
+  try {
     for (const ring of stats.rings) {
+      // Column list, values, and on-conflict set below are positional and
+      // must stay aligned.
       await sql`
         insert into daily_sweep_ring_stats (
           date, offset_deg,
@@ -227,7 +238,7 @@ export async function upsertSweepStats(
       `;
     }
   } catch (error) {
-    console.warn('[sweepStats] persist failed:', error);
+    console.warn('[sweepStats] ring persist failed:', error);
   }
 }
 

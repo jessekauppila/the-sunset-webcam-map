@@ -28,7 +28,8 @@ Pacific first, UTC beside it. The show runs in the freshest hours of the UTC day
 - Empty-box alarm closed: partial days plus silent 400s, not a quota.
 
 ### Fri Sep 4 — build day
-- Build pool retention, Tasks 1–4 first. PR, merge, deploy.
+- Build day was actually Thu Sep 3: Tasks 1–6 were implemented and reviewed
+  on `feat/pool-retention`. Fri Sep 4 is now PR, merge, deploy, verify.
 - Verify on the next tick: `retention.held` is false; the active pool exceeds the
   per-tick camera count by roughly the 20-minute grace (about 15–20 cameras).
 - Apply `20260904_sweep_hold.sql` before merging Tasks 5–6.
@@ -69,13 +70,13 @@ Pacific first, UTC beside it. The show runs in the freshest hours of the UTC day
 
 ## The work
 
-### Pool retention — planned, plan written
-- [ ] Task 1 · the two constants (20-minute grace, half-failed hold ratio)
-- [ ] Task 2 · grace in deactivation, both branches
-- [ ] Task 3 · sweep-hold assessment (no boxes / nothing found / half failed)
-- [ ] Task 4 · wire into the tick; `retention` in the response — **ship gate**
-- [ ] Task 5 · count held ticks (migration, sweep stats, digest summary)
-- [ ] Task 6 · digest clause
+### Pool retention — built, on feat/pool-retention, PR pending
+- [x] Task 1 · the two constants (20-minute grace, half-failed hold ratio)
+- [x] Task 2 · grace in deactivation, both branches
+- [x] Task 3 · sweep-hold assessment (no boxes / nothing found / half failed)
+- [x] Task 4 · wire into the tick; `retention` in the response — **ship gate**
+- [x] Task 5 · count held ticks (migration, sweep stats, digest summary)
+- [x] Task 6 · digest clause
 
 ### Preview at a proven call rate — not started
 - [ ] Kiosk tick to two minutes (one-constant PR plus the lock TTL and a pin test)
@@ -86,12 +87,18 @@ Pacific first, UTC beside it. The show runs in the freshest hours of the UTC day
 - [x] First full day over 22,300 read CLEAR (Sep 3, 20:52Z)
 - [ ] First day with the ring on read CLEAR (the doubled rate is unprobed until then)
 - [ ] Hourly reads on the eleventh and twelfth
-- [ ] Move `gate-check.mjs` from the session scratchpad to `scripts/windy-gate-check.mjs`
+- [x] Gate check rebuilt into `scripts/windy-gate-check.mjs` after the scratchpad copy was lost
 
 ### Open risks on the glass — confirm
 - [ ] `fix/kiosk-reload-verification`: pushed, unmerged, never run on the Pi; also edits `CLAUDE.md`
 - [ ] Mosaic v3 on the actual panels: #120 and #122 merged; confirm the band scale on the glass, not the studio
 - [ ] Kiosk Pi reachable and rendering `main` (Deploy copies settings rows only; the Pi renders `main`)
+- [ ] Two known limits of retention (final review 2026-09-03): the hold is
+      global while deactivation is per-feed, so a one-feed Windy failure under
+      the 50% ratio is bounded only by the 20-minute grace; and a held tick
+      also retains a stale Pi camera until the next healthy tick. If a panel
+      drains while `retention.held` is false, read `rings[].failedByStatus`
+      in the tick log before suspecting the pool.
 
 ## The envelope
 
@@ -109,10 +116,10 @@ Read-only: database, Vercel logs, six Windy calls. Prints a VERDICT line.
 HOLD on any 429 or 403, a non-OK probe, or land boxes returning empty. CLEAN
 only once the day has crossed the figure.
 
-Until it moves into `scripts/`, it runs from the session scratchpad:
+Run from the repo root:
 
 ```bash
-node --input-type=module -e "$(cat /private/tmp/claude-501/-Users-jessekauppila-GitHub-the-sunset-webcam-map/e0f699de-e8f8-4694-be72-f07f233097de/scratchpad/gate-check.mjs)"
+node scripts/windy-gate-check.mjs
 ```
 
 What it does, so it can be rebuilt if the scratchpad is gone:
