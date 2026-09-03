@@ -4,37 +4,61 @@ Next.js app behind the sunrise/sunset map: web UI, snapshot ingest, ML rating
 pipeline, kiosk, AR placement portal. The camera-side firmware is a separate
 repo (`../sunset-cam-firmware`); wire spec is `docs/device-protocol.md`.
 
-## Branches: plain branches in the main checkout — no worktrees
+## Branches: one sibling worktree per feature — the main checkout is the merge desk
 
-Work here happens on **ordinary branches in the single main checkout**
-(`git checkout -b feat/...`). Do **not** create `.claude/worktrees/` checkouts —
-the extra folder reads as a separate repo and files stop appearing at their
-normal paths. (The sibling firmware repo uses the opposite convention; don't
-carry it over.)
+Every feature gets its own **git worktree in a sibling directory** and its own
+cmux workspace. The main checkout (`~/GitHub/the-sunset-webcam-map`) stays on
+`main`: it is where PRs merge, migrations apply, and `ml/artifacts/` lives.
+Nobody edits app code there.
 
-If the checkout is mid-work on another branch, **ask before switching.**
+```bash
+scripts/wt.sh new feat/mosaic-v4   # worktree + node_modules symlink + env copies + cmux workspace
+scripts/wt.sh ls
+scripts/wt.sh rm feat/mosaic-v4    # after the PR merges (refuses if dirty or unpushed)
+```
 
-Verify the branch before any commit — Jesse merges PRs in parallel and the
-working branch can shift mid-task.
+Worktrees live at `~/GitHub/the-sunset-webcam-map.worktrees/<branch-slug>/`,
+**beside** the repo, never inside it. The old `.claude/worktrees/` layout inside
+the checkout is what made a worktree read as a second repo; don't recreate it.
+(The firmware repo still uses that nested layout. Don't carry either
+convention across.)
 
-### Multi-session coordination (proven 2026-08-30)
+Inside a worktree, `next dev` picks a free port on its own, `node_modules` is a
+symlink to the main checkout's, and `.env.local` / `.vercel/` are copied at
+creation. Caveats (adding a dependency, stacked branches):
+`docs/solutions/developer-experience/git-worktrees-for-js-and-python-repos.md`.
 
-Several Claude sessions share this one checkout. The protocol:
+Still true in every worktree:
 
-1. **Message peer sessions directly** (`ListAgents` + `SendMessage`) to
-   negotiate the checkout, hand off work, or report a bug in their lane —
-   don't work around each other silently.
-2. **Leave the checkout on `main` when you go idle.** Whoever takes it,
-   returns it.
-3. **Push branches immediately** so the checkout is never the only copy of
-   anyone's work; that's what makes switching safe.
-4. **Lanes:** model/measurement work (training, evals, the STATE doc) and
+- **Verify the branch in the same command as any commit.** Worktrees make a
+  wrong-branch commit rare, not impossible.
+- **Stage explicit paths**, never `git add -A`.
+- **Push as soon as a commit exists** and land small increments the same day.
+  Long-lived branches orphan fixes:
+  `docs/solutions/best-practices/integrate-frequently-dont-let-branches-sprawl.md`.
+- **Remove the worktree when the PR merges.** `git worktree list` should read
+  like the list of open PRs.
+
+### Multi-session coordination
+
+Sessions no longer share a working tree, so there is nothing to negotiate
+about the checkout. What remains:
+
+1. **Lanes:** model/measurement work (training, evals, the STATE doc) and
    display work (mosaic, kiosk) run in separate sessions. Shared helpers
-   (`app/lib/modelReadout.ts`, the mosaic's `qualitySignal`) get a
-   heads-up message to the other lane when they change.
-5. **`docs/superpowers/plans/2026-08-29-two-scale-model-STATE.md` is the
+   (`app/lib/modelReadout.ts`, the mosaic's `qualitySignal`) get a heads-up
+   message (`ListAgents` + `SendMessage`) to the other lane when they change.
+2. **The ML lane is the one exception that still works in the main checkout.**
+   `ml/artifacts/` is 3 GB of mostly untracked data mixed with tracked files,
+   so it can't be symlinked into a worktree. An ML session branches in the
+   main checkout, and the old rules apply to it alone: ask before switching,
+   return the checkout to `main` when idle, message before touching a tracked
+   file there.
+3. **`docs/superpowers/plans/2026-08-29-two-scale-model-STATE.md` is the
    cross-session source of truth** for the model program — read it first,
    update it on the way out.
+4. **Cap active writing lanes at three.** Jesse merges every PR; more open
+   worktrees than that means work outrunning review. Close idle sessions.
 
 ## Commands
 
