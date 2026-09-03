@@ -26,6 +26,7 @@ const uploadToFirebaseMock = vi.fn(() => ({
   path: 'snapshots/0/test.jpg',
 }));
 const insertWindyDisagreementSnapshotMock = vi.fn(() => 999);
+const isFlagEnabledMock = vi.fn();
 
 vi.mock('@/app/lib/terminatorPayload', () => ({
   fetchTerminatorWebcams: () => fetchTerminatorWebcamsMock(),
@@ -93,6 +94,10 @@ vi.mock('./lib/providerUsage', () => ({
 // real module -- and with it @/app/lib/db, which calls neon() at import time
 // and throws without DATABASE_URL. Nothing in this file uses sql directly.
 vi.mock('@/app/lib/db', () => ({ sql: vi.fn() }));
+vi.mock('@/app/lib/runtimeFlags', () => ({
+  SWEEP_FORCE_DAY_RING: 'sweep_force_day_ring',
+  isFlagEnabled: () => isFlagEnabledMock(),
+}));
 
 const upsertSweepStatsMock = vi.fn();
 // Only the write is stubbed. computeSweepTickStats and ringOffsetByWebcamId
@@ -192,6 +197,7 @@ beforeEach(() => {
     path: 'snapshots/0/test.jpg',
   });
   insertWindyDisagreementSnapshotMock.mockReset().mockReturnValue(999);
+  isFlagEnabledMock.mockReset().mockResolvedValue(false);
   toggles.high = false;
   toggles.all = false;
   toggles.trickleRate = 0;
@@ -550,6 +556,23 @@ describe('GET /api/cron/update-cameras', () => {
     const res = await GET(makeReq());
     expect(res.status).toBe(200);
     expect((await res.json()).digest).toEqual({ skipped: 'send-failed' });
+  });
+
+  it('sweeps only the base ring while the switch is off', async () => {
+    const res = await GET(makeReq());
+    const body = await res.json();
+    expect(body.forcedDayRing).toBe(false);
+    expect(body.sweep.rings).toHaveLength(1);
+  });
+
+  it('sweeps the day-side ring on a healthy tick when the switch is on', async () => {
+    isFlagEnabledMock.mockResolvedValue(true);
+    const res = await GET(makeReq());
+    const body = await res.json();
+    expect(body.forcedDayRing).toBe(true);
+    expect(body.sweep.rings.map((r: { offsetDeg: number }) => r.offsetDeg))
+      .toEqual([0, 15.75]);
+    expect(body.sweep.rings[1].feedsSwept).toEqual(['sunrise', 'sunset']);
   });
 
   describe('terminator sweep telemetry', () => {
