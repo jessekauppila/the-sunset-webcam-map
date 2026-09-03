@@ -26,6 +26,7 @@ const uploadToFirebaseMock = vi.fn(() => ({
   path: 'snapshots/0/test.jpg',
 }));
 const insertWindyDisagreementSnapshotMock = vi.fn(() => 999);
+const isFlagEnabledMock = vi.fn();
 
 vi.mock('@/app/lib/terminatorPayload', () => ({
   fetchTerminatorWebcams: () => fetchTerminatorWebcamsMock(),
@@ -45,7 +46,7 @@ vi.mock('./lib/windyApi', () => ({
   // list short-circuits to zero webcams without calling the batch fetcher.
   fetchCoordsCounted: async (coords: unknown[], ...rest: unknown[]) => {
     if (!Array.isArray(coords) || coords.length === 0) {
-      return { webcams: [], attempted: 0, empty: 0 };
+      return { webcams: [], attempted: 0, empty: 0, failed: 0, failedByStatus: {} };
     }
     const batches = (await fetchBatchesMock(coords, ...rest)) as Array<
       Array<{ webcamId: number | string; [k: string]: unknown }>
@@ -54,6 +55,8 @@ vi.mock('./lib/windyApi', () => ({
       webcams: batches.flat(),
       attempted: coords.length,
       empty: batches.filter((b) => b.length === 0).length,
+      failed: 0,
+      failedByStatus: {},
     };
   },
 }));
@@ -93,6 +96,10 @@ vi.mock('./lib/providerUsage', () => ({
 // real module -- and with it @/app/lib/db, which calls neon() at import time
 // and throws without DATABASE_URL. Nothing in this file uses sql directly.
 vi.mock('@/app/lib/db', () => ({ sql: vi.fn() }));
+vi.mock('@/app/lib/runtimeFlags', () => ({
+  SWEEP_FORCE_DAY_RING: 'sweep_force_day_ring',
+  isFlagEnabled: () => isFlagEnabledMock(),
+}));
 
 const upsertSweepStatsMock = vi.fn();
 // Only the write is stubbed. computeSweepTickStats and ringOffsetByWebcamId
@@ -101,6 +108,21 @@ vi.mock('./lib/sweepStats', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./lib/sweepStats')>()),
   upsertSweepStats: (...a: unknown[]) => upsertSweepStatsMock(...a),
 }));
+const upsertSweepGeometryMock = vi.fn();
+// Only the write is stubbed. sweepGeometry stays real (it reads only
+// masterConfig constants, no DB) so the assertion below checks REAL output —
+// a regression that drops forcedOffsets from the geometry record would
+// otherwise break no test.
+vi.mock('./lib/sweepGeometry', async () => {
+  const actual =
+    await vi.importActual<typeof import('./lib/sweepGeometry')>(
+      './lib/sweepGeometry',
+    );
+  return {
+    ...actual,
+    upsertSweepGeometry: (...a: unknown[]) => upsertSweepGeometryMock(...a),
+  };
+});
 const sendDailyUsageDigestMock = vi.fn();
 vi.mock('./lib/dailyDigest', () => ({
   sendDailyUsageDigest: (...a: unknown[]) => sendDailyUsageDigestMock(...a),
@@ -181,6 +203,7 @@ beforeEach(() => {
   captureProviderUsageDailyMock.mockReset().mockResolvedValue({ captured: 0 });
   sendDailyUsageDigestMock.mockReset().mockResolvedValue({ sent: true });
   upsertSweepStatsMock.mockReset().mockResolvedValue(undefined);
+  upsertSweepGeometryMock.mockReset().mockResolvedValue(undefined);
   setCachedMock.mockReset().mockResolvedValue(undefined);
   markKioskTickRanMock.mockReset().mockResolvedValue(undefined);
   fetchTerminatorWebcamsMock.mockReset().mockResolvedValue([]);
@@ -192,6 +215,7 @@ beforeEach(() => {
     path: 'snapshots/0/test.jpg',
   });
   insertWindyDisagreementSnapshotMock.mockReset().mockReturnValue(999);
+  isFlagEnabledMock.mockReset().mockResolvedValue(false);
   toggles.high = false;
   toggles.all = false;
   toggles.trickleRate = 0;
@@ -550,6 +574,31 @@ describe('GET /api/cron/update-cameras', () => {
     const res = await GET(makeReq());
     expect(res.status).toBe(200);
     expect((await res.json()).digest).toEqual({ skipped: 'send-failed' });
+  });
+
+  it('sweeps only the base ring while the switch is off', async () => {
+    const res = await GET(makeReq());
+    const body = await res.json();
+    expect(body.forcedDayRing).toBe(false);
+    expect(body.sweep.rings).toHaveLength(1);
+    expect(upsertSweepGeometryMock).toHaveBeenCalledTimes(1);
+    expect(upsertSweepGeometryMock.mock.calls[0][1]).toMatchObject({
+      forcedOffsetsDeg: '',
+    });
+  });
+
+  it('sweeps the day-side ring on a healthy tick when the switch is on', async () => {
+    isFlagEnabledMock.mockResolvedValue(true);
+    const res = await GET(makeReq());
+    const body = await res.json();
+    expect(body.forcedDayRing).toBe(true);
+    expect(body.sweep.rings.map((r: { offsetDeg: number }) => r.offsetDeg))
+      .toEqual([0, 15.75]);
+    expect(body.sweep.rings[1].feedsSwept).toEqual(['sunrise', 'sunset']);
+    expect(upsertSweepGeometryMock).toHaveBeenCalledTimes(1);
+    expect(upsertSweepGeometryMock.mock.calls[0][1]).toMatchObject({
+      forcedOffsetsDeg: '15.75',
+    });
   });
 
   describe('terminator sweep telemetry', () => {

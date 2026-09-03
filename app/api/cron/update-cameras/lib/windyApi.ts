@@ -40,12 +40,27 @@ export function boundingBox(loc: Location, radiusDeg: number): BoundingBox {
 }
 
 /**
+ * One box's answer, with the status that produced it.
+ *
+ * `ok: false` with an empty list is a failed request. `ok: true` with an
+ * empty list is a box with no cameras in it. Until this type existed the two
+ * were indistinguishable downstream, which made every "empty box" count a
+ * mix of ocean and rejected calls.
+ */
+export interface BoxFetchResult {
+  webcams: WindyWebcam[];
+  /** HTTP status of the response. */
+  status: number;
+  ok: boolean;
+}
+
+/**
  * Fetch webcams from Windy API for a given location
  */
 export async function fetchWebcamsFor(
   loc: Location,
   delayMs = 0
-): Promise<WindyWebcam[]> {
+): Promise<BoxFetchResult> {
   // Add delay to avoid rate limiting
   if (delayMs > 0) {
     await new Promise((resolve) => setTimeout(resolve, delayMs));
@@ -77,14 +92,14 @@ export async function fetchWebcamsFor(
     console.error(
       `❌ API error for ${loc.lat},${loc.lng}: ${res.status} ${res.statusText}`
     );
-    return [] as WindyWebcam[];
+    return { webcams: [], status: res.status, ok: false };
   }
 
   const data: WindyWebcam[] = await res.json();
   console.log(
     `📹 Found ${data.length} webcams at ${loc.lat},${loc.lng}`
   );
-  return data ?? [];
+  return { webcams: data ?? [], status: res.status, ok: true };
 }
 
 /**
@@ -106,8 +121,8 @@ export async function fetchWebcamsInBatches(
   coords: Location[],
   batchSize = 5,
   delayBetweenBatches = 1000
-): Promise<WindyWebcam[][]> {
-  const batches: WindyWebcam[][] = [];
+): Promise<BoxFetchResult[]> {
+  const batches: BoxFetchResult[] = [];
 
   for (let i = 0; i < coords.length; i += batchSize) {
     const batch = coords.slice(i, i + batchSize);
@@ -151,14 +166,16 @@ export interface CoordFetchResult {
   webcams: WindyWebcam[];
   /** Boxes we sent to Windy. */
   attempted: number;
-  /**
-   * Boxes that returned nothing. Conflates "no cameras there" with "the call
-   * failed", because `fetchWebcamsFor` swallows non-OK responses. That
-   * conflation is the point: a rising `empty` count against a flat camera
-   * count is the signature of an API wall, which is the thing we need to be
-   * able to see.
-   */
+  /** Boxes that answered 200 with no cameras. Ocean, or nearly. */
   empty: number;
+  /**
+   * Boxes whose request came back non-OK. Counted apart from `empty` because
+   * a quota ceiling and the Pacific look identical in an empty count and
+   * nothing like each other here.
+   */
+  failed: number;
+  /** `failed`, split by HTTP status: `{ "400": 3 }`. */
+  failedByStatus: Record<string, number>;
 }
 
 /**
@@ -170,16 +187,31 @@ export async function fetchCoordsCounted(
   batchSize = 5,
   delayMs = 1000
 ): Promise<CoordFetchResult> {
-  if (coords.length === 0) return { webcams: [], attempted: 0, empty: 0 };
+  if (coords.length === 0) {
+    return { webcams: [], attempted: 0, empty: 0, failed: 0, failedByStatus: {} };
+  }
   // One entry per COORDINATE, not per batch: fetchWebcamsInBatches spreads
   // each batch's results back in, so the array is 1:1 with `coords`. That
-  // invariant is what makes `attempted` and `empty` correct, and the old
-  // `batches` name hid it.
+  // invariant is what makes `attempted`, `empty` and `failed` correct.
   const perCoord = await fetchWebcamsInBatches(coords, batchSize, delayMs);
+  let empty = 0;
+  let failed = 0;
+  const failedByStatus: Record<string, number> = {};
+  for (const box of perCoord) {
+    if (!box.ok) {
+      failed += 1;
+      const key = String(box.status);
+      failedByStatus[key] = (failedByStatus[key] ?? 0) + 1;
+    } else if (box.webcams.length === 0) {
+      empty += 1;
+    }
+  }
   return {
-    webcams: perCoord.flat(),
+    webcams: perCoord.flatMap((box) => box.webcams),
     attempted: coords.length,
-    empty: perCoord.filter((r) => r.length === 0).length,
+    empty,
+    failed,
+    failedByStatus,
   };
 }
 
