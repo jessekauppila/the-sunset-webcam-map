@@ -13,7 +13,8 @@
     "backfill:archive": "npx --yes tsx scripts/backfill-archive-scores.ts",
     "backfill:archive:dry": "npx --yes tsx scripts/backfill-archive-scores.ts --dry-run",
     "backfill:flickr": "npx --yes tsx scripts/backfill-flickr-scores.ts",
-    "backfill:flickr:dry": "npx --yes tsx scripts/backfill-flickr-scores.ts --dry-run"
+    "backfill:flickr:dry": "npx --yes tsx scripts/backfill-flickr-scores.ts --dry-run",
+    "migrate:status": "node scripts/apply-migration.mjs --status"
   },
   "dependencies": {
     "@deck.gl/core": "^9.1.14",
