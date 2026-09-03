@@ -3,6 +3,8 @@ import {
   SEARCH_RADIUS_DEG,
   TERMINATOR_CAMERA_FLOOR,
   TERMINATOR_WIDEN_OFFSETS_DEG,
+  TERMINATOR_SUN_ALTITUDE_DEG,
+  TERMINATOR_DAY_SIDE_OFFSETS_DEG,
   TERMINATOR_SWEEP_BUDGET_MS,
   TICK_DEADLINE_MS,
   YOUTUBE_MAX_LOCATION_RADIUS_KM,
@@ -74,5 +76,20 @@ describe('YOUTUBE_MAX_LOCATION_RADIUS_KM', () => {
     const sentKm = Math.min(rawKm, YOUTUBE_MAX_LOCATION_RADIUS_KM);
     expect(sentKm).toBeLessThanOrEqual(YOUTUBE_MAX_LOCATION_RADIUS_KM);
     expect(sentKm).toBe(Math.min(rawKm, 1000));
+  });
+});
+
+describe('TERMINATOR_DAY_SIDE_OFFSETS_DEG', () => {
+  it('is the golden-hour ring, and only it', () => {
+    // Positive offset moves the ring toward day. The night-side ring lands
+    // near -28.75, where the detection gate floors the frames anyway, so
+    // forcing it would buy cost without sunsets.
+    expect(TERMINATOR_DAY_SIDE_OFFSETS_DEG).toEqual([15.75]);
+  });
+
+  it('puts its ring inside the measured quality peak', () => {
+    const altitude = TERMINATOR_SUN_ALTITUDE_DEG + TERMINATOR_DAY_SIDE_OFFSETS_DEG[0];
+    expect(altitude).toBeGreaterThan(0);
+    expect(altitude).toBeLessThan(6);
   });
 });
