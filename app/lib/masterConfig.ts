@@ -58,6 +58,40 @@ export const TERMINATOR_WIDEN_OFFSETS_DEG = [15.75, -15.75] as const;
 export const TERMINATOR_DAY_SIDE_OFFSETS_DEG = TERMINATOR_WIDEN_OFFSETS_DEG
   .filter((offset) => offset > 0);
 
+// The solar-altitude range the terminator sweep actually gathers under the
+// CURRENT configuration. This is the one contract between the pool and the
+// display: a camera the sweep found must have somewhere on the panel to be,
+// and `app/components/mosaic/v3/engine/axis.test.ts` asserts the mosaic's
+// default display window covers this range.
+//
+// "Current configuration", not "every ring that exists". The escalation rings
+// in TERMINATOR_WIDEN_OFFSETS_DEG only fire when a feed falls under
+// TERMINATOR_CAMERA_FLOOR, so they are NOT counted here, and today the value
+// is the base ring alone. Counting rings that rarely sweep would squeeze
+// every ordinary night into the middle of the panel for a case that seldom
+// fires -- the same reasoning the v2 axis comment already records.
+//
+// This is what the sweep gathers in the common case, NOT a ceiling it can
+// never exceed. Escalation is real but minority behaviour: none on
+// 2026-09-02, then 40 of 567 sweeps (about 7%) on 2026-09-03, every one
+// triggered by sunrise dropping under TERMINATOR_CAMERA_FLOOR and every one
+// recovered. On those ticks the pool briefly holds cameras out to +13.75,
+// and they clamp to the panel's day edge — the behaviour the v2 axis comment
+// already argues for. Worth knowing for the wall: the day-side ring's frames
+// passed the detection gate at roughly twice the base ring's rate in that
+// sample (22/151 vs 478/7,059), so widening is adding sunsets, not floored
+// cameras. Small sample; the direction is not ambiguous.
+//
+// The pool-coverage lane owns this value and must widen it IN THE SAME COMMIT
+// that turns a ring on routinely. That is what makes the axis test a
+// tripwire: widening coverage fails it, and the failure is the reminder to
+// move axisDayEdgeDeg with it. A value that already describes rings nobody
+// sweeps fires the alarm on day one and then means nothing.
+export const TERMINATOR_POOL_COVERAGE_DEG = {
+  min: TERMINATOR_SUN_ALTITUDE_DEG - SEARCH_RADIUS_DEG,
+  max: TERMINATOR_SUN_ALTITUDE_DEG + SEARCH_RADIUS_DEG,
+} as const;
+
 // Wall-clock budget for the whole terminator sweep (base ring + any
 // escalation rings), in milliseconds. The scoring loop that follows needs
 // the remaining tick more than the pool needs extra cameras, so escalation

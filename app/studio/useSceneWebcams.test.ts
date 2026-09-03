@@ -82,3 +82,38 @@ describe('useSceneWebcams — scene moment', () => {
     await waitFor(() => expect(result.current.sceneRepresentsAt).toBeNull());
   });
 });
+
+describe('useSceneWebcams — what a scene carries besides its pool', () => {
+  const withProvenance = {
+    id: 42, label: 'dense wall', tags: [], notes: 'shows 3 of 4 real sunsets; tiles feel small on the KTC',
+    representsAt: 't', source: 'live', createdAt: 't',
+    provenance: { activeVersion: 'v3', settings: { v3: { bandCount: 8, ceilingPx: 240 } } },
+    state: { sunrise: [], sunset: [] },
+  };
+
+  beforeEach(() => {
+    fetchMock.mockImplementation((url: string) =>
+      Promise.resolve({
+        ok: true,
+        json: () =>
+          Promise.resolve(String(url).endsWith('/42') ? withProvenance : listPayload),
+      })
+    );
+  });
+
+  it('exposes the notes and the dial provenance the scene was saved with', async () => {
+    // A scene that restores the pool but drops the dials that produced it is
+    // a screenshot, not a saved configuration. The hook has to hand both out.
+    const { result } = renderHook(() => useSceneWebcams({ kind: 'scene', id: 42 }));
+    await waitFor(() => expect(result.current.sceneProvenance).not.toBeNull());
+    expect(result.current.sceneNotes).toContain('3 of 4');
+    expect(result.current.sceneProvenance?.activeVersion).toBe('v3');
+    expect(result.current.sceneProvenance?.settings.v3).toEqual({ bandCount: 8, ceilingPx: 240 });
+  });
+
+  it('is null for live and for a scene with no provenance', async () => {
+    const live = renderHook(() => useSceneWebcams({ kind: 'live' }));
+    expect(live.result.current.sceneProvenance).toBeNull();
+    expect(live.result.current.sceneNotes).toBeNull();
+  });
+});

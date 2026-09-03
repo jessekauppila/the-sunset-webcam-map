@@ -1,7 +1,7 @@
 'use client';
 
 import useSWR from 'swr';
-import type { Scene, SceneState, SceneSummary } from '@/app/lib/scenes/types';
+import type { Scene, SceneProvenance, SceneState, SceneSummary } from '@/app/lib/scenes/types';
 
 export type SceneSource = { kind: 'live' } | { kind: 'scene'; id: number };
 
@@ -16,6 +16,14 @@ export function useSceneWebcams(source: SceneSource): {
   sceneState: SceneState | null;
   sceneLabel: string | null;
   sceneRepresentsAt: string | null;
+  /** The operator's own words about the scene, or null. */
+  sceneNotes: string | null;
+  /**
+   * The active version and every namespace's dial deviations at save time.
+   * Written by captureLive for every scene; read by nobody until now, which
+   * made a scene a screenshot of a pool rather than a saved configuration.
+   */
+  sceneProvenance: SceneProvenance | null;
   error: string | null;
   refreshScenes: () => void;
 } {
@@ -30,6 +38,8 @@ export function useSceneWebcams(source: SceneSource): {
     sceneState: scene.data?.state ?? null,
     sceneLabel: scene.data?.label ?? null,
     sceneRepresentsAt: scene.data?.representsAt ?? null,
+    sceneNotes: scene.data?.notes ?? null,
+    sceneProvenance: scene.data?.provenance ?? null,
     error: (list.error ?? scene.error)?.message ?? null,
     // A scene saved from the rail must appear in the selector without a
     // reload, or the operator cannot tell the capture worked.

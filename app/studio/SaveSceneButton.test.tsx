@@ -166,3 +166,30 @@ describe('SaveSceneButton — reconstructing a past moment', () => {
     expect(body.windowMinutes).toBeUndefined();
   });
 });
+
+describe('SaveSceneButton — notes', () => {
+  it('sends the typed note with the scene, so the label does not have to carry it', async () => {
+    fetchMock.mockResolvedValue(ok({ id: 6, source: 'live', pinned: 3, archived: 3 }));
+    render(<SaveSceneButton />);
+
+    await openAndType('dense wall');
+    await userEvent.type(
+      screen.getByTestId('studio-save-scene-notes'),
+      'bandCount 8, ceiling 240; shows 3 of 4 real sunsets'
+    );
+    await userEvent.click(screen.getByTestId('studio-save-scene-confirm'));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body as string);
+    expect(body.notes).toBe('bandCount 8, ceiling 240; shows 3 of 4 real sunsets');
+  });
+
+  it('sends an empty note when none is typed', async () => {
+    fetchMock.mockResolvedValue(ok({ id: 7, source: 'live', pinned: 1, archived: 1 }));
+    render(<SaveSceneButton />);
+    await openAndType('quick');
+    await userEvent.click(screen.getByTestId('studio-save-scene-confirm'));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body as string).notes).toBe('');
+  });
+});

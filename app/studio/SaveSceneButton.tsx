@@ -31,6 +31,7 @@ export function instantFromLocalInput(value: string): string | null {
 export function SaveSceneButton({ onSaved }: { onSaved?: (id: number) => void }) {
   const [open, setOpen] = useState(false);
   const [label, setLabel] = useState('');
+  const [notes, setNotes] = useState('');
   const [past, setPast] = useState(false);
   const [when, setWhen] = useState('');
   const [windowMinutes, setWindowMinutes] = useState(45);
@@ -59,7 +60,7 @@ export function SaveSceneButton({ onSaved }: { onSaved?: (id: number) => void })
         headers: { 'content-type': 'application/json' },
         // 'studio': record the dials being tuned, not the deployed ones.
         body: JSON.stringify({
-          label: trimmed, tags: [], notes: '', provenanceProfile: 'studio',
+          label: trimmed, tags: [], notes: notes.trim(), provenanceProfile: 'studio',
           ...(at ? { at, windowMinutes } : {}),
         }),
       });
@@ -78,6 +79,7 @@ export function SaveSceneButton({ onSaved }: { onSaved?: (id: number) => void })
         setSaved(`saved · ${parts.join(', ')}`);
       }
       setLabel('');
+      setNotes('');
       setWhen('');
       setOpen(false);
       onSaved?.(body.id);
@@ -155,6 +157,28 @@ export function SaveSceneButton({ onSaved }: { onSaved?: (id: number) => void })
           borderRadius: 6,
           padding: '4px 8px',
           width: 200,
+        }}
+      />
+      <input
+        aria-label="scene notes"
+        data-testid="studio-save-scene-notes"
+        value={notes}
+        disabled={busy}
+        onChange={(e) => setNotes(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') void save();
+          if (e.key === 'Escape') setOpen(false);
+        }}
+        placeholder="notes — why this one is worth keeping"
+        style={{
+          fontSize: 12,
+          fontFamily: mono,
+          background: '#0e1119',
+          color: '#e5e7eb',
+          border: `1px solid ${hairline}`,
+          borderRadius: 6,
+          padding: '4px 8px',
+          width: 260,
         }}
       />
       <div

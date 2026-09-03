@@ -5,6 +5,7 @@ import useSWR from 'swr';
 import {
   mergeSettings,
   diffKeys,
+  droppedKeys as schemaDroppedKeys,
   sanitizeValues,
   stripDefaults,
   type DroppedKey,
@@ -34,6 +35,14 @@ export interface StudioSettingsApi {
   effective: (namespace: string) => SettingsValues; // mergeSettings over studio deviations
   setKnob: (namespace: string, key: string, value: KnobValue) => void;
   resetSection: (namespace: string, section: string) => void; // clears that section's deviations
+  /**
+   * Replace a namespace's deviations wholesale — the restore half of a saved
+   * scene. Returns the keys the current schema could not take, so the caller
+   * can say "restored 9 of 11" instead of presenting a partial restore as a
+   * faithful one. Schemas drift; a scene saved under an older one must not
+   * be allowed to look like it came back intact when it did not.
+   */
+  applyNamespace: (namespace: string, deviations: SettingsValues) => DroppedKey[];
   diffByNamespace: Record<string, string[]>; // diffKeys(schema, studio[ns], live[ns]) per known ns
   diffCount: number; // total across namespaces — the badge number
   deploy: () => Promise<void>;
@@ -194,6 +203,24 @@ export function useStudioSettings(): StudioSettingsApi {
     [data, scheduleFlush]
   );
 
+  const applyNamespace = useCallback(
+    (namespace: string, deviations: SettingsValues): DroppedKey[] => {
+      const schema = schemaFor(namespace);
+      if (!schema) return [];
+      // Wholesale, not merged over the current overlay: a restore means "the
+      // dials as they were", and a stale deviation the saved scene never had
+      // would otherwise survive underneath it.
+      overlayRef.current = {
+        ...overlayRef.current,
+        [namespace]: sanitizeValues(schema, deviations),
+      };
+      setOverlay(overlayRef.current);
+      scheduleFlush(namespace, schema);
+      return schemaDroppedKeys(schema, deviations);
+    },
+    [scheduleFlush]
+  );
+
   const studio = useMemo<ProfileSettings | undefined>(() => {
     if (!data?.studio) return undefined;
     if (Object.keys(overlay).length === 0) return data.studio;
@@ -276,6 +303,7 @@ export function useStudioSettings(): StudioSettingsApi {
     effective,
     setKnob,
     resetSection,
+    applyNamespace,
     diffByNamespace,
     diffCount,
     deploy,

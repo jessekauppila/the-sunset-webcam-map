@@ -20,6 +20,17 @@ export interface MosaicProps {
    */
   peerWebcams?: WindyWebcam[];
   setupMode?: boolean;
+  /**
+   * Whether this surface permits debugging overlays that must never reach the
+   * glass. Defaults to true, and the KIOSK ROUTES pass false unless `?debug=1`
+   * is present.
+   *
+   * A settings dial alone is not enough: Deploy copies settings rows to the
+   * kiosk, so a dial left on in studio would follow it to the wall. Structural
+   * suppression at the route, like `setupMode`, is what makes that impossible
+   * while keeping the overlay reachable by hand on the device.
+   */
+  allowDebugOverlays?: boolean;
   onSelect?: (webcam: WindyWebcam) => void;
   /** Raw query string of the hosting page, for version-specific params. */
   search?: string;

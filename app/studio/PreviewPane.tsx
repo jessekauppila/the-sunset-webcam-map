@@ -1,11 +1,13 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { useTerminatorStore } from '@/app/store/useTerminatorStore';
 import { resolveMosaic } from '@/app/components/mosaic/registry';
 import type { PanelSize } from '@/app/kiosk/panelPreview';
 import type { SettingsValues } from '@/app/lib/settings/schema';
 import type { SceneSource } from './useSceneWebcams';
-import type { SceneState, SceneSummary } from '@/app/lib/scenes/types';
+import type { SceneProvenance, SceneState, SceneSummary } from '@/app/lib/scenes/types';
+import { describeRestore, type RestoreReport } from './restoreReport';
 import { StudioPanelFrame } from './StudioPanelFrame';
 import { SaveSceneButton } from './SaveSceneButton';
 import { poolFor } from './previewPool';
@@ -45,6 +47,9 @@ export function PreviewPane({
   sceneSource = { kind: 'live' },
   onSceneSourceChange,
   sceneState = null,
+  sceneNotes = null,
+  sceneProvenance = null,
+  onRestoreDials,
   error = null,
   at,
   onSceneSaved,
@@ -59,6 +64,15 @@ export function PreviewPane({
   sceneSource?: SceneSource;
   onSceneSourceChange?: (source: SceneSource) => void;
   sceneState?: SceneState | null;
+  sceneNotes?: string | null;
+  sceneProvenance?: SceneProvenance | null;
+  /**
+   * Apply the selected scene's saved dials. A BUTTON, not a side effect of
+   * selection: viewing a saved pool under the CURRENT dials is a legitimate
+   * use — it is exactly the A/B of one pool against two dial sets — and an
+   * automatic restore would make it impossible.
+   */
+  onRestoreDials?: () => RestoreReport;
   error?: string | null;
   at?: string;
   onSceneSaved?: (id: number) => void;
@@ -72,6 +86,14 @@ export function PreviewPane({
   // fetch error) — don't fall through to the live pool and silently show
   // it under the scene's header, and don't render live tiles at all.
   const sceneUnresolved = sceneSource.kind === 'scene' && !sceneState;
+
+  // The last restore's report, cleared when the scene changes so a stale
+  // "restored v3 · 4 dials" cannot describe a scene it was not about.
+  const [restoreReport, setRestoreReport] = useState<RestoreReport | null>(null);
+  const sceneId = sceneSource.kind === 'scene' ? sceneSource.id : null;
+  useEffect(() => setRestoreReport(null), [sceneId]);
+  const showSceneRow =
+    sceneSource.kind === 'scene' && (sceneNotes || (sceneProvenance && onRestoreDials));
 
   const webcamsFor = (feed: 'sunrise' | 'sunset') =>
     poolFor(feed, sceneSource, sceneState, {
@@ -187,6 +209,54 @@ export function PreviewPane({
           </span>
         )}
       </div>
+
+      {showSceneRow && (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
+            fontFamily: mono,
+            fontSize: 11,
+            color: dim,
+            maxWidth: '100%',
+          }}
+        >
+          {sceneNotes && (
+            <span data-testid="studio-scene-notes" style={{ fontStyle: 'italic' }}>
+              {sceneNotes}
+            </span>
+          )}
+          {sceneProvenance && onRestoreDials && (
+            <button
+              type="button"
+              data-testid="studio-restore-dials"
+              onClick={() => setRestoreReport(onRestoreDials())}
+              title={`saved under ${sceneProvenance.activeVersion}`}
+              style={{
+                fontSize: 11,
+                fontFamily: mono,
+                background: '#0e1119',
+                color: '#d7dce6',
+                border: `1px solid ${hairline}`,
+                borderRadius: 6,
+                padding: '3px 8px',
+                cursor: 'pointer',
+              }}
+            >
+              restore dials ({sceneProvenance.activeVersion})
+            </button>
+          )}
+          {restoreReport && (
+            <span
+              data-testid="studio-restore-report"
+              style={{ color: restoreReport.dropped.length ? '#f0a04b' : '#4cc38a' }}
+            >
+              {describeRestore(restoreReport)}
+            </span>
+          )}
+        </div>
+      )}
 
       <div
         style={{

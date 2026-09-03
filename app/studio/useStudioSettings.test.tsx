@@ -541,3 +541,51 @@ describe('useStudioSettings', () => {
   });
 
 });
+
+describe('useStudioSettings.applyNamespace — restoring a saved dial set', () => {
+  let fetchMock: ReturnType<typeof vi.fn>;
+  beforeEach(() => { vi.useFakeTimers(); });
+  afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers(); });
+
+  it('replaces the namespace wholesale, reports what it could not keep, and flushes', async () => {
+    const patches: Array<Record<string, unknown>> = [];
+    fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+      if (init?.method === 'PATCH') {
+        patches.push(JSON.parse(init.body as string));
+        return { ok: true, json: async () => ({ dropped: [] }) };
+      }
+      return { ok: true, json: async () => settingsResponse({ floorPx: 160, ceilingPx: 600 }, {}) };
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { result } = renderHook(() => useStudioSettings(), { wrapper });
+    await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+    expect(result.current.effective('v1').floorPx).toBe(160);
+
+    // Saved under a schema that had a dial this build no longer has.
+    let dropped: ReturnType<typeof result.current.applyNamespace> = [];
+    act(() => {
+      dropped = result.current.applyNamespace('v1', { floorPx: 140, retiredDial: 3 });
+    });
+
+    // Wholesale: the prior ceilingPx deviation is gone, not merged over.
+    expect(result.current.effective('v1').floorPx).toBe(140);
+    expect(result.current.effective('v1').ceilingPx).not.toBe(600);
+    // The restore says out loud what it silently would have lost.
+    expect(dropped).toEqual([{ key: 'retiredDial', reason: 'unknown' }]);
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(400); });
+    expect(patches).toHaveLength(1);
+    expect(patches[0]).toMatchObject({ namespace: 'v1', values: { floorPx: 140 } });
+  });
+
+  it('is a no-op for a namespace with no schema', async () => {
+    fetchMock = vi.fn(async () => ({ ok: true, json: async () => settingsResponse({}, {}) }));
+    vi.stubGlobal('fetch', fetchMock);
+    const { result } = renderHook(() => useStudioSettings(), { wrapper });
+    await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+    let dropped: ReturnType<typeof result.current.applyNamespace> = [];
+    act(() => { dropped = result.current.applyNamespace('nope', { a: 1 }); });
+    expect(dropped).toEqual([]);
+  });
+});

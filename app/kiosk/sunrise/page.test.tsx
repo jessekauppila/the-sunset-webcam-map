@@ -92,6 +92,18 @@ describe('SunriseKioskPage', () => {
     expect(getMosaicProps().setupMode).toBe(true);
   });
 
+  it('forbids debug overlays without ?debug=1, so no dial can put one on the glass', () => {
+    useSearchParamsMock.mockReturnValue(new URLSearchParams());
+    render(<SunriseKioskPage />);
+    expect(getMosaicProps().allowDebugOverlays).toBe(false);
+  });
+
+  it('allows them with ?debug=1, so the device stays debuggable by hand', () => {
+    useSearchParamsMock.mockReturnValue(new URLSearchParams('debug=1'));
+    render(<SunriseKioskPage />);
+    expect(getMosaicProps().allowDebugOverlays).toBe(true);
+  });
+
   it('pauses the terminator-webcams poll when the kiosk is dozing', () => {
     useKioskRuntimeMock.mockReturnValue({ dozing: true });
     render(<SunriseKioskPage />);
