@@ -29,6 +29,8 @@ export interface SweepTickStats {
   ticks: number;
   escalatedTicks: number;
   budgetExhaustedTicks: number;
+  /** The tick kept the last good pool because the sweep could not see the world. */
+  heldTicks: number;
   /** The feed was under the floor after the base ring. */
   sunriseThinTicks: number;
   sunsetThinTicks: number;
@@ -71,8 +73,9 @@ export function computeSweepTickStats(input: {
   telemetry: SweepTelemetry;
   floor: number;
   gateByOffset?: Map<number, RingGateCounts>;
+  held?: boolean;
 }): SweepTickStats {
-  const { telemetry, floor, gateByOffset } = input;
+  const { telemetry, floor, gateByOffset, held = false } = input;
   const thin = new Set<Feed>(telemetry.thinAfterBase);
   const short = (feed: Feed) => (telemetry.counts[feed] < floor ? 1 : 0);
 
@@ -113,6 +116,7 @@ export function computeSweepTickStats(input: {
     ticks: 1,
     escalatedTicks: escalation.length > 0 ? 1 : 0,
     budgetExhaustedTicks: telemetry.budgetExhausted ? 1 : 0,
+    heldTicks: held ? 1 : 0,
     sunriseThinTicks: thin.has('sunrise') ? 1 : 0,
     sunsetThinTicks: thin.has('sunset') ? 1 : 0,
     sunriseShortTicks: short('sunrise'),
@@ -148,10 +152,13 @@ export async function upsertSweepStats(
 ): Promise<void> {
   const date = utcDateString(now);
   try {
+    // Column list, values, and on-conflict set below are positional and must
+    // stay aligned (verified: sweep_held_ticks is the 6th of 15 columns).
     await sql`
       insert into daily_sunset_stats (
         date, model_version,
         sweep_ticks, sweep_escalated_ticks, sweep_budget_exhausted_ticks,
+        sweep_held_ticks,
         sweep_sunrise_thin_ticks, sweep_sunset_thin_ticks,
         sweep_sunrise_short_ticks, sweep_sunset_short_ticks,
         sweep_base_boxes, sweep_escalation_boxes,
@@ -160,6 +167,7 @@ export async function upsertSweepStats(
       ) values (
         ${date}, ${modelVersion},
         ${stats.ticks}, ${stats.escalatedTicks}, ${stats.budgetExhaustedTicks},
+        ${stats.heldTicks},
         ${stats.sunriseThinTicks}, ${stats.sunsetThinTicks},
         ${stats.sunriseShortTicks}, ${stats.sunsetShortTicks},
         ${stats.baseBoxes}, ${stats.escalationBoxes},
@@ -173,6 +181,8 @@ export async function upsertSweepStats(
         sweep_budget_exhausted_ticks =
           daily_sunset_stats.sweep_budget_exhausted_ticks
           + excluded.sweep_budget_exhausted_ticks,
+        sweep_held_ticks =
+          daily_sunset_stats.sweep_held_ticks + excluded.sweep_held_ticks,
         sweep_sunrise_thin_ticks =
           daily_sunset_stats.sweep_sunrise_thin_ticks + excluded.sweep_sunrise_thin_ticks,
         sweep_sunset_thin_ticks =
@@ -189,8 +199,17 @@ export async function upsertSweepStats(
           daily_sunset_stats.sweep_escalation_ms + excluded.sweep_escalation_ms,
         updated_at = now()
     `;
+  } catch (error) {
+    console.warn('[sweepStats] persist failed:', error);
+  }
 
+  // Separate try: daily_sunset_stats and daily_sweep_ring_stats are
+  // independent tables (e.g. one may predate a migration that adds the
+  // other), so a failure in one insert must not cost the other its rows.
+  try {
     for (const ring of stats.rings) {
+      // Column list, values, and on-conflict set below are positional and
+      // must stay aligned.
       await sql`
         insert into daily_sweep_ring_stats (
           date, offset_deg,
@@ -219,7 +238,7 @@ export async function upsertSweepStats(
       `;
     }
   } catch (error) {
-    console.warn('[sweepStats] persist failed:', error);
+    console.warn('[sweepStats] ring persist failed:', error);
   }
 }
 
@@ -227,6 +246,7 @@ export interface SweepDigestSummary {
   ticks: number;
   escalatedTicks: number;
   budgetExhaustedTicks: number;
+  heldTicks: number;
   sunriseThinTicks: number;
   sunsetThinTicks: number;
   sunriseShortTicks: number;
@@ -251,6 +271,7 @@ export async function getSweepDigestSummary(): Promise<SweepDigestSummary | null
     const rows = (await sql`
       select
         sweep_ticks, sweep_escalated_ticks, sweep_budget_exhausted_ticks,
+        sweep_held_ticks,
         sweep_sunrise_thin_ticks, sweep_sunset_thin_ticks,
         sweep_sunrise_short_ticks, sweep_sunset_short_ticks,
         sweep_base_boxes, sweep_escalation_boxes,
@@ -274,6 +295,7 @@ export async function getSweepDigestSummary(): Promise<SweepDigestSummary | null
       ticks: Number(row.sweep_ticks),
       escalatedTicks: Number(row.sweep_escalated_ticks),
       budgetExhaustedTicks: Number(row.sweep_budget_exhausted_ticks),
+      heldTicks: Number(row.sweep_held_ticks),
       sunriseThinTicks: Number(row.sweep_sunrise_thin_ticks),
       sunsetThinTicks: Number(row.sweep_sunset_thin_ticks),
       sunriseShortTicks: Number(row.sweep_sunrise_short_ticks),

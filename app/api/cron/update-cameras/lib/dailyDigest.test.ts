@@ -213,6 +213,7 @@ function summaryBaseOnly(): SweepDigestSummary {
     ticks: 96,
     escalatedTicks: 0,
     budgetExhaustedTicks: 0,
+    heldTicks: 0,
     sunriseThinTicks: 0,
     sunsetThinTicks: 0,
     sunriseShortTicks: 0,
@@ -261,6 +262,7 @@ describe('formatSweepLine', () => {
     ticks: 96,
     escalatedTicks: 0,
     budgetExhaustedTicks: 0,
+    heldTicks: 0,
     sunriseThinTicks: 0,
     sunsetThinTicks: 0,
     sunriseShortTicks: 0,
@@ -410,5 +412,15 @@ describe('formatSweepLine', () => {
     });
     expect(html).toContain('7 ticks hit the sweep budget');
     expect(html).toContain('50% of boxes empty');
+  });
+
+  it('names held ticks in the sweep line when any tick held the pool', () => {
+    const html = formatSweepLine({ ...quiet, ticks: 1440, heldTicks: 4 });
+    expect(html).toContain('4 ticks held the last good pool');
+  });
+
+  it('says nothing about holds when none happened', () => {
+    const html = formatSweepLine({ ...quiet, heldTicks: 0 });
+    expect(html).not.toContain('held the last good pool');
   });
 });

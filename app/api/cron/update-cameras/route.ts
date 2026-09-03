@@ -31,6 +31,8 @@ import {
   SAVE_ALL_RATED_SNAPSHOTS,
   AI_SNAPSHOT_MIN_RATING_THRESHOLD,
   ARCHIVE_BACKFILL_ENABLED,
+  TERMINATOR_RETENTION_GRACE_MS,
+  TERMINATOR_SWEEP_FAILED_HOLD_RATIO,
 } from '@/app/lib/masterConfig';
 import { isFlagEnabled, SWEEP_FORCE_DAY_RING } from '@/app/lib/runtimeFlags';
 import { classifyCustomCamerasForTick } from './lib/customClassification';
@@ -38,6 +40,7 @@ import { verifyCronAuth } from './lib/auth';
 import { dedupeCoords, fetchCoordsCounted } from './lib/windyApi';
 import { classifyWebcamsByPhase } from './lib/webcamClassification';
 import { sweepWithEscalation } from './lib/terminatorSweep';
+import { assessSweepHold } from './lib/sweepHealth';
 import {
   ringOffsetByWebcamId,
   computeSweepTickStats,
@@ -432,13 +435,30 @@ export async function GET(req: Request) {
   const sunriseRows = unionByWebcamId(sunriseWindyRows, customClassified.sunrise);
   const sunsetRows = unionByWebcamId(sunsetWindyRows, customClassified.sunset);
 
+  // Retention. Everything this tick saw is added; what it did not see is
+  // removed only if (a) this tick could see the world at all and (b) the
+  // camera has been unseen for the grace period. Before this, one tick that
+  // got nothing back from Windy emptied both panels, and a camera Windy
+  // skipped for a tick vanished for a minute.
+  const sweepHold = assessSweepHold(
+    sweep.telemetry,
+    windyAll.length,
+    TERMINATOR_SWEEP_FAILED_HOLD_RATIO,
+  );
+
   await upsertTerminatorState(sunriseRows, 'sunrise');
   await upsertTerminatorState(sunsetRows, 'sunset');
 
-  const sunriseIds = sunriseRows.map((r) => r.webcamId);
-  const sunsetIds = sunsetRows.map((r) => r.webcamId);
-  await deactivateMissingTerminatorState('sunrise', sunriseIds);
-  await deactivateMissingTerminatorState('sunset', sunsetIds);
+  if (sweepHold.held) {
+    console.error(
+      `🛑 sweep hold (${sweepHold.reason}): ${sweepHold.failed}/${sweepHold.attempted} boxes failed, ${sweepHold.found} cameras found; keeping the last good pool`,
+    );
+  } else {
+    const sunriseIds = sunriseRows.map((r) => r.webcamId);
+    const sunsetIds = sunsetRows.map((r) => r.webcamId);
+    await deactivateMissingTerminatorState('sunrise', sunriseIds, TERMINATOR_RETENTION_GRACE_MS);
+    await deactivateMissingTerminatorState('sunset', sunsetIds, TERMINATOR_RETENTION_GRACE_MS);
+  }
 
   try {
     const cachedPayload = await fetchTerminatorWebcams();
@@ -481,6 +501,7 @@ export async function GET(req: Request) {
     telemetry: sweep.telemetry,
     floor: TERMINATOR_CAMERA_FLOOR,
     gateByOffset,
+    held: sweepHold.held,
   });
   await upsertSweepStats(new Date(), sweepStats, tickStats.modelVersion);
 
@@ -525,6 +546,7 @@ export async function GET(req: Request) {
     providerUsage,
     digest,
     sweep: sweep.telemetry,
+    retention: sweepHold,
     forcedDayRing,
   });
 }

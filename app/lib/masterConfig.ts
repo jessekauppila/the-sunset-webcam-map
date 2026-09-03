@@ -35,6 +35,22 @@ export const SEARCH_RADIUS_DEG = 11;
 // to tune it once the sweep telemetry has a few days of history.
 export const TERMINATOR_CAMERA_FLOOR = 15;
 
+// How long a camera stays in the pool after the sweep last returned it.
+//
+// Before this existed the pool had no memory: every tick rebuilt it from that
+// tick's Windy responses and deactivated everything else, so a camera Windy
+// skipped for one tick vanished from the glass for a minute, and a tick that
+// got nothing back emptied both panels. Measured 2026-09-03: 20 minutes would
+// have kept 17 more cameras against 101 active; 30 minutes 45, which is where
+// cameras the terminator has genuinely moved past start dominating. Windy
+// publishes a new preview every 10.1 minutes, so this is two cycles.
+export const TERMINATOR_RETENTION_GRACE_MS = 20 * 60_000;
+
+// Fraction of a tick's Windy boxes that must come back non-OK before the tick
+// is treated as failed and deactivates nothing. Edge-of-world boxes fail with
+// 400 at a few percent on an ordinary day and must not trip this.
+export const TERMINATOR_SWEEP_FAILED_HOLD_RATIO = 0.5;
+
 // Extra rings to sweep when a feed is under the floor, tried in this order.
 // radius = 90 - (sunAltitude + offset), so POSITIVE MOVES TOWARD DAY: +15.75
 // puts the ring near +2.75 degrees solar altitude (golden hour, which the base

@@ -189,17 +189,26 @@ export async function upsertTerminatorState(
  * source not in the set. Always pass the FULL union of active ids across
  * every source the caller knows about — partial sets silently deactivate
  * other-source rows.
+ *
+ * Rows are kept for `graceMs` after they were last seen; passing an empty
+ * set no longer empties the feed, it only ages out rows past the grace.
  */
 export async function deactivateMissingTerminatorState(
   phase: 'sunrise' | 'sunset',
   activeWebcamIds: number[],
+  graceMs: number,
 ): Promise<void> {
+  // Grace on both branches: a row leaves the pool only when the sweep has not
+  // returned it for `graceMs`, never because one tick skipped it. Same
+  // `${n} * interval '1 millisecond'` shape as cameraClaimCode's TTL, so the
+  // driver binds a plain number.
   if (activeWebcamIds.length === 0) {
     await sql`
       update terminator_webcam_state
       set active = false, updated_at = now()
       where phase = ${phase}
         and active = true
+        and last_seen_at < now() - ${graceMs} * interval '1 millisecond'
     `;
     return;
   }
@@ -209,6 +218,7 @@ export async function deactivateMissingTerminatorState(
     set active = false, updated_at = now()
     where phase = ${phase}
       and active = true
+      and last_seen_at < now() - ${graceMs} * interval '1 millisecond'
       and webcam_id <> all(${activeWebcamIds})
   `;
 }
