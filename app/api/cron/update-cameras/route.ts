@@ -501,6 +501,7 @@ export async function GET(req: Request) {
     telemetry: sweep.telemetry,
     floor: TERMINATOR_CAMERA_FLOOR,
     gateByOffset,
+    held: sweepHold.held,
   });
   await upsertSweepStats(new Date(), sweepStats, tickStats.modelVersion);
 

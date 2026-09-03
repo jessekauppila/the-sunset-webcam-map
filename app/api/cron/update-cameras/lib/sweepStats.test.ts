@@ -181,6 +181,18 @@ describe('computeSweepTickStats', () => {
     expect(stats.baseMs).toBe(8_000);
     expect(stats.escalationMs).toBe(0);
   });
+
+  it('counts a held tick as 1 and a normal tick as 0', () => {
+    const held = computeSweepTickStats({ telemetry: healthy, floor: 15, held: true });
+    expect(held.heldTicks).toBe(1);
+    const normal = computeSweepTickStats({ telemetry: healthy, floor: 15, held: false });
+    expect(normal.heldTicks).toBe(0);
+  });
+
+  it('defaults heldTicks to 0 when held is not passed', () => {
+    const s = computeSweepTickStats({ telemetry: healthy, floor: 15 });
+    expect(s.heldTicks).toBe(0);
+  });
 });
 
 describe('upsertSweepStats', () => {
@@ -196,6 +208,7 @@ describe('upsertSweepStats', () => {
     expect(tickCall).toContain('2026-09-03');
     expect(tickCall).toContain(stats.baseMs);
     expect(tickCall).toContain(stats.escalationMs);
+    expect(tickCall[0].join(' ')).toContain('sweep_held_ticks');
     for (const call of ringCalls) {
       expect(call[0].join('?')).toContain('daily_sweep_ring_stats');
       expect(call).toContain('2026-09-03');
@@ -231,6 +244,7 @@ describe('getSweepDigestSummary', () => {
           sweep_sunset_short_ticks: 4,
           sweep_base_boxes: 2976,
           sweep_escalation_boxes: 180,
+          sweep_held_ticks: '3',
         },
       ])
       .mockResolvedValueOnce([
@@ -252,6 +266,7 @@ describe('getSweepDigestSummary', () => {
     // hand the formatter a number or the ring lookup silently misses.
     expect(summary!.rings[0].offsetDeg).toBe(0);
     expect(summary!.rings[0].framesGatePassed).toBe(130);
+    expect(summary!.heldTicks).toBe(3);
   });
 
   it('returns null when nothing was recorded', async () => {
