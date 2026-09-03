@@ -1,4 +1,31 @@
-import type { PlacedRow, PlacedTile, SizedTile, V2Config } from './types';
+import {
+  SEARCH_RADIUS_DEG,
+  TERMINATOR_SUN_ALTITUDE_DEG,
+} from '@/app/lib/masterConfig';
+import type { PlacedRow, PlacedTile, V2Config } from './types';
+
+/**
+ * The window that turns a sun altitude into a horizontal position.
+ *
+ * It is the pool's own definition: the terminator ring the sweep gathers
+ * around, plus the radius it gathers within. Decision 6a chose solar altitude
+ * over true longitude partly for "no pool-relative normalization, no
+ * dependence on pool membership", and deriving min/max from the tiles in hand
+ * gave away exactly that property — one camera entering or leaving rescaled
+ * every tile on the panel, and the two panels normalised independently, so
+ * sunrise and sunset were not even on the same ruler.
+ *
+ * Altitudes outside the window clamp to an edge rather than widening it. The
+ * escalation rings near +2.75 and -28.75 only sweep when a feed falls under
+ * the camera floor; widening the window to cover them would squeeze every
+ * ordinary night into the middle of the panel for a case that rarely fires.
+ * A golden-hour camera pinned to the day edge is also simply true: it is the
+ * shallowest into twilight of anything on the wall.
+ */
+export const ALTITUDE_WINDOW = {
+  min: TERMINATOR_SUN_ALTITUDE_DEG - SEARCH_RADIUS_DEG,
+  max: TERMINATOR_SUN_ALTITUDE_DEG + SEARCH_RADIUS_DEG,
+} as const;
 
 /**
  * Solar altitude to a horizontal unit position, 0 = west edge, 1 = east.
@@ -17,18 +44,9 @@ export function altitudeToUnit(
 ): number {
   const span = max - min;
   if (span <= 0) return 0.5;
-  const unit = (altDeg - min) / span;
+  const raw = (altDeg - min) / span;
+  const unit = raw < 0 ? 0 : raw > 1 ? 1 : raw;
   return feed === 'sunrise' ? unit : 1 - unit;
-}
-
-export function altitudeRange(
-  tiles: { sunAltitudeDeg: number | null }[]
-): { min: number; max: number } | null {
-  const known = tiles
-    .map((t) => t.sunAltitudeDeg)
-    .filter((a): a is number => a !== null && Number.isFinite(a));
-  if (known.length === 0) return null;
-  return { min: Math.min(...known), max: Math.max(...known) };
 }
 
 /** Shoulder-to-shoulder packing in west-to-east order, honouring rowAlign. */
