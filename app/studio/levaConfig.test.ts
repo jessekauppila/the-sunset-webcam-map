@@ -102,3 +102,15 @@ describe('buildFolderSpecs', () => {
     expect(buildFolderSpecs([], {}, [])).toEqual([]);
   });
 });
+
+describe('buildFolderSpecs hints', () => {
+  it('carries each knob description through as the control hint', () => {
+    const specs = buildFolderSpecs(SCHEMA, { floorPx: 100, cullOverflow: true, panelPreset: 'dell' }, []);
+    const sizing = specs.find((s) => s.section === 'sizing')!;
+    const arrangement = specs.find((s) => s.section === 'arrangement')!;
+
+    expect(sizing.controls.floorPx.hint).toBe('Minimum tile size');
+    expect(sizing.controls.panelPreset.hint).toBe('Panel size');
+    expect(arrangement.controls.cullOverflow.hint).toBe('Remove tiles that overflow the viewport');
+  });
+});

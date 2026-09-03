@@ -35,8 +35,8 @@ const DUSK_THEME = {
     vivid1: '#5aa3ec',
     folderTextColor: '#b7c0d1',
     folderWidgetColor: '#8b95a7',
-    toolTipBackground: '#1a2130',
-    toolTipText: '#d7dce6',
+    toolTipBackground: '#2b3650',
+    toolTipText: '#f1f4f9',
   },
   radii: { xs: '2px', sm: '3px', lg: '6px' },
 };
@@ -49,6 +49,7 @@ function prettify(section: string): string {
 type LevaControl = {
   value: KnobValue;
   label: string;
+  hint: string;
   min?: number;
   max?: number;
   step?: number;
@@ -66,6 +67,7 @@ function controlsForSpec(
     controls[key] = {
       value: ctrl.value,
       label: ctrl.label,
+      hint: ctrl.hint,
       ...(ctrl.min !== undefined ? { min: ctrl.min } : {}),
       ...(ctrl.max !== undefined ? { max: ctrl.max } : {}),
       ...(ctrl.step !== undefined ? { step: ctrl.step } : {}),
@@ -228,6 +230,7 @@ export function StudioRail({
         </label>
         <select
           id="studio-version-select"
+          title={activeVersionKnob?.description}
           value={activeVersion}
           onChange={(e) => api.setKnob(SHARED_NAMESPACE, 'activeVersion', e.target.value)}
           style={{
@@ -257,7 +260,28 @@ export function StudioRail({
         )}
       </div>
 
-      <div style={{ flex: 1, minHeight: 0, position: 'relative' }}>
+      {/* The dial list is taller than the viewport for v3; scroll it here
+          rather than letting the aside clip it. Leva's hint tooltips are
+          fixed-positioned, so the scroll box does not cut them off. */}
+      <div
+        id="studio-rail-dials"
+        style={{ flex: 1, minHeight: 0, position: 'relative', overflowY: 'auto' }}
+      >
+        {/* Leva's hint tooltip is capped at 260px and 11px type, sized for a
+            word or two; the knob descriptions are full sentences. Radix's
+            popper wrapper is the one stable hook. */}
+        <style>{`
+          #studio-rail-dials [data-radix-popper-content-wrapper] {
+            z-index: 20 !important;
+            opacity: 1 !important; /* a leva folder rule dims it to 0.4 */
+          }
+          #studio-rail-dials [data-radix-popper-content-wrapper] > div > div {
+            max-width: 340px;
+            font-size: 12px;
+            line-height: 1.45;
+            padding: 8px 10px;
+          }
+        `}</style>
         <LevaPanel store={store} theme={DUSK_THEME} fill flat titleBar={false} />
       </div>
     </div>
