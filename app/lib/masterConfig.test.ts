@@ -2,6 +2,8 @@ import { describe, it, expect } from 'vitest';
 import {
   SEARCH_RADIUS_DEG,
   TERMINATOR_CAMERA_FLOOR,
+  TERMINATOR_RETENTION_GRACE_MS,
+  TERMINATOR_SWEEP_FAILED_HOLD_RATIO,
   TERMINATOR_WIDEN_OFFSETS_DEG,
   TERMINATOR_SUN_ALTITUDE_DEG,
   TERMINATOR_DAY_SIDE_OFFSETS_DEG,
@@ -55,6 +57,23 @@ describe('terminator widening constants', () => {
     // the scoring loop gets what is left of TICK_DEADLINE_MS. The two numbers
     // used to live in different files with only a comment between them.
     expect(TERMINATOR_SWEEP_BUDGET_MS * 2).toBeLessThanOrEqual(TICK_DEADLINE_MS);
+  });
+
+  it('keeps a camera for two Windy preview cycles after it was last seen', () => {
+    // Measured 2026-09-03 against 101 active cameras: a 10-minute grace
+    // would have retained 6 more, 20 minutes 17, 30 minutes 45. Windy
+    // publishes a new preview every 10.1 minutes, so 20 minutes is two
+    // cycles: long enough to ride out a tick that skipped a camera, short
+    // enough that cameras the terminator has moved past still age out.
+    expect(TERMINATOR_RETENTION_GRACE_MS).toBe(20 * 60_000);
+    expect(TERMINATOR_RETENTION_GRACE_MS).toBeGreaterThan(10.1 * 60_000);
+  });
+
+  it('holds the pool when at least half the boxes fail', () => {
+    // Antimeridian and pole boxes fail with 400 at a few percent on a normal
+    // day (measured 2026-09-02/03); that must not hold every tick. Half is
+    // unambiguous: no healthy sweep has ever come close.
+    expect(TERMINATOR_SWEEP_FAILED_HOLD_RATIO).toBe(0.5);
   });
 });
 
