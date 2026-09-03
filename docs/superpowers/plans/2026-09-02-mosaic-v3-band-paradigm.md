@@ -2472,6 +2472,50 @@ retire a loser by deleting its folder; the duplication is the price of that.
 
 ---
 
+## Follow-up shipped 2026-09-03: labelled, comparable, restorable configurations
+
+Jesse asked for a way to keep the 1-of-4 and 3-of-4 walls side by side with
+notes, and proposed a `v4` registry entry. Not done that way, on purpose: v3
+and v4 would be byte-identical except two numbers in a settings file, the
+registry's versions are different *engines*, and every eviction fix would land
+twice. The 3-of-4 result is the same algorithm at `bandCount 8, ceilingPx 240`.
+
+What shipped instead, built in a sibling clone at
+`~/GitHub/the-sunset-webcam-map-v3` while the shared checkout was held:
+
+- **Any v3 dial from the URL** (`urlOverrides` in `settingsSchema.ts`). URL
+  beats profile beats default, the precedence `?models=` already had. Range
+  and option checks stay with `sanitizeValues` so the store and the URL share
+  one judge. The side-by-side is two windows:
+
+  ```
+  /kiosk/sunset?v=v3&panel=dell&setup=1&bandCount=13&ceilingPx=480
+  /kiosk/sunset?v=v3&panel=dell&setup=1&bandCount=8&ceilingPx=240
+  ```
+
+- **Scenes finished as saved configurations.** `kiosk_scenes` had always
+  stored `notes` and a `provenance` blob of every namespace's dial deviations;
+  the save dialog hardcoded `notes: ''` and nothing ever read provenance back,
+  so a scene was a screenshot of a pool. Now: the save dialog takes a note,
+  the selected scene's note shows under the header, and a **restore dials**
+  button applies the saved version and deviations. It is a button, not a side
+  effect of selection — viewing a saved pool under the *current* dials is the
+  A/B of one pool against two dial sets.
+- **The restore says what it lost.** Schemas drift; `sanitizeValues` drops
+  unknown keys silently by design. `applyNamespace` returns `droppedKeys()` and
+  the report reads "restored v3 · 3 of 4 dials · not in this schema:
+  retiredDial". A scene saved under an older schema is a partial restore and
+  now looks like one.
+- **Order matters in the restore:** namespaces first, `activeVersion` last,
+  because `applyNamespace` replaces a namespace wholesale and would overwrite a
+  version written a line earlier.
+
+Not verified in a browser: `/studio` is owner-gated and the headless session
+could not sign in. Twelve studio test files cover the button, the report, the
+notes field, and the hook; Jesse's signed-in smoke is the remaining check.
+
+---
+
 ## Out of scope — do not do these
 
 Restating spec §10 so it survives contact with an implementer who has only this document:
