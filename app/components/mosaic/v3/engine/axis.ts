@@ -12,7 +12,7 @@ import type { SizedTile } from './types';
  * into the day-side third of the panel, and a tighter window spreads them
  * across it. The property the derived form bought — that the axis tracks
  * what the sweep gathers — is bought back by a test against
- * POOL_ALTITUDE_COVERAGE_DEG. Do not import the sweep radius here.
+ * TERMINATOR_POOL_COVERAGE_DEG. Do not import the sweep radius here.
  */
 export interface AxisConfig {
   /** Deepest twilight the panel shows. Altitudes below this clamp. */

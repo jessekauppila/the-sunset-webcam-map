@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { altitudeToUnit, tileX, type AxisConfig } from './axis';
-import { POOL_ALTITUDE_COVERAGE_DEG, TERMINATOR_SUN_ALTITUDE_DEG } from '@/app/lib/masterConfig';
+import { TERMINATOR_POOL_COVERAGE_DEG, TERMINATOR_SUN_ALTITUDE_DEG } from '@/app/lib/masterConfig';
 import { V3_SETTINGS_SCHEMA } from '../settingsSchema';
 import type { SizedTile } from './types';
 
@@ -70,11 +70,11 @@ describe('the Plan A / Plan B boundary (spec §6 and §8)', () => {
   };
 
   it('the display window covers every altitude the sweep gathers', () => {
-    // If this fails, the pool-coverage work widened POOL_ALTITUDE_COVERAGE_DEG
+    // If this fails, the pool-coverage work widened TERMINATOR_POOL_COVERAGE_DEG
     // without moving the v3 axis dials, and the new cameras would pile up
     // clamped against a panel edge. Move the dials; do not weaken this test.
-    expect(defaultOf('axisNightEdgeDeg')).toBeLessThanOrEqual(POOL_ALTITUDE_COVERAGE_DEG.min);
-    expect(defaultOf('axisDayEdgeDeg')).toBeGreaterThanOrEqual(POOL_ALTITUDE_COVERAGE_DEG.max);
+    expect(defaultOf('axisNightEdgeDeg')).toBeLessThanOrEqual(TERMINATOR_POOL_COVERAGE_DEG.min);
+    expect(defaultOf('axisDayEdgeDeg')).toBeGreaterThanOrEqual(TERMINATOR_POOL_COVERAGE_DEG.max);
   });
 
   it('reads the coverage constant, not the sweep radius', async () => {

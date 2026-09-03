@@ -50,19 +50,25 @@ export const TERMINATOR_CAMERA_FLOOR = 15;
 // live measurement of a new offset.
 export const TERMINATOR_WIDEN_OFFSETS_DEG = [15.75, -15.75] as const;
 
-// The solar-altitude range the terminator sweep actually gathers, as the
-// UNION of every ring swept. This is the one contract between the pool and
-// the display: a camera the sweep found must have somewhere on the panel to
-// be, and `app/components/mosaic/v3/engine/axis.test.ts` asserts the mosaic's
-// display window covers this range.
+// The solar-altitude range the terminator sweep actually gathers under the
+// CURRENT configuration. This is the one contract between the pool and the
+// display: a camera the sweep found must have somewhere on the panel to be,
+// and `app/components/mosaic/v3/engine/axis.test.ts` asserts the mosaic's
+// default display window covers this range.
 //
-// Today only the base ring sweeps unconditionally, so the union is the base
-// ring alone: -24 to -2. The escalation rings in TERMINATOR_WIDEN_OFFSETS_DEG
-// only fire under TERMINATOR_CAMERA_FLOOR and are NOT counted here. The
-// pool-coverage plan owns widening this value alongside the rings it turns
-// on; widening it without moving the v3 axis dials is exactly what that test
-// exists to catch.
-export const POOL_ALTITUDE_COVERAGE_DEG = {
+// "Current configuration", not "every ring that exists". The escalation rings
+// in TERMINATOR_WIDEN_OFFSETS_DEG only fire when a feed falls under
+// TERMINATOR_CAMERA_FLOOR, so they are NOT counted here, and today the value
+// is the base ring alone. Counting rings that rarely sweep would squeeze
+// every ordinary night into the middle of the panel for a case that seldom
+// fires -- the same reasoning the v2 axis comment already records.
+//
+// The pool-coverage lane owns this value and must widen it IN THE SAME COMMIT
+// that turns a ring on routinely. That is what makes the axis test a
+// tripwire: widening coverage fails it, and the failure is the reminder to
+// move axisDayEdgeDeg with it. A value that already describes rings nobody
+// sweeps fires the alarm on day one and then means nothing.
+export const TERMINATOR_POOL_COVERAGE_DEG = {
   min: TERMINATOR_SUN_ALTITUDE_DEG - SEARCH_RADIUS_DEG,
   max: TERMINATOR_SUN_ALTITUDE_DEG + SEARCH_RADIUS_DEG,
 } as const;
