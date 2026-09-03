@@ -29,6 +29,16 @@ export interface RingTelemetry {
    * the cheap scalar for logs and dashboards.
    */
   newWebcamIds: number[];
+  /**
+   * Wall clock this ring spent, in milliseconds.
+   *
+   * The only unit-bearing cost signal the sweep produces. Windy publishes no
+   * per-call price, no rate limit and no quota headers, so a box count cannot
+   * be turned into money; function seconds can. It also says how close a ring
+   * came to TERMINATOR_SWEEP_BUDGET_MS, which the budget-exhausted flag only
+   * reports after the fact.
+   */
+  elapsedMs: number;
 }
 
 export interface SweepTelemetry {
@@ -129,7 +139,9 @@ export async function sweepWithEscalation(
       coords.push(...ring.sunsetCoords);
     }
     const before = byId.size;
+    const startedAt = Date.now();
     const res = await opts.fetchCoords(coords);
+    const elapsedMs = Date.now() - startedAt;
     // Record the ids this ring is first to see, before inserting them, so the
     // delta is against every EARLIER ring rather than against this one.
     const newWebcamIds: number[] = [];
@@ -146,6 +158,7 @@ export async function sweepWithEscalation(
       failedByStatus: res.failedByStatus,
       newWebcams: byId.size - before,
       newWebcamIds,
+      elapsedMs,
     });
   };
 

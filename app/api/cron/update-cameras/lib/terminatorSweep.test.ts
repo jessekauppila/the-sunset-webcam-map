@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { feedsBelowFloor, sweepWithEscalation } from './terminatorSweep';
 import type { Location, WindyWebcam } from '@/app/lib/types';
 
@@ -339,5 +339,27 @@ describe('sweepWithEscalation', () => {
     expect(res.telemetry.rings[0].failed).toBe(1);
     expect(res.telemetry.rings[0].failedByStatus).toEqual({ '400': 1 });
     expect(res.telemetry.rings[0].empty).toBe(1);
+  });
+
+  it('times each ring separately', async () => {
+    let clock = 1_000;
+    const nowSpy = vi.spyOn(Date, 'now').mockImplementation(() => clock);
+    try {
+      const res = await sweepWithEscalation({
+        buildRing: ring,
+        fetchCoords: async (coords) => {
+          clock += 5_000; // each ring takes 5s of wall clock
+          return { webcams: [], attempted: coords.length, empty: 0, failed: 0, failedByStatus: {} };
+        },
+        classify,
+        floor: 2,
+        offsets: [15.75],
+        hasBudget: () => true,
+        forcedOffsets: [15.75],
+      });
+      expect(res.telemetry.rings.map((r) => r.elapsedMs)).toEqual([5_000, 5_000]);
+    } finally {
+      nowSpy.mockRestore();
+    }
   });
 });
