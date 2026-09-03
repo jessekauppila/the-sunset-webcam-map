@@ -132,4 +132,41 @@ describe('useLoadedTiles', () => {
 
     expect(result.current).toBe(first);
   });
+
+  it('holds the last good batch on screen while the next one loads', async () => {
+    // The pool refetches every 60s and hands us a fresh array. Clearing tiles
+    // at the start of the new cycle paints the canvas black until the images
+    // resolve, so the wall blinks once a minute. Hold the previous batch.
+    const { result, rerender } = renderHook(
+      ({ cams }) => useLoadedTiles(cams, opts),
+      { initialProps: { cams: [cam(1, 'https://x/a.jpg')] } }
+    );
+    await waitFor(() => expect(created).toHaveLength(1));
+    created[0].onload?.();
+    await waitFor(() => expect(result.current.tiles).toHaveLength(1));
+
+    rerender({ cams: [cam(1, 'https://x/a.jpg')] }); // same camera, new array
+
+    await waitFor(() => expect(result.current.loading).toBe(true));
+    expect(result.current.tiles).toHaveLength(1);
+    expect(result.current.byId.get(1)).toBeDefined();
+  });
+
+  it('replaces the held batch once the new one settles', async () => {
+    const { result, rerender } = renderHook(
+      ({ cams }) => useLoadedTiles(cams, opts),
+      { initialProps: { cams: [cam(1, 'https://x/a.jpg')] } }
+    );
+    await waitFor(() => expect(created).toHaveLength(1));
+    created[0].onload?.();
+    await waitFor(() => expect(result.current.tiles).toHaveLength(1));
+
+    rerender({ cams: [cam(2, 'https://x/b.jpg')] });
+    await waitFor(() => expect(created).toHaveLength(2));
+    created[1].onload?.();
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.tiles.map((t) => t.id)).toEqual([2]);
+    expect(result.current.byId.get(1)).toBeUndefined();
+  });
 });
