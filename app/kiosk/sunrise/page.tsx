@@ -56,6 +56,7 @@ function SunriseKioskContent() {
         feed="sunrise"
         peerWebcams={peerWebcams}
         setupMode={searchParams.get('setup') === '1'}
+        allowDebugOverlays={searchParams.get('debug') === '1'}
         search={queryString}
         settings={liveSettings?.namespaces[versionName]}
       />

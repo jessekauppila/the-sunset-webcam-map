@@ -4,6 +4,7 @@ import { FeedLabel } from './FeedLabel';
 import { TileRatings } from './TileRatings';
 import { SetupOverlay } from './SetupOverlay';
 import { ModelReadout } from './ModelReadout';
+import { CentreLine } from './CentreLine';
 import type { Layout } from '../engine/types';
 import type { WindyWebcam } from '@/app/lib/types';
 
@@ -142,5 +143,32 @@ describe('ModelReadout', () => {
     const chips = screen.getAllByTestId('v3-model-chip');
     expect(chips[0]).toHaveTextContent('floored');
     expect(chips[1]).not.toHaveTextContent('floored');
+  });
+});
+
+describe('CentreLine', () => {
+  const cfg = { axisNightEdgeDeg: -24, axisDayEdgeDeg: -2 };
+
+  it('marks the pool ring at the middle of the panel', () => {
+    render(<CentreLine cfg={cfg} feed="sunset" width={1080} height={1920} />);
+    expect(screen.getByTestId('v3-centre-line')).toHaveStyle({ left: '540px' });
+  });
+
+  it('follows the axis dials rather than assuming the middle', () => {
+    // A window whose ring is not centred: across -16 to -4, the ring at -13
+    // sits a quarter of the way up from the night edge, so on the sunrise
+    // feed the line lands at 0.25 * width.
+    render(
+      <CentreLine
+        cfg={{ axisNightEdgeDeg: -16, axisDayEdgeDeg: -4 }}
+        feed="sunrise" width={1200} height={1920}
+      />
+    );
+    expect(screen.getByTestId('v3-centre-line')).toHaveStyle({ left: '300px' });
+  });
+
+  it('names the altitude it is marking', () => {
+    render(<CentreLine cfg={cfg} feed="sunset" width={1080} height={1920} />);
+    expect(screen.getByTestId('v3-centre-line').textContent).toContain('-13');
   });
 });

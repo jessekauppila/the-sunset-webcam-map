@@ -93,3 +93,35 @@ describe('v3 hands the engine a history instead of holding state inside it', () 
     expect(typeof history?.now).toBe('number');
   });
 });
+
+describe('the centre line cannot reach the glass through a settings row', () => {
+  it('does not draw it on a kiosk route even when the dial is on', () => {
+    // Spec §7: Deploy copies settings rows to the kiosk, so a dial left on in
+    // studio would follow it to the wall. The route decides, not the dial.
+    const { queryByTestId } = render(
+      <MosaicV3
+        webcams={[]} width={1080} height={1920} feed="sunset"
+        settings={{ showCentreLine: true }}
+        allowDebugOverlays={false}
+      />
+    );
+    expect(queryByTestId('v3-centre-line')).toBeNull();
+  });
+
+  it('draws it in studio, where the dial is the only gate', () => {
+    const { getByTestId } = render(
+      <MosaicV3
+        webcams={[]} width={1080} height={1920} feed="sunset"
+        settings={{ showCentreLine: true }}
+      />
+    );
+    expect(getByTestId('v3-centre-line')).toBeTruthy();
+  });
+
+  it('stays off by default even where debug overlays are allowed', () => {
+    const { queryByTestId } = render(
+      <MosaicV3 webcams={[]} width={1080} height={1920} feed="sunset" settings={{}} />
+    );
+    expect(queryByTestId('v3-centre-line')).toBeNull();
+  });
+});

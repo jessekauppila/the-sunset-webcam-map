@@ -7,6 +7,7 @@ import { compose } from './engine/compose';
 import { MosaicCanvas } from './MosaicCanvas';
 import { FeedLabel } from './overlays/FeedLabel';
 import { ModelReadout } from './overlays/ModelReadout';
+import { CentreLine } from './overlays/CentreLine';
 import { SetupOverlay } from './overlays/SetupOverlay';
 import { TileRatings } from './overlays/TileRatings';
 import { V3_SETTINGS_SCHEMA, configFromSettings, motionFromSettings } from './settingsSchema';
@@ -27,6 +28,7 @@ export function MosaicV3({
   feed,
   peerWebcams = NO_PEERS,
   setupMode = false,
+  allowDebugOverlays = true,
   onSelect,
   search = '',
   settings,
@@ -107,6 +109,9 @@ export function MosaicV3({
       )}
       {modelsMode && (
         <ModelReadout layout={layout} byId={byId} scale={cfg.overlayScale} />
+      )}
+      {allowDebugOverlays && cfg.showCentreLine && (
+        <CentreLine cfg={cfg} feed={feed} width={width} height={height} />
       )}
       {setupMode && <SetupOverlay layout={layout} feed={feed} skipped={skipped} />}
     </div>
