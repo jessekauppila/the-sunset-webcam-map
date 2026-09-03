@@ -21,8 +21,16 @@ function feedsFor(view: FeedView): Array<'sunrise' | 'sunset'> {
   return view === 'both' ? ['sunrise', 'sunset'] : [view];
 }
 
+/**
+ * The source marker is not decoration. A live capture and a rebuilt evening
+ * are drawn from different populations: a capture files the whole ungated
+ * pool, while a rebuild can only return what the archive kept, which is
+ * model-gated plus a small random trickle. Comparing one against the other
+ * is not like for like, and the dropdown is where that has to be visible.
+ */
 function sceneOptionLabel(scene: SceneSummary): string {
-  return `${scene.label} — ${new Date(scene.representsAt).toLocaleString()}`;
+  const marker = scene.source === 'live' ? 'captured' : 'rebuilt';
+  return `${scene.label} · ${marker} · ${new Date(scene.representsAt).toLocaleString()}`;
 }
 
 export function PreviewPane({
