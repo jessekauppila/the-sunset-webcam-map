@@ -16,6 +16,7 @@ import { SHARED_NAMESPACE, SHARED_SCHEMA } from '@/app/lib/settings/sharedSchema
 import { countGatePasses, resolveGate } from '@/app/components/mosaic/gate';
 import { PANEL_PRESETS, DEFAULT_PANEL_PRESET } from '@/app/kiosk/panelPreview';
 import { poolFor } from './previewPool';
+import { restoreSceneDials } from './restoreSceneDials';
 
 /**
  * `/studio` chrome: left rail (dial controls, Task 11) + preview + a bottom
@@ -36,8 +37,10 @@ const pillBorder = '#232a38';
 export function StudioClient() {
   const [sceneSource, setSceneSource] = useState<SceneSource>({ kind: 'live' });
   useLoadTerminatorWebcams({ paused: sceneSource.kind === 'scene' });
-  const { scenes, sceneState, sceneRepresentsAt, error: sceneError, refreshScenes } =
-    useSceneWebcams(sceneSource);
+  const {
+    scenes, sceneState, sceneRepresentsAt, sceneNotes, sceneProvenance,
+    error: sceneError, refreshScenes,
+  } = useSceneWebcams(sceneSource);
   const settingsApi = useStudioSettings();
   const sunriseWebcams = useTerminatorStore((t) => t.sunrise);
   const sunsetWebcams = useTerminatorStore((t) => t.sunset);
@@ -148,6 +151,11 @@ export function StudioClient() {
           sceneSource={sceneSource}
           onSceneSourceChange={setSceneSource}
           sceneState={sceneState}
+          sceneNotes={sceneNotes}
+          sceneProvenance={sceneProvenance}
+          onRestoreDials={
+            sceneProvenance ? () => restoreSceneDials(settingsApi, sceneProvenance) : undefined
+          }
           error={sceneError}
           at={sceneRepresentsAt ?? undefined}
           onSceneSaved={refreshScenes}

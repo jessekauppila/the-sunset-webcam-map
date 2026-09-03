@@ -308,3 +308,73 @@ describe('PreviewPane — telling captures from rebuilds', () => {
     expect(select).toHaveTextContent('equinox · rebuilt');
   });
 });
+
+describe('PreviewPane — a scene\'s notes and dials', () => {
+  const provenance = { activeVersion: 'v3', settings: { v3: { bandCount: 8 } } };
+
+  it('shows the selected scene\'s notes', () => {
+    render(
+      <PreviewPane
+        view="sunset" onViewChange={() => {}} panel={PANEL} panelPresetLabel="x"
+        versionName="v3" sceneSource={{ kind: 'scene', id: 4 }}
+        sceneState={{ sunrise: [], sunset: [] }}
+        sceneNotes="shows 3 of 4 real sunsets" sceneProvenance={provenance}
+        onRestoreDials={() => ({ activeVersion: 'v3', restored: 1, dropped: [] })}
+      />
+    );
+    expect(screen.getByTestId('studio-scene-notes').textContent).toContain('3 of 4');
+  });
+
+  it('offers to restore the dials only when the scene recorded some', () => {
+    const { rerender } = render(
+      <PreviewPane
+        view="sunset" onViewChange={() => {}} panel={PANEL} panelPresetLabel="x"
+        versionName="v3" sceneSource={{ kind: 'scene', id: 4 }}
+        sceneState={{ sunrise: [], sunset: [] }} sceneProvenance={null}
+      />
+    );
+    expect(screen.queryByTestId('studio-restore-dials')).toBeNull();
+    rerender(
+      <PreviewPane
+        view="sunset" onViewChange={() => {}} panel={PANEL} panelPresetLabel="x"
+        versionName="v3" sceneSource={{ kind: 'scene', id: 4 }}
+        sceneState={{ sunrise: [], sunset: [] }} sceneProvenance={provenance}
+        onRestoreDials={() => ({ activeVersion: 'v3', restored: 1, dropped: [] })}
+      />
+    );
+    expect(screen.getByTestId('studio-restore-dials')).toBeTruthy();
+  });
+
+  it('does not restore on selection — viewing a pool under the current dials is the A/B', () => {
+    const onRestoreDials = vi.fn(() => ({ activeVersion: 'v3', restored: 1, dropped: [] }));
+    render(
+      <PreviewPane
+        view="sunset" onViewChange={() => {}} panel={PANEL} panelPresetLabel="x"
+        versionName="v3" sceneSource={{ kind: 'scene', id: 4 }}
+        sceneState={{ sunrise: [], sunset: [] }} sceneProvenance={provenance}
+        onRestoreDials={onRestoreDials}
+      />
+    );
+    expect(onRestoreDials).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByTestId('studio-restore-dials'));
+    expect(onRestoreDials).toHaveBeenCalledTimes(1);
+  });
+
+  it('reports what the restore brought back, including what it could not', () => {
+    render(
+      <PreviewPane
+        view="sunset" onViewChange={() => {}} panel={PANEL} panelPresetLabel="x"
+        versionName="v3" sceneSource={{ kind: 'scene', id: 4 }}
+        sceneState={{ sunrise: [], sunset: [] }} sceneProvenance={provenance}
+        onRestoreDials={() => ({
+          activeVersion: 'v3', restored: 3,
+          dropped: [{ key: 'retiredDial', reason: 'unknown' as const }],
+        })}
+      />
+    );
+    fireEvent.click(screen.getByTestId('studio-restore-dials'));
+    const report = screen.getByTestId('studio-restore-report').textContent ?? '';
+    expect(report).toContain('3 of 4');
+    expect(report).toContain('retiredDial');
+  });
+});
