@@ -18,6 +18,7 @@ import { createTerminatorQueryRing } from '@/app/components/Map/lib/terminatorRi
 import {
   TERMINATOR_CAMERA_FLOOR,
   TERMINATOR_WIDEN_OFFSETS_DEG,
+  TERMINATOR_DAY_SIDE_OFFSETS_DEG,
   TERMINATOR_SWEEP_BUDGET_MS,
   TICK_DEADLINE_MS,
   TERMINATOR_PRECISION_DEG,
@@ -31,6 +32,7 @@ import {
   AI_SNAPSHOT_MIN_RATING_THRESHOLD,
   ARCHIVE_BACKFILL_ENABLED,
 } from '@/app/lib/masterConfig';
+import { isFlagEnabled, SWEEP_FORCE_DAY_RING } from '@/app/lib/runtimeFlags';
 import { classifyCustomCamerasForTick } from './lib/customClassification';
 import { verifyCronAuth } from './lib/auth';
 import { dedupeCoords, fetchCoordsCounted } from './lib/windyApi';
@@ -42,6 +44,7 @@ import {
   upsertSweepStats,
   type RingGateCounts,
 } from './lib/sweepStats';
+import { sweepGeometry, upsertSweepGeometry } from './lib/sweepGeometry';
 import {
   upsertWebcams,
   getWebcamIdMap,
@@ -89,6 +92,13 @@ export async function GET(req: Request) {
   const { raHours, gmstHours } = subsolarPoint(now);
 
   const tickStartedAt = Date.now();
+
+  // Read per tick, so the operator can bring the spending back down without a
+  // redeploy. Fails closed inside isFlagEnabled: an unreachable database
+  // gives today's behaviour, never extra cost.
+  const forcedDayRing = await isFlagEnabled(SWEEP_FORCE_DAY_RING);
+  const forcedOffsets = forcedDayRing ? TERMINATOR_DAY_SIDE_OFFSETS_DEG : [];
+
   const sweep = await sweepWithEscalation({
     buildRing: (offsetDeg) => {
       const r = createTerminatorQueryRing(
@@ -113,6 +123,12 @@ export async function GET(req: Request) {
     classify: classifyWebcamsByPhase,
     floor: TERMINATOR_CAMERA_FLOOR,
     offsets: TERMINATOR_WIDEN_OFFSETS_DEG,
+    // Phase 1 of the pool-coverage spec: force the golden-hour ring so the
+    // pool reaches 0 to +6 degrees, where good frames actually are, instead
+    // of only the -24 to -2 band the base ring covers. Roughly doubles Windy
+    // boxes per tick, which is the cost the measurement window exists to
+    // price.
+    forcedOffsets,
     // Escalation rings are the first thing sacrificed on a slow tick: the
     // scoring loop below needs the remaining budget more than the pool needs
     // extra cameras. See TERMINATOR_SWEEP_BUDGET_MS for the cutoff rationale.
@@ -123,7 +139,10 @@ export async function GET(req: Request) {
   const sunsetCoords = sweep.coords.sunsetCoords;
   const windyAll = sweep.webcams.filter((w) => w.location);
 
-  console.log('🛰️ terminator sweep:', JSON.stringify(sweep.telemetry));
+  console.log(
+    '🛰️ terminator sweep:',
+    JSON.stringify({ forcedDayRing, ...sweep.telemetry }),
+  );
 
   // Ring attribution for the detection-gate comparison. Each camera is
   // credited to the ring that first saw it this tick, so the digest can print
@@ -465,6 +484,11 @@ export async function GET(req: Request) {
   });
   await upsertSweepStats(new Date(), sweepStats, tickStats.modelVersion);
 
+  // The angles behind the counters just written. Recorded every tick rather
+  // than on change, because nothing watches for a change -- masterConfig.ts
+  // edits arrive by deploy and the flag flips outside the app entirely.
+  await upsertSweepGeometry(new Date(), sweepGeometry(forcedOffsets));
+
   // Once per UTC day, snapshot Neon usage counters for the Ops tab. Never
   // allowed to fail the tick.
   let providerUsage: Awaited<ReturnType<typeof captureProviderUsageDaily>> | { error: true };
@@ -501,5 +525,6 @@ export async function GET(req: Request) {
     providerUsage,
     digest,
     sweep: sweep.telemetry,
+    forcedDayRing,
   });
 }

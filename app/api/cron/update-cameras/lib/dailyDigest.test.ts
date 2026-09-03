@@ -11,7 +11,9 @@ import {
   sendDailyUsageDigest,
   formatCalibrationLine,
   formatSweepLine,
+  sweptAltitudeSpan,
 } from './dailyDigest';
+import type { SweepDigestSummary, SweepRingStats } from './sweepStats';
 
 const NOW = new Date('2026-08-03T00:20:00Z');
 const SUNSET = 'noisy-leaf-96391119';
@@ -189,6 +191,71 @@ describe('formatCalibrationLine', () => {
   });
 });
 
+/** `ringStat(offsetDeg)`: a plausible ring, base by default at offset 0. */
+function ringStat(offsetDeg: number): SweepRingStats {
+  const isBase = offsetDeg === 0;
+  return {
+    offsetDeg,
+    ringsSwept: 96,
+    boxesAttempted: isBase ? 2976 : 2880,
+    boxesEmpty: isBase ? 300 : 200,
+    boxesFailed: 0,
+    newWebcams: isBase ? 400 : 45,
+    framesScored: isBase ? 380 : 40,
+    framesGatePassed: isBase ? 130 : 4,
+    elapsedMs: isBase ? 1_152_000 : 960_000,
+  };
+}
+
+/** A day where only the base ring ran. */
+function summaryBaseOnly(): SweepDigestSummary {
+  return {
+    ticks: 96,
+    escalatedTicks: 0,
+    budgetExhaustedTicks: 0,
+    sunriseThinTicks: 0,
+    sunsetThinTicks: 0,
+    sunriseShortTicks: 0,
+    sunsetShortTicks: 0,
+    baseBoxes: 2976,
+    escalationBoxes: 0,
+    baseMs: 1_152_000,
+    escalationMs: 0,
+    rings: [ringStat(0)],
+  };
+}
+
+/** A day where the base ring plus one day-side (+15.75°) ring both ran. */
+function summaryWithDayRing(): SweepDigestSummary {
+  return {
+    ...summaryBaseOnly(),
+    escalatedTicks: 12,
+    sunsetThinTicks: 12,
+    escalationBoxes: 2880,
+    escalationMs: 960_000,
+    // Desc by offset_deg, like getSweepDigestSummary's real ORDER BY — a
+    // base-first fixture here would mask the i===0 ring-labeling bug (M4).
+    rings: [ringStat(15.75), ringStat(0)],
+  };
+}
+
+describe('sweptAltitudeSpan', () => {
+  it('is the base ring alone when nothing escalated', () => {
+    expect(sweptAltitudeSpan([ringStat(0)])).toEqual({ min: -24, max: -2 });
+  });
+
+  it('reaches golden hour once the day-side ring ran', () => {
+    expect(sweptAltitudeSpan([ringStat(0), ringStat(15.75)])).toEqual({
+      min: -24,
+      max: 13.75,
+    });
+  });
+
+  it('is null when no ring ran', () => {
+    expect(sweptAltitudeSpan([])).toBeNull();
+  });
+});
+
 describe('formatSweepLine', () => {
   const quiet = {
     ticks: 96,
@@ -200,15 +267,19 @@ describe('formatSweepLine', () => {
     sunsetShortTicks: 0,
     baseBoxes: 2976,
     escalationBoxes: 0,
+    baseMs: 1_152_000,
+    escalationMs: 0,
     rings: [
       {
         offsetDeg: 0,
         ringsSwept: 96,
         boxesAttempted: 2976,
         boxesEmpty: 300,
+        boxesFailed: 0,
         newWebcams: 400,
         framesScored: 380,
         framesGatePassed: 130,
+        elapsedMs: 1_152_000,
       },
     ],
   };
@@ -217,12 +288,75 @@ describe('formatSweepLine', () => {
     expect(formatSweepLine(null)).toBe('');
   });
 
-  it('collapses a quiet day to one clause', () => {
+  it('prints only the summary and efficiency lines on a quiet day', () => {
     const html = formatSweepLine(quiet);
     expect(html).toContain('no feed fell under the floor');
     expect(html).toContain('2,976');
-    // Nothing was widened, so there is no cost and no per-ring comparison.
-    expect(html).not.toContain('gate-passed');
+    // Nothing was widened, so there is no widening bill and no per-ring
+    // comparison table. (The per-gate-passed cost line still prints — that
+    // question doesn't require widening to have an answer.)
+    expect(html).not.toContain('Widening cost');
+    expect(html).not.toContain('Rings:');
+  });
+
+  it('prints the swept altitude span in degrees, not ring offsets', () => {
+    expect(formatSweepLine(summaryWithDayRing())).toContain('-24° to +14°');
+  });
+
+  it('shows a partial-escalation ring share against the base ring\'s ticks, not just the full-day hull', () => {
+    // Base ran all 96 ticks; the day-side ring ran only 12 of them. The span
+    // alone would print the same "-24° to +14°" as a day where +15.75 ran
+    // every tick, which over-claims how much of the day it actually covered.
+    const html = formatSweepLine({
+      ...quiet,
+      escalatedTicks: 12,
+      sunsetThinTicks: 12,
+      escalationBoxes: 180,
+      rings: [
+        quiet.rings[0], // base, ringsSwept: 96
+        {
+          offsetDeg: 15.75,
+          ringsSwept: 12,
+          boxesAttempted: 180,
+          boxesEmpty: 20,
+          boxesFailed: 0,
+          newWebcams: 45,
+          framesScored: 40,
+          framesGatePassed: 4,
+          elapsedMs: 60_000,
+        },
+      ],
+    });
+    expect(html).toContain('12/96 ticks');
+  });
+
+  it('prints no ticks-share parenthetical on a base-only day', () => {
+    expect(formatSweepLine(summaryBaseOnly())).not.toContain('ticks)');
+  });
+
+  it('prints the widening bill as seconds and frames, not just boxes', () => {
+    const html = formatSweepLine(summaryWithDayRing());
+    expect(html).toContain('Widening cost');
+    expect(html).toContain('16.0 min/day sweeping');
+  });
+
+  it('prints what each ring cost per sunset it delivered', () => {
+    // The lever question. A ring that costs twice as many boxes per
+    // gate-passed frame as the base ring is the one to narrow or drop, and
+    // that ratio is invisible in any total.
+    const html = formatSweepLine(summaryWithDayRing());
+    expect(html).toContain('Per gate-passed');
+  });
+
+  it('says nothing about widening cost when nothing escalated', () => {
+    expect(formatSweepLine(summaryBaseOnly())).not.toContain('Widening cost');
+  });
+
+  it('reports failed boxes apart from empty ones, and only when there are any', () => {
+    expect(formatSweepLine(summaryBaseOnly())).not.toContain('boxes failed');
+    const withFailures = summaryBaseOnly();
+    withFailures.rings[0].boxesFailed = 12;
+    expect(formatSweepLine(withFailures)).toContain('12 boxes failed');
   });
 
   it('names the thin feed, the escalation cost, and its share of the baseline', () => {
@@ -254,9 +388,11 @@ describe('formatSweepLine', () => {
           ringsSwept: 12,
           boxesAttempted: 180,
           boxesEmpty: 20,
+          boxesFailed: 0,
           newWebcams: 45,
           framesScored: 40,
           framesGatePassed: 4,
+          elapsedMs: 60_000,
         },
       ],
     });

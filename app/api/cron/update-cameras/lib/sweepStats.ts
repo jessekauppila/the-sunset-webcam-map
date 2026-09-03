@@ -14,9 +14,11 @@ export interface SweepRingStats {
   ringsSwept: number;
   boxesAttempted: number;
   boxesEmpty: number;
+  boxesFailed: number;
   newWebcams: number;
   framesScored: number;
   framesGatePassed: number;
+  elapsedMs: number;
 }
 
 /**
@@ -37,6 +39,10 @@ export interface SweepTickStats {
   baseBoxes: number;
   /** Windy boxes attributable to widening — the bill this feature adds. */
   escalationBoxes: number;
+  /** Wall clock the base ring spent, summed over the tick. */
+  baseMs: number;
+  /** Wall clock widening added. Boxes are free at Windy; seconds are not. */
+  escalationMs: number;
   rings: SweepRingStats[];
 }
 
@@ -82,14 +88,18 @@ export function computeSweepTickStats(input: {
       ringsSwept: 0,
       boxesAttempted: 0,
       boxesEmpty: 0,
+      boxesFailed: 0,
       newWebcams: 0,
       framesScored: 0,
       framesGatePassed: 0,
+      elapsedMs: 0,
     };
     acc.ringsSwept += 1;
     acc.boxesAttempted += ring.attempted;
     acc.boxesEmpty += ring.empty;
+    acc.boxesFailed += ring.failed;
     acc.newWebcams += ring.newWebcams;
+    acc.elapsedMs += ring.elapsedMs;
     byOffset.set(ring.offsetDeg, acc);
   }
   for (const [offsetDeg, gate] of gateByOffset ?? []) {
@@ -109,6 +119,8 @@ export function computeSweepTickStats(input: {
     sunsetShortTicks: short('sunset'),
     baseBoxes: base?.attempted ?? 0,
     escalationBoxes: escalation.reduce((sum, r) => sum + r.attempted, 0),
+    baseMs: base?.elapsedMs ?? 0,
+    escalationMs: escalation.reduce((sum, r) => sum + r.elapsedMs, 0),
     rings: [...byOffset.values()],
   };
 }
@@ -143,6 +155,7 @@ export async function upsertSweepStats(
         sweep_sunrise_thin_ticks, sweep_sunset_thin_ticks,
         sweep_sunrise_short_ticks, sweep_sunset_short_ticks,
         sweep_base_boxes, sweep_escalation_boxes,
+        sweep_base_ms, sweep_escalation_ms,
         updated_at
       ) values (
         ${date}, ${modelVersion},
@@ -150,6 +163,7 @@ export async function upsertSweepStats(
         ${stats.sunriseThinTicks}, ${stats.sunsetThinTicks},
         ${stats.sunriseShortTicks}, ${stats.sunsetShortTicks},
         ${stats.baseBoxes}, ${stats.escalationBoxes},
+        ${stats.baseMs}, ${stats.escalationMs},
         now()
       )
       on conflict (date) do update set
@@ -170,6 +184,9 @@ export async function upsertSweepStats(
         sweep_base_boxes = daily_sunset_stats.sweep_base_boxes + excluded.sweep_base_boxes,
         sweep_escalation_boxes =
           daily_sunset_stats.sweep_escalation_boxes + excluded.sweep_escalation_boxes,
+        sweep_base_ms = daily_sunset_stats.sweep_base_ms + excluded.sweep_base_ms,
+        sweep_escalation_ms =
+          daily_sunset_stats.sweep_escalation_ms + excluded.sweep_escalation_ms,
         updated_at = now()
     `;
 
@@ -177,13 +194,13 @@ export async function upsertSweepStats(
       await sql`
         insert into daily_sweep_ring_stats (
           date, offset_deg,
-          rings_swept, boxes_attempted, boxes_empty,
-          new_webcams, frames_scored, frames_gate_passed,
+          rings_swept, boxes_attempted, boxes_empty, boxes_failed,
+          new_webcams, frames_scored, frames_gate_passed, elapsed_ms,
           updated_at
         ) values (
           ${date}, ${ring.offsetDeg},
-          ${ring.ringsSwept}, ${ring.boxesAttempted}, ${ring.boxesEmpty},
-          ${ring.newWebcams}, ${ring.framesScored}, ${ring.framesGatePassed},
+          ${ring.ringsSwept}, ${ring.boxesAttempted}, ${ring.boxesEmpty}, ${ring.boxesFailed},
+          ${ring.newWebcams}, ${ring.framesScored}, ${ring.framesGatePassed}, ${ring.elapsedMs},
           now()
         )
         on conflict (date, offset_deg) do update set
@@ -191,11 +208,13 @@ export async function upsertSweepStats(
           boxes_attempted =
             daily_sweep_ring_stats.boxes_attempted + excluded.boxes_attempted,
           boxes_empty = daily_sweep_ring_stats.boxes_empty + excluded.boxes_empty,
+          boxes_failed = daily_sweep_ring_stats.boxes_failed + excluded.boxes_failed,
           new_webcams = daily_sweep_ring_stats.new_webcams + excluded.new_webcams,
           frames_scored =
             daily_sweep_ring_stats.frames_scored + excluded.frames_scored,
           frames_gate_passed =
             daily_sweep_ring_stats.frames_gate_passed + excluded.frames_gate_passed,
+          elapsed_ms = daily_sweep_ring_stats.elapsed_ms + excluded.elapsed_ms,
           updated_at = now()
       `;
     }
@@ -214,6 +233,8 @@ export interface SweepDigestSummary {
   sunsetShortTicks: number;
   baseBoxes: number;
   escalationBoxes: number;
+  baseMs: number;
+  escalationMs: number;
   rings: SweepRingStats[];
 }
 
@@ -232,7 +253,8 @@ export async function getSweepDigestSummary(): Promise<SweepDigestSummary | null
         sweep_ticks, sweep_escalated_ticks, sweep_budget_exhausted_ticks,
         sweep_sunrise_thin_ticks, sweep_sunset_thin_ticks,
         sweep_sunrise_short_ticks, sweep_sunset_short_ticks,
-        sweep_base_boxes, sweep_escalation_boxes
+        sweep_base_boxes, sweep_escalation_boxes,
+        sweep_base_ms, sweep_escalation_ms
       from daily_sunset_stats
       where date = CURRENT_DATE - 1
     `) as Record<string, number | string>[];
@@ -241,8 +263,8 @@ export async function getSweepDigestSummary(): Promise<SweepDigestSummary | null
 
     const ringRows = (await sql`
       select
-        offset_deg, rings_swept, boxes_attempted, boxes_empty,
-        new_webcams, frames_scored, frames_gate_passed
+        offset_deg, rings_swept, boxes_attempted, boxes_empty, boxes_failed,
+        new_webcams, frames_scored, frames_gate_passed, elapsed_ms
       from daily_sweep_ring_stats
       where date = CURRENT_DATE - 1
       order by offset_deg desc
@@ -258,6 +280,8 @@ export async function getSweepDigestSummary(): Promise<SweepDigestSummary | null
       sunsetShortTicks: Number(row.sweep_sunset_short_ticks),
       baseBoxes: Number(row.sweep_base_boxes),
       escalationBoxes: Number(row.sweep_escalation_boxes),
+      baseMs: Number(row.sweep_base_ms),
+      escalationMs: Number(row.sweep_escalation_ms),
       // offset_deg is NUMERIC, which the Neon driver hands back as a string.
       // Number() here or every downstream comparison against 15.75 misses.
       rings: ringRows.map((r) => ({
@@ -265,9 +289,11 @@ export async function getSweepDigestSummary(): Promise<SweepDigestSummary | null
         ringsSwept: Number(r.rings_swept),
         boxesAttempted: Number(r.boxes_attempted),
         boxesEmpty: Number(r.boxes_empty),
+        boxesFailed: Number(r.boxes_failed),
         newWebcams: Number(r.new_webcams),
         framesScored: Number(r.frames_scored),
         framesGatePassed: Number(r.frames_gate_passed),
+        elapsedMs: Number(r.elapsed_ms),
       })),
     };
   } catch (error) {

@@ -30,8 +30,11 @@ const healthy: SweepTelemetry = {
       feedsSwept: ['sunrise', 'sunset'],
       attempted: 31,
       empty: 4,
+      failed: 0,
+      failedByStatus: {},
       newWebcams: 3,
       newWebcamIds: [101, 102, 103],
+      elapsedMs: 8_000,
     },
   ],
   counts: { sunrise: 18, sunset: 21 },
@@ -48,16 +51,22 @@ const escalated: SweepTelemetry = {
       feedsSwept: ['sunrise', 'sunset'],
       attempted: 31,
       empty: 4,
+      failed: 0,
+      failedByStatus: {},
       newWebcams: 3,
       newWebcamIds: [101, 102, 103],
+      elapsedMs: 8_000,
     },
     {
       offsetDeg: 15.75,
       feedsSwept: ['sunset'],
       attempted: 15,
       empty: 2,
+      failed: 0,
+      failedByStatus: {},
       newWebcams: 2,
       newWebcamIds: [201, 202],
+      elapsedMs: 5_000,
     },
   ],
   counts: { sunrise: 18, sunset: 17 },
@@ -150,6 +159,28 @@ describe('computeSweepTickStats', () => {
     const s = computeSweepTickStats({ telemetry: escalated, floor: 15 });
     expect(s.rings.every((r) => r.framesScored === 0)).toBe(true);
   });
+
+  it('accumulates failed boxes per ring', async () => {
+    const withFailures: SweepTelemetry = {
+      ...healthy,
+      rings: [{ ...healthy.rings[0], failed: 3, failedByStatus: { '400': 3 } }],
+    };
+    const stats = computeSweepTickStats({ telemetry: withFailures, floor: 15 });
+    expect(stats.rings[0].boxesFailed).toBe(3);
+    expect(stats.rings[0].boxesEmpty).toBe(healthy.rings[0].empty);
+  });
+
+  it('splits sweep milliseconds into base and escalation', async () => {
+    const stats = computeSweepTickStats({ telemetry: escalated, floor: 15 });
+    expect(stats.baseMs).toBe(8_000);
+    expect(stats.escalationMs).toBe(5_000);
+  });
+
+  it('reports no escalation milliseconds on a base-only tick', async () => {
+    const stats = computeSweepTickStats({ telemetry: healthy, floor: 15 });
+    expect(stats.baseMs).toBe(8_000);
+    expect(stats.escalationMs).toBe(0);
+  });
 });
 
 describe('upsertSweepStats', () => {
@@ -163,11 +194,16 @@ describe('upsertSweepStats', () => {
     const [tickCall, ...ringCalls] = sqlMock.mock.calls;
     expect(tickCall[0].join('?')).toContain('daily_sunset_stats');
     expect(tickCall).toContain('2026-09-03');
+    expect(tickCall).toContain(stats.baseMs);
+    expect(tickCall).toContain(stats.escalationMs);
     for (const call of ringCalls) {
       expect(call[0].join('?')).toContain('daily_sweep_ring_stats');
       expect(call).toContain('2026-09-03');
     }
     expect(ringCalls.some((c) => c.includes(15.75))).toBe(true);
+    expect(
+      ringCalls.some((c) => stats.rings.some((r) => c.includes(r.elapsedMs))),
+    ).toBe(true);
   });
 
   it('never throws when the tables are missing', async () => {
@@ -228,5 +264,32 @@ describe('getSweepDigestSummary', () => {
       throw new Error('no such table');
     });
     expect(await getSweepDigestSummary()).toBeNull();
+  });
+
+  it('reads the timing columns back for the digest', async () => {
+    sqlMock
+      .mockResolvedValueOnce([
+        {
+          sweep_ticks: 96, sweep_escalated_ticks: 96,
+          sweep_budget_exhausted_ticks: 3,
+          sweep_sunrise_thin_ticks: 0, sweep_sunset_thin_ticks: 0,
+          sweep_sunrise_short_ticks: 0, sweep_sunset_short_ticks: 0,
+          sweep_base_boxes: 2976, sweep_escalation_boxes: 2880,
+          sweep_base_ms: '1152000', sweep_escalation_ms: '960000',
+        },
+      ])
+      .mockResolvedValueOnce([
+        {
+          offset_deg: '0', rings_swept: 96, boxes_attempted: 2976,
+          boxes_empty: 400, boxes_failed: 0, new_webcams: 300, frames_scored: 200,
+          frames_gate_passed: 40, elapsed_ms: '1152000',
+        },
+      ]);
+    const summary = await getSweepDigestSummary();
+    // BIGINT arrives from the Neon driver as a string, like every NUMERIC in
+    // this codebase. Unwrapped, every downstream comparison silently
+    // concatenates instead of adding.
+    expect(summary?.escalationMs).toBe(960_000);
+    expect(summary?.rings[0].elapsedMs).toBe(1_152_000);
   });
 });

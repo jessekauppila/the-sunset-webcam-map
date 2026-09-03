@@ -50,6 +50,14 @@ export const TERMINATOR_CAMERA_FLOOR = 15;
 // live measurement of a new offset.
 export const TERMINATOR_WIDEN_OFFSETS_DEG = [15.75, -15.75] as const;
 
+// The escalation offsets that move the ring toward day. Positive offset
+// shrinks the ring radius, so positive is day. Named rather than indexed
+// because "the day-side ring" is the concept the forced-sweep switch acts on,
+// and TERMINATOR_WIDEN_OFFSETS_DEG[0] would silently mean something else if
+// the array were ever reordered.
+export const TERMINATOR_DAY_SIDE_OFFSETS_DEG = TERMINATOR_WIDEN_OFFSETS_DEG
+  .filter((offset) => offset > 0);
+
 // The solar-altitude range the terminator sweep actually gathers under the
 // CURRENT configuration. This is the one contract between the pool and the
 // display: a camera the sweep found must have somewhere on the panel to be,

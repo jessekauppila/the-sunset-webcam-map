@@ -13,6 +13,9 @@ export interface RingTelemetry {
   feedsSwept: Feed[];
   attempted: number;
   empty: number;
+  /** Boxes whose request came back non-OK. Not ocean; see CoordFetchResult. */
+  failed: number;
+  failedByStatus: Record<string, number>;
   /** Cameras this ring contributed that no earlier ring had seen. */
   newWebcams: number;
   /**
@@ -26,6 +29,16 @@ export interface RingTelemetry {
    * the cheap scalar for logs and dashboards.
    */
   newWebcamIds: number[];
+  /**
+   * Wall clock this ring spent, in milliseconds.
+   *
+   * The only unit-bearing cost signal the sweep produces. Windy publishes no
+   * per-call price, no rate limit and no quota headers, so a box count cannot
+   * be turned into money; function seconds can. It also says how close a ring
+   * came to TERMINATOR_SWEEP_BUDGET_MS, which the budget-exhausted flag only
+   * reports after the fact.
+   */
+  elapsedMs: number;
 }
 
 export interface SweepTelemetry {
@@ -60,6 +73,19 @@ export interface SweepOptions {
   ) => { sunrise: WindyWebcam[]; sunset: WindyWebcam[] };
   floor: number;
   offsets: readonly number[];
+  /**
+   * Offsets to sweep on every tick regardless of the camera floor, both feeds.
+   *
+   * The floor-based trigger asks "is a panel too empty to look at". This asks
+   * a different question: "does the pool reach the altitudes where sunsets
+   * actually happen". Good frames peak at 0 to +6 degrees solar altitude and
+   * the base ring at -13 never sees them, so the day-side ring is worth
+   * paying for even when nothing is thin. Additive to the floor trigger,
+   * never a replacement for it.
+   *
+   * Empty or absent means today's behaviour exactly.
+   */
+  forcedOffsets?: readonly number[];
   hasBudget: () => boolean;
 }
 
@@ -113,7 +139,9 @@ export async function sweepWithEscalation(
       coords.push(...ring.sunsetCoords);
     }
     const before = byId.size;
+    const startedAt = Date.now();
     const res = await opts.fetchCoords(coords);
+    const elapsedMs = Date.now() - startedAt;
     // Record the ids this ring is first to see, before inserting them, so the
     // delta is against every EARLIER ring rather than against this one.
     const newWebcamIds: number[] = [];
@@ -126,8 +154,11 @@ export async function sweepWithEscalation(
       feedsSwept: feeds,
       attempted: res.attempted,
       empty: res.empty,
+      failed: res.failed,
+      failedByStatus: res.failedByStatus,
       newWebcams: byId.size - before,
       newWebcamIds,
+      elapsedMs,
     });
   };
 
@@ -154,13 +185,21 @@ export async function sweepWithEscalation(
   const thinAfterBase = feedsBelowFloor(counts, opts.floor);
 
   for (const offsetDeg of opts.offsets) {
+    const forced = opts.forcedOffsets?.includes(offsetDeg) ?? false;
     const thin = feedsBelowFloor(counts, opts.floor);
-    if (thin.length === 0) break;
+    // Forced rings sweep both feeds; floor-triggered rings sweep only the
+    // thin half, which is what halves the cost of the common case.
+    const feeds: Feed[] = forced ? [...FEEDS] : thin;
+    // `continue`, not `break`. With no forced offsets the two are observably
+    // identical -- feedsBelowFloor is pure, counts have not changed, and
+    // neither path pushes a ring or sets budgetExhausted -- but `break` would
+    // skip a forced offset that sat after a non-forced one in the list.
+    if (feeds.length === 0) continue;
     if (!opts.hasBudget()) {
       budgetExhausted = true;
       break;
     }
-    await sweep(offsetDeg, thin);
+    await sweep(offsetDeg, feeds);
     counts = currentCounts();
   }
 
