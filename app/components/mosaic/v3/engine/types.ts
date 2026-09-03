@@ -39,6 +39,17 @@ export interface Layout {
 export type FailedCamPolicy = 'hide' | 'showAtFloor' | 'showIfRoom';
 export type SizingCurve = 'linear' | 'easeIn' | 'percentileAmongPassers';
 
+/**
+ * How the fixed band grid meets the panel edges.
+ *
+ * `full` divides the whole panel, so the outermost band centres sit half a
+ * band from each edge and a tall tile there overhangs. `inset` holds the grid
+ * back by half a ceiling tile at each edge so nothing overhangs, at the cost
+ * of a tighter band pitch. Kept as a dial rather than a decision because the
+ * trade is a judgement about the wall, not a correctness question.
+ */
+export type BandGrid = 'full' | 'inset';
+
 /** Every v3 composition knob, resolved to concrete values. */
 export interface V3Config {
   // signal
@@ -56,6 +67,7 @@ export interface V3Config {
   sharedScale: boolean; // adopt one overflow scale across both feeds
   // arrangement — bands vertically, solar altitude horizontally, both absolute
   bandCount: number;
+  bandGrid: BandGrid;
   tileGapPx: number;
   latNorth: number;
   latSouth: number;

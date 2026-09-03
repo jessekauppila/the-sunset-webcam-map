@@ -1,4 +1,4 @@
-import type { Layout } from '../engine/types';
+import type { BandGrid, Layout } from '../engine/types';
 
 /**
  * Installer aid: per-tile coordinates plus a composition health footer.
@@ -13,10 +13,14 @@ export function SetupOverlay({
   layout,
   feed,
   skipped,
+  bandCount,
+  bandGrid,
 }: {
   layout: Layout;
   feed: 'sunrise' | 'sunset';
   skipped: number;
+  bandCount?: number;
+  bandGrid?: BandGrid;
 }) {
   return (
     <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
@@ -55,6 +59,7 @@ export function SetupOverlay({
         {feed} · tiles {layout.tiles.length} · evicted {layout.evicted.length} ·
         dropped {layout.dropped.length} · skipped {skipped} ·
         scale {layout.scale.toFixed(2)}
+        {bandGrid !== undefined && ` · bands ${bandCount ?? '?'} ${bandGrid}`}
       </div>
     </div>
   );

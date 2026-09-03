@@ -67,6 +67,11 @@ export const V3_SETTINGS_SCHEMA: SettingsSchema = [
     description: 'Number of fixed latitude strips. They never move: a band is the same pixels holding one camera or forty. 13 over the default window is one band per 10 degrees.',
   },
   {
+    key: 'bandGrid', kind: 'enum', options: ['full', 'inset'] as const, default: 'full',
+    label: 'band grid', section: 'arrangement',
+    description: 'Where the band grid meets the panel edges. full divides the whole panel, so a tall tile in the top or bottom band hangs off it and the overflow stage shrinks the WHOLE wall for the overhang. inset holds the grid back by half a ceiling tile so nothing overhangs and the wall renders at full size, at the cost of a tighter band pitch. Compare them with ?bandGrid=full and ?bandGrid=inset side by side.',
+  },
+  {
     key: 'tileGapPx', kind: 'number', min: 0, max: 40, step: 1, default: 6,
     label: 'tile gap (px)', section: 'arrangement',
     description: 'Space between neighbouring tiles.',
@@ -174,6 +179,7 @@ export function configFromSettings(values: SettingsValues): V3Config {
     scoreCeiling: values.scoreCeiling as number,
     sharedScale: values.sharedScale as boolean,
     bandCount: values.bandCount as number,
+    bandGrid: values.bandGrid as V3Config['bandGrid'],
     tileGapPx: values.tileGapPx as number,
     latNorth: values.latNorth as number,
     latSouth: values.latSouth as number,

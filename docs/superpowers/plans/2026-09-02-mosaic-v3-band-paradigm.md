@@ -2352,57 +2352,69 @@ git push -u origin feat/mosaic-v3-band-paradigm
 
 ---
 
-## Finding after execution: the band grid fights the overflow stage
+## Finding after execution, corrected by measurement
 
-**Status: built as specified, and the interaction below is a real open
-question for the glass. Not fixed here, because fixing it means changing
-geometry that spec §5.1 and §5.2 settle.**
+**The band grid is a dial now (`bandGrid`: `full` | `inset`, default `full`,
+plus a `?bandGrid=` URL override), so this can be settled on the glass. But
+measuring it changed the conclusion, and the first version of this section
+recommended the wrong fix.**
 
-Measured on the live pool at the real panel geometry (1080x1920, `?panel=dell`):
+### The governing relation
+
+`bandCount * ceilingPx <= panelHeight`. At 1080x1920 with the shipped
+`ceilingPx` of 480, that caps `bandCount` at 4. The defaults ship
+`13 * 480 = 6240`, which is 3.25x the panel height.
+
+Break the relation and one of two things happens. Under `full`, a tall tile
+in an end band overhangs, the overflow stage reads the overhang as overflow,
+and the whole wall shrinks — measured at the `0.35` scale floor on the live
+pool. Under `inset` the wall keeps full size, but the band pitch collapses
+below the tile height (110px pitch against 240-383px tiles), tiles span three
+or four bands each, and eviction throws most of the pool away.
+
+**Both failure modes are the same arithmetic wearing different clothes.**
+
+### Measured, sunset panel of the live capture, 4 of the 42 pass the gate
+
+| bandGrid | bandCount | ceilingPx | product | real sunsets shown | tiles drawn | scale |
+|---|---|---|---|---|---|---|
+| full | 13 | 480 | 6240 | 1 of 4 | 5 | 1.00 |
+| inset | 13 | 480 | 6240 | 1 of 4 | 3 | 1.00 |
+| full | 4 | 480 | 1920 | 1 of 4 | 5 | 1.00 |
+| full | 6 | 320 | 1920 | 2 of 4 | 5 | 1.00 |
+| full | 8 | 240 | 1920 | 3 of 4 | 8 | 1.00 |
+| full | 13 | 148 | 1924 | 3 of 4 | 11 | 1.00 |
+| inset | 8 | 240 | 1920 | 3 of 4 | 8 | 1.00 |
+
+### What this corrects
+
+The earlier version of this section ranked "inset the band grid" first and
+"turn the dials" last. That was backwards. Once the product is at or under the
+panel height, `full` and `inset` produce **identical** results on this pool —
+every `product = 1920` row above matches across both modes. The grid choice
+only decides *which way* a bad dial combination fails, not whether the wall
+works.
+
+`inset` remains worth having as insurance: it guarantees `scale = 1` for any
+dial combination, so a future ceiling or band change cannot silently pin the
+composition against its floor. It is not the fix.
+
+**The fix is the dials, and the shape of the trade is: more bands with a
+smaller ceiling shows more of the pool, smaller.** `8 x 240` and `13 x 148`
+both surface 3 of the 4 real sunsets instead of 1. Which one is right is a
+question about the wall, so it stays Jesse's.
+
+### Compare them yourself
 
 ```
-sunset · tiles 13 · evicted 9 · dropped 0 · skipped 0 · scale 0.35
+/kiosk/sunset?v=v3&panel=dell&setup=1&bandGrid=full
+/kiosk/sunset?v=v3&panel=dell&setup=1&bandGrid=inset
 ```
 
-`0.35` is `MIN_COMPOSITION_SCALE` exactly. The composition is pinned against
-its own guardrail on an ordinary night, which means the uniform shrink is
-doing all the work and has nothing left.
-
-**Why.** Band centres are fixed at `(i + 0.5) * height / bandCount`, so the
-outermost band centres sit half a band from each edge and any tall tile there
-overhangs the panel. `extent` measures top-of-highest to bottom-of-lowest, so
-that overhang is read as overflow and shrinks the whole wall. The relation is
-exact: the tallest tile that survives at scale 1 is `panelHeight / bandCount`.
-
-| bandCount | band 0 centre | last centre | tallest tile at scale 1 | scale a 480px tile forces |
-|---|---|---|---|---|
-| 4 | 240 | 1680 | 480 | 1.00 |
-| 6 | 160 | 1760 | 320 | 0.67 |
-| 8 | 120 | 1800 | 240 | 0.50 |
-| 13 | 74 | 1846 | 148 | 0.31 |
-
-So `bandCount * ceilingPx <= panelHeight` is the condition for an unshrunk
-wall. At the shipped `ceilingPx` of 480 that caps `bandCount` at 4, which is a
-very coarse latitude axis — 4 strips across 130 degrees.
-
-**Three ways out, for Jesse to choose.** They are not equivalent and this is a
-taste decision about the wall, not a correctness one.
-
-1. **Inset the band grid** so the strips span
-   `[ceilingPx/2, height - ceilingPx/2]` instead of the full panel. Band
-   centres stay fixed and pool-independent, so the headline property survives
-   untouched; the axis just stops running its outermost bands off the edge.
-   Smallest change, and the one this executor would pick.
-2. **Let the end bands clip.** Measure overflow as the part actually drawn
-   outside the panel rather than the total span. Keeps the grid literal, at
-   the cost of cropping the northernmost and southernmost tiles.
-3. **Accept it and turn the dials.** Drop `ceilingPx` or `bandCount` until the
-   product fits. Cheapest, but it spends the size range that carries quality —
-   the one thing spec §3 says size is allowed to mean.
-
-The plan ships option 3 by default, unchosen: `bandCount` is 13, so the wall
-runs at the scale floor until someone picks. `app/components/mosaic/v3/engine/realPool.test.ts`
-pins the density numbers so any change here is visible rather than silent.
+`?panel=dell` matters — `portrait` is not a preset and is silently ignored,
+which is how the first measurement in this section got taken against a 577px
+browser window instead of the glass. The setup overlay's footer now ends with
+`bands <count> <grid>` so a screenshot records which geometry produced it.
 
 ---
 

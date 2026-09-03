@@ -37,6 +37,11 @@ export function MosaicV3({
   const { cfg, motion, crossfadeMs, modelsMode } = useMemo(() => {
     const params = new URLSearchParams(search);
     const merged = mergeSettings(V3_SETTINGS_SCHEMA, settings);
+    // URL param beats the profile setting, same precedence as ?models=.
+    // This one exists so the two band geometries can be put side by side in
+    // two windows rather than compared from memory across a dial flip.
+    const grid = params.get('bandGrid');
+    if (grid === 'full' || grid === 'inset') merged.bandGrid = grid;
     return {
       cfg: configFromSettings(merged),
       ...motionFromSettings(merged),
@@ -113,7 +118,15 @@ export function MosaicV3({
       {allowDebugOverlays && cfg.showCentreLine && (
         <CentreLine cfg={cfg} feed={feed} width={width} height={height} />
       )}
-      {setupMode && <SetupOverlay layout={layout} feed={feed} skipped={skipped} />}
+      {setupMode && (
+        <SetupOverlay
+          layout={layout}
+          feed={feed}
+          skipped={skipped}
+          bandCount={cfg.bandCount}
+          bandGrid={cfg.bandGrid}
+        />
+      )}
     </div>
   );
 }

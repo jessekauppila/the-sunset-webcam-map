@@ -7,7 +7,7 @@ const cfg = (over: Partial<V3Config> = {}): V3Config => ({
   qualitySource: 'auto', gateThreshold: 0.55, failedCamPolicy: 'showAtFloor', maxTiles: 0,
   floorPx: 100, ceilingPx: 400, curve: 'linear',
   scoreFloor: 0, scoreCeiling: 1, sharedScale: true,
-  bandCount: 8, tileGapPx: 6, latNorth: 70, latSouth: -60,
+  bandCount: 8, bandGrid: 'full', tileGapPx: 6, latNorth: 70, latSouth: -60,
   axisNightEdgeDeg: -24, axisDayEdgeDeg: -2,
   hysteresisMargin: 0.05, minDwellMs: 90_000,
   showFeedLabel: true, showTileRatings: false, overlayScale: 1,
@@ -148,5 +148,49 @@ describe('compose — purity', () => {
     const a = compose(pool, viewport, cfg(), 'sunset');
     const b = compose(pool, viewport, cfg(), 'sunset');
     expect(JSON.stringify(a)).toBe(JSON.stringify(b));
+  });
+});
+
+describe('compose — the band-grid A/B', () => {
+  // Two ceiling-height tiles at opposite latitude extremes: the case that
+  // makes end-band overhang decide the scale of the whole wall.
+  const ends = [tile(1, 68, true, 1, -20), tile(2, -58, true, 1, -6)];
+  const tall = cfg({ bandCount: 13, floorPx: 480, ceilingPx: 480 });
+
+  it('full shrinks the whole wall because the end bands overhang', () => {
+    const layout = compose(ends, viewport, cfg({ ...tall, bandGrid: 'full' }), 'sunset');
+    expect(layout.scale).toBeLessThan(1);
+  });
+
+  it('inset renders the same pool at full size', () => {
+    const layout = compose(ends, viewport, cfg({ ...tall, bandGrid: 'inset' }), 'sunset');
+    expect(layout.scale).toBe(1);
+    expect(layout.tiles).toHaveLength(2);
+  });
+
+  it('inset keeps every drawn tile inside the panel vertically', () => {
+    const layout = compose(ends, viewport, cfg({ ...tall, bandGrid: 'inset' }), 'sunset');
+    for (const t of layout.tiles) {
+      expect(t.y).toBeGreaterThanOrEqual(-0.001);
+      expect(t.y + t.height).toBeLessThanOrEqual(viewport.height + 0.001);
+    }
+  });
+
+  it('does not move a tile when a camera arrives, in EITHER mode', () => {
+    // The headline property must survive the fix, or the fix is not worth
+    // having: the inset is derived from the ceilingPx dial, not the pool.
+    for (const bandGrid of ['full', 'inset'] as const) {
+      const c = cfg({ bandGrid });
+      const base = [tile(1, 60, true, 0.9, -20), tile(2, 10, true, 0.8, -10)];
+      const before = new Map(
+        compose(base, viewport, c, 'sunset').tiles.map((t) => [t.id, `${t.x},${t.y}`])
+      );
+      const after = compose([...base, tile(3, 35, true, 0.7, -15)], viewport, c, 'sunset');
+      for (const t of after.tiles) {
+        const was = before.get(t.id);
+        if (was === undefined) continue;
+        expect(`${bandGrid} ${t.id}: ${t.x},${t.y}`).toBe(`${bandGrid} ${t.id}: ${was}`);
+      }
+    }
   });
 });
