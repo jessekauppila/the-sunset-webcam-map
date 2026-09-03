@@ -46,7 +46,7 @@ vi.mock('./lib/windyApi', () => ({
   // list short-circuits to zero webcams without calling the batch fetcher.
   fetchCoordsCounted: async (coords: unknown[], ...rest: unknown[]) => {
     if (!Array.isArray(coords) || coords.length === 0) {
-      return { webcams: [], attempted: 0, empty: 0 };
+      return { webcams: [], attempted: 0, empty: 0, failed: 0, failedByStatus: {} };
     }
     const batches = (await fetchBatchesMock(coords, ...rest)) as Array<
       Array<{ webcamId: number | string; [k: string]: unknown }>
@@ -55,6 +55,8 @@ vi.mock('./lib/windyApi', () => ({
       webcams: batches.flat(),
       attempted: coords.length,
       empty: batches.filter((b) => b.length === 0).length,
+      failed: 0,
+      failedByStatus: {},
     };
   },
 }));

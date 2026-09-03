@@ -13,6 +13,9 @@ export interface RingTelemetry {
   feedsSwept: Feed[];
   attempted: number;
   empty: number;
+  /** Boxes whose request came back non-OK. Not ocean; see CoordFetchResult. */
+  failed: number;
+  failedByStatus: Record<string, number>;
   /** Cameras this ring contributed that no earlier ring had seen. */
   newWebcams: number;
   /**
@@ -139,6 +142,8 @@ export async function sweepWithEscalation(
       feedsSwept: feeds,
       attempted: res.attempted,
       empty: res.empty,
+      failed: res.failed,
+      failedByStatus: res.failedByStatus,
       newWebcams: byId.size - before,
       newWebcamIds,
     });

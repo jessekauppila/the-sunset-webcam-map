@@ -16,7 +16,7 @@ function stubFetcher(perRing: Record<number, WindyWebcam[]>, seen: Location[][] 
     seen.push(coords);
     const offset = coords[0]?.lat ?? 0;
     const webcams = perRing[offset] ?? [];
-    return { webcams, attempted: coords.length, empty: 0 };
+    return { webcams, attempted: coords.length, empty: 0, failed: 0, failedByStatus: {} };
   };
 }
 
@@ -319,5 +319,25 @@ describe('sweepWithEscalation', () => {
     });
     expect(res.telemetry.thinAfterBase).toEqual(['sunrise']);
     expect(res.telemetry.rings.map((r) => r.offsetDeg)).toEqual([0, 15.75]);
+  });
+
+  it('carries failed boxes per ring, apart from empty ones', async () => {
+    const res = await sweepWithEscalation({
+      buildRing: ring,
+      fetchCoords: async (coords) => ({
+        webcams: [],
+        attempted: coords.length,
+        empty: 1,
+        failed: 1,
+        failedByStatus: { '400': 1 },
+      }),
+      classify,
+      floor: 2,
+      offsets: [],
+      hasBudget: () => true,
+    });
+    expect(res.telemetry.rings[0].failed).toBe(1);
+    expect(res.telemetry.rings[0].failedByStatus).toEqual({ '400': 1 });
+    expect(res.telemetry.rings[0].empty).toBe(1);
   });
 });

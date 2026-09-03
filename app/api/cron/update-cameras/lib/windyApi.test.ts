@@ -45,19 +45,42 @@ describe('fetchCoordsCounted', () => {
   });
   afterEach(() => vi.unstubAllGlobals());
 
-  it('reports how many boxes were tried and how many came back empty', async () => {
+  it('counts a non-OK response as failed, not as empty', async () => {
+    // Two of the three boxes 400. Before this field existed they were
+    // scored as empty ocean, which is why the empty share could never tell a
+    // quota from the Pacific.
     const res = await fetchCoordsCounted(
       [{ lat: 0, lng: 99 }, { lat: 0, lng: 5 }, { lat: 0, lng: 20 }],
       5,
       0
     );
     expect(res.attempted).toBe(3);
-    expect(res.empty).toBe(2);
+    expect(res.failed).toBe(2);
+    expect(res.failedByStatus).toEqual({ '400': 2 });
+    expect(res.empty).toBe(0);
     expect(res.webcams).toHaveLength(1);
+  });
+
+  it('counts a 200 with no cameras as empty', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => [],
+    })));
+    const res = await fetchCoordsCounted([{ lat: 0, lng: 5 }], 5, 0);
+    expect(res.empty).toBe(1);
+    expect(res.failed).toBe(0);
+    expect(res.failedByStatus).toEqual({});
   });
 
   it('is a no-op on an empty coordinate list', async () => {
     const res = await fetchCoordsCounted([], 5, 0);
-    expect(res).toEqual({ webcams: [], attempted: 0, empty: 0 });
+    expect(res).toEqual({
+      webcams: [],
+      attempted: 0,
+      empty: 0,
+      failed: 0,
+      failedByStatus: {},
+    });
   });
 });

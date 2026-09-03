@@ -14,6 +14,7 @@ export interface SweepRingStats {
   ringsSwept: number;
   boxesAttempted: number;
   boxesEmpty: number;
+  boxesFailed: number;
   newWebcams: number;
   framesScored: number;
   framesGatePassed: number;
@@ -82,6 +83,7 @@ export function computeSweepTickStats(input: {
       ringsSwept: 0,
       boxesAttempted: 0,
       boxesEmpty: 0,
+      boxesFailed: 0,
       newWebcams: 0,
       framesScored: 0,
       framesGatePassed: 0,
@@ -89,6 +91,7 @@ export function computeSweepTickStats(input: {
     acc.ringsSwept += 1;
     acc.boxesAttempted += ring.attempted;
     acc.boxesEmpty += ring.empty;
+    acc.boxesFailed += ring.failed;
     acc.newWebcams += ring.newWebcams;
     byOffset.set(ring.offsetDeg, acc);
   }
@@ -177,12 +180,12 @@ export async function upsertSweepStats(
       await sql`
         insert into daily_sweep_ring_stats (
           date, offset_deg,
-          rings_swept, boxes_attempted, boxes_empty,
+          rings_swept, boxes_attempted, boxes_empty, boxes_failed,
           new_webcams, frames_scored, frames_gate_passed,
           updated_at
         ) values (
           ${date}, ${ring.offsetDeg},
-          ${ring.ringsSwept}, ${ring.boxesAttempted}, ${ring.boxesEmpty},
+          ${ring.ringsSwept}, ${ring.boxesAttempted}, ${ring.boxesEmpty}, ${ring.boxesFailed},
           ${ring.newWebcams}, ${ring.framesScored}, ${ring.framesGatePassed},
           now()
         )
@@ -191,6 +194,7 @@ export async function upsertSweepStats(
           boxes_attempted =
             daily_sweep_ring_stats.boxes_attempted + excluded.boxes_attempted,
           boxes_empty = daily_sweep_ring_stats.boxes_empty + excluded.boxes_empty,
+          boxes_failed = daily_sweep_ring_stats.boxes_failed + excluded.boxes_failed,
           new_webcams = daily_sweep_ring_stats.new_webcams + excluded.new_webcams,
           frames_scored =
             daily_sweep_ring_stats.frames_scored + excluded.frames_scored,
@@ -241,7 +245,7 @@ export async function getSweepDigestSummary(): Promise<SweepDigestSummary | null
 
     const ringRows = (await sql`
       select
-        offset_deg, rings_swept, boxes_attempted, boxes_empty,
+        offset_deg, rings_swept, boxes_attempted, boxes_empty, boxes_failed,
         new_webcams, frames_scored, frames_gate_passed
       from daily_sweep_ring_stats
       where date = CURRENT_DATE - 1
@@ -265,6 +269,7 @@ export async function getSweepDigestSummary(): Promise<SweepDigestSummary | null
         ringsSwept: Number(r.rings_swept),
         boxesAttempted: Number(r.boxes_attempted),
         boxesEmpty: Number(r.boxes_empty),
+        boxesFailed: Number(r.boxes_failed),
         newWebcams: Number(r.new_webcams),
         framesScored: Number(r.frames_scored),
         framesGatePassed: Number(r.frames_gate_passed),

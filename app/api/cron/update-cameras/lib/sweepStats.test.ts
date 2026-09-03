@@ -30,6 +30,8 @@ const healthy: SweepTelemetry = {
       feedsSwept: ['sunrise', 'sunset'],
       attempted: 31,
       empty: 4,
+      failed: 0,
+      failedByStatus: {},
       newWebcams: 3,
       newWebcamIds: [101, 102, 103],
     },
@@ -48,6 +50,8 @@ const escalated: SweepTelemetry = {
       feedsSwept: ['sunrise', 'sunset'],
       attempted: 31,
       empty: 4,
+      failed: 0,
+      failedByStatus: {},
       newWebcams: 3,
       newWebcamIds: [101, 102, 103],
     },
@@ -56,6 +60,8 @@ const escalated: SweepTelemetry = {
       feedsSwept: ['sunset'],
       attempted: 15,
       empty: 2,
+      failed: 0,
+      failedByStatus: {},
       newWebcams: 2,
       newWebcamIds: [201, 202],
     },
@@ -149,6 +155,16 @@ describe('computeSweepTickStats', () => {
   it('leaves gate counts at zero when no scoring outcomes are supplied', () => {
     const s = computeSweepTickStats({ telemetry: escalated, floor: 15 });
     expect(s.rings.every((r) => r.framesScored === 0)).toBe(true);
+  });
+
+  it('accumulates failed boxes per ring', async () => {
+    const withFailures: SweepTelemetry = {
+      ...healthy,
+      rings: [{ ...healthy.rings[0], failed: 3, failedByStatus: { '400': 3 } }],
+    };
+    const stats = computeSweepTickStats({ telemetry: withFailures, floor: 15 });
+    expect(stats.rings[0].boxesFailed).toBe(3);
+    expect(stats.rings[0].boxesEmpty).toBe(healthy.rings[0].empty);
   });
 });
 
