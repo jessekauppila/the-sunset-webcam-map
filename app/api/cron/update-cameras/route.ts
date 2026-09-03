@@ -44,6 +44,7 @@ import {
   upsertSweepStats,
   type RingGateCounts,
 } from './lib/sweepStats';
+import { sweepGeometry, upsertSweepGeometry } from './lib/sweepGeometry';
 import {
   upsertWebcams,
   getWebcamIdMap,
@@ -481,6 +482,11 @@ export async function GET(req: Request) {
     gateByOffset,
   });
   await upsertSweepStats(new Date(), sweepStats, tickStats.modelVersion);
+
+  // The angles behind the counters just written. Recorded every tick rather
+  // than on change, because nothing watches for a change -- masterConfig.ts
+  // edits arrive by deploy and the flag flips outside the app entirely.
+  await upsertSweepGeometry(new Date(), sweepGeometry(forcedOffsets));
 
   // Once per UTC day, snapshot Neon usage counters for the Ops tab. Never
   // allowed to fail the tick.
