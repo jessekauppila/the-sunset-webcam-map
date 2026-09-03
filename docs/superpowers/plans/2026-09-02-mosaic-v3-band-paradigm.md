@@ -2418,6 +2418,60 @@ browser window instead of the glass. The setup overlay's footer now ends with
 
 ---
 
+## Review outcome (2026-09-03)
+
+`/code-review feat/mosaic-v3-band-paradigm high` ran six angles; two completed
+and four were killed by a model session rate limit (line-by-line scan,
+altitude-axis audit, removed-behaviour audit, and the orchestrator). What
+landed was applied inline. The removed-behaviour audit is the one worth
+re-running when the limit lifts: it would have checked that nothing in v3
+still depends on the deleted row/relax/de-overlap passes. Manual check: no
+dangling imports, suite and build green, but a fresh pass is cheap insurance.
+
+**Applied, all confirmed before fixing:**
+
+- **Centre line disagreed with tile centres off-midpoint** — by
+  `tileWidth * (unit - 0.5)`, up to 50px at the window edges. `tileX` places a
+  tile's left edge on a track `width - tileWidth` wide so tiles never leave
+  the panel; the line marks the ring at `unit * width`. They coincide only at
+  the midpoint. An earlier comment in `engine/axis.ts` claimed otherwise. The
+  comments now state the real relationship and `axis.test.ts` pins it. The
+  line was not moved: a per-tile line would need one line per tile width.
+- **Stale test config literals were real type errors** — `sizing.test.ts` and
+  `visibility.test.ts` still carried v2's `strategy`/`rowAlign` keys, a TS2353
+  each, invisible inside the 185 pre-existing tsc errors and not checked by
+  `next build`. Replaced by `engine/testConfig.ts`, which derives from the
+  schema, so a new dial reaches every test the moment it is declared.
+- **Fixture typing** — `FixtureCam` now extends a `SignalSource` Pick of
+  WindyWebcam and `readSignal` accepts that Pick, so the `as unknown as`
+  double cast is gone and renaming a score column is a compile error, not a
+  fixture that silently reads as unscored.
+- **`admit()` comparator** re-derived four Map lookups per comparison; keys
+  are now computed once per tile. The cost comment also stopped calling the
+  arrange() fan-out "a handful" — it is ~11 per composition, more under
+  showIfRoom.
+- **Fixture script** accepted only double-quoted `DATABASE_URL`; now uses the
+  same regex as `label-audit.mjs` and `usage-report.mjs`. A shared
+  `scripts/lib/db.mjs` for all five loaders is the right home and not this PR.
+
+**Deferred, and why:** the efficiency angle found five real costs — the peer
+pool loads every image just to learn aspect and score, previews re-download
+each minute even when the URL is unchanged, crossfades key on image identity
+so identical frames still fade, `sizeTiles` recomputes per scale pass, and the
+draw loop allocates per rAF tick. Every one is inherited byte-for-byte from
+v2 (`useLoadedTiles.ts`, `MosaicCanvas.tsx`, `motion.ts`). Fixing them in v3
+alone is the "fix lands in one version" failure the reuse angle flagged;
+fixing them in v2 is out of this spec's scope. They belong to whichever
+version wins the glass, after the comparison — and the peer-pool one in
+particular is the same `poolFrom` pattern `fixturePool.ts` already uses, so
+it is a small change when its time comes.
+
+**Noted, not a defect:** five v3 files are byte-identical to v2 and four more
+differ only in renames. Spec §4 prescribes this. The registry comment says
+retire a loser by deleting its folder; the duplication is the price of that.
+
+---
+
 ## Out of scope — do not do these
 
 Restating spec §10 so it survives contact with an implementer who has only this document:

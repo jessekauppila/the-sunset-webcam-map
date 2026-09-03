@@ -57,6 +57,20 @@ describe('tileX', () => {
     expect(tileX(t, 1080, cfg, 'sunset')).toBeCloseTo(440, 6);
   });
 
+  it('centres a tile on the axis line only at the midpoint, and says how far off elsewhere', () => {
+    // Documents the real relationship the centre-line overlay relies on:
+    // tileCentre = unit * W + w * (0.5 - unit). An earlier comment claimed the
+    // two always coincide; they coincide only at unit 0.5.
+    const offCentre: AxisConfig = { axisNightEdgeDeg: -24, axisDayEdgeDeg: -6 };
+    const unit = altitudeToUnit(-13, offCentre, 'sunrise');
+    const t = sized({ sunAltitudeDeg: -13, width: 200 });
+    const line = unit * 1080;
+    const tileCentre = tileX(t, 1080, offCentre, 'sunrise') + t.width / 2;
+    expect(unit).toBeCloseTo(11 / 18, 6);
+    expect(line - tileCentre).toBeCloseTo(t.width * (unit - 0.5), 6);
+    expect(Math.abs(line - tileCentre)).toBeGreaterThan(20);
+  });
+
   it('never goes negative when a tile is wider than the panel', () => {
     expect(tileX(sized({ width: 2000 }), 1080, cfg, 'sunset')).toBe(0);
   });

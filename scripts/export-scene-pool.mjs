@@ -5,12 +5,15 @@
 import { neon } from '@neondatabase/serverless';
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 
+// Same regex as label-audit.mjs and usage-report.mjs, so one .env.local
+// works for every script: either quote style, or none. (Two other scripts
+// carry a stricter variant that only strips double quotes; a shared
+// scripts/lib/db.mjs is the right home for all five, and is not this PR.)
 function loadDatabaseUrl() {
   if (process.env.DATABASE_URL) return process.env.DATABASE_URL;
-  const env = readFileSync('.env.local', 'utf8');
-  const line = env.split('\n').find((l) => l.startsWith('DATABASE_URL='));
-  if (!line) throw new Error('DATABASE_URL not found in env or .env.local');
-  return line.slice('DATABASE_URL='.length).replace(/^"|"$/g, '');
+  const url = readFileSync('.env.local', 'utf8').match(/^DATABASE_URL=["']?([^"'\n]+)/m)?.[1];
+  if (!url) throw new Error('DATABASE_URL not found in env or .env.local — run from the repo root');
+  return url;
 }
 
 const sceneId = Number(process.argv[2] ?? 3);

@@ -1,19 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import { compose } from './compose';
 import { EMPTY_HISTORY, type CompositionHistory } from './evict';
+import { v3Config } from './testConfig';
 import type { TileInput, V3Config } from './types';
 
-const cfg = (over: Partial<V3Config> = {}): V3Config => ({
-  qualitySource: 'auto', gateThreshold: 0.55, failedCamPolicy: 'showAtFloor', maxTiles: 0,
-  floorPx: 100, ceilingPx: 400, curve: 'linear',
-  scoreFloor: 0, scoreCeiling: 1, sharedScale: true,
-  bandCount: 8, bandGrid: 'full', tileGapPx: 6, latNorth: 70, latSouth: -60,
-  axisNightEdgeDeg: -24, axisDayEdgeDeg: -2,
-  hysteresisMargin: 0.05, minDwellMs: 90_000,
-  showFeedLabel: true, showTileRatings: false, overlayScale: 1,
-  showModelReadout: false, showCentreLine: false,
-  ...over,
-});
+const cfg = (over: Partial<V3Config> = {}): V3Config =>
+  v3Config({ ceilingPx: 400, curve: 'linear', bandCount: 8, bandGrid: 'full', overlayScale: 1, ...over });
 
 const tile = (
   id: number, lat: number, passes: boolean, score: number | null, alt = -13

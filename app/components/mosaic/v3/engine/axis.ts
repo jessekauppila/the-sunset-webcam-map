@@ -48,10 +48,13 @@ export function altitudeToUnit(
  * and next year (spec §5.2).
  *
  * Scaling by (viewportWidth - width) rather than viewportWidth keeps the tile
- * inside the panel AND has the pleasant property that a tile's CENTRE lands
- * exactly on unit * viewportWidth — which is what lets the centre-line
- * overlay in `overlays/CentreLine.tsx` mark a real position rather than an
- * approximate one.
+ * inside the panel without clamping: the tile's LEFT EDGE runs along a track
+ * `width` px narrower than the panel. The consequence, worth stating because
+ * an earlier comment here got it wrong, is that a tile's centre sits at
+ * `unit * viewportWidth + width * (0.5 - unit)` — on the axis line only at
+ * the panel's midpoint, and offset from it by half the tile's width at the
+ * edges. `overlays/CentreLine.tsx` draws the ring at `unit * viewportWidth`,
+ * the position a zero-width tile would take, and says so.
  *
  * A null altitude means the moment is unknown, not that the sun is at zero.
  * Centre is the honest answer; an edge would be a claim.

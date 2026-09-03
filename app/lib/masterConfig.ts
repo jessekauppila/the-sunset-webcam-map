@@ -63,12 +63,16 @@ export const TERMINATOR_WIDEN_OFFSETS_DEG = [15.75, -15.75] as const;
 // every ordinary night into the middle of the panel for a case that seldom
 // fires -- the same reasoning the v2 axis comment already records.
 //
-// This is what the sweep gathers in the overwhelming common case, NOT a
-// ceiling it can never exceed. Escalation is unobserved, not impossible:
-// sweep_escalated_ticks was 0 across 2026-09-02 and 2026-09-03, but a feed
-// dropping under TERMINATOR_CAMERA_FLOOR would still fire it, and the pool
-// would briefly hold cameras out to +13.75. Those clamp to the panel's day
-// edge, which is the behaviour the v2 axis comment already argues for.
+// This is what the sweep gathers in the common case, NOT a ceiling it can
+// never exceed. Escalation is real but minority behaviour: none on
+// 2026-09-02, then 40 of 567 sweeps (about 7%) on 2026-09-03, every one
+// triggered by sunrise dropping under TERMINATOR_CAMERA_FLOOR and every one
+// recovered. On those ticks the pool briefly holds cameras out to +13.75,
+// and they clamp to the panel's day edge — the behaviour the v2 axis comment
+// already argues for. Worth knowing for the wall: the day-side ring's frames
+// passed the detection gate at roughly twice the base ring's rate in that
+// sample (22/151 vs 478/7,059), so widening is adding sunsets, not floored
+// cameras. Small sample; the direction is not ambiguous.
 //
 // The pool-coverage lane owns this value and must widen it IN THE SAME COMMIT
 // that turns a ring on routinely. That is what makes the axis test a

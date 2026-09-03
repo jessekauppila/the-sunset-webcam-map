@@ -6,8 +6,15 @@ import { altitudeToUnit, type AxisConfig } from '../engine/axis';
  *
  * Screen centre is the POOL's ring at TERMINATOR_SUN_ALTITUDE_DEG, not the
  * geometric terminator at 0 degrees — zero is outside the window today and
- * clamps (spec §3). The line is drawn where `tileX` puts a tile's centre for
- * that altitude, so it marks a real position rather than an approximate one.
+ * clamps (spec §3).
+ *
+ * The line sits at `unit * width`: the ring's position on the full-width
+ * axis, where a zero-width tile would centre. Real tiles are placed on a
+ * track `width - tileWidth` wide so they never leave the panel, which puts a
+ * tile's centre at `unit * width + tileWidth * (0.5 - unit)`. So tiles
+ * straddle this line exactly at the panel's midpoint and lean off it toward
+ * the edges, by up to half their own width. That is the honest picture; a
+ * per-tile line would need one line per tile width.
  *
  * It follows the axis dials: narrowing the window moves the ring off the
  * middle of the glass, and a line hard-coded at 50% would then lie.

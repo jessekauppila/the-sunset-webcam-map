@@ -1,20 +1,14 @@
 import { describe, it, expect } from 'vitest';
 import { sizeTiles } from './sizing';
+import { v3Config } from './testConfig';
 import type { TileInput, V3Config } from './types';
 
 const tile = (id: number, passes: boolean, score: number | null): TileInput => ({
   id, lat: 0, lng: 0, srcWidth: 400, srcHeight: 300, passes, score, sunAltitudeDeg: -13,
 });
 
-const cfg = (over: Partial<V3Config> = {}): V3Config => ({
-  qualitySource: 'auto', gateThreshold: 0.55, failedCamPolicy: 'showAtFloor', maxTiles: 0,
-  floorPx: 100, ceilingPx: 500, curve: 'linear',
-  scoreFloor: 0, scoreCeiling: 1, sharedScale: true,
-  strategy: 'anchorRelax', bandCount: 8, horizontalAnchor: 'solarAltitude',
-  rowAlign: 'center', geographicFidelity: 0.7, tileGapPx: 6, latNorth: 70, latSouth: -60,
-  showFeedLabel: true, showTileRatings: false, overlayScale: 1, showModelReadout: false,
-  ...over,
-});
+const cfg = (over: Partial<V3Config> = {}): V3Config =>
+  v3Config({ ceilingPx: 500, curve: 'linear', bandCount: 8, ...over });
 
 describe('sizeTiles — the floor-pin directive', () => {
   it('pins every gate-failer to the EXACT floor, whatever its score', () => {

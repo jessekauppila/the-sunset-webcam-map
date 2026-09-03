@@ -3,6 +3,16 @@ import type { WindyWebcam } from '@/app/lib/types';
 export type QualitySource = 'auto' | 'model' | 'llm';
 
 /**
+ * The four fields a signal is read from — and nothing else. Callers that do
+ * not have a whole WindyWebcam (the engine's test fixture, for one) can hand
+ * in just these, and the type system, not a cast, ties them to the record.
+ */
+export type SignalSource = Pick<
+  WindyWebcam,
+  'aiRatingBinary' | 'aiRatingRegression' | 'llmQuality' | 'llmIsSunset'
+>;
+
+/**
  * Pass verdict and size score, kept SEPARATE. v1 composed them into one
  * number, which floored the whole pool on a normal night and made ties
  * unsortable. `score` is always normalized to [0,1]; null means unscored.
@@ -40,13 +50,13 @@ export function ratingGateFor(gateThreshold: number): number {
 
 const normalizeRating = (rating: number): number => (rating - 1) / 4;
 
-const hasModelSignal = (w: WindyWebcam): boolean =>
+const hasModelSignal = (w: SignalSource): boolean =>
   typeof w.aiRatingBinary === 'number' || typeof w.aiRatingRegression === 'number';
 
-const hasLlmSignal = (w: WindyWebcam): boolean =>
+const hasLlmSignal = (w: SignalSource): boolean =>
   typeof w.llmQuality === 'number' || typeof w.llmIsSunset === 'boolean';
 
-function modelSignal(w: WindyWebcam, gateThreshold: number): ExplainedSignal {
+function modelSignal(w: SignalSource, gateThreshold: number): ExplainedSignal {
   const gate = ratingGateFor(gateThreshold);
   return {
     judge: 'model',
@@ -60,7 +70,7 @@ function modelSignal(w: WindyWebcam, gateThreshold: number): ExplainedSignal {
   };
 }
 
-function llmSignal(w: WindyWebcam): ExplainedSignal {
+function llmSignal(w: SignalSource): ExplainedSignal {
   // Claude's verdict is already a boolean, so gateThreshold has nothing to
   // act on here — the dial only means something for the model source.
   return {
@@ -79,7 +89,7 @@ function llmSignal(w: WindyWebcam): ExplainedSignal {
  * render as a uniform floor carpet.
  */
 export function explainSignal(
-  w: WindyWebcam,
+  w: SignalSource,
   source: QualitySource,
   gateThreshold: number
 ): ExplainedSignal {
@@ -96,7 +106,7 @@ export function explainSignal(
  * about why a tile is the size it is, and two implementations would drift.
  */
 export function readSignal(
-  w: WindyWebcam,
+  w: SignalSource,
   source: QualitySource,
   gateThreshold: number
 ): Signal {

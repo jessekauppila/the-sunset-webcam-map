@@ -1,19 +1,21 @@
-import type { WindyWebcam } from '@/app/lib/types';
-import { readSignal } from '../qualitySignal';
+import { readSignal, type SignalSource } from '../qualitySignal';
 import { sunAltitudeDeg } from '../solarPosition';
 import type { TileInput } from './types';
 
-/** One camera as frozen by `scripts/export-scene-pool.mjs`. */
-export interface FixtureCam {
+/**
+ * One camera as frozen by `scripts/export-scene-pool.mjs`.
+ *
+ * The score fields come from WindyWebcam by name, so renaming one there is a
+ * compile error here rather than a fixture that silently reads as unscored.
+ * The script's `trim()` is the remaining copy of this field list; keep them
+ * in step.
+ */
+export interface FixtureCam extends SignalSource {
   webcamId: number;
   latitude: number;
   longitude: number;
   previewWidth: number;
   previewHeight: number;
-  aiRatingBinary?: number;
-  aiRatingRegression?: number;
-  llmQuality?: number | null;
-  llmIsSunset?: boolean | null;
 }
 
 export interface FixturePool {
@@ -29,9 +31,8 @@ export interface FixturePool {
  * this at runtime; the only thing the fixture stands in for is the image
  * load, whose only contribution is the natural size.
  *
- * The cast is narrow and deliberate: readSignal reads four optional score
- * fields and nothing else, so a full WindyWebcam would be dead weight in the
- * fixture and one more thing to keep in sync.
+ * No cast: readSignal takes a SignalSource, the Pick of WindyWebcam it
+ * actually reads, and FixtureCam extends that Pick.
  */
 export function poolFrom(
   cams: FixtureCam[],
@@ -40,11 +41,7 @@ export function poolFrom(
 ): TileInput[] {
   const moment = new Date(representsAt);
   return cams.map((c) => {
-    const { passes, score } = readSignal(
-      c as unknown as WindyWebcam,
-      'auto',
-      gateThreshold
-    );
+    const { passes, score } = readSignal(c, 'auto', gateThreshold);
     return {
       id: c.webcamId,
       lat: c.latitude,

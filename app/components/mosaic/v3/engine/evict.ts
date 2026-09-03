@@ -98,33 +98,39 @@ export function overlaps(a: PlacedTile, b: PlacedTile, gap: number): boolean {
  * its band must be tested against its neighbour band's tiles too, and a
  * single global order removes any dependence on which band is visited first.
  *
- * O(n^2) on purpose. The pool is tens to a few hundred tiles and this runs a
- * handful of times per composition; an index would buy microseconds and cost
- * a class of bugs.
+ * O(n^2) on purpose, with eyes open about the multiplier: compose() calls
+ * arrange() up to ~11 times per composition (the scale search for this feed
+ * and its peer, then the final pass), and more when showIfRoom or an overflow
+ * drop binary-searches. At a few hundred tiles that is still low single-digit
+ * milliseconds in Chromium. The sort keys ARE hoisted out of the comparator,
+ * because recomputing four Map lookups per comparison was pure waste; a
+ * spatial index for the overlap test is the next step if a Pi ever shows it.
  */
 export function admit(
   placed: PlacedTile[],
   history: CompositionHistory,
   cfg: EvictionConfig
 ): { admitted: PlacedTile[]; evicted: number[] } {
-  const ordered = [...placed].sort((a, b) => {
+  // Rank once per tile, not once per comparison.
+  const ranked = placed.map((tile) => ({
+    tile,
     // Dwell-protected incumbents are admitted first, so nothing can take
     // their space. Two protected tiles that collide still need a winner, and
     // they get one on quality — deterministically, like everyone else.
-    const ap = protectedByDwell(a, history, cfg) ? 1 : 0;
-    const bp = protectedByDwell(b, history, cfg) ? 1 : 0;
-    if (ap !== bp) return bp - ap;
-    const aq = effectiveQuality(a, history, cfg);
-    const bq = effectiveQuality(b, history, cfg);
-    if (aq !== bq) return bq - aq;
+    protected: protectedByDwell(tile, history, cfg) ? 1 : 0,
+    quality: effectiveQuality(tile, history, cfg),
+  }));
+  ranked.sort((a, b) => {
+    if (a.protected !== b.protected) return b.protected - a.protected;
+    if (a.quality !== b.quality) return b.quality - a.quality;
     // Total order. Without the id tie-break, equal-scoring tiles would
     // reorder between ticks and the wall would churn for no reason.
-    return a.id - b.id;
+    return a.tile.id - b.tile.id;
   });
 
   const admitted: PlacedTile[] = [];
   const evicted: number[] = [];
-  for (const tile of ordered) {
+  for (const { tile } of ranked) {
     if (admitted.some((other) => overlaps(tile, other, cfg.tileGapPx))) evicted.push(tile.id);
     else admitted.push(tile);
   }
