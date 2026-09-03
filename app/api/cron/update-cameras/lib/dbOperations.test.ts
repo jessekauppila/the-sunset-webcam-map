@@ -184,13 +184,15 @@ describe('upsertTerminatorState', () => {
 });
 
 describe('deactivateMissingTerminatorState', () => {
+  const GRACE_MS = 20 * 60_000;
+
   beforeEach(() => {
     sqlMock.mockReset();
     sqlMock.mockResolvedValue([]);
   });
 
   it('deactivates rows of any source not in the active set', async () => {
-    await deactivateMissingTerminatorState('sunrise', [42, 99]);
+    await deactivateMissingTerminatorState('sunrise', [42, 99], GRACE_MS);
 
     expect(sqlMock).toHaveBeenCalledTimes(1);
     // The SQL template-tag invocation should NOT reference w.source = 'windy'.
@@ -198,19 +200,21 @@ describe('deactivateMissingTerminatorState', () => {
     expect(firstCallStrings.join(' ')).not.toContain("source = 'windy'");
   });
 
-  it('deactivates all rows for the phase when active set is empty', async () => {
-    await deactivateMissingTerminatorState('sunset', []);
+  it('deactivates only aged-out rows when the active set is empty', async () => {
+    await deactivateMissingTerminatorState('sunset', [], GRACE_MS);
 
     expect(sqlMock).toHaveBeenCalledTimes(1);
     const strings = sqlMock.mock.calls[0][0] as readonly string[];
     const fullQuery = strings.join(' ');
     expect(fullQuery).not.toContain("source = 'windy'");
-    // Empty-array fast path: no `<> all` filter.
+    // Empty-array fast path: no `<> all` filter ...
     expect(fullQuery).not.toContain('<> all');
+    // ... but the grace still applies. An empty sweep used to empty the feed.
+    expect(fullQuery).toContain('last_seen_at <');
   });
 
   it('passes the active ids array into the SQL parameters', async () => {
-    await deactivateMissingTerminatorState('sunrise', [42, 99]);
+    await deactivateMissingTerminatorState('sunrise', [42, 99], GRACE_MS);
 
     expect(sqlMock).toHaveBeenCalledTimes(1);
     // Index 0 of the call is the TemplateStringsArray; rest are interpolated values.
@@ -218,5 +222,14 @@ describe('deactivateMissingTerminatorState', () => {
     // The phase string and the active-ids array should both appear in values.
     expect(values).toContain('sunrise');
     expect(values.some((v) => Array.isArray(v) && (v as number[]).join(',') === '42,99')).toBe(true);
+  });
+
+  it('applies the grace to the non-empty branch too', async () => {
+    await deactivateMissingTerminatorState('sunrise', [42], GRACE_MS);
+
+    const strings = sqlMock.mock.calls[0][0] as readonly string[];
+    expect(strings.join(' ')).toContain('last_seen_at <');
+    const values = sqlMock.mock.calls[0].slice(1);
+    expect(values).toContain(GRACE_MS);
   });
 });

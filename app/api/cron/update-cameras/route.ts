@@ -31,6 +31,7 @@ import {
   SAVE_ALL_RATED_SNAPSHOTS,
   AI_SNAPSHOT_MIN_RATING_THRESHOLD,
   ARCHIVE_BACKFILL_ENABLED,
+  TERMINATOR_RETENTION_GRACE_MS,
 } from '@/app/lib/masterConfig';
 import { isFlagEnabled, SWEEP_FORCE_DAY_RING } from '@/app/lib/runtimeFlags';
 import { classifyCustomCamerasForTick } from './lib/customClassification';
@@ -437,8 +438,8 @@ export async function GET(req: Request) {
 
   const sunriseIds = sunriseRows.map((r) => r.webcamId);
   const sunsetIds = sunsetRows.map((r) => r.webcamId);
-  await deactivateMissingTerminatorState('sunrise', sunriseIds);
-  await deactivateMissingTerminatorState('sunset', sunsetIds);
+  await deactivateMissingTerminatorState('sunrise', sunriseIds, TERMINATOR_RETENTION_GRACE_MS);
+  await deactivateMissingTerminatorState('sunset', sunsetIds, TERMINATOR_RETENTION_GRACE_MS);
 
   try {
     const cachedPayload = await fetchTerminatorWebcams();
