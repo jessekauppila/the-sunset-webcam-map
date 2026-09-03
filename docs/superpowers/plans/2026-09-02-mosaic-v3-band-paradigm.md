@@ -2352,6 +2352,60 @@ git push -u origin feat/mosaic-v3-band-paradigm
 
 ---
 
+## Finding after execution: the band grid fights the overflow stage
+
+**Status: built as specified, and the interaction below is a real open
+question for the glass. Not fixed here, because fixing it means changing
+geometry that spec §5.1 and §5.2 settle.**
+
+Measured on the live pool at the real panel geometry (1080x1920, `?panel=dell`):
+
+```
+sunset · tiles 13 · evicted 9 · dropped 0 · skipped 0 · scale 0.35
+```
+
+`0.35` is `MIN_COMPOSITION_SCALE` exactly. The composition is pinned against
+its own guardrail on an ordinary night, which means the uniform shrink is
+doing all the work and has nothing left.
+
+**Why.** Band centres are fixed at `(i + 0.5) * height / bandCount`, so the
+outermost band centres sit half a band from each edge and any tall tile there
+overhangs the panel. `extent` measures top-of-highest to bottom-of-lowest, so
+that overhang is read as overflow and shrinks the whole wall. The relation is
+exact: the tallest tile that survives at scale 1 is `panelHeight / bandCount`.
+
+| bandCount | band 0 centre | last centre | tallest tile at scale 1 | scale a 480px tile forces |
+|---|---|---|---|---|
+| 4 | 240 | 1680 | 480 | 1.00 |
+| 6 | 160 | 1760 | 320 | 0.67 |
+| 8 | 120 | 1800 | 240 | 0.50 |
+| 13 | 74 | 1846 | 148 | 0.31 |
+
+So `bandCount * ceilingPx <= panelHeight` is the condition for an unshrunk
+wall. At the shipped `ceilingPx` of 480 that caps `bandCount` at 4, which is a
+very coarse latitude axis — 4 strips across 130 degrees.
+
+**Three ways out, for Jesse to choose.** They are not equivalent and this is a
+taste decision about the wall, not a correctness one.
+
+1. **Inset the band grid** so the strips span
+   `[ceilingPx/2, height - ceilingPx/2]` instead of the full panel. Band
+   centres stay fixed and pool-independent, so the headline property survives
+   untouched; the axis just stops running its outermost bands off the edge.
+   Smallest change, and the one this executor would pick.
+2. **Let the end bands clip.** Measure overflow as the part actually drawn
+   outside the panel rather than the total span. Keeps the grid literal, at
+   the cost of cropping the northernmost and southernmost tiles.
+3. **Accept it and turn the dials.** Drop `ceilingPx` or `bandCount` until the
+   product fits. Cheapest, but it spends the size range that carries quality —
+   the one thing spec §3 says size is allowed to mean.
+
+The plan ships option 3 by default, unchosen: `bandCount` is 13, so the wall
+runs at the scale floor until someone picks. `app/components/mosaic/v3/engine/realPool.test.ts`
+pins the density numbers so any change here is visible rather than silent.
+
+---
+
 ## Out of scope — do not do these
 
 Restating spec §10 so it survives contact with an implementer who has only this document:
