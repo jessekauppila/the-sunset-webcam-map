@@ -67,18 +67,18 @@ The operator has approved this spend, with a band and a deliverable.
 There is a second ceiling that is not financial. Windy publishes no rate limit
 and no quota headers, and the sibling cost spec names ~22,300 calls/day as the
 likely point of discovering one. Breaching it empties the panels, which is
-worse than any bill in the band above. Task 8 therefore aborts on box volume
+worse than any bill in the band above. Task 9 therefore aborts on box volume
 as well as on dollars, and box volume is the faster signal.
 
 **Anywhere between those two rows is acceptable.** Above the top row is a
-problem, and Task 8 aborts on it rather than finishing the window.
+problem, and Task 9 aborts on it rather than finishing the window.
 
 Two consequences for this plan, both differing from the spec's §4 and §7:
 
 **The bill may be visible after the fact.** The spec reads as though the digest
 must ship before the spending starts. It does not. The measurement window can
 open as soon as the switch exists, and the digest lines can land while it runs.
-Task 8 does not wait on an email.
+Task 9 does not wait on an email.
 
 **Granularity is the real deliverable, not the total.** Knowing the bill went up
 is worth little. Knowing *which ring bought how many gate-passed frames per
@@ -89,7 +89,7 @@ tick-level or day-level lump.
 **The geometry must be recorded, not remembered.** The operator expects this
 configuration to expand and contract more than once. A row saying "offset 15.75
 scored 40 of 200" is uninterpretable a month later if the base altitude has
-moved in between, because 15.75 will have meant a different sun angle. Task 6
+moved in between, because 15.75 will have meant a different sun angle. Task 7
 records the angles themselves alongside the counters, so that every historical
 number stays readable through the next change. This is a requirement, not a
 nicety.
@@ -131,7 +131,7 @@ Consequences for this plan:
   constant is compile-time. During the measurement window the sweep really
   will gather −24° to +13.75° while the constant still says −24° to −2°. That
   is deliberate: a bounded measurement must not move the display contract.
-  The honest record of what was actually swept lives in Task 6's
+  The honest record of what was actually swept lives in Task 7's
   `daily_sweep_geometry`, stamped per day.
 - **Moving it is phase 2's first act**, alongside the axis dials.
 
@@ -145,7 +145,7 @@ On dollars in the digest: Windy publishes no price, no rate limit and no quota
 headers, measured 2026-09-02 and recorded in
 `docs/superpowers/specs/2026-09-02-camera-refresh-cost-design.md`. That spec
 also names the two numbers nobody has measured, the update-cameras function's
-wall-clock duration and the cron's share of Neon compute. Task 8 measures both,
+wall-clock duration and the cron's share of Neon compute. Task 9 measures both,
 because the day-over-day Neon delta across the window gives the second one
 directly. Until then the digest reports the physical bill, which is boxes,
 sweep seconds and frames, all divided by gate-passed frames.
@@ -173,9 +173,9 @@ sweep seconds and frames, all divided by gate-passed frames.
 | `app/api/cron/update-cameras/lib/sweepStats.test.ts` | **Modify.** |
 | `app/api/cron/update-cameras/lib/dailyDigest.ts` | **Modify.** Altitude-span clause, the widening bill, and cost per gate-passed frame per ring. |
 | `app/api/cron/update-cameras/lib/dailyDigest.test.ts` | **Modify.** |
-| `docs/superpowers/plans/2026-09-02-terminator-pool-coverage-phase1-REPORT.md` | **Create in Task 8.** The measurement answer phase 2 is decided from. |
+| `docs/superpowers/plans/2026-09-02-terminator-pool-coverage-phase1-REPORT.md` | **Create in Task 9.** The measurement answer phase 2 is decided from. |
 
-Tasks 1 through 7 are code and need the checkout. Task 8 needs it barely at
+Tasks 1 through 8 are code and need the checkout. Task 9 needs it barely at
 all: a flag flip, a daily cost glance, and three SQL reads.
 
 ---
@@ -198,7 +198,7 @@ here collides on merge.
 - Consumes: `TERMINATOR_SUN_ALTITUDE_DEG`, `TERMINATOR_WIDEN_OFFSETS_DEG` —
   both already in this file.
 - Produces:
-  - `TERMINATOR_DAY_SIDE_OFFSETS_DEG: readonly number[]` — used by Tasks 4 and 6.
+  - `TERMINATOR_DAY_SIDE_OFFSETS_DEG: readonly number[]` — used by Tasks 4 and 7.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -507,7 +507,7 @@ node scripts/set-runtime-flag.mjs
 ```
 Expected: `sweep_force_day_ring = false`.
 
-Do not turn it on. Task 8 owns the flip.
+Do not turn it on. Task 9 owns the flip.
 
 - [ ] **Step 8: Confirm branch, then commit**
 
@@ -742,7 +742,7 @@ git commit -m "feat(cron): let a named ring sweep regardless of the camera floor
   `TERMINATOR_DAY_SIDE_OFFSETS_DEG` (Task 1); `forcedOffsets` (Task 3).
 - Produces: a `forcedDayRing: boolean` field on the cron's JSON response, so
   the switch is smoke-testable from outside without reading the database. Also
-  a local `forcedOffsets` value that Task 6 reuses for the geometry record.
+  a local `forcedOffsets` value that Task 7 reuses for the geometry record.
 
 - [ ] **Step 1: Add the flag mock to the route test harness**
 
@@ -866,7 +866,342 @@ git commit -m "feat(cron): honour the forced-day-ring switch per tick"
 
 ---
 
-## Task 5: Per-ring wall-clock, captured and persisted
+## Task 5: Count failed boxes apart from empty ones
+
+Contributed by a peer session's investigation (2026-09-03) and accepted into
+this plan. Today `fetchWebcamsFor` returns `[]` on any non-OK response, so a
+throttled or rejected call and an open-ocean box increment the same
+`empty` counter. That is why the empty-box share could never have answered
+the quota question at any sample size: the metric is conflated by
+construction. The status codes are the instrument, and they are thrown away
+three functions deep. This task carries them up.
+
+Production evidence for why it is worth a task: 2,250 Windy errors in one
+24-hour window, all `400`, clustered on boxes touching the poles and the
+antimeridian, every one of them recorded as empty ocean. Every `boxes_empty`
+figure in the telemetry so far is overstated by that amount.
+
+Deliberately NOT changed here: a thrown `fetch` still propagates and fails
+the tick, exactly as today. This task changes what a non-OK *response*
+records, not what an exception does.
+
+**Files:**
+- Modify: `app/api/cron/update-cameras/lib/windyApi.ts` (`fetchWebcamsFor`, `fetchWebcamsInBatches`, `CoordFetchResult`, `fetchCoordsCounted`)
+- Modify: `app/api/cron/update-cameras/lib/terminatorSweep.ts` (`RingTelemetry`, the `sweep` closure)
+- Modify: `app/api/cron/update-cameras/lib/sweepStats.ts` (`SweepRingStats`, `computeSweepTickStats`, `upsertSweepStats`, `getSweepDigestSummary`)
+- Create: `database/migrations/20260903_sweep_failed_boxes.sql`
+- Test: `app/api/cron/update-cameras/lib/windyApi.test.ts`
+- Test: `app/api/cron/update-cameras/lib/terminatorSweep.test.ts` (fixtures only)
+- Test: `app/api/cron/update-cameras/lib/sweepStats.test.ts`
+- Test: `app/api/cron/update-cameras/route.test.ts` (the `fetchCoordsCounted` mock only)
+
+**Interfaces:**
+- Consumes: nothing from earlier tasks.
+- Produces:
+  - `BoxFetchResult { webcams: WindyWebcam[]; status: number; ok: boolean }`
+    — the per-box return of `fetchWebcamsFor`.
+  - `CoordFetchResult.failed: number` and
+    `CoordFetchResult.failedByStatus: Record<string, number>`.
+  - `RingTelemetry.failed: number` and `RingTelemetry.failedByStatus`.
+  - `SweepRingStats.boxesFailed: number`, persisted as
+    `daily_sweep_ring_stats.boxes_failed`. Read by Task 8's digest.
+
+- [ ] **Step 1: Change the existing Windy test so it stops asserting the conflation**
+
+In `app/api/cron/update-cameras/lib/windyApi.test.ts`, the
+`describe('fetchCoordsCounted', ...)` block stubs `fetch` so that boxes
+centred on lng 99 answer with one webcam and everything else returns
+`400`. Its first test currently asserts those two 400s as `empty: 2`. That
+assertion is the bug this task removes. Replace the two existing tests in
+that block with:
+
+```ts
+  it('counts a non-OK response as failed, not as empty', async () => {
+    // Two of the three boxes 400. Before this field existed they were
+    // scored as empty ocean, which is why the empty share could never tell a
+    // quota from the Pacific.
+    const res = await fetchCoordsCounted(
+      [{ lat: 0, lng: 99 }, { lat: 0, lng: 5 }, { lat: 0, lng: 20 }],
+      5,
+      0
+    );
+    expect(res.attempted).toBe(3);
+    expect(res.failed).toBe(2);
+    expect(res.failedByStatus).toEqual({ '400': 2 });
+    expect(res.empty).toBe(0);
+    expect(res.webcams).toHaveLength(1);
+  });
+
+  it('counts a 200 with no cameras as empty', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => [],
+    })));
+    const res = await fetchCoordsCounted([{ lat: 0, lng: 5 }], 5, 0);
+    expect(res.empty).toBe(1);
+    expect(res.failed).toBe(0);
+    expect(res.failedByStatus).toEqual({});
+  });
+
+  it('is a no-op on an empty coordinate list', async () => {
+    const res = await fetchCoordsCounted([], 5, 0);
+    expect(res).toEqual({
+      webcams: [],
+      attempted: 0,
+      empty: 0,
+      failed: 0,
+      failedByStatus: {},
+    });
+  });
+```
+
+- [ ] **Step 2: Run it to verify it fails**
+
+Run: `npx vitest run app/api/cron/update-cameras/lib/windyApi.test.ts`
+Expected: FAIL — `res.failed` is `undefined`, and `res.empty` is `2`.
+
+- [ ] **Step 3: Carry the status out of `fetchWebcamsFor`**
+
+In `windyApi.ts`, add above `fetchWebcamsFor`:
+
+```ts
+/**
+ * One box's answer, with the status that produced it.
+ *
+ * `ok: false` with an empty list is a failed request. `ok: true` with an
+ * empty list is a box with no cameras in it. Until this type existed the two
+ * were indistinguishable downstream, which made every "empty box" count a
+ * mix of ocean and rejected calls.
+ */
+export interface BoxFetchResult {
+  webcams: WindyWebcam[];
+  /** HTTP status of the response. */
+  status: number;
+  ok: boolean;
+}
+```
+
+Change `fetchWebcamsFor`'s signature to `Promise<BoxFetchResult>`. Replace the
+`if (!res.ok)` branch's `return [] as WindyWebcam[];` with:
+
+```ts
+    return { webcams: [], status: res.status, ok: false };
+```
+
+and the final `return data ?? [];` with:
+
+```ts
+  return { webcams: data ?? [], status: res.status, ok: true };
+```
+
+Leave the `console.error` line exactly as it is: the Vercel log query in
+Task 9 greps for that text.
+
+- [ ] **Step 4: Thread it through the batcher and the counter**
+
+`fetchWebcamsInBatches` returns `Promise<WindyWebcam[][]>` today. Change the
+return type to `Promise<BoxFetchResult[]>` and the local `batches` to
+`BoxFetchResult[]`. The body needs no other change: it already pushes each
+`fetchWebcamsFor` result through one-to-one.
+
+In `CoordFetchResult`, replace the `empty` doc comment and add two fields:
+
+```ts
+  /** Boxes that answered 200 with no cameras. Ocean, or nearly. */
+  empty: number;
+  /**
+   * Boxes whose request came back non-OK. Counted apart from `empty` because
+   * a quota ceiling and the Pacific look identical in an empty count and
+   * nothing like each other here.
+   */
+  failed: number;
+  /** `failed`, split by HTTP status: `{ "400": 3 }`. */
+  failedByStatus: Record<string, number>;
+```
+
+Rewrite the body of `fetchCoordsCounted` after the early return:
+
+```ts
+  if (coords.length === 0) {
+    return { webcams: [], attempted: 0, empty: 0, failed: 0, failedByStatus: {} };
+  }
+  // One entry per COORDINATE, not per batch: fetchWebcamsInBatches spreads
+  // each batch's results back in, so the array is 1:1 with `coords`. That
+  // invariant is what makes `attempted`, `empty` and `failed` correct.
+  const perCoord = await fetchWebcamsInBatches(coords, batchSize, delayMs);
+  let empty = 0;
+  let failed = 0;
+  const failedByStatus: Record<string, number> = {};
+  for (const box of perCoord) {
+    if (!box.ok) {
+      failed += 1;
+      const key = String(box.status);
+      failedByStatus[key] = (failedByStatus[key] ?? 0) + 1;
+    } else if (box.webcams.length === 0) {
+      empty += 1;
+    }
+  }
+  return {
+    webcams: perCoord.flatMap((box) => box.webcams),
+    attempted: coords.length,
+    empty,
+    failed,
+    failedByStatus,
+  };
+```
+
+- [ ] **Step 5: Run the Windy tests**
+
+Run: `npx vitest run app/api/cron/update-cameras/lib/windyApi.test.ts`
+Expected: PASS, three cases.
+
+- [ ] **Step 6: Carry it into the ring telemetry**
+
+In `terminatorSweep.ts`, add to `RingTelemetry` after `empty`:
+
+```ts
+  /** Boxes whose request came back non-OK. Not ocean; see CoordFetchResult. */
+  failed: number;
+  failedByStatus: Record<string, number>;
+```
+
+In the `sweep` closure's `rings.push({ ... })`, add after `empty: res.empty,`:
+
+```ts
+      failed: res.failed,
+      failedByStatus: res.failedByStatus,
+```
+
+In `terminatorSweep.test.ts`, the `stubFetcher` helper at the top returns
+`{ webcams, attempted: coords.length, empty: 0 }`. Add `failed: 0,
+failedByStatus: {}` to that object. Any test with an inline `fetchCoords`
+(there is one in the timing test if Task 6 has already landed; otherwise
+none) gets the same two fields. Then add inside
+`describe('sweepWithEscalation', ...)`:
+
+```ts
+  it('carries failed boxes per ring, apart from empty ones', async () => {
+    const res = await sweepWithEscalation({
+      buildRing: ring,
+      fetchCoords: async (coords) => ({
+        webcams: [],
+        attempted: coords.length,
+        empty: 1,
+        failed: 1,
+        failedByStatus: { '400': 1 },
+      }),
+      classify,
+      floor: 2,
+      offsets: [],
+      hasBudget: () => true,
+    });
+    expect(res.telemetry.rings[0].failed).toBe(1);
+    expect(res.telemetry.rings[0].failedByStatus).toEqual({ '400': 1 });
+    expect(res.telemetry.rings[0].empty).toBe(1);
+  });
+```
+
+- [ ] **Step 7: Carry it into the daily stats**
+
+In `sweepStats.ts`, add to `SweepRingStats` after `boxesEmpty`:
+
+```ts
+  boxesFailed: number;
+```
+
+In `computeSweepTickStats`, add `boxesFailed: 0` to the per-offset
+accumulator default and `acc.boxesFailed += ring.failed;` beside
+`acc.boxesEmpty += ring.empty;`.
+
+In `upsertSweepStats`'s ring insert, add `boxes_failed` to the column list,
+`${ring.boxesFailed}` to the values, and to the update clause:
+
+```sql
+          boxes_failed = daily_sweep_ring_stats.boxes_failed + excluded.boxes_failed,
+```
+
+In `getSweepDigestSummary`, add `boxes_failed` to the ring select and
+`boxesFailed: Number(r.boxes_failed),` to the ring mapper.
+
+In `sweepStats.test.ts`, add `failed: 0, failedByStatus: {}` to every
+`RingTelemetry` object in the `healthy` and `escalated` fixtures, and add:
+
+```ts
+  it('accumulates failed boxes per ring', async () => {
+    const withFailures: SweepTelemetry = {
+      ...healthy,
+      rings: [{ ...healthy.rings[0], failed: 3, failedByStatus: { '400': 3 } }],
+    };
+    const stats = computeSweepTickStats({ telemetry: withFailures, floor: 15 });
+    expect(stats.rings[0].boxesFailed).toBe(3);
+    expect(stats.rings[0].boxesEmpty).toBe(healthy.rings[0].empty);
+  });
+```
+
+- [ ] **Step 8: Update the route test's mock**
+
+`route.test.ts` mocks `./lib/windyApi` and reimplements `fetchCoordsCounted`
+over a `fetchBatchesMock`. Its return object is
+`{ webcams, attempted, empty }`. Add `failed: 0, failedByStatus: {}` to that
+return so the real `sweep` closure, which now reads `res.failed`, does not
+record `undefined`. Do not change anything else in that file.
+
+- [ ] **Step 9: Write the migration**
+
+Create `database/migrations/20260903_sweep_failed_boxes.sql`:
+
+```sql
+-- Failed boxes, counted apart from empty ones.
+--
+-- boxes_empty conflated "no cameras there" with "the call failed", because
+-- fetchWebcamsFor returned [] on any non-OK response. Measured 2026-09-03:
+-- 2,250 Windy errors in 24h, all 400, on boxes touching the poles and the
+-- antimeridian, every one recorded as ocean. That made the empty share
+-- useless as a quota signal at any sample size. This column is the
+-- disambiguation. boxes_empty now means 200-with-nothing only.
+--
+-- Forward-only, idempotent. Apply via:
+--   node scripts/apply-migration.mjs database/migrations/20260903_sweep_failed_boxes.sql --apply
+
+ALTER TABLE daily_sweep_ring_stats
+  ADD COLUMN IF NOT EXISTS boxes_failed INTEGER NOT NULL DEFAULT 0;
+```
+
+- [ ] **Step 10: Run the whole suite, lint, build**
+
+Run: `npm run test && npm run lint && npm run build`
+Expected: all clean. If TypeScript names a file constructing a
+`CoordFetchResult`, `BoxFetchResult` or `RingTelemetry` you did not touch,
+add the new fields there too.
+
+- [ ] **Step 11: Dry-run the migration and STOP**
+
+```bash
+node scripts/apply-migration.mjs database/migrations/20260903_sweep_failed_boxes.sql
+```
+
+Paste the printed statement into your report. Do not pass `--apply`; the
+controller applies it.
+
+- [ ] **Step 12: Confirm branch, then commit**
+
+```bash
+git rev-parse --abbrev-ref HEAD
+git add app/api/cron/update-cameras/lib/windyApi.ts \
+        app/api/cron/update-cameras/lib/windyApi.test.ts \
+        app/api/cron/update-cameras/lib/terminatorSweep.ts \
+        app/api/cron/update-cameras/lib/terminatorSweep.test.ts \
+        app/api/cron/update-cameras/lib/sweepStats.ts \
+        app/api/cron/update-cameras/lib/sweepStats.test.ts \
+        app/api/cron/update-cameras/route.test.ts \
+        database/migrations/20260903_sweep_failed_boxes.sql
+git commit -m "feat(cron): count failed Windy boxes apart from empty ones"
+```
+
+---
+
+## Task 6: Per-ring wall-clock, captured and persisted
 
 Capture and persistence are one task, not two. Adding a required `elapsedMs`
 to `SweepRingStats` immediately breaks `getSweepDigestSummary`'s typecheck,
@@ -1148,7 +1483,7 @@ git commit -m "feat(cron): time each sweep ring and persist it, base split from 
 
 ---
 
-## Task 6: Record which angles produced the numbers
+## Task 7: Record which angles produced the numbers
 
 The configuration is expected to expand and contract more than once. Without
 this task, a row saying `offset_deg = 15.75, frames_gate_passed = 40` becomes
@@ -1172,7 +1507,7 @@ missing on the day it matters.
   from Task 4.
 - Produces:
   - `coverageSpan(ringAltitudesDeg: number[]): { min: number; max: number }`
-    — also imported by Task 7's digest, so the two span calculations cannot
+    — also imported by Task 8's digest, so the two span calculations cannot
     drift apart.
   - `sweepGeometry(forcedOffsets: readonly number[]): SweepGeometry`
   - `upsertSweepGeometry(now: Date, geometry: SweepGeometry): Promise<void>`
@@ -1469,7 +1804,7 @@ git commit -m "feat(cron): record the ring angles behind each day's counters"
 
 ---
 
-## Task 7: The digest lines
+## Task 8: The digest lines
 
 Spec §5, plus the operator's ask for granularity. Three additions. The existing
 per-ring gate-pass clause stays where it is: it is the only thing that
@@ -1482,7 +1817,7 @@ floors.
 
 **Interfaces:**
 - Consumes: `SweepDigestSummary` with `baseMs`, `escalationMs`,
-  `rings[].elapsedMs` (Task 5); `TERMINATOR_SUN_ALTITUDE_DEG`,
+  `rings[].elapsedMs` (Task 6); `TERMINATOR_SUN_ALTITUDE_DEG`,
   `SEARCH_RADIUS_DEG` (existing config).
 - Produces: `sweptAltitudeSpan(rings): { min: number; max: number } | null`,
   exported for its own test.
@@ -1591,6 +1926,40 @@ After the existing `parts.push(...)` for boxes:
   if (span) parts.push(`swept ${formatSpan(span)} solar altitude`);
 ```
 
+Then replace the existing empty-share clause. It currently reads:
+
+```ts
+  parts.push(`${pct(emptyBoxes, totalBoxes)}% of boxes empty`);
+```
+
+Now that failed boxes are counted apart (Task 5), the digest must not fold
+them back in. Replace it, and its comment, with:
+
+```ts
+  // Empty and failed are different facts and the digest keeps them apart.
+  // Empty is ocean. Failed is a non-OK response, and a RISING failed count
+  // is the only thing in this line that can mean a Windy ceiling; the empty
+  // share never could, because it used to contain the failures.
+  const failedBoxes = s.rings.reduce((sum, r) => sum + r.boxesFailed, 0);
+  parts.push(`${pct(emptyBoxes, totalBoxes)}% of boxes empty`);
+  if (failedBoxes > 0) {
+    parts.push(`<b>${count(failedBoxes)} boxes failed</b>`);
+  }
+```
+
+Add a test for it beside the others in `dailyDigest.test.ts`:
+
+```ts
+  it('reports failed boxes apart from empty ones, and only when there are any', () => {
+    expect(formatSweepLine(summaryBaseOnly())).not.toContain('boxes failed');
+    const withFailures = summaryBaseOnly();
+    withFailures.rings[0].boxesFailed = 12;
+    expect(formatSweepLine(withFailures)).toContain('12 boxes failed');
+  });
+```
+
+Give every ring in the test fixtures a `boxesFailed: 0` field.
+
 After `const lines = [\`Widening: ${parts.join(' · ')}\`];` and before the
 `if (s.rings.length > 1)` block:
 
@@ -1641,7 +2010,7 @@ Expected: PASS.
 - [ ] **Step 6: Run the whole suite, lint, build**
 
 Run: `npm run test && npm run lint && npm run build`
-Expected: all clean. Do not proceed to Task 8 on a red suite.
+Expected: all clean. Do not proceed to Task 9 on a red suite.
 
 - [ ] **Step 7: Confirm branch, then commit and open the PR**
 
@@ -1659,7 +2028,7 @@ the measurement window has not started.
 
 ---
 
-## Task 8: The bounded measurement window
+## Task 9: The bounded measurement window
 
 No checkout needed beyond reading. This is the task that spends money.
 
@@ -1700,7 +2069,7 @@ A first baseline was already captured on 2026-09-02/03 and is in the SDD
 ledger; re-run these to extend it to the day of the flip.
 
 - [x] **Step 1b: RESOLVED 2026-09-03. The empty-box alarm was not a quota
-  ceiling.**
+  ceiling. One watch remains before the flip, below.**
 
 Settled by direct observation, not by waiting for a third day. Recorded in
 full because the reasoning matters more than the verdict: the gate as
@@ -1723,30 +2092,52 @@ instrument, and they were already in the Vercel function logs the whole time.
 **What the evidence showed.** Three independent checks, all agreeing:
 
 - **Status codes.** Every non-OK Windy response in the sampled production
-  logs is `400 Bad Request`. Zero 429, zero 403, zero 5xx. A quota ceiling
-  presents as 429 or 403.
-- **Live probe at the full production call rate.** Six boxes, all 200.
-  Camera-dense land boxes returned 26, 30, 17 and 11 cameras; ocean controls
-  returned 0. An exhausted quota would have flattened the land boxes too.
-- **The failures are geographic, not volumetric.** They cluster on boxes
-  touching the antimeridian and the poles, an unbiased recent sample of 2,400
-  box attempts contained zero of them, and replaying the exact coordinates
-  that failed in production returns 200.
+  logs (the CLI returns at most 500 requests per query, so this is a sample,
+  not the full day) is `400 Bad Request`. Zero 429, zero 403, zero 5xx.
+- **Live probe at the full production call rate, 06:30Z.** Six boxes, all
+  200. Camera-dense land boxes returned 26, 30, 17 and 11 cameras; ocean
+  controls returned 0. An exhausted quota would have flattened the land
+  boxes too.
+- **The failures are geographic, not quota-shaped.** They cluster on boxes
+  touching the antimeridian and the poles, an unbiased sample of 2,400 box
+  attempts at 06:30Z contained zero of them, and replaying the exact
+  coordinates that failed in production returns 200.
 
 The partial-day reading therefore stands, now with a mechanism rather than a
 guess. 09-02 ran from the merge at 17:56Z to midnight and 09-03 from midnight
 to 06:27Z. The terminator crosses far more ocean in the early-UTC window, so
 empty boxes and cameras-found move together for purely geographic reasons.
 
+Windy's own documentation (checked 2026-09-03) publishes no request limit
+and no quota status code. It does distinguish a free tier from a
+professional tier, so an undocumented cap on the free tier remains possible.
+Absence from the docs is not absence of a limit.
+
+**What this does NOT establish.** The Task 9 note below says production
+"already runs at roughly twice the stated risk point." That is a rate, not a
+day. The spec's 22,300 figure was never a measured threshold: it is the
+projected call volume of a hypothetical 2-minute cron cadence, and the spec
+called it "the most likely way to discover a ceiling," meaning if we went
+there we might find one. No full UTC day has yet exceeded it. The
+kiosk-driven rate only began at 17:56Z on 09-02, so 09-02 totalled roughly
+13,000 boxes and 09-03 had reached roughly 12,000 by 06:30Z. At 30 boxes per
+tick and one tick a minute, **2026-09-03 crosses 22,300 at about 12:20Z**,
+the first day ever to do so. A daily quota resetting at midnight UTC would
+bite after that hour and clear at 00Z, and nothing measured so far can see
+it. The rate assumes the kiosk stays visible; the tick route's Redis NX lock
+caps it at one a minute but nothing lowers it while a gallery screen is up.
+
 **A defect in this step as originally written.** It prescribed comparing "the
 same UTC hours on two dates." That is not executable.
 `daily_sweep_ring_stats` is keyed `(date, offset_deg)` with no hour column,
 so hour-matching against stored data is impossible. Whole UTC day against
-whole UTC day is the only comparison the schema supports, and the first
-complete day is 2026-09-03.
+whole UTC day is the only comparison the schema supports, and 2026-09-03 will
+be the first complete day.
 
 **The gate that replaces it.** Do not gate on the empty-box share, which is
-ambiguous by construction. Gate on the status codes:
+ambiguous by construction. Gate on the status codes, and read them **after
+about 14:00Z on 2026-09-03 or later**, so the read covers the first-ever
+crossing of the 22,300 figure:
 
 ```bash
 vercel logs --environment production --no-branch --since 24h \
@@ -1756,15 +2147,26 @@ vercel logs --environment production --no-branch --since 24h \
 
 Any 429 or 403 means a real ceiling, and a real ceiling is a bigger finding
 than the widening question: do not flip, because doubling the call rate into
-it would confound both. All-400 means edge-of-world box rejection, which is
-a separate bug and not a reason to hold the window.
+it would confound both. Also re-run the live land-box probe at that hour: a
+quota that returns 200 with an empty body instead of an error would show as
+land boxes going to zero while ocean boxes stay zero. All-400 with land boxes
+still populated means edge-of-world box rejection, which is the separate bug
+below.
 
 **A second, unrelated bug this surfaced.** Boxes near the antimeridian and
 the poles are intermittently rejected with 400 and then silently scored as
-empty ocean. It does not block the measurement window. It does mean a small
-standing overstatement in every `boxes_empty` figure.
+empty ocean. It is not a quota. Whether its rate rises with call volume is
+unmeasured: the biased sample showed more 400s per sweep after the kiosk
+rate began at 17:56Z, but the unbiased 06:30Z sample at the same rate showed
+none, and the terminator's position relative to the antimeridian differs
+between those hours. The Task 6 counter split settles it. Until then it means
+a small standing overstatement in every `boxes_empty` figure.
 
-**Carry into Task 5.** While the sweep telemetry is already open, split the
+One more consumer of the same key is `app/api/webcams/route.ts`, the
+client-facing map route, which hits the same clusters endpoint and is
+outside every count in this plan.
+
+**Task 5 does this.** While the sweep telemetry is already open, split the
 counter: count non-OK responses separately from genuinely empty boxes, and
 carry the status code. It is a small change across `windyApi.ts`, the sweep,
 and one migration column, and it turns this gate from an inference into an
@@ -1812,24 +2214,36 @@ decision.
 **Expected magnitude, measured 2026-09-03, not assumed.** The base ring is
 exactly 30.0 boxes per tick. The tick rate is **not** the cron's 96/day:
 `/api/kiosk/tick` re-invokes this same handler in-process whenever a gallery
-screen is visible, throttled to about one per minute by a Redis lock.
-Measured at 06:27Z on 2026-09-03: 388 ticks in 387 minutes, which is 1.003
-ticks per minute sustained. The kiosk is polling continuously.
+screen is visible, throttled to at most one per minute by a Redis lock. The
+kiosk is **intermittent**, and the rate swings with it. Measured on
+2026-09-03: 1.0 ticks/min from 00:00Z to 06:45Z, then 0.3/min to 16:00Z, then
+about 1.1/min. An earlier draft of this plan read the first window as
+steady state and projected ~1,444 ticks and ~43,300 boxes per day. That was
+wrong. Whole-day totals so far:
 
-| | per full day at the current rate |
-| --- | --- |
-| ticks, cron alone | 96 |
-| ticks, actual | ~1,444 |
-| kiosk share of sweep volume | 93% |
-| Windy boxes, switch OFF | ~43,300 |
-| Windy boxes, day ring forced | ~86,600 |
-| Windy risk point named by the camera-refresh spec | 22,300 |
+| UTC day | ticks | Windy boxes | note |
+| --- | --- | --- | --- |
+| 2026-09-02 | 352 | 10,560 | telemetry starts 17:56Z, partial |
+| 2026-09-03 to 16:01Z | 570 | 17,745 | first complete day; projected ~24,000 |
 
-**Production already runs at roughly twice the stated risk point with this
-feature switched off.** Forcing the day ring would take it to nearly four
-times. The camera-refresh spec says discovering a Windy rate limit makes
-panels *blanker*, which is the outcome this feature exists to prevent, and
-Windy publishes no quota headers so there is no warning before the wall.
+**No full UTC day has yet crossed the 22,300 figure.** 2026-09-03 is
+projected to be the first, around 18:20Z. That figure was never a measured
+limit: it is the projected volume of a hypothetical 2-minute cron cadence in
+the camera-refresh spec, which called it "the most likely way to discover a
+ceiling." A daily quota resetting at midnight UTC could not have been seen
+by any measurement before that crossing. Read the status-code gate in Step
+1b **after** it.
+
+Forcing the day ring on both feeds roughly doubles boxes per tick. At today's
+mixed rate that is roughly 45,000 to 50,000 a day; with screens on all day it
+is closer to 86,000. The camera-refresh spec says discovering a Windy rate
+limit makes panels *blanker*, which is the outcome this feature exists to
+prevent, and Windy publishes no quota headers so there is no warning before
+the wall.
+
+One more consumer of the same key sits outside every count here:
+`app/api/webcams/route.ts`, the client-facing map route, hits the same
+clusters endpoint. Every boxes-per-day figure in this plan is a floor.
 
 **The dominant cost lever is not the ring configuration.** It is the kiosk
 poll cadence in `app/api/kiosk/tick/route.ts` and `KIOSK_TICK_LOCK_TTL_MS`.
@@ -1908,7 +2322,29 @@ FROM daily_sweep_geometry ORDER BY date, signature;
 ```
 
 State plainly what the pool covered before and what it covered during: −24° to
-−2° becoming −24° to +14°. Then one section per spec §3 question.
+−2° becoming −24° to +14°.
+
+**Open with the natural-escalation baseline, because it already answers the
+spec's first question in direction.** On 2026-09-03 the conditional trigger
+fired for the first time in production: 43 sweeps by 16:01Z, all because the
+sunrise feed went thin, all recovered within budget, all on the +15.75
+day-side ring. From `daily_sweep_ring_stats` at that hour:
+
+| ring | swept | boxes | frames scored | gate passed | pass rate | boxes per pass |
+| --- | --- | --- | --- | --- | --- | --- |
+| +15.75 | 43 | 645 | 157 | 22 | 14.0% | 29.3 |
+| 0 | 570 | 17,100 | 7,065 | 478 | 6.8% | 35.8 |
+
+The day-side ring's frames pass the detection gate at twice the base ring's
+rate, and it is cheaper per gate-passed frame. That is the self-concealing
+failure mode ruled out in direction, on production data, with no switch
+flipped. It is 22 passes from one feed over one two-hour window at the
+eastern-Pacific sunrise edge, so it is a first reading and not a verdict. The
+forced-ring window is therefore partly a replication of this result and
+partly the first measurement of the always-on cost, which the conditional
+trigger (thin half only, ~7% of ticks) cannot estimate. Say both.
+
+Then one section per spec §3 question.
 
 1. **Yield that survives scoring.** From `daily_sweep_ring_stats`:
    `frames_gate_passed / frames_scored` for `offset_deg = 15.75` against
@@ -1957,7 +2393,7 @@ Several sessions share this checkout. Whoever takes it, returns it.
 Spec §7 steps 4–6. Phase 2 chooses always-on, conditional, or a narrower
 offset; it does not need a new coverage constant (Task 1 shipped one that is
 correct for any ring set); and it converts the per-ring ratios into dollars
-using the Neon delta and function duration Task 8 measures.
+using the Neon delta and function duration Task 9 measures.
 
 It is deliberately not written here. The spec says the final choice is
 deferred until the measurement reports, and a task list that pre-commits to one
