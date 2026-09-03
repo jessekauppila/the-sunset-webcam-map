@@ -58,9 +58,13 @@ export async function POST(request: Request) {
         { status: 422 }
       );
     }
+    // state: null — a pointer. The reconstruction above ran only to VALIDATE
+    // that the window has frames; the pool itself resolves on every read, so
+    // a re-rating or a newer model shows up on this scene later instead of
+    // being frozen behind a copy taken now.
     const id = await createScene({
       label, tags, notes, representsAt: at, windowMinutes,
-      source: 'historical', state, provenance: null,
+      source: 'historical', state: null, provenance: null,
     });
     return NextResponse.json({ id, source: 'historical', reconstructed, skipped }, { status: 201 });
   }
@@ -68,15 +72,18 @@ export async function POST(request: Request) {
   // Default 'live' so a capture with no opinion records what was on glass;
   // /studio asks for 'studio' because it is saving the view being tuned.
   const provenanceProfile = body.provenanceProfile === 'studio' ? 'studio' : 'live';
-  const { state, provenance, pinned, pinFailures } =
+  const { provenance, pinned, pinFailures, archived } =
     await captureLiveScene(provenanceProfile);
   // A live capture's frames all land within one request, so its window is
-  // tight. It still stores `state`: the pointer path is not switched on for
-  // live captures until they file their frames into the archive.
+  // tight. It stores a pointer too, now that the capture files its whole pool
+  // into the archive — `archived` is how many rows the window will find.
   const id = await createScene({
     label, tags, notes, representsAt: new Date(),
     windowMinutes: LIVE_CAPTURE_WINDOW_MINUTES,
-    source: 'live', state, provenance,
+    source: 'live', state: null, provenance,
   });
-  return NextResponse.json({ id, source: 'live', pinned, pinFailures }, { status: 201 });
+  return NextResponse.json(
+    { id, source: 'live', pinned, pinFailures, archived },
+    { status: 201 }
+  );
 }
