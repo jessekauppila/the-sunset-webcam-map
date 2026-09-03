@@ -66,7 +66,11 @@ describe('V3_SETTINGS_SCHEMA', () => {
     const byKey = Object.fromEntries(V3_SETTINGS_SCHEMA.map((k) => [k.key, k.default]));
     expect(byKey.failedCamPolicy).toBe('showAtFloor');
     expect(byKey.floorPx).toBe(100);
-    expect(byKey.ceilingPx).toBe(480);
+    // Decided 2026-09-03 on the live-capture fixture: 8 x 240 keeps
+    // bandCount * ceilingPx at the dell panel height (1920), the relation
+    // that keeps the wall whole. 13 x 480 showed 1 of 4 real sunsets.
+    expect(byKey.ceilingPx).toBe(240);
+    expect(byKey.bandCount).toBe(8);
     // Spec §5.4: a starting guess, not a measurement — but the guess is
     // written down, so a silent drift from it shows up here.
     expect(byKey.hysteresisMargin).toBe(0.05);
@@ -92,7 +96,7 @@ describe('configFromSettings', () => {
     const cfg = configFromSettings(schemaDefaults(V3_SETTINGS_SCHEMA));
     expect(cfg.gateThreshold).toBe(0.55);
     expect(cfg.maxTiles).toBe(0);
-    expect(cfg.bandCount).toBe(13);
+    expect(cfg.bandCount).toBe(8);
     expect(cfg.axisDayEdgeDeg).toBe(-2);
   });
 

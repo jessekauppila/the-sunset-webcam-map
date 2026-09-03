@@ -2404,6 +2404,12 @@ smaller ceiling shows more of the pool, smaller.** `8 x 240` and `13 x 148`
 both surface 3 of the 4 real sunsets instead of 1. Which one is right is a
 question about the wall, so it stays Jesse's.
 
+**Decided 2026-09-03: `8 x 240` ships as the v3 defaults.** Jesse's call,
+from the side-by-side: the same 3 of 4 as `13 x 148`, but the ceiling stays
+2.4x the floor so the best sunset is still visibly the best thing on the
+wall. `realPool.test.ts` now pins 8 drawn / 34 evicted / 3 passers on the
+sunset panel and 9 on sunrise.
+
 ### Compare them yourself
 
 ```
