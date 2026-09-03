@@ -3,12 +3,18 @@ import {
   getCalibrationDigestSummary,
   type CalibrationDigestSummary,
 } from './dbOperations';
-import { getSweepDigestSummary, type SweepDigestSummary } from './sweepStats';
+import {
+  getSweepDigestSummary,
+  type SweepDigestSummary,
+  type SweepRingStats,
+} from './sweepStats';
+import { coverageSpan } from './sweepGeometry';
 import { deriveDailyDeltas } from '@/app/components/Ops/opsMath';
 import type { ProviderUsageRow, CostEventRow } from '@/app/lib/opsTypes';
 import {
   NEON_COST_PER_CU_HOUR,
   DIGEST_LOOKBACK_DAYS,
+  TERMINATOR_SUN_ALTITUDE_DEG,
 } from '@/app/lib/masterConfig';
 
 const SUNSET_PROJECT = 'noisy-leaf-96391119';
@@ -55,6 +61,34 @@ const count = (n: number) => n.toLocaleString('en-US');
 function ringLabel(offsetDeg: number): string {
   if (offsetDeg === 0) return 'base';
   return `${offsetDeg > 0 ? '+' : ''}${offsetDeg}°`;
+}
+
+/**
+ * The solar-altitude span yesterday's rings actually gathered from.
+ *
+ * The digest already prints ring offsets, which say where a ring sits
+ * relative to the base ring and nothing about where the sun was. The useful
+ * form is the resulting altitude band, because that is what can be read
+ * against the measured quality curve: good frames peak at 0 to +6 degrees,
+ * and a span whose day edge is -2 never touches it.
+ *
+ * Shares its arithmetic with sweepGeometry's coverageSpan, which answers the
+ * same question about a tick rather than about yesterday.
+ */
+export function sweptAltitudeSpan(
+  rings: SweepRingStats[],
+): { min: number; max: number } | null {
+  if (rings.length === 0) return null;
+  return coverageSpan(
+    rings.map((r) => TERMINATOR_SUN_ALTITUDE_DEG + r.offsetDeg),
+  );
+}
+
+/** `-24° to +14°`. Rounded outward, so the printed band never overstates. */
+function formatSpan(span: { min: number; max: number }): string {
+  const lo = Math.floor(span.min);
+  const hi = Math.ceil(span.max);
+  return `${lo}° to ${hi > 0 ? '+' : ''}${hi}°`;
 }
 
 /**
@@ -108,15 +142,60 @@ export function formatSweepLine(summary: SweepDigestSummary | null): string {
       : `${count(totalBoxes)} boxes`,
   );
 
+  const span = sweptAltitudeSpan(s.rings);
+  if (span) parts.push(`swept ${formatSpan(span)} solar altitude`);
+
   if (s.budgetExhaustedTicks > 0) {
     parts.push(`${s.budgetExhaustedTicks} ticks hit the sweep budget`);
   }
-  // Empty conflates "no cameras there" with "the call failed". Rising empty
-  // against flat discovery is the signature of a Windy quota ceiling, which
-  // is why it rides in the summary line rather than waiting for a dashboard.
+  // Empty and failed are different facts and the digest keeps them apart.
+  // Empty is ocean. Failed is a non-OK response, and a RISING failed count
+  // is the only thing in this line that can mean a Windy ceiling; the empty
+  // share never could, because it used to contain the failures.
+  const failedBoxes = s.rings.reduce((sum, r) => sum + r.boxesFailed, 0);
   parts.push(`${pct(emptyBoxes, totalBoxes)}% of boxes empty`);
+  if (failedBoxes > 0) {
+    parts.push(`<b>${count(failedBoxes)} boxes failed</b>`);
+  }
 
   const lines = [`Widening: ${parts.join(' · ')}`];
+
+  // The bill, in the units that actually have one.
+  //
+  // Not dollars, deliberately. Windy publishes no price, no rate limit and no
+  // quota headers (measured 2026-09-02, see the camera-refresh cost spec), so
+  // multiplying boxes by a rate would mean inventing the rate. What widening
+  // provably consumes is function wall-clock and scoring work, and both are
+  // measured here.
+  if (s.escalationMs > 0) {
+    const escalationMin = s.escalationMs / 60_000;
+    const escalationFrames = s.rings
+      .filter((r) => r.offsetDeg !== 0)
+      .reduce((sum, r) => sum + r.framesScored, 0);
+    lines.push(
+      `Widening cost: ${escalationMin.toFixed(1)} min/day sweeping ` +
+        `(+${pct(s.escalationMs, s.baseMs)}% on base) · ` +
+        `${count(escalationFrames)} extra frames scored`,
+    );
+  }
+
+  // Cost per result, per ring. The lever line.
+  //
+  // Totals cannot say which ring to narrow or drop; a ratio can. A ring
+  // buying gate-passed frames at several times the base ring's box cost is
+  // the one to change, and that stays true whether the bill went up or down.
+  // Rings with no gate-passed frames print as "none", not as a division by
+  // zero dressed up as a large number.
+  const efficiency = s.rings.map((r) => {
+    if (r.framesGatePassed === 0) return `${ringLabel(r.offsetDeg)} none`;
+    const boxesEach = Math.round(r.boxesAttempted / r.framesGatePassed);
+    const secondsEach = r.elapsedMs / r.framesGatePassed / 1000;
+    return (
+      `${ringLabel(r.offsetDeg)} ${count(boxesEach)} boxes` +
+      ` + ${secondsEach.toFixed(1)}s`
+    );
+  });
+  lines.push(`per gate-passed frame: ${efficiency.join(' · ')}`);
 
   if (s.rings.length > 1) {
     const ringClauses = s.rings.map((r, i) => {
