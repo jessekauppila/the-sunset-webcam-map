@@ -463,4 +463,81 @@ describe('useStudioSettings', () => {
     const body = JSON.parse(patchCalls[0][1].body as string);
     expect(body).toEqual({ namespace: 'v1', values: { floorPx: 200, padding: 5 } });
   });
+
+  it('surfaces the keys a PATCH dropped, so a dial this build cannot store is visible', async () => {
+    const getResponse = settingsResponse({}, {});
+    fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+      if (!init || (!init.method && url === '/api/kiosk/settings')) {
+        return { ok: true, json: async () => getResponse };
+      }
+      if (init.method === 'PATCH') {
+        return {
+          ok: true,
+          json: async () => ({
+            revision: 2,
+            dropped: [{ key: 'motionMode', reason: 'unknown' }],
+          }),
+        };
+      }
+      return { ok: true, json: async () => ({}) };
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { result } = renderHook(() => useStudioSettings(), { wrapper });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+
+    act(() => {
+      result.current.setKnob('v1', 'floorPx', 140);
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(500);
+    });
+
+    expect(result.current.droppedKeys).toEqual([
+      { key: 'motionMode', reason: 'unknown' },
+    ]);
+  });
+
+  it('clears a stale dropped-key warning once a later PATCH stores everything', async () => {
+    const getResponse = settingsResponse({}, {});
+    let dropOnNextPatch = true;
+    fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+      if (!init || (!init.method && url === '/api/kiosk/settings')) {
+        return { ok: true, json: async () => getResponse };
+      }
+      if (init.method === 'PATCH') {
+        const dropped = dropOnNextPatch
+          ? [{ key: 'motionMode', reason: 'unknown' }]
+          : undefined;
+        dropOnNextPatch = false;
+        return { ok: true, json: async () => ({ revision: 2, dropped }) };
+      }
+      return { ok: true, json: async () => ({}) };
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { result } = renderHook(() => useStudioSettings(), { wrapper });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+
+    act(() => {
+      result.current.setKnob('v1', 'floorPx', 140);
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(500);
+    });
+    expect(result.current.droppedKeys).toHaveLength(1);
+
+    act(() => {
+      result.current.setKnob('v1', 'floorPx', 160);
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(500);
+    });
+    expect(result.current.droppedKeys).toEqual([]);
+  });
+
 });

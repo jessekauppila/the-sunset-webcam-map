@@ -7,6 +7,7 @@ import {
   diffKeys,
   sanitizeValues,
   stripDefaults,
+  type DroppedKey,
   type KnobValue,
   type SettingsSchema,
   type SettingsValues,
@@ -38,6 +39,7 @@ export interface StudioSettingsApi {
   deploy: () => Promise<void>;
   revert: () => Promise<void>;
   deployedAtMs: number | null; // Date.now() at last successful deploy this session
+  droppedKeys: DroppedKey[]; // keys the last PATCH per namespace could not store
 }
 
 function schemaFor(namespace: string): SettingsSchema | null {
@@ -71,6 +73,11 @@ export function useStudioSettings(): StudioSettingsApi {
   const overlayRef = useRef<Record<string, SettingsValues>>({});
   const timers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const [deployedAtMs, setDeployedAtMs] = useState<number | null>(null);
+  // Keyed by namespace so one namespace's clean write cannot clear another's
+  // warning. Each PATCH response replaces its own namespace's entry.
+  const [droppedByNamespace, setDroppedByNamespace] = useState<
+    Record<string, DroppedKey[]>
+  >({});
 
   const flush = useCallback((namespace: string, schema: SettingsSchema) => {
     const values = overlayRef.current[namespace] ?? {};
@@ -82,14 +89,21 @@ export function useStudioSettings(): StudioSettingsApi {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
-    }).then((res) => {
+    }).then(async (res) => {
       if (!res.ok) {
         // Leave the optimistic overlay in place — the local edit isn't
         // lost, it just hasn't reached the server. Next successful flush
         // (this namespace's next edit, or a future retry) resends the full
         // deviation set from overlayRef, so nothing needs replaying here.
         console.warn('[studio] settings PATCH failed:', res.status);
+        return res;
       }
+      // A key the server could not store is the one failure this panel used
+      // to hide completely: the dial moves, the row does not, and Deploy
+      // then reports "in sync with glass" about a setting the glass has
+      // never been told. Carry it out to the strip instead.
+      const payload = (await res.json().catch(() => ({}))) as { dropped?: DroppedKey[] };
+      setDroppedByNamespace((prev) => ({ ...prev, [namespace]: payload.dropped ?? [] }));
       return res;
     });
   }, []);
@@ -214,6 +228,11 @@ export function useStudioSettings(): StudioSettingsApi {
     return out;
   }, [studio, live]);
 
+  const droppedKeys = useMemo(
+    () => Object.values(droppedByNamespace).flat(),
+    [droppedByNamespace]
+  );
+
   const diffCount = useMemo(
     () => Object.values(diffByNamespace).reduce((sum, keys) => sum + keys.length, 0),
     [diffByNamespace]
@@ -262,5 +281,6 @@ export function useStudioSettings(): StudioSettingsApi {
     deploy,
     revert,
     deployedAtMs,
+    droppedKeys,
   };
 }

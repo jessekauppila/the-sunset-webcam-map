@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { stripState, formatPollAge, type StripKind } from './stripState';
+import type { DroppedKey } from '@/app/lib/settings/schema';
 import { KIOSK_TICK_INTERVAL_MS } from '@/app/lib/masterConfig';
 
 const mono = 'ui-monospace, SFMono-Regular, Menlo, monospace';
@@ -37,6 +38,7 @@ export function StatusStrip({
   diffCount,
   sunrisePass,
   sunsetPass,
+  droppedKeys = [],
 }: {
   glassVersion: string;
   liveRevision: number;
@@ -45,6 +47,7 @@ export function StatusStrip({
   diffCount: number;
   sunrisePass: GatePassCount;
   sunsetPass: GatePassCount;
+  droppedKeys?: DroppedKey[];
 }) {
   const [nowMs, setNowMs] = useState(() => Date.now());
 
@@ -114,6 +117,21 @@ export function StatusStrip({
       <span style={{ color: amber }}>
         ↑{sunrisePass.pass}/{sunrisePass.total} ↓{sunsetPass.pass}/{sunsetPass.total} pass
       </span>
+      {droppedKeys.length > 0 && (
+        <span
+          data-testid="status-strip-dropped"
+          style={{ color: red }}
+          title={
+            'The server stored every other value but discarded these. An ' +
+            '"unknown" key means this build has no such dial, so deploy the ' +
+            'code before setting it; "invalid" means the value itself was ' +
+            'rejected.'
+          }
+        >
+          ⚠ not stored:{' '}
+          {droppedKeys.map((d) => `${d.key} (${d.reason})`).join(', ')}
+        </span>
+      )}
       <span style={{ marginLeft: 'auto' }}>{stateWord}</span>
     </div>
   );

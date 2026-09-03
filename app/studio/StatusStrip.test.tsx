@@ -125,4 +125,45 @@ describe('StatusStrip', () => {
     expect(clearIntervalSpy).toHaveBeenCalled();
     clearIntervalSpy.mockRestore();
   });
+
+  it('names the keys a write could not store, so an undeployed dial is not silent', () => {
+    const now = new Date('2026-08-30T12:00:00Z');
+    vi.setSystemTime(now);
+
+    render(
+      <StatusStrip
+        glassVersion="v2"
+        liveRevision={14}
+        lastPollAt={new Date(now.getTime() - 5_000).toISOString()}
+        deployedAtMs={null}
+        diffCount={0}
+        sunrisePass={{ pass: 1, total: 39 }}
+        sunsetPass={{ pass: 3, total: 42 }}
+        droppedKeys={[{ key: 'motionMode', reason: 'unknown' }]}
+      />
+    );
+
+    expect(screen.getByText(/motionMode/)).toBeInTheDocument();
+  });
+
+  it('says nothing about dropped keys when the last write stored everything', () => {
+    const now = new Date('2026-08-30T12:00:00Z');
+    vi.setSystemTime(now);
+
+    render(
+      <StatusStrip
+        glassVersion="v2"
+        liveRevision={14}
+        lastPollAt={new Date(now.getTime() - 5_000).toISOString()}
+        deployedAtMs={null}
+        diffCount={0}
+        sunrisePass={{ pass: 1, total: 39 }}
+        sunsetPass={{ pass: 3, total: 42 }}
+        droppedKeys={[]}
+      />
+    );
+
+    expect(screen.queryByTestId('status-strip-dropped')).toBeNull();
+  });
+
 });

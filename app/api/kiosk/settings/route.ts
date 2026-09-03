@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { requireOwner } from '@/app/lib/owner';
 import { getProfileSettings, putStudioNamespace } from '@/app/lib/settings/store';
 import { getKioskLastPoll } from '@/app/lib/cache';
-import { sanitizeValues, stripDefaults } from '@/app/lib/settings/schema';
+import { droppedKeys, sanitizeValues, stripDefaults } from '@/app/lib/settings/schema';
 import { SHARED_NAMESPACE, SHARED_SCHEMA } from '@/app/lib/settings/sharedSchema';
 import { MOSAIC_SETTINGS_SCHEMAS } from '@/app/components/mosaic/registry';
 
@@ -42,7 +42,20 @@ export async function PATCH(request: Request) {
   if (!schema) {
     return NextResponse.json({ error: `unknown namespace: ${namespace}` }, { status: 400 });
   }
+  // Sanitizing is quiet by design, which is right for a stored blob and wrong
+  // for a live PATCH: a dial posted against a build whose schema predates it
+  // vanishes here, the studio row never moves, and Deploy goes on truthfully
+  // reporting "in sync with glass" about a setting the glass has never heard
+  // of. Name the casualties instead of swallowing them.
+  const dropped = droppedKeys(schema, values);
+  if (dropped.length > 0) {
+    console.warn(
+      `[settings] PATCH ${namespace} dropped ${dropped.length} key(s): ` +
+        dropped.map((d) => `${d.key} (${d.reason})`).join(', ')
+    );
+  }
+
   const deviations = stripDefaults(schema, sanitizeValues(schema, values));
   const revision = await putStudioNamespace(namespace, deviations);
-  return NextResponse.json({ revision });
+  return NextResponse.json(dropped.length > 0 ? { revision, dropped } : { revision });
 }
