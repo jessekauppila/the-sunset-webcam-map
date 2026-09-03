@@ -1699,26 +1699,76 @@ there is nothing to compare against, and the whole window is wasted.
 A first baseline was already captured on 2026-09-02/03 and is in the SDD
 ledger; re-run these to extend it to the day of the flip.
 
-- [ ] **Step 1b: Gate on the empty-box share before flipping**
+- [x] **Step 1b: RESOLVED 2026-09-03. The empty-box alarm was not a quota
+  ceiling.**
 
-Compute `boxes_empty / boxes_attempted` from `daily_sweep_ring_stats`, and
-**compare like with like**. The first capture appeared to show a jump, 26.9%
-on 2026-09-02 against 38.8% on 2026-09-03, which the sweep-telemetry
-migration would name as "the signature of an undiscovered Windy quota
-ceiling."
+Settled by direct observation, not by waiting for a third day. Recorded in
+full because the reasoning matters more than the verdict: the gate as
+originally written could not have answered the question it asked.
 
-That comparison was invalid and the alarm is probably false. Both rows were
-partial days covering different UTC hours: 09-02 ran from the merge at 17:56Z
-to midnight, 09-03 from midnight to 06:27Z. The terminator crosses far more
-ocean in the early-UTC window, so empty boxes and cameras-found move together
-for purely geographic reasons. `new_webcams` per tick fell from 113.8 to 98.4
-across the same pair, which fits geography as well as it fits a ceiling.
+**The original alarm.** The first capture appeared to show a jump in
+`boxes_empty / boxes_attempted`, 26.9% on 2026-09-02 against 38.8% on
+2026-09-03, while `new_webcams` per tick fell from 113.8 to 98.4. The
+sweep-telemetry migration names exactly that shape as "the signature of an
+undiscovered Windy quota ceiling."
 
-**Compare one full UTC day against another full UTC day, or the same UTC
-hours on two dates.** Never two partial days. If the share is genuinely
-climbing on a like-for-like comparison across three days, do not flip: a
-pre-existing ceiling is a bigger finding than the widening question, and
-doubling the call rate into it would confound both.
+**Why more days would not have settled it.** `boxes_empty` cannot separate
+the two hypotheses at any sample size. `fetchWebcamsFor` returns an empty
+array on every non-OK response (`app/api/cron/update-cameras/lib/windyApi.ts`,
+the `if (!res.ok)` branch), so a throttled call and an open-ocean box
+increment the same counter by one. No number of additional days
+un-conflates a conflated metric. The status codes were the missing
+instrument, and they were already in the Vercel function logs the whole time.
+
+**What the evidence showed.** Three independent checks, all agreeing:
+
+- **Status codes.** Every non-OK Windy response in the sampled production
+  logs is `400 Bad Request`. Zero 429, zero 403, zero 5xx. A quota ceiling
+  presents as 429 or 403.
+- **Live probe at the full production call rate.** Six boxes, all 200.
+  Camera-dense land boxes returned 26, 30, 17 and 11 cameras; ocean controls
+  returned 0. An exhausted quota would have flattened the land boxes too.
+- **The failures are geographic, not volumetric.** They cluster on boxes
+  touching the antimeridian and the poles, an unbiased recent sample of 2,400
+  box attempts contained zero of them, and replaying the exact coordinates
+  that failed in production returns 200.
+
+The partial-day reading therefore stands, now with a mechanism rather than a
+guess. 09-02 ran from the merge at 17:56Z to midnight and 09-03 from midnight
+to 06:27Z. The terminator crosses far more ocean in the early-UTC window, so
+empty boxes and cameras-found move together for purely geographic reasons.
+
+**A defect in this step as originally written.** It prescribed comparing "the
+same UTC hours on two dates." That is not executable.
+`daily_sweep_ring_stats` is keyed `(date, offset_deg)` with no hour column,
+so hour-matching against stored data is impossible. Whole UTC day against
+whole UTC day is the only comparison the schema supports, and the first
+complete day is 2026-09-03.
+
+**The gate that replaces it.** Do not gate on the empty-box share, which is
+ambiguous by construction. Gate on the status codes:
+
+```bash
+vercel logs --environment production --no-branch --since 24h \
+  --limit 500 --query "API error" --json \
+  | grep -oE 'API error for [-0-9.,]+: [0-9]+'
+```
+
+Any 429 or 403 means a real ceiling, and a real ceiling is a bigger finding
+than the widening question: do not flip, because doubling the call rate into
+it would confound both. All-400 means edge-of-world box rejection, which is
+a separate bug and not a reason to hold the window.
+
+**A second, unrelated bug this surfaced.** Boxes near the antimeridian and
+the poles are intermittently rejected with 400 and then silently scored as
+empty ocean. It does not block the measurement window. It does mean a small
+standing overstatement in every `boxes_empty` figure.
+
+**Carry into Task 5.** While the sweep telemetry is already open, split the
+counter: count non-OK responses separately from genuinely empty boxes, and
+carry the status code. It is a small change across `windyApi.ts`, the sweep,
+and one migration column, and it turns this gate from an inference into an
+observation permanently.
 
 - [ ] **Step 2: Log the change on the cost timeline**
 
