@@ -7,6 +7,7 @@ import type { SettingsValues } from '@/app/lib/settings/schema';
 import type { SceneSource } from './useSceneWebcams';
 import type { SceneState, SceneSummary } from '@/app/lib/scenes/types';
 import { StudioPanelFrame } from './StudioPanelFrame';
+import { SaveSceneButton } from './SaveSceneButton';
 
 export type FeedView = 'sunrise' | 'sunset' | 'both';
 
@@ -20,8 +21,16 @@ function feedsFor(view: FeedView): Array<'sunrise' | 'sunset'> {
   return view === 'both' ? ['sunrise', 'sunset'] : [view];
 }
 
+/**
+ * The source marker is not decoration. A live capture and a rebuilt evening
+ * are drawn from different populations: a capture files the whole ungated
+ * pool, while a rebuild can only return what the archive kept, which is
+ * model-gated plus a small random trickle. Comparing one against the other
+ * is not like for like, and the dropdown is where that has to be visible.
+ */
 function sceneOptionLabel(scene: SceneSummary): string {
-  return `${scene.label} — ${new Date(scene.representsAt).toLocaleString()}`;
+  const marker = scene.source === 'live' ? 'captured' : 'rebuilt';
+  return `${scene.label} · ${marker} · ${new Date(scene.representsAt).toLocaleString()}`;
 }
 
 export function PreviewPane({
@@ -37,6 +46,7 @@ export function PreviewPane({
   sceneState = null,
   error = null,
   at,
+  onSceneSaved,
 }: {
   view: FeedView;
   onViewChange: (v: FeedView) => void;
@@ -50,6 +60,7 @@ export function PreviewPane({
   sceneState?: SceneState | null;
   error?: string | null;
   at?: string;
+  onSceneSaved?: (id: number) => void;
 }) {
   const liveSunrise = useTerminatorStore((t) => t.sunrise);
   const liveSunset = useTerminatorStore((t) => t.sunset);
@@ -158,6 +169,8 @@ export function PreviewPane({
             </option>
           ))}
         </select>
+
+        <SaveSceneButton onSaved={onSceneSaved} />
 
         {sceneUnresolved && (
           <span

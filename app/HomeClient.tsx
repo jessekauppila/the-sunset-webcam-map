@@ -17,6 +17,7 @@ import {
 } from '@mui/icons-material';
 import { MapMosaicModeToggle } from '@/app/components/MapMosaicModeToggle';
 import type { ViewMode } from './components/MainViewContainer';
+import { parseViewMode } from './components/viewModeParam';
 import type { ManifestEntry } from '@/app/lib/modelRuns.types';
 import { ModelAnalysisTab } from './components/ModelAnalysis/ModelAnalysisTab';
 import { AuthControl } from './components/auth/AuthControl';
@@ -34,6 +35,12 @@ export function HomeClient({ manifestRuns }: Props) {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [tabKey, setTabKey] = useState<string>('current');
   const [mode, setMode] = useState<ViewMode>('globe');
+
+  // Applied after mount rather than in the initial state, so the server's
+  // 'globe' render and the client's first render agree and hydration holds.
+  useEffect(() => {
+    setMode((current) => parseViewMode(window.location.search, current));
+  }, []);
 
   const { isOperator } = useIsOperator();
 
@@ -63,13 +70,6 @@ export function HomeClient({ manifestRuns }: Props) {
     }
   }, [visibleTabs, tabKey]);
 
-  // If the operator signs out while on the My Cameras view, drop back to globe.
-  useEffect(() => {
-    if (!isOperator && mode === 'my-cameras') {
-      setMode('globe');
-    }
-  }, [isOperator, mode]);
-
   // Bellingham, Washington location need to put in user's location eventually
   const userLocation = useMemo(
     () => ({ lat: 48.7519, lng: -122.4787 }),
@@ -97,11 +97,7 @@ export function HomeClient({ manifestRuns }: Props) {
         <MainViewContainer userLocation={userLocation} mode={mode} />
 
         {/* Mode Toggle */}
-        <MapMosaicModeToggle
-          mode={mode}
-          onModeChange={setMode}
-          showMyCameras={isOperator}
-        />
+        <MapMosaicModeToggle mode={mode} onModeChange={setMode} />
 
         {/* Drawer Toggle Button - positioned over the map */}
         <IconButton

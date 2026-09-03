@@ -17,6 +17,7 @@ export function useSceneWebcams(source: SceneSource): {
   sceneLabel: string | null;
   sceneRepresentsAt: string | null;
   error: string | null;
+  refreshScenes: () => void;
 } {
   const list = useSWR<{ scenes: SceneSummary[] }>('/api/kiosk/scenes', fetcher);
   const sceneId = source.kind === 'scene' ? source.id : null;
@@ -30,5 +31,8 @@ export function useSceneWebcams(source: SceneSource): {
     sceneLabel: scene.data?.label ?? null,
     sceneRepresentsAt: scene.data?.representsAt ?? null,
     error: (list.error ?? scene.error)?.message ?? null,
+    // A scene saved from the rail must appear in the selector without a
+    // reload, or the operator cannot tell the capture worked.
+    refreshScenes: () => void list.mutate(),
   };
 }

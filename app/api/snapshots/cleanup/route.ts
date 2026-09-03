@@ -71,11 +71,17 @@ async function cleanup(request: Request) {
     //      ranks by llm_quality, so these are the real best-of frames. This also
     //      guards the window where the ONNX backfill has nulled ai_rating but
     //      Claude's quality is the live ranking signal.
+    //   5. It arrived as a scene capture. Scenes point at a time window rather
+    //      than carrying their own frames, so dropping these rows silently
+    //      guts old scenes. It is precisely the ORDINARY frames — no
+    //      disagreement, no Claude score, no high model score — that make a
+    //      scene worth replaying, and every other rule here would drop them.
     const oldSnapshots = await sql`
       SELECT id, firebase_path, captured_at
       FROM webcam_snapshots
       WHERE captured_at < NOW() - INTERVAL '7 days'
         AND model_disagreement_kind IS NULL
+        AND intake_reason IS DISTINCT FROM 'scene_capture'
         AND llm_quality IS NULL
         AND (ai_rating IS NULL OR ai_rating < ${AI_SNAPSHOT_MIN_RATING_THRESHOLD})
         AND id NOT IN (

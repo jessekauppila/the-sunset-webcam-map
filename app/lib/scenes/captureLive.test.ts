@@ -4,11 +4,13 @@ import type { WindyWebcam } from '@/app/lib/types';
 const fetchTerminatorWebcams = vi.fn();
 const captureWebcamSnapshot = vi.fn();
 const getProfileSettings = vi.fn();
+const archiveSceneFrame = vi.fn();
 vi.mock('@/app/lib/terminatorPayload', () => ({ fetchTerminatorWebcams: (...a: unknown[]) => fetchTerminatorWebcams(...a) }));
 vi.mock('@/app/lib/webcamSnapshot', () => ({ captureWebcamSnapshot: (...a: unknown[]) => captureWebcamSnapshot(...a) }));
 vi.mock('@/app/lib/settings/store', () => ({ getProfileSettings: (...a: unknown[]) => getProfileSettings(...a) }));
+vi.mock('./archive', () => ({ archiveSceneFrame: (...a: unknown[]) => archiveSceneFrame(...a) }));
 
-import { captureLiveScene, isDurableFrameUrl } from './captureLive';
+import { captureLiveScene, isDurableFrameUrl, firebasePathFromUrl } from './captureLive';
 
 const cam = (over: Partial<WindyWebcam>): WindyWebcam => ({
   webcamId: 1, title: 'c', viewCount: 0, status: 'active',
@@ -22,6 +24,8 @@ beforeEach(() => {
   fetchTerminatorWebcams.mockReset();
   captureWebcamSnapshot.mockReset();
   getProfileSettings.mockReset();
+  archiveSceneFrame.mockReset();
+  archiveSceneFrame.mockResolvedValue(1);
   getProfileSettings.mockResolvedValue({ namespaces: { shared: { activeVersion: 'v1' } }, revision: 3 });
 });
 
@@ -171,5 +175,91 @@ describe('captureLiveScene', () => {
       preview: 'dp.jpg',
       thumbnail: 'dt.jpg',
     });
+  });
+});
+
+describe('captureLiveScene — filing the pool into the archive', () => {
+  const volatile = (id: number, phase: 'sunrise' | 'sunset') =>
+    cam({ webcamId: id, phase, images: { current: { preview: `https://imgproxy.windy.com/${id}.jpg` } } });
+
+  it('archives every frame it newly pinned', async () => {
+    fetchTerminatorWebcams.mockResolvedValue([volatile(1, 'sunset'), volatile(2, 'sunrise')]);
+    captureWebcamSnapshot.mockImplementation((c: WindyWebcam) =>
+      Promise.resolve({ url: `https://storage.googleapis.com/b/${c.webcamId}.jpg`, path: `p/${c.webcamId}` })
+    );
+
+    const result = await captureLiveScene();
+
+    expect(result.archived).toBe(2);
+    expect(archiveSceneFrame).toHaveBeenCalledTimes(2);
+  });
+
+  it('files each frame under its own phase', async () => {
+    fetchTerminatorWebcams.mockResolvedValue([volatile(9, 'sunrise')]);
+    captureWebcamSnapshot.mockResolvedValue({ url: 'https://storage.googleapis.com/b/9.jpg', path: 'p/9' });
+
+    await captureLiveScene();
+
+    expect(archiveSceneFrame.mock.calls[0][2]).toBe('sunrise');
+  });
+
+  it('files an already-durable frame too, without re-uploading it', async () => {
+    // The row records that this frame was in the pool at THIS instant, which
+    // is a different fact from when the device first uploaded it. Skip it and
+    // a pointer scene loses every camera whose last upload predates the
+    // window.
+    fetchTerminatorWebcams.mockResolvedValue([cam({ webcamId: 5 })]);
+
+    const result = await captureLiveScene();
+
+    expect(captureWebcamSnapshot).not.toHaveBeenCalled();
+    expect(archiveSceneFrame).toHaveBeenCalledTimes(1);
+    expect(result.archived).toBe(1);
+    expect(result.pinned).toBe(0);
+  });
+
+  it('reuses the durable frame\'s own storage path rather than inventing one', async () => {
+    fetchTerminatorWebcams.mockResolvedValue([cam({ webcamId: 5 })]);
+    await captureLiveScene();
+    expect(archiveSceneFrame.mock.calls[0][1]).toEqual({
+      url: 'https://storage.googleapis.com/sunset-webcam-map.appspot.com/snapshots/1/1700000000000.jpg',
+      path: 'snapshots/1/1700000000000.jpg',
+    });
+  });
+
+  it('counts only the frames that actually landed', async () => {
+    fetchTerminatorWebcams.mockResolvedValue([volatile(1, 'sunset'), volatile(2, 'sunset')]);
+    captureWebcamSnapshot.mockImplementation((c: WindyWebcam) =>
+      Promise.resolve({ url: `https://storage.googleapis.com/b/${c.webcamId}.jpg`, path: `p/${c.webcamId}` })
+    );
+    archiveSceneFrame.mockResolvedValueOnce(1).mockResolvedValueOnce(null);
+
+    const result = await captureLiveScene();
+
+    expect(result.pinned).toBe(2);
+    expect(result.archived).toBe(1);
+  });
+
+  it('does not lose the capture when a frame fails to file', async () => {
+    fetchTerminatorWebcams.mockResolvedValue([volatile(1, 'sunset')]);
+    captureWebcamSnapshot.mockResolvedValue({ url: 'https://storage.googleapis.com/b/1.jpg', path: 'p/1' });
+    archiveSceneFrame.mockResolvedValue(null);
+
+    const result = await captureLiveScene();
+
+    expect(result.state.sunset).toHaveLength(1);
+    expect(result.archived).toBe(0);
+  });
+});
+
+describe('firebasePathFromUrl', () => {
+  it('strips scheme, host and bucket, leaving the storage path', () => {
+    expect(
+      firebasePathFromUrl('https://storage.googleapis.com/my-bucket/snapshots/7/123.jpg')
+    ).toBe('snapshots/7/123.jpg');
+  });
+
+  it('returns empty for a URL it cannot parse, rather than throwing mid-capture', () => {
+    expect(firebasePathFromUrl('not a url')).toBe('');
   });
 });

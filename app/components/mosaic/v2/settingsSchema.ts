@@ -111,7 +111,12 @@ export const V2_SETTINGS_SCHEMA: SettingsSchema = [
   {
     key: 'showTileRatings', kind: 'boolean', default: false,
     label: 'tile ratings', section: 'overlays',
-    description: 'Per-tile score and gate verdict.',
+    description: 'Per-tile score, gate verdict, and which judge decided. The judge line is the one that tells you whether the gate threshold can act on this frame at all.',
+  },
+  {
+    key: 'overlayScale', kind: 'number', min: 1, max: 5, step: 0.25, default: 2,
+    label: 'overlay size', section: 'overlays',
+    description: 'Multiplier on the readout text. The panels are read across a room, so 1 is the browser-tab size and rarely the right one on glass.',
   },
   {
     key: 'showModelReadout', kind: 'boolean', default: false,
@@ -143,6 +148,7 @@ export function configFromSettings(values: SettingsValues): V2Config {
     latSouth: values.latSouth as number,
     showFeedLabel: values.showFeedLabel as boolean,
     showTileRatings: values.showTileRatings as boolean,
+    overlayScale: values.overlayScale as number,
     showModelReadout: values.showModelReadout as boolean,
   };
 }

@@ -17,11 +17,20 @@ export interface SceneSummary {
   representsAt: string;
   source: 'live' | 'historical';
   createdAt: string;
+  /**
+   * Half-width of the window this scene resolves from, in minutes. Null on
+   * the legacy scenes that froze their own pool into `state` instead.
+   */
+  windowMinutes: number | null;
 }
 
 export interface Scene extends SceneSummary {
   notes: string;
-  state: SceneState;
+  /**
+   * The frozen pool, on legacy scenes only. Null means the scene is a
+   * pointer: resolve it from the archive over `representsAt ± windowMinutes`.
+   */
+  state: SceneState | null;
   provenance: SceneProvenance | null;
 }
 
@@ -30,7 +39,13 @@ export interface SceneCreateInput {
   tags: string[];
   notes: string;
   representsAt: Date;
+  windowMinutes: number;
   source: 'live' | 'historical';
-  state: SceneState;
+  /**
+   * Legacy frozen pool. New scenes pass null and resolve from the archive by
+   * time window, so a re-rating or a newer model shows up on replay instead
+   * of being invisible behind a copy taken at save time.
+   */
+  state: SceneState | null;
   provenance: SceneProvenance | null;
 }

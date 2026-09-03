@@ -5,7 +5,11 @@ const requireOwner = vi.fn();
 const getScene = vi.fn();
 const updateSceneMeta = vi.fn();
 const deleteScene = vi.fn();
+const resolveScene = vi.fn();
 vi.mock('@/app/lib/owner', () => ({ requireOwner: () => requireOwner() }));
+vi.mock('@/app/lib/scenes/resolve', () => ({
+  resolveScene: (scene: unknown) => resolveScene(scene),
+}));
 vi.mock('@/app/lib/scenes/store', () => ({
   getScene: (id: number) => getScene(id),
   updateSceneMeta: (id: number, p: unknown) => updateSceneMeta(id, p),
@@ -21,6 +25,10 @@ const req = (body?: unknown) =>
 beforeEach(() => {
   vi.clearAllMocks();
   requireOwner.mockResolvedValue(null);
+  // Default passthrough: GET returns whatever the store held, resolved.
+  resolveScene.mockImplementation(async (scene: Record<string, unknown>) => ({
+    ...scene, resolvedFrom: scene.state ? 'frozen' : 'archive',
+  }));
 });
 
 it('GET denies non-owners without touching the store', async () => {
@@ -81,4 +89,27 @@ it('DELETE removes a scene', async () => {
   deleteScene.mockResolvedValue(true);
   const res = await DELETE(req(), params('3'));
   expect(await res.json()).toEqual({ ok: true });
+});
+
+it('resolves a pointer scene rather than returning its null pool', async () => {
+  getScene.mockResolvedValue({ id: 2, label: 'equinox', state: null, windowMinutes: 45 });
+  resolveScene.mockResolvedValue({
+    id: 2, label: 'equinox', windowMinutes: 45,
+    state: { sunrise: [{ webcamId: 1 }], sunset: [] },
+    resolvedFrom: 'archive',
+  });
+
+  const res = await GET(new Request('http://t'), params('2'));
+  const body = await res.json();
+
+  expect(resolveScene).toHaveBeenCalled();
+  expect(body.resolvedFrom).toBe('archive');
+  expect(body.state.sunrise).toHaveLength(1);
+});
+
+it('does not resolve when the scene is missing', async () => {
+  getScene.mockResolvedValue(null);
+  const res = await GET(new Request('http://t'), params('2'));
+  expect(res.status).toBe(404);
+  expect(resolveScene).not.toHaveBeenCalled();
 });
