@@ -52,6 +52,24 @@ export function effectiveQuality(
 }
 
 /**
+ * Minimum dwell: a tile that has been on screen for less than minDwellMs is
+ * not evicted at all, however good the challenger is.
+ *
+ * The incumbency bonus alone is not enough. It settles WHICH of two similar
+ * tiles wins, but a genuinely better frame arriving every poll would still
+ * flip the wall repeatedly. The dwell puts a floor on how often any one
+ * position can change hands. Both mechanisms are required (spec §5.4).
+ */
+export function protectedByDwell(
+  t: PlacedTile,
+  history: CompositionHistory,
+  cfg: EvictionConfig
+): boolean {
+  const since = history.admittedSince.get(t.id);
+  return since !== undefined && history.now - since < cfg.minDwellMs;
+}
+
+/**
  * 2D intersection with each rectangle expanded by the gap.
  *
  * TWO dimensions, not one. A tall tile may exceed its band's height, and
@@ -90,6 +108,12 @@ export function admit(
   cfg: EvictionConfig
 ): { admitted: PlacedTile[]; evicted: number[] } {
   const ordered = [...placed].sort((a, b) => {
+    // Dwell-protected incumbents are admitted first, so nothing can take
+    // their space. Two protected tiles that collide still need a winner, and
+    // they get one on quality — deterministically, like everyone else.
+    const ap = protectedByDwell(a, history, cfg) ? 1 : 0;
+    const bp = protectedByDwell(b, history, cfg) ? 1 : 0;
+    if (ap !== bp) return bp - ap;
     const aq = effectiveQuality(a, history, cfg);
     const bq = effectiveQuality(b, history, cfg);
     if (aq !== bq) return bq - aq;

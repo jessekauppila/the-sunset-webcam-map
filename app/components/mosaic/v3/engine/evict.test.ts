@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { admit, baseQuality, overlaps, EMPTY_HISTORY, type EvictionConfig } from './evict';
+import {
+  admit, baseQuality, overlaps, protectedByDwell, EMPTY_HISTORY,
+  type CompositionHistory, type EvictionConfig,
+} from './evict';
 import type { PlacedTile } from './types';
 
 const cfg: EvictionConfig = { tileGapPx: 6, hysteresisMargin: 0, minDwellMs: 0 };
@@ -102,5 +105,78 @@ describe('admit', () => {
     const snapshot = pool.map((t) => t.id);
     admit(pool, EMPTY_HISTORY, cfg);
     expect(pool.map((t) => t.id)).toEqual(snapshot);
+  });
+});
+
+describe('hysteresis — the incumbency bonus', () => {
+  const withMargin: EvictionConfig = { tileGapPx: 6, hysteresisMargin: 0.05, minDwellMs: 0 };
+  const incumbentIsTile1: CompositionHistory = {
+    admittedSince: new Map([[1, 0]]),
+    now: 10_000_000,
+  };
+
+  it('keeps the incumbent when the challenger is inside the margin', () => {
+    const { admitted } = admit(
+      [at(1, 0, 0, 0.50), at(2, 20, 0, 0.53)],
+      incumbentIsTile1,
+      withMargin
+    );
+    expect(admitted.map((t) => t.id)).toEqual([1]);
+  });
+
+  it('lets the challenger through once it beats the margin', () => {
+    const { admitted } = admit(
+      [at(1, 0, 0, 0.50), at(2, 20, 0, 0.58)],
+      incumbentIsTile1,
+      withMargin
+    );
+    expect(admitted.map((t) => t.id)).toEqual([2]);
+  });
+
+  it('gives no bonus to a tile that was not on screen', () => {
+    const { admitted } = admit(
+      [at(1, 0, 0, 0.50), at(2, 20, 0, 0.53)],
+      EMPTY_HISTORY,
+      withMargin
+    );
+    expect(admitted.map((t) => t.id)).toEqual([2]);
+  });
+});
+
+describe('hysteresis — the minimum dwell', () => {
+  const withDwell: EvictionConfig = { tileGapPx: 6, hysteresisMargin: 0, minDwellMs: 90_000 };
+
+  it('protects a tile that has been on screen for less than the dwell', () => {
+    const fresh: CompositionHistory = { admittedSince: new Map([[1, 1_000]]), now: 31_000 };
+    expect(protectedByDwell(at(1, 0, 0, 0.1), fresh, withDwell)).toBe(true);
+    const { admitted } = admit([at(1, 0, 0, 0.1), at(2, 20, 0, 0.9)], fresh, withDwell);
+    expect(admitted.map((t) => t.id)).toEqual([1]);
+  });
+
+  it('releases the protection once the dwell has elapsed', () => {
+    const settled: CompositionHistory = { admittedSince: new Map([[1, 1_000]]), now: 200_000 };
+    expect(protectedByDwell(at(1, 0, 0, 0.1), settled, withDwell)).toBe(false);
+    const { admitted } = admit([at(1, 0, 0, 0.1), at(2, 20, 0, 0.9)], settled, withDwell);
+    expect(admitted.map((t) => t.id)).toEqual([2]);
+  });
+
+  it('never protects a tile that was not on screen at all', () => {
+    const fresh: CompositionHistory = { admittedSince: new Map([[1, 1_000]]), now: 31_000 };
+    expect(protectedByDwell(at(9, 0, 0, 0.9), fresh, withDwell)).toBe(false);
+  });
+
+  it('resolves a fight between two protected tiles by quality, deterministically', () => {
+    const both: CompositionHistory = {
+      admittedSince: new Map([[1, 1_000], [2, 1_000]]),
+      now: 31_000,
+    };
+    const { admitted, evicted } = admit([at(1, 0, 0, 0.2), at(2, 20, 0, 0.8)], both, withDwell);
+    expect(admitted.map((t) => t.id)).toEqual([2]);
+    expect(evicted).toEqual([1]);
+  });
+
+  it('a dwell of zero protects nobody', () => {
+    const fresh: CompositionHistory = { admittedSince: new Map([[1, 1_000]]), now: 1_000 };
+    expect(protectedByDwell(at(1, 0, 0, 0.1), fresh, { ...withDwell, minDwellMs: 0 })).toBe(false);
   });
 });
