@@ -1,22 +1,47 @@
-import { placeBands } from './bands';
-import { ALTITUDE_WINDOW, placeRowHorizontally } from './horizontalPlace';
+import { tileX } from './axis';
+import { tileY } from './bands';
+import { admit, EMPTY_HISTORY, type CompositionHistory } from './evict';
 import { MIN_COMPOSITION_SCALE, scaleTiles } from './overflow';
-import { formRows } from './rows';
 import { sizeTiles } from './sizing';
 import { applyPolicy, capTiles, splitPool } from './visibility';
-import { placeRowsVertically } from './verticalPlace';
-import type { Layout, PlacedRow, SizedTile, TileInput, V3Config } from './types';
+import type { Layout, PlacedTile, SizedTile, TileInput, V3Config } from './types';
 
 const MAX_SCALE_PASSES = 4;
 
+interface Placement {
+  tiles: PlacedTile[];
+  evicted: number[];
+  extent: number;
+}
+
+/**
+ * Absolute placement, then eviction. No packing, no relaxing, no shoving:
+ * every tile's x comes from its own solar altitude and its y from its own
+ * latitude, and crowding is settled by leaving the loser undrawn (spec §5.2,
+ * §5.3).
+ *
+ * `extent` is the unclamped vertical span of what was ADMITTED, which is what
+ * the overflow stage scales against. Tiles are centred on fixed bands, so the
+ * only way to overflow is for tall tiles in the end bands to overhang the
+ * panel — a uniform shrink pulls them back in.
+ */
 function arrange(
   sized: SizedTile[],
   viewport: { width: number; height: number },
-  cfg: V3Config
-): { rows: PlacedRow[]; extent: number } {
-  if (cfg.strategy === 'latitudeBands') return placeBands(sized, viewport, cfg);
-  const rows = formRows(sized, viewport.width, cfg.tileGapPx);
-  return placeRowsVertically(rows, viewport.height, cfg);
+  cfg: V3Config,
+  feed: 'sunrise' | 'sunset',
+  history: CompositionHistory
+): Placement {
+  const placed: PlacedTile[] = sized.map((t) => ({
+    ...t,
+    x: tileX(t, viewport.width, cfg, feed),
+    y: tileY(t, viewport.height, cfg),
+  }));
+  const { admitted, evicted } = admit(placed, history, cfg);
+  if (admitted.length === 0) return { tiles: [], evicted, extent: 0 };
+  const top = Math.min(...admitted.map((t) => t.y));
+  const bottom = Math.max(...admitted.map((t) => t.y + t.height));
+  return { tiles: admitted, evicted, extent: bottom - top };
 }
 
 /** Does this candidate set, sized and scaled, fit the panel height? */
@@ -24,10 +49,12 @@ function fits(
   candidates: TileInput[],
   viewport: { width: number; height: number },
   cfg: V3Config,
+  feed: 'sunrise' | 'sunset',
+  history: CompositionHistory,
   scale: number
 ): boolean {
   const sized = scaleTiles(sizeTiles(candidates, cfg), scale);
-  return arrange(sized, viewport, cfg).extent <= viewport.height;
+  return arrange(sized, viewport, cfg, feed, history).extent <= viewport.height;
 }
 
 /**
@@ -39,14 +66,19 @@ function fits(
 export function selectCandidates(
   tiles: TileInput[],
   viewport: { width: number; height: number },
-  cfg: V3Config
+  cfg: V3Config,
+  feed: 'sunrise' | 'sunset',
+  history: CompositionHistory
 ): TileInput[] {
   const { passers, failers } = splitPool(tiles);
   const candidates =
     cfg.failedCamPolicy === 'showIfRoom'
       ? [
           ...passers,
-          ...failers.slice(0, largestFittingCount(passers, failers, viewport, cfg, 1)),
+          ...failers.slice(
+            0,
+            largestFittingCount(passers, failers, viewport, cfg, feed, history, 1)
+          ),
         ]
       : applyPolicy(passers, failers, cfg);
   return capTiles(candidates, cfg.maxTiles);
@@ -57,24 +89,28 @@ export function selectCandidates(
  * it already fits, never below MIN_COMPOSITION_SCALE.
  *
  * The iterative step can exhaust its passes while still overflowing and
- * still above the floor — extent is not linear in scale (gaps do not scale,
- * and re-formed rows repack at smaller widths). Forcing the floor in that
- * case is what makes "nothing is dropped until scaling has bottomed out"
- * hold literally rather than approximately.
+ * still above the floor — extent is not linear in scale, because gaps do not
+ * scale and shrinking changes which tiles the eviction pass admits. Forcing
+ * the floor in that case is what makes "nothing is dropped until scaling has
+ * bottomed out" hold literally rather than approximately.
  */
 export function requiredScale(
   candidates: TileInput[],
   viewport: { width: number; height: number },
-  cfg: V3Config
+  cfg: V3Config,
+  feed: 'sunrise' | 'sunset',
+  history: CompositionHistory
 ): number {
   let scale = 1;
-  let extent = arrange(sizeTiles(candidates, cfg), viewport, cfg).extent;
+  let extent = arrange(sizeTiles(candidates, cfg), viewport, cfg, feed, history).extent;
 
   for (let pass = 0; pass < MAX_SCALE_PASSES && extent > viewport.height; pass++) {
     const next = Math.max(MIN_COMPOSITION_SCALE, scale * (viewport.height / extent));
     if (next === scale) break;
     scale = next;
-    extent = arrange(scaleTiles(sizeTiles(candidates, cfg), scale), viewport, cfg).extent;
+    extent = arrange(
+      scaleTiles(sizeTiles(candidates, cfg), scale), viewport, cfg, feed, history
+    ).extent;
   }
 
   return extent > viewport.height ? MIN_COMPOSITION_SCALE : scale;
@@ -91,13 +127,15 @@ function largestFittingCount(
   ordered: TileInput[],
   viewport: { width: number; height: number },
   cfg: V3Config,
+  feed: 'sunrise' | 'sunset',
+  history: CompositionHistory,
   scale: number
 ): number {
   let lo = 0;
   let hi = ordered.length;
   while (lo < hi) {
     const mid = Math.ceil((lo + hi) / 2);
-    if (fits([...base, ...ordered.slice(0, mid)], viewport, cfg, scale)) lo = mid;
+    if (fits([...base, ...ordered.slice(0, mid)], viewport, cfg, feed, history, scale)) lo = mid;
     else hi = mid - 1;
   }
   return lo;
@@ -105,68 +143,70 @@ function largestFittingCount(
 
 /**
  * The full v3 pipeline: signal-derived flags in, placed pixels out. Pure —
- * no DOM, no Image, no clock.
+ * no DOM, no Image, no clock. The memory hysteresis needs arrives as
+ * `history`, which the caller owns (spec §5.4).
  *
- * Overflow NEVER culls arbitrarily (v1's named failure). The composition
- * shrinks uniformly first; only once it hits MIN_COMPOSITION_SCALE does it
- * drop, and then deterministically from the lowest-scoring gate-failers up.
+ * Two removal mechanisms, kept apart on purpose (spec §5.6). Band eviction
+ * runs inside `arrange` and handles crowding. The overflow stage then handles
+ * total vertical extent, and NEVER culls arbitrarily: the composition shrinks
+ * uniformly first, and only once it hits MIN_COMPOSITION_SCALE does it drop,
+ * deterministically from the lowest-scoring gate-failers up.
  *
  * `peerTiles` is the OTHER feed's pool. With cfg.sharedScale on, both panels
  * adopt the tighter of the two scales, so a floor tile is the same number of
- * pixels on the sunrise screen as on the sunset screen. Without it each
- * panel shrinks to its own crowding and the two screens stop agreeing on
- * what "small" means. Surfaces that show one panel alone omit it.
+ * pixels on the sunrise screen as on the sunset screen. Surfaces that show
+ * one panel alone omit it.
  */
 export function compose(
   tiles: TileInput[],
   viewport: { width: number; height: number },
   cfg: V3Config,
   feed: 'sunrise' | 'sunset',
-  peerTiles: TileInput[] = []
+  peerTiles: TileInput[] = [],
+  history: CompositionHistory = EMPTY_HISTORY
 ): Layout {
   if (tiles.length === 0) {
-    return { tiles: [], dropped: [], scale: 1, viewport };
+    return { tiles: [], dropped: [], evicted: [], scale: 1, viewport };
   }
 
-  let candidates = selectCandidates(tiles, viewport, cfg);
-
-  // `dropped` reports overflow casualties ONLY. Tiles the operator's own
-  // visibility policy removed (failedCamPolicy: 'hide', or a maxTiles cap)
-  // were configured away, not dropped — conflating the two makes the setup
-  // overlay's counter claim the composition is struggling when it isn't.
+  let candidates = selectCandidates(tiles, viewport, cfg, feed, history);
   const droppedIds = new Set<number>();
 
-  let scale = requiredScale(candidates, viewport, cfg);
+  let scale = requiredScale(candidates, viewport, cfg, feed, history);
   if (cfg.sharedScale && peerTiles.length > 0) {
+    // The peer is the other feed, so it must be arranged as the other feed:
+    // x depends on the direction, x decides collisions, and collisions decide
+    // the extent this scale is derived from.
+    const peerFeed = feed === 'sunrise' ? 'sunset' : 'sunrise';
     scale = Math.min(
       scale,
-      requiredScale(selectCandidates(peerTiles, viewport, cfg), viewport, cfg)
+      requiredScale(
+        selectCandidates(peerTiles, viewport, cfg, peerFeed, history),
+        viewport, cfg, peerFeed, history
+      )
     );
   }
 
   let sized = scaleTiles(sizeTiles(candidates, cfg), scale);
-  let placement = arrange(sized, viewport, cfg);
+  let placement = arrange(sized, viewport, cfg, feed, history);
 
   // Last resort: still overflowing at the scale floor. Keep the longest
   // prefix that fits — candidates run passers-first, weakest failers last,
   // so this drops exactly the tiles that matter least, deterministically.
   if (placement.extent > viewport.height) {
-    const keep = Math.max(1, largestFittingCount([], candidates, viewport, cfg, scale));
+    const keep = Math.max(
+      1, largestFittingCount([], candidates, viewport, cfg, feed, history, scale)
+    );
     for (const t of candidates.slice(keep)) droppedIds.add(t.id);
     candidates = candidates.slice(0, keep);
     sized = scaleTiles(sizeTiles(candidates, cfg), scale);
-    placement = arrange(sized, viewport, cfg);
+    placement = arrange(sized, viewport, cfg, feed, history);
   }
 
-  // Fixed, not derived from `sized`. `sized` is post-drop, so a pool-relative
-  // range let an overflow event rescale X for every surviving tile too.
-  const placed = placement.rows.flatMap((row) =>
-    placeRowHorizontally(row, viewport.width, cfg, feed, ALTITUDE_WINDOW)
-  );
-
   return {
-    tiles: placed,
+    tiles: placement.tiles,
     dropped: [...droppedIds],
+    evicted: placement.evicted,
     scale,
     viewport,
   };

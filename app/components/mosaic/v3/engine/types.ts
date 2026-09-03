@@ -16,16 +16,6 @@ export interface SizedTile extends TileInput {
   pinnedToFloor: boolean; // true for every gate-failer — the fixed directive
 }
 
-export interface Row {
-  tiles: SizedTile[];
-  height: number; // tallest member
-  meanLat: number;
-}
-
-export interface PlacedRow extends Row {
-  centerY: number;
-}
-
 export interface PlacedTile extends SizedTile {
   x: number;
   y: number;
@@ -33,16 +23,21 @@ export interface PlacedTile extends SizedTile {
 
 export interface Layout {
   tiles: PlacedTile[];
-  dropped: number[]; // webcamIds removed, last resort only
+  /**
+   * Overflow casualties ONLY (spec §5.6). Tiles the operator's own visibility
+   * policy removed were configured away, and tiles the band pass evicted lost
+   * a fight — three different mechanisms, three different numbers, so the
+   * setup overlay can say which one removed a camera.
+   */
+  dropped: number[];
+  /** Band-eviction casualties: placed, outranked, not drawn. */
+  evicted: number[];
   scale: number; // 1 = the composition fit without shrinking
   viewport: { width: number; height: number };
 }
 
 export type FailedCamPolicy = 'hide' | 'showAtFloor' | 'showIfRoom';
 export type SizingCurve = 'linear' | 'easeIn' | 'percentileAmongPassers';
-export type ArrangementStrategy = 'anchorRelax' | 'latitudeBands';
-export type HorizontalAnchor = 'solarAltitude' | 'order';
-export type RowAlign = 'center' | 'justify' | 'west';
 
 /** Every v3 composition knob, resolved to concrete values. */
 export interface V3Config {
@@ -59,18 +54,20 @@ export interface V3Config {
   scoreFloor: number; // score that renders at floorPx (absolute curves only)
   scoreCeiling: number; // score that renders at ceilingPx (absolute curves only)
   sharedScale: boolean; // adopt one overflow scale across both feeds
-  // arrangement
-  strategy: ArrangementStrategy;
+  // arrangement — bands vertically, solar altitude horizontally, both absolute
   bandCount: number;
-  horizontalAnchor: HorizontalAnchor;
-  rowAlign: RowAlign;
-  geographicFidelity: number; // [0,1]
   tileGapPx: number;
   latNorth: number;
   latSouth: number;
+  axisNightEdgeDeg: number;
+  axisDayEdgeDeg: number;
+  // eviction
+  hysteresisMargin: number;
+  minDwellMs: number;
   // overlays
   showFeedLabel: boolean;
   showTileRatings: boolean;
   overlayScale: number; // multiplier on readout text size
   showModelReadout: boolean;
+  showCentreLine: boolean;
 }

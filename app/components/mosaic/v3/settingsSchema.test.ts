@@ -8,9 +8,9 @@ describe('V3_SETTINGS_SCHEMA', () => {
     for (const key of [
       'qualitySource', 'gateThreshold', 'failedCamPolicy', 'maxTiles',
       'floorPx', 'ceilingPx', 'curve',
-      'strategy', 'bandCount', 'horizontalAnchor', 'rowAlign',
-      'geographicFidelity', 'tileGapPx', 'latNorth', 'latSouth',
-      'showFeedLabel', 'showTileRatings', 'showModelReadout',
+      'bandCount', 'tileGapPx', 'latNorth', 'latSouth',
+      'axisNightEdgeDeg', 'axisDayEdgeDeg', 'hysteresisMargin', 'minDwellMs',
+      'showFeedLabel', 'showTileRatings', 'showModelReadout', 'showCentreLine',
       'motionMode', 'motionOrder', 'motionDurationMs', 'motionStaggerMs',
       'crossfadeMs', 'waveGridMs',
     ]) {
@@ -64,31 +64,64 @@ describe('V3_SETTINGS_SCHEMA', () => {
 
   it('defaults to the decided arrangement', () => {
     const byKey = Object.fromEntries(V3_SETTINGS_SCHEMA.map((k) => [k.key, k.default]));
-    expect(byKey.strategy).toBe('anchorRelax');
-    expect(byKey.horizontalAnchor).toBe('solarAltitude');
     expect(byKey.failedCamPolicy).toBe('showAtFloor');
-    expect(byKey.geographicFidelity).toBe(0.7);
     expect(byKey.floorPx).toBe(100);
     expect(byKey.ceilingPx).toBe(480);
+    // Spec §5.4: a starting guess, not a measurement — but the guess is
+    // written down, so a silent drift from it shows up here.
+    expect(byKey.hysteresisMargin).toBe(0.05);
+    expect(byKey.minDwellMs).toBe(90_000);
+    // Spec §6: the window's current derived values, now held as dials.
+    expect(byKey.axisNightEdgeDeg).toBe(-24);
+    expect(byKey.axisDayEdgeDeg).toBe(-2);
+  });
+
+  it('carries no dial the v3 engine cannot act on', () => {
+    // v3 has exactly one arrangement — fixed bands vertically, solar altitude
+    // horizontally — so v2's strategy switches would be inert knobs on the
+    // rail, and an inert knob is worse than a missing one.
+    const dead = ['strategy', 'horizontalAnchor', 'rowAlign', 'geographicFidelity'];
+    for (const key of dead) {
+      expect(V3_SETTINGS_SCHEMA.find((k) => k.key === key)).toBeUndefined();
+    }
   });
 });
 
 describe('configFromSettings', () => {
   it('round-trips the schema defaults into a full V3Config', () => {
     const cfg = configFromSettings(schemaDefaults(V3_SETTINGS_SCHEMA));
-    expect(cfg.strategy).toBe('anchorRelax');
-    expect(cfg.horizontalAnchor).toBe('solarAltitude');
     expect(cfg.gateThreshold).toBe(0.55);
     expect(cfg.maxTiles).toBe(0);
+    expect(cfg.bandCount).toBe(13);
+    expect(cfg.axisDayEdgeDeg).toBe(-2);
   });
 
   it('carries dial changes through', () => {
     const cfg = configFromSettings({
       ...schemaDefaults(V3_SETTINGS_SCHEMA),
-      geographicFidelity: 1,
-      rowAlign: 'justify',
+      axisDayEdgeDeg: -8,
+      minDwellMs: 0,
+      showCentreLine: true,
     });
-    expect(cfg.geographicFidelity).toBe(1);
-    expect(cfg.rowAlign).toBe('justify');
+    expect(cfg.axisDayEdgeDeg).toBe(-8);
+    expect(cfg.minDwellMs).toBe(0);
+    expect(cfg.showCentreLine).toBe(true);
+  });
+
+  it('maps every non-motion schema key into the engine config', () => {
+    // The done-signal for the phase: no composition constant survives in
+    // source. A knob the schema declares but configFromSettings forgets is a
+    // dial that moves in the rail and changes nothing on the glass.
+    const cfg = configFromSettings(
+      schemaDefaults(V3_SETTINGS_SCHEMA)
+    ) as unknown as Record<string, unknown>;
+    const motionKeys = new Set([
+      'motionMode', 'motionOrder', 'motionDurationMs', 'motionStaggerMs',
+      'waveGridMs', 'crossfadeMs',
+    ]);
+    for (const knob of V3_SETTINGS_SCHEMA) {
+      if (motionKeys.has(knob.key)) continue;
+      expect(`${knob.key}=${String(cfg[knob.key])}`).toBe(`${knob.key}=${String(knob.default)}`);
+    }
   });
 });

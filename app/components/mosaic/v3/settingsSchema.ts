@@ -62,32 +62,9 @@ export const V3_SETTINGS_SCHEMA: SettingsSchema = [
     description: 'Shrink both panels by the same amount, taken from whichever is more crowded. Off, each panel shrinks to its own tile count and a sunrise floor tile can outgrow a sunset ceiling tile.',
   },
   {
-    key: 'strategy', kind: 'enum',
-    options: ['anchorRelax', 'latitudeBands'] as const, default: 'anchorRelax',
-    label: 'strategy', section: 'arrangement',
-    description: 'anchorRelax floats rows at their true latitude; latitudeBands quantises them into fixed zones.',
-  },
-  {
-    key: 'bandCount', kind: 'number', min: 2, max: 24, step: 1, default: 8,
+    key: 'bandCount', kind: 'number', min: 2, max: 40, step: 1, default: 13,
     label: 'band count', section: 'arrangement',
-    description: 'Number of latitude zones. Only used by the latitudeBands strategy.',
-  },
-  {
-    key: 'horizontalAnchor', kind: 'enum',
-    options: ['solarAltitude', 'order'] as const, default: 'solarAltitude',
-    label: 'horizontal axis', section: 'arrangement',
-    description: 'solarAltitude places tiles by depth into twilight; order just packs them west to east.',
-  },
-  {
-    key: 'rowAlign', kind: 'enum',
-    options: ['center', 'justify', 'west'] as const, default: 'center',
-    label: 'row align', section: 'arrangement',
-    description: 'Where a row\'s slack goes. Only used when the horizontal axis is order.',
-  },
-  {
-    key: 'geographicFidelity', kind: 'number', min: 0, max: 1, step: 0.05, default: 0.7,
-    label: 'geographic fidelity', section: 'arrangement',
-    description: '1 keeps rows at true latitude so gaps stay gaps; 0 packs them densely and leaves geography as ordering only. Only used by the anchorRelax strategy.',
+    description: 'Number of fixed latitude strips. They never move: a band is the same pixels holding one camera or forty. 13 over the default window is one band per 10 degrees.',
   },
   {
     key: 'tileGapPx', kind: 'number', min: 0, max: 40, step: 1, default: 6,
@@ -115,6 +92,16 @@ export const V3_SETTINGS_SCHEMA: SettingsSchema = [
     description: 'Solar altitude at the day-side edge of the panel. Narrowing the window spreads a pool that crowds into one third of the glass; widening it past what the sweep gathers just leaves dead space.',
   },
   {
+    key: 'hysteresisMargin', kind: 'number', min: 0, max: 0.5, step: 0.01, default: 0.05,
+    label: 'incumbency margin', section: 'arrangement',
+    description: 'How much better a challenger must score to take an on-screen tile\'s space. 0 lets near-ties trade places on every poll. A starting guess, not a measurement.',
+  },
+  {
+    key: 'minDwellMs', kind: 'number', min: 0, max: 600_000, step: 5_000, default: 90_000,
+    label: 'minimum dwell (ms)', section: 'arrangement',
+    description: 'How long a newly admitted tile is safe from eviction, however good the challenger. The margin decides who wins a close fight; this decides how often any fight can happen. A starting guess, not a measurement.',
+  },
+  {
     key: 'showFeedLabel', kind: 'boolean', default: true,
     label: 'feed label', section: 'overlays',
     description: 'SUNRISE / SUNSET title across the top.',
@@ -133,6 +120,11 @@ export const V3_SETTINGS_SCHEMA: SettingsSchema = [
     key: 'showModelReadout', kind: 'boolean', default: false,
     label: 'model readout', section: 'overlays',
     description: 'What each model head said about each frame.',
+  },
+  {
+    key: 'showCentreLine', kind: 'boolean', default: false,
+    label: 'centre line', section: 'overlays',
+    description: 'Marks where the pool\'s terminator ring falls on the axis — the organising idea of the whole composition, otherwise invisible. Studio only: the kiosk routes suppress it structurally, so leaving it on cannot put it on the glass.',
   },
   {
     key: 'motionMode', kind: 'enum',
@@ -181,18 +173,19 @@ export function configFromSettings(values: SettingsValues): V3Config {
     scoreFloor: values.scoreFloor as number,
     scoreCeiling: values.scoreCeiling as number,
     sharedScale: values.sharedScale as boolean,
-    strategy: values.strategy as V3Config['strategy'],
     bandCount: values.bandCount as number,
-    horizontalAnchor: values.horizontalAnchor as V3Config['horizontalAnchor'],
-    rowAlign: values.rowAlign as V3Config['rowAlign'],
-    geographicFidelity: values.geographicFidelity as number,
     tileGapPx: values.tileGapPx as number,
     latNorth: values.latNorth as number,
     latSouth: values.latSouth as number,
+    axisNightEdgeDeg: values.axisNightEdgeDeg as number,
+    axisDayEdgeDeg: values.axisDayEdgeDeg as number,
+    hysteresisMargin: values.hysteresisMargin as number,
+    minDwellMs: values.minDwellMs as number,
     showFeedLabel: values.showFeedLabel as boolean,
     showTileRatings: values.showTileRatings as boolean,
     overlayScale: values.overlayScale as number,
     showModelReadout: values.showModelReadout as boolean,
+    showCentreLine: values.showCentreLine as boolean,
   };
 }
 
