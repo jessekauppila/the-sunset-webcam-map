@@ -155,11 +155,12 @@ export const V4_TRAINING_CUTOFF = '2026-05-13';
 // Firebase-upload step is skipped.
 export const SNAPSHOTS_ENABLED = false;
 
-// Kill-switch for USER-TRIGGERED snapshot capture (the rating flow at
-// /api/snapshots/capture-and-rate). When true, clicking a rating star
-// captures the current webcam image to Firebase alongside the rating —
-// the rating action makes the image valuable enough to keep regardless
-// of the bulk-capture flag above.
+// Kill-switch for USER-TRIGGERED snapshot capture (the labeling flow at
+// /api/manual-labels/frame). A live Windy tile is not in the archive, so
+// rating one has to capture the frame before there is anything to attach the
+// gold label to. The operator's judgment makes that image worth keeping
+// regardless of the bulk-capture flag above; turning this off turns off
+// labeling from the live surfaces, which say so rather than failing quietly.
 export const SNAPSHOTS_ENABLED_ON_RATING = true;
 
 // Binary classifier threshold used when mapping probability/raw score to

@@ -11,6 +11,9 @@ import { describeRestore, type RestoreReport } from './restoreReport';
 import { StudioPanelFrame } from './StudioPanelFrame';
 import { SaveSceneButton } from './SaveSceneButton';
 import { poolFor } from './previewPool';
+import { FrameLabelCard } from '@/app/components/Webcam/FrameLabelCard';
+import { CameraHealthHeader } from '@/app/components/MyCameras/CameraHealthHeader';
+import type { WindyWebcam } from '@/app/lib/types';
 
 export type FeedView = 'sunrise' | 'sunset' | 'both';
 
@@ -91,7 +94,15 @@ export function PreviewPane({
   // "restored v3 · 4 dials" cannot describe a scene it was not about.
   const [restoreReport, setRestoreReport] = useState<RestoreReport | null>(null);
   const sceneId = sceneSource.kind === 'scene' ? sceneSource.id : null;
-  useEffect(() => setRestoreReport(null), [sceneId]);
+
+  // The camera whose tile was clicked. Cleared alongside the restore report
+  // when the source changes: a card describing a tile from the previous pool
+  // would otherwise sit over a composition that no longer contains it.
+  const [selected, setSelected] = useState<WindyWebcam | null>(null);
+  useEffect(() => {
+    setRestoreReport(null);
+    setSelected(null);
+  }, [sceneId]);
   const showSceneRow =
     sceneSource.kind === 'scene' && (sceneNotes || (sceneProvenance && onRestoreDials));
 
@@ -118,6 +129,7 @@ export function PreviewPane({
         gap: 16,
         padding: 16,
         boxSizing: 'border-box',
+        position: 'relative',
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -304,12 +316,59 @@ export function PreviewPane({
                   search=""
                   settings={settings}
                   at={at}
+                  onSelect={setSelected}
                 />
               </StudioPanelFrame>
             </div>
           </div>
         ))}
       </div>
+
+      {selected && (
+        <div
+          data-testid="studio-tile-detail"
+          style={{
+            position: 'absolute',
+            top: 16,
+            right: 16,
+            zIndex: 5,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'flex-end',
+            gap: 6,
+          }}
+        >
+          <button
+            type="button"
+            aria-label="close camera detail"
+            data-testid="studio-tile-detail-close"
+            onClick={() => setSelected(null)}
+            style={{
+              fontFamily: mono,
+              fontSize: 11,
+              background: '#0e1119',
+              color: '#d7dce6',
+              border: `1px solid ${hairline}`,
+              borderRadius: 6,
+              padding: '3px 8px',
+              cursor: 'pointer',
+            }}
+          >
+            close
+          </button>
+          <CameraHealthHeader webcam={selected} />
+          {/*
+            A saved scene is a moment in the past. Capturing a frame to label
+            there would fetch what the camera sees NOW and put the operator's
+            judgment of that evening on tonight's image, so capture is offered
+            on the live pool only.
+          */}
+          <FrameLabelCard
+            webcam={selected}
+            allowCapture={sceneSource.kind === 'live'}
+          />
+        </div>
+      )}
     </div>
   );
 }

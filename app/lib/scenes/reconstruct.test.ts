@@ -6,7 +6,7 @@ vi.mock('@/app/lib/db', () => ({ sql: (...args: unknown[]) => sqlMock(...args) }
 import { rowsToSceneState, reconstructScene, type HistoricalSnapshotRow } from './reconstruct';
 
 const row = (over: Partial<HistoricalSnapshotRow>): HistoricalSnapshotRow => ({
-  webcam_id: 1, phase: 'sunset', rank: 3,
+  snapshot_id: 8801, webcam_id: 1, phase: 'sunset', rank: 3,
   firebase_url: 'https://firebasestorage.googleapis.com/x.jpg',
   snapshot_captured_at: '2026-06-21T11:40:00Z',
   llm_quality: '0.8125', llm_is_sunset: true, llm_model: 'claude-sonnet-4-5',
@@ -32,6 +32,9 @@ describe('rowsToSceneState', () => {
     expect(cam.llmQuality).toBe(0.8125);
     expect(cam.phase).toBe('sunset');
     expect(cam.rank).toBe(3);
+    // The frame identity a labeling surface needs: every reconstructed tile
+    // is an archived row, so it can be labeled without capturing anything.
+    expect(cam.frameId).toBe(8801);
   });
 
   it('splits by recorded phase', () => {

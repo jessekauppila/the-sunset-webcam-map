@@ -2,13 +2,8 @@ import { useEffect, useRef } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import type mapboxgl from 'mapbox-gl';
 import type { WindyWebcam } from '../../../lib/types';
-import RatingCard, {
-  type RateResult,
-} from '@/app/components/Webcam/RatingCard';
-import {
-  captureAndRateWebcam,
-  type CaptureAndRateResponse,
-} from '@/app/lib/snapshots';
+import { type RateResult } from '@/app/components/Webcam/RatingCard';
+import { FrameLabelCard } from '@/app/components/Webcam/FrameLabelCard';
 import { healthVisual } from '@/app/components/Map/cameraHealthVisual';
 import { CameraHealthHeader } from '@/app/components/MyCameras/CameraHealthHeader';
 
@@ -17,7 +12,6 @@ type MarkerEntry = {
   popup: mapboxgl.Popup;
   root: Root;
   container: HTMLElement;
-  latestRating: number | null;
   render: (webcam: WindyWebcam) => void;
   cleanup: () => void;
 };
@@ -145,26 +139,6 @@ function animateMarkerOut(element: HTMLElement, onDone: () => void) {
   setTimeout(onDone, 240);
 }
 
-function feedbackFor(
-  phase: 'sunrise' | 'sunset',
-  rating: number
-): { message: string; tone: FeedbackTone } {
-  const liked = rating >= 3;
-  const noun = phase === 'sunrise' ? 'sunrise' : 'sunset';
-
-  if (liked) {
-    return {
-      message: `Glad you enjoyed this ${noun}!`,
-      tone: 'positive',
-    };
-  }
-
-  return {
-    message: `Sorry you didn't enjoy this ${noun}.`,
-    tone: 'negative',
-  };
-}
-
 function showSnackbar(message: string, tone: FeedbackTone) {
   if (typeof document === 'undefined') return;
 
@@ -250,42 +224,17 @@ export function useSetWebcamMarkers(
       const markers = markersRef.current;
       const incomingIds = new Set(webcams.map((w) => w.webcamId));
 
-      const handleRate = async (
-        webcam: WindyWebcam,
-        entry: MarkerEntry,
-        value: number
-      ): Promise<RateResult> => {
-        const webcamId = Number(webcam.webcamId);
-        if (!Number.isInteger(webcamId) || webcamId <= 0) {
-          throw new Error('Unable to rate this webcam right now.');
-        }
-
-        const phase =
-          webcam.phase === 'sunrise' || webcam.phase === 'sunset'
-            ? webcam.phase
-            : 'sunset';
-
-        const response: CaptureAndRateResponse =
-          await captureAndRateWebcam({
-            webcamId,
-            phase,
-            rating: value,
-          });
-
-        const feedback = feedbackFor(phase, response.rating);
-        entry.latestRating = response.rating;
-
-        showSnackbar(feedback.message, feedback.tone);
-
+      /**
+       * What the MAP does once a gold label is on record: say so outside the
+       * popup, close it, and let the tour move on. The write itself lives in
+       * FrameLabelCard, shared with /studio.
+       */
+      const handleLabeled = (entry: MarkerEntry, feedback: RateResult) => {
+        showSnackbar(feedback.message ?? 'Saved.', feedback.tone);
         const entryOptions = optionsRef.current;
         pendingAutoOpenRef.current = true;
         entry.popup.remove();
         entryOptions?.onAdvance?.();
-
-        return {
-          ...feedback,
-          rating: response.rating,
-        };
       };
 
       webcams.forEach((webcam, index) => {
@@ -336,7 +285,6 @@ export function useSetWebcamMarkers(
           popup,
           root,
           container: popupContainer,
-          latestRating: webcam.rating ?? null,
           render: () => {},
           cleanup: () => {
             // If this popup was open, decrement count
@@ -360,13 +308,9 @@ export function useSetWebcamMarkers(
           root.render(
             <>
               <CameraHealthHeader webcam={cam} />
-              <RatingCard
+              <FrameLabelCard
                 webcam={cam}
-                initialRating={entry.latestRating ?? cam.rating ?? null}
-                onRate={async () => {
-                  /* no-op; map popup is read-only */
-                }}
-                readOnly={true}
+                onLabeled={(_result, feedback) => handleLabeled(entry, feedback)}
               />
             </>
           );

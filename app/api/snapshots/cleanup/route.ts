@@ -76,6 +76,12 @@ async function cleanup(request: Request) {
     //      guts old scenes. It is precisely the ORDINARY frames — no
     //      disagreement, no Claude score, no high model score — that make a
     //      scene worth replaying, and every other rule here would drop them.
+    //   6. It carries a GOLD label. manual_labels is the table the two-scale
+    //      model program actually trains on, and a label names a frame by id.
+    //      Rule 2 covers the public star table only, so a low-scoring frame
+    //      the operator labeled by hand — a trickle frame out of the random
+    //      queue, or one captured to be rated off the map — was eligible for
+    //      deletion, leaving the gold label pointing at nothing.
     const oldSnapshots = await sql`
       SELECT id, firebase_path, captured_at
       FROM webcam_snapshots
@@ -87,6 +93,9 @@ async function cleanup(request: Request) {
         AND id NOT IN (
           SELECT DISTINCT snapshot_id FROM webcam_snapshot_ratings
           WHERE rating IS NOT NULL OR is_sunset_verdict IS NOT NULL
+        )
+        AND id NOT IN (
+          SELECT image_id FROM manual_labels WHERE source = 'webcam'
         )
       ORDER BY captured_at ASC
     `;

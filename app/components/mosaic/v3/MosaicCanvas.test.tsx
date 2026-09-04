@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { render } from '@testing-library/react';
+import { fireEvent, render } from '@testing-library/react';
 import { MosaicCanvas } from './MosaicCanvas';
 import type { Layout } from './engine/types';
 import type { MotionConfig } from './motion';
@@ -159,5 +159,46 @@ describe('MosaicCanvas', () => {
     const xs = (ctx.drawImage as ReturnType<typeof vi.fn>).mock.calls.map((c) => c[1]);
     expect(xs.length).toBeGreaterThan(0);
     expect(Math.max(...xs)).toBeLessThan(250);
+  });
+});
+
+/**
+ * Click-to-detail. The canvas is CORS-tainted, so a hit cannot be read back
+ * out of the pixels — the draw loop records each tile's rect as it paints,
+ * and the click walks that list. v1 has had this covered since GeoMosaic;
+ * v2 and v3 shipped the same handler with no test behind it.
+ */
+describe('MosaicCanvas tile clicks', () => {
+  it('fires onSelect with the webcam whose tile was clicked', () => {
+    stubRaf();
+    stubContext();
+    const onSelect = vi.fn();
+
+    const { container } = render(
+      <MosaicCanvas
+        layout={layout()} byId={byId({} as HTMLImageElement)} width={300} height={500}
+        motion={CUT} crossfadeMs={0} panelSlot={0} onSelect={onSelect}
+      />
+    );
+
+    // The only tile occupies x 10..110, y 20..95.
+    fireEvent.click(container.querySelector('canvas')!, { clientX: 15, clientY: 25 });
+    expect(onSelect).toHaveBeenCalledWith(webcam);
+  });
+
+  it('ignores a click that lands on no tile', () => {
+    stubRaf();
+    stubContext();
+    const onSelect = vi.fn();
+
+    const { container } = render(
+      <MosaicCanvas
+        layout={layout()} byId={byId({} as HTMLImageElement)} width={300} height={500}
+        motion={CUT} crossfadeMs={0} panelSlot={0} onSelect={onSelect}
+      />
+    );
+
+    fireEvent.click(container.querySelector('canvas')!, { clientX: 250, clientY: 400 });
+    expect(onSelect).not.toHaveBeenCalled();
   });
 });

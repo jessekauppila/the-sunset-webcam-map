@@ -96,6 +96,7 @@ describe('fetchTerminatorWebcams row mapping', () => {
     expect(result[0].firmwareVersion).toBeUndefined();
     expect(result[0].hardwareId).toBeUndefined();
     expect(result[0].latestSnapshotCapturedAt).toBeUndefined();
+    expect(result[0].frameId).toBeUndefined();
   });
 
   it('custom row with snapshot: synthesizes images, sets liveAssetKind, populates device fields and captured_at', async () => {
@@ -103,6 +104,7 @@ describe('fetchTerminatorWebcams row mapping', () => {
       ...baseRow,
       source: 'custom',
       images: null,
+      latest_snapshot_id: 4242,
       latest_snapshot_url: 'https://fb/snap.jpg',
       latest_snapshot_captured_at: '2026-05-14T03:30:00Z',
       device_class: 'rpi-zero-2w',
@@ -118,6 +120,9 @@ describe('fetchTerminatorWebcams row mapping', () => {
     expect(result[0].firmwareVersion).toBe('0.1.0');
     expect(result[0].hardwareId).toBe('pi-zero-2w-tier0-jesse-house');
     expect(result[0].latestSnapshotCapturedAt).toBe('2026-05-14T03:30:00Z');
+    // The preview on screen IS this archived frame, so a labeling surface can
+    // name it by id instead of capturing a fresh one.
+    expect(result[0].frameId).toBe(4242);
   });
 
   it('custom row, no snapshot ever: images undefined, liveAssetKind undefined, device fields still populated', async () => {
@@ -140,6 +145,7 @@ describe('fetchTerminatorWebcams row mapping', () => {
     expect(result[0].firmwareVersion).toBe('0.1.0');
     expect(result[0].hardwareId).toBe('pi-zero-2w-tier0-jesse-house');
     expect(result[0].latestSnapshotCapturedAt).toBeUndefined();
+    expect(result[0].frameId).toBeUndefined();
   });
 
   it('windy row with empty webcams.images falls back to undefined images (no synthesis on windy source)', async () => {
