@@ -306,6 +306,7 @@ export function StudioClient() {
           sunrisePass={sunrisePass}
           sunsetPass={sunsetPass}
           droppedKeys={settingsApi.droppedKeys}
+          previewing={sceneSource.kind}
         />
       </div>
     </div>
