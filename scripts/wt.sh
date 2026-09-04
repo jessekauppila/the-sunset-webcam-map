@@ -42,9 +42,11 @@ case "$cmd" in
     done
     [ -d "$ROOT/.vercel" ] && cp -R "$ROOT/.vercel" "$path/.vercel"
 
+    # cmux prints "OK workspace:N"; rename by ref — a bare rename-workspace
+    # hits whichever workspace is focused, i.e. the one you ran this from.
     if [ -n "${CMUX_SOCKET_PATH:-}" ] && command -v cmux >/dev/null; then
-      cmux new-workspace --cwd "$path" >/dev/null
-      cmux rename-workspace "$branch" >/dev/null || true
+      ws=$(CMUX_QUIET=1 cmux new-workspace --cwd "$path" | awk '{print $2}')
+      [ -n "$ws" ] && CMUX_QUIET=1 cmux rename-workspace --workspace "$ws" "$branch" >/dev/null
     fi
     echo "$path"
     ;;
