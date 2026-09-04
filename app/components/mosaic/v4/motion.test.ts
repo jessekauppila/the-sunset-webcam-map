@@ -183,10 +183,13 @@ describe('spread — the delay every change waits', () => {
 
   it('holds a retarget until its delay in drift mode — stagger is no longer inert there', () => {
     const s = createMotionState();
-    const c = cfg({ mode: 'drift', durationMs: 100, order: 'latitude', spreadMs: 2000 });
-    commit(s, [target(1, { x: 0, lat: 60 }), target(2, { x: 0, lat: 10 })], c, 0, CTX);
-    settle(s, c, 1000);
+    // Populate with no spread so both entries finish by t=1000, then
+    // retarget under the staggered config so only the retarget is delayed.
+    const plain = cfg({ mode: 'drift', durationMs: 100 });
+    commit(s, [target(1, { x: 0, lat: 60 }), target(2, { x: 0, lat: 10 })], plain, 0, CTX);
+    settle(s, plain, 1000);
 
+    const c = cfg({ mode: 'drift', durationMs: 100, order: 'latitude', spreadMs: 2000 });
     // Tile 1 (north) has key 0, tile 2 key 1: its move waits 2000ms.
     commit(s, [target(1, { x: 500, lat: 60 }), target(2, { x: 500, lat: 10 })], c, 1000, CTX);
     const early = byId(sample(s, 1500, 500, c));
