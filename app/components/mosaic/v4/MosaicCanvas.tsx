@@ -7,6 +7,7 @@ import {
   commit,
   createMotionState,
   isSettled,
+  nextEventAt,
   sample,
   type MotionConfig,
 } from './motion';
@@ -26,9 +27,9 @@ interface HitRect {
  * uses rects captured at draw time rather than the canvas itself.
  *
  * The render loop parks itself whenever every track has settled and no frame
- * is mid-crossfade, so a kiosk sitting on a still composition costs nothing.
- * In `cut` mode that is every frame but the one after a commit, which is
- * exactly what this component did before the motion layer existed.
+ * is mid-crossfade. v4 schedules change across the poll interval, so between
+ * scheduled moments the loop sleeps on a timer rather than spinning; a still
+ * wall still costs nothing.
  */
 export function MosaicCanvas({
   layout,
@@ -55,10 +56,21 @@ export function MosaicCanvas({
   const rafRef = useRef<number | null>(null);
   const lastTimeRef = useRef(0);
   // Per-tile image crossfade. Geometry lives in the motion layer; which frame
-  // is drawn into that geometry is this component's business.
+  // is drawn into that geometry is this component's business. `pending` is a
+  // frame that has arrived but whose scheduled moment has not: the old one
+  // keeps drawing until then, and a newer arrival replaces it (spec §7.3).
   const fadesRef = useRef(
-    new Map<number, { prev: HTMLImageElement | null; current: HTMLImageElement; startedAt: number }>()
+    new Map<
+      number,
+      {
+        prev: HTMLImageElement | null;
+        current: HTMLImageElement;
+        startedAt: number;
+        pending: { img: HTMLImageElement; at: number } | null;
+      }
+    >()
   );
+  const wakeRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Latest props, read inside the loop without restarting it.
   const propsRef = useRef({ layout, byId, width, height, motion, crossfadeMs, panelSlot });
   propsRef.current = { layout, byId, width, height, motion, crossfadeMs, panelSlot };
@@ -99,10 +111,19 @@ export function MosaicCanvas({
       ctx.fillRect(0, 0, p.width, p.height);
 
       const hits: HitRect[] = [];
+      const live = new Set<number>();
       for (const frame of frames) {
+        live.add(frame.id);
         const entry = p.byId.get(frame.id);
         const fade = fadesRef.current.get(frame.id);
-        const image = entry?.img ?? fade?.current;
+        if (fade?.pending && now >= fade.pending.at) {
+          fade.prev = fade.current;
+          fade.current = fade.pending.img;
+          fade.startedAt = fade.pending.at;
+          fade.pending = null;
+        }
+        // A departed tile has no entry; its last frame lives in `fade`.
+        const image = fade?.current ?? entry?.img;
         if (!image) continue;
 
         const base = Math.max(0, Math.min(1, frame.opacity));
@@ -132,34 +153,39 @@ export function MosaicCanvas({
       }
       hitRectsRef.current = hits;
 
+      // Forget a tile's frames only once it is neither drawn nor in the pool.
+      for (const id of [...fadesRef.current.keys()]) {
+        if (!live.has(id) && !p.byId.has(id)) fadesRef.current.delete(id);
+      }
+
       const fading = [...fadesRef.current.values()].some(
         (f) => f.prev && now - f.startedAt < p.crossfadeMs
       );
       if (!isSettled(stateRef.current, p.motion, now) || fading) {
         rafRef.current = requestAnimationFrame(draw);
+        return;
+      }
+
+      // Nothing moving now. If something is scheduled, sleep until it is due
+      // rather than holding a rAF loop open across the whole spread.
+      let next = nextEventAt(stateRef.current, now);
+      for (const f of fadesRef.current.values()) {
+        if (f.pending && (next === null || f.pending.at < next)) next = f.pending.at;
+      }
+      if (next !== null && wakeRef.current === null) {
+        wakeRef.current = setTimeout(() => {
+          wakeRef.current = null;
+          if (rafRef.current === null) rafRef.current = requestAnimationFrame(draw);
+        }, Math.max(0, next - now));
       }
     };
 
     const p = propsRef.current;
     const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
 
-    // Note which tiles arrived with a different frame than they had before,
-    // then hand the new geometry to the motion layer.
-    for (const [id, entry] of p.byId) {
-      const fade = fadesRef.current.get(id);
-      if (!fade) {
-        fadesRef.current.set(id, { prev: null, current: entry.img, startedAt: now });
-      } else if (fade.current !== entry.img) {
-        fade.prev = fade.current;
-        fade.current = entry.img;
-        fade.startedAt = now;
-      }
-    }
-    for (const id of [...fadesRef.current.keys()]) {
-      if (!p.byId.has(id)) fadesRef.current.delete(id);
-    }
-
-    commit(
+    // Hand the new geometry to the motion layer first: its delays schedule
+    // the frame crossfades below, so both change on one clock.
+    const delays = commit(
       stateRef.current,
       layout.tiles.map((t) => ({
         id: t.id, x: t.x, y: t.y, width: t.width, height: t.height, lat: t.lat,
@@ -169,11 +195,36 @@ export function MosaicCanvas({
       { panelWidth: p.width, panelSlot: p.panelSlot }
     );
 
+    for (const [id, entry] of p.byId) {
+      const fade = fadesRef.current.get(id);
+      if (!fade) {
+        fadesRef.current.set(id, { prev: null, current: entry.img, startedAt: now, pending: null });
+        continue;
+      }
+      if (fade.current === entry.img || fade.pending?.img === entry.img) continue;
+      const delay = delays.get(id) ?? 0;
+      if (delay <= 0) {
+        // v3 behaviour, kept exact for changeSpreadMs = 0.
+        fade.prev = fade.current;
+        fade.current = entry.img;
+        fade.startedAt = now;
+        fade.pending = null;
+      } else {
+        fade.pending = { img: entry.img, at: now + delay };
+      }
+    }
+
+    if (wakeRef.current !== null) {
+      clearTimeout(wakeRef.current);
+      wakeRef.current = null;
+    }
     if (rafRef.current === null) rafRef.current = requestAnimationFrame(draw);
 
     return () => {
       if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
       rafRef.current = null;
+      if (wakeRef.current !== null) clearTimeout(wakeRef.current);
+      wakeRef.current = null;
     };
   }, [layout, byId, width, height, motion, crossfadeMs, panelSlot]);
 
