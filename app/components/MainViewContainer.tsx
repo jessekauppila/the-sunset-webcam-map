@@ -47,7 +47,7 @@ export default function MainViewContainer({
 
     case 'rating':
       return (
-        <section className="map-container w-full h-screen">
+        <section className="map-container w-full h-full">
           <div className="flex flex-col h-full">
             <div className="flex-1" style={{ position: 'relative' }}>
               <RatingPanel variant="fullscreen" />
@@ -62,14 +62,14 @@ export default function MainViewContainer({
     case 'gallery':
       // TODO: Implement SnapshotGallery component
       return (
-        <div className="w-full h-screen flex items-center justify-center bg-black">
+        <div className="w-full h-full flex items-center justify-center bg-black">
           <p className="text-white">Gallery view coming soon...</p>
         </div>
       );
 
     default:
       return (
-        <div className="w-full h-screen flex items-center justify-center">
+        <div className="w-full h-full flex items-center justify-center">
           <p>Unknown view mode: {mode}</p>
         </div>
       );

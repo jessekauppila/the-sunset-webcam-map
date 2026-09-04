@@ -238,12 +238,12 @@ export function StudioClient() {
           error={sceneError}
           at={sceneRepresentsAt ?? undefined}
           onSceneSaved={refreshScenes}
+          /* Same control as the homepage, so the two surfaces are reachable
+             from each other. No onModeChange: there is no homepage view state
+             here, so picking one navigates. Rendered in the pane's top row,
+             not floated over it, so the tile-detail card cannot open under it. */
+          nav={<MapMosaicModeToggle mode="studio" />}
         />
-
-        {/* Same control as the homepage, so the two surfaces are reachable
-            from each other. No onModeChange: there is no homepage view state
-            here, so picking one navigates. */}
-        <MapMosaicModeToggle mode="studio" />
 
         {railCollapsed && (
           <div

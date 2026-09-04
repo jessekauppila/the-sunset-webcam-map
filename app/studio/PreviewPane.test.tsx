@@ -82,6 +82,21 @@ describe('PreviewPane', () => {
     });
   });
 
+  it('renders the nav slot in its top row, so navigation shares the chrome instead of floating over it', () => {
+    render(
+      <PreviewPane
+        view="both"
+        onViewChange={() => {}}
+        panel={PANEL}
+        panelPresetLabel="ktc · 1440×2560"
+        versionName="v1"
+        nav={<button type="button">nav-probe</button>}
+      />
+    );
+
+    expect(screen.getByRole('button', { name: 'nav-probe' })).toBeInTheDocument();
+  });
+
   it("renders both stages for view='both'", () => {
     render(
       <PreviewPane
