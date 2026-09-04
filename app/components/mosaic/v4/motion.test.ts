@@ -145,7 +145,10 @@ describe('motion — travel', () => {
     const s = createMotionState();
     commit(s, [target(1, { x: 0 })], cfg(), 0, CTX);
     commit(s, [target(1, { x: 200 })], cfg(), 200, CTX);
-    const done = sample(s, 1000, 16, cfg())[0];
+    // The redirect restarts the fade from wherever the entry currently is
+    // (fix round 2, finding 1): it needs a full fadeMs from t=200, not from
+    // the original entry's t=0, so it lands at t=1200, not t=1000.
+    const done = sample(s, 1200, 16, cfg())[0];
     expect(done).toMatchObject({ x: 200, opacity: 1 });
   });
 });
@@ -250,6 +253,24 @@ describe('fade-through — two cameras never share pixels', () => {
     expect(later.get(2)!.opacity).toBeLessThan(1);
   });
 
+  it("makes a STAYING tile wait before travelling into a departing tile's pixels", () => {
+    const s = createMotionState();
+    commit(s, [target(1, { x: 0, y: 100 }), target(2, { x: 300, y: 100 })], FT, 0, CTX);
+    settle(s, FT, 1000);
+
+    // Tile 2 departs; tile 1 (which stays) is retargeted into the pixels
+    // tile 2 currently occupies.
+    commit(s, [target(1, { x: 300, y: 100 })], FT, 1000, CTX);
+    const mid = byId(sample(s, 1500, 16, FT));
+    expect(mid.get(1)!.x).toBe(0);
+    expect(mid.has(2)).toBe(true);
+
+    // Exit ends at 2000; tile 1's held retarget starts then.
+    const later = byId(sample(s, 2500, 16, FT));
+    expect(later.has(2)).toBe(false);
+    expect(later.get(1)!.x).toBeGreaterThan(0);
+  });
+
   it('does not make an entry wait for a departure it would not touch', () => {
     const s = createMotionState();
     commit(s, [target(1, { x: 100, y: 100 })], FT, 0, CTX);
@@ -300,6 +321,33 @@ describe('fade-through — two cameras never share pixels', () => {
       }
     }
   });
+
+  it('PROPERTY: a staying tile retargeted into a leaver waits too', () => {
+    const s = createMotionState();
+    // Populate with no spread so both tiles are fully settled by t=1000 —
+    // otherwise tile 1's own entry could still be running when the retarget
+    // lands, which is a different code path (a mid-entry redirect) than the
+    // "staying, already-settled tile" case this test targets.
+    const unstaggered = cfg({ transition: 'fadeThrough' });
+    commit(s, [target(1, { x: 100, y: 100 }), target(2, { x: 400, y: 100 })], unstaggered, 0, CTX);
+    settle(s, unstaggered, 1000);
+
+    const c = cfg({ transition: 'fadeThrough', order: 'scatter', spreadMs: 700 });
+    // Tile 2 departs; tile 1 (a stayer) is retargeted into its pixels.
+    commit(s, [target(1, { x: 400, y: 100 })], c, 1000, CTX);
+    for (let now = 1000; now <= 6000; now += 16) {
+      const frames = sample(s, now, 16, c);
+      for (let i = 0; i < frames.length; i++) {
+        for (let j = i + 1; j < frames.length; j++) {
+          const a = frames[i], b = frames[j];
+          const clear =
+            a.x + a.width <= b.x || b.x + b.width <= a.x ||
+            a.y + a.height <= b.y || b.y + b.height <= a.y;
+          expect(`${now}: ${a.id} vs ${b.id} clear=${clear}`).toBe(`${now}: ${a.id} vs ${b.id} clear=true`);
+        }
+      }
+    }
+  });
 });
 
 describe('isSettled and nextEventAt', () => {
@@ -326,6 +374,39 @@ describe('isSettled and nextEventAt', () => {
     commit(s, [target(1)], cfg(), 0, CTX);
     sample(s, 1000, 16, cfg());
     expect(nextEventAt(s, 1000)).toBeNull();
+  });
+
+  it('stays unsettled through a mid-travel retarget', () => {
+    const s = createMotionState();
+    // Populate and take the first retarget with no spread, so the tile is
+    // cleanly mid-travel by t=6000 with no unrelated delay to account for.
+    const settled = cfg({ durationMs: 30_000, order: 'scatter', spreadMs: 0 });
+    commit(s, [target(1, { x: 0 })], settled, 0, CTX);
+    settle(s, settled, 1000); // entry (fadeMs 1000) completes
+
+    commit(s, [target(1, { x: 900 })], settled, 1000, CTX); // starts at once
+    sample(s, 6000, 16, settled); // 5s into the 30s travel — still moving
+
+    // The next poll retargets the SAME tile to the SAME place, but under the
+    // staggered config: this still queues a pending retarget (commit doesn't
+    // know the target is unchanged), due well after now.
+    const c = cfg({ durationMs: 30_000, order: 'scatter', spreadMs: 60_000 });
+    commit(s, [target(1, { x: 900 })], c, 6000, CTX);
+    expect(isSettled(s, c, 6000)).toBe(false);
+  });
+
+  it('nextEventAt reports a pending retarget', () => {
+    const s = createMotionState();
+    // Populate with no stagger so both tiles are fully settled by t=1000.
+    const plain = cfg({ order: 'none' });
+    commit(s, [target(1, { lat: 60 }), target(2, { lat: 10 })], plain, 0, CTX);
+    settle(s, plain, 1000);
+
+    const c = cfg({ order: 'latitude', spreadMs: 5000 });
+    // Tile 1 (north) has key 0, so its retarget is due at once; tile 2
+    // (south) has key 1, so its pending waits until 1000 + 5000 = 6000.
+    commit(s, [target(1, { x: 500, lat: 60 }), target(2, { x: 500, lat: 10 })], c, 1000, CTX);
+    expect(nextEventAt(s, 1000)).toBe(6000);
   });
 
   it('cut is always settled', () => {

@@ -211,9 +211,33 @@ function intersects(a: Pose, b: Pose, gap: number): boolean {
 const fadeEnd = (track: Track, cfg: MotionConfig): number => track.startAt + cfg.fadeMs;
 
 /**
+ * Under fadeThrough, the earliest a pose may start appearing: after every
+ * departure it would overlap has finished. Applies to any arrival — a brand
+ * new track's entry, or a staying track's pending retarget — because a
+ * staying tile sliding into a departure's rect draws over it just as surely
+ * as a new one would.
+ */
+function clearedAt(
+  state: MotionState,
+  pose: Pose,
+  start: number,
+  cfg: MotionConfig,
+  selfId: number
+): number {
+  if (cfg.transition !== 'fadeThrough') return start;
+  let at = start;
+  for (const other of state.tracks.values()) {
+    if (other.id === selfId || other.phase !== 'exit') continue;
+    if (intersects(other.from, pose, cfg.gapPx)) at = Math.max(at, fadeEnd(other, cfg));
+  }
+  return at;
+}
+
+/**
  * Point every track at a new layout. Does not move anything; `sample` does.
  * Returns each tile's delay (ms after `now`) so the canvas can schedule its
- * frame crossfades from the same clock.
+ * frame crossfades from the same clock. The map covers arrivals and
+ * departures alike; a departing id is not in the layout.
  */
 export function commit(
   state: MotionState,
@@ -261,14 +285,8 @@ export function commit(
     const track = state.tracks.get(t.id);
 
     if (!track) {
-      let startAt = start;
-      if (cfg.transition === 'fadeThrough') {
-        for (const other of state.tracks.values()) {
-          if (other.phase === 'exit' && intersects(other.from, arrival, cfg.gapPx)) {
-            startAt = Math.max(startAt, fadeEnd(other, cfg));
-          }
-        }
-      }
+      const startAt = clearedAt(state, arrival, start, cfg, t.id);
+      delays.set(t.id, startAt - now);
       const origin = scaled(arrival, cfg.fadeScale, 0);
       state.tracks.set(t.id, {
         id: t.id,
@@ -292,10 +310,16 @@ export function commit(
       track.startAt = start;
       track.pending = null;
     } else if (track.phase === 'enter' && now < fadeEnd(track, cfg)) {
-      // Still arriving: the fade continues, toward the updated place.
+      // Still arriving: restart the fade from wherever it is, so it only
+      // ever moves inside the union of the current rect and the new
+      // arrival — opacity continues from its current value.
+      track.from = { ...track.current };
       track.to = arrival;
+      track.startAt = now;
     } else {
-      track.pending = { to: arrival, startAt: start };
+      const startAt = clearedAt(state, arrival, start, cfg, t.id);
+      track.pending = { to: arrival, startAt };
+      delays.set(t.id, startAt - now);
     }
   }
 
@@ -402,10 +426,7 @@ export function isSettled(state: MotionState, cfg: MotionConfig, now: number): b
   // enough — which is what keeps the render loop parked on a still wall.
   if (cfg.mode === 'cut') return true;
   for (const track of state.tracks.values()) {
-    if (track.pending) {
-      if (now >= track.pending.startAt) return false;
-      continue;
-    }
+    if (track.pending && now >= track.pending.startAt) return false;
     if (cfg.mode === 'drift' && track.phase === 'travel') {
       if (!driftClose(track)) return false;
       continue;
