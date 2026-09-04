@@ -458,12 +458,13 @@ Create `scripts/pi/reload-kiosk.sh`:
 # Prerequisites on Pi:
 #   sudo apt install -y xdotool   (done during Pi setup)
 #
-# How it works:
-#   xdotool finds all Chromium windows by class name and sends Ctrl+R to each.
-#   This triggers a standard browser reload — fast, minimal flash (~1 sec).
-
-DISPLAY=:0 xdotool search --class chromium key --clearmodifiers ctrl+r
-echo "Reloaded all kiosk windows"
+# SUPERSEDED 2026-09-02 — do not copy the command this plan originally showed.
+#   `xdotool search --class chromium key ...` delivers the keystroke via
+#   XSendEvent, which Chromium ignores, and it targets only the first window.
+#   The script reported success for months while the glass never reloaded.
+#   Canonical version: scripts/pi/reload-kiosk.sh
+#   Why: docs/solutions/integration-issues/
+#        chromium-ignores-xdotool-keystrokes-without-focus.md
 ```
 
 - [ ] **Step 2: Make it executable and syntax-check it**
