@@ -114,8 +114,8 @@ export function MosaicV4({
         <TileRatings
           layout={layout}
           byId={byId}
-          qualitySource={cfg.qualitySource}
-          gateThreshold={cfg.gateThreshold}
+          cfg={cfg}
+          feed={feed}
           scale={cfg.overlayScale}
         />
       )}

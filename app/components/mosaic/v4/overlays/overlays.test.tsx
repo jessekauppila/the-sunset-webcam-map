@@ -6,6 +6,7 @@ import { SetupOverlay } from './SetupOverlay';
 import { ModelReadout } from './ModelReadout';
 import { CentreLine } from './CentreLine';
 import type { Layout } from '../engine/types';
+import { v4Config } from '../engine/testConfig';
 import type { WindyWebcam } from '@/app/lib/types';
 
 const webcam = {
@@ -37,10 +38,22 @@ describe('FeedLabel', () => {
   });
 });
 
-const ratingProps = { qualitySource: 'auto' as const, gateThreshold: 0.55 };
+const ratingCfg = v4Config({
+  qualitySource: 'auto', gateThreshold: 0.55, scoreFloor: 0, scoreCeiling: 1,
+  exitTaperDeg: 6, axisNightEdgeDeg: -24, axisDayEdgeDeg: -2, curve: 'linear',
+});
+const ratingProps = { cfg: ratingCfg, feed: 'sunset' as const };
+
+const withTile = (over: Partial<Layout['tiles'][number]>): Layout => {
+  const base = layout();
+  return { ...base, tiles: [{ ...base.tiles[0], ...over }] };
+};
+
+const idFor = (cam: WindyWebcam) =>
+  new Map([[1, { img: {} as HTMLImageElement, webcam: cam }]]);
 
 describe('TileRatings', () => {
-  it('renders a chip per tile showing the score', () => {
+  it('renders a chip per tile', () => {
     render(<TileRatings layout={layout()} byId={byId()} {...ratingProps} />);
     expect(screen.getAllByTestId('v4-rating-chip')).toHaveLength(1);
   });
@@ -55,24 +68,89 @@ describe('TileRatings', () => {
     expect(screen.getByTestId('v4-rating-chip')).toHaveAttribute('data-judge', 'model');
   });
 
-  it('shows the two numbers the gate compared, on the rating scale', () => {
+  // The number that sizes the tile is the quality head, and it is the ONE
+  // number an operator needs to read against the tile's size. Unlabelled, the
+  // 1-5 detection figure on the next line got read as "the score" and a
+  // quality-0.52 tile beside a quality-0.04 one looked like a sizing bug.
+  it('labels the sizing score as quality and shows the height it produced', () => {
     render(<TileRatings layout={layout()} byId={byId()} {...ratingProps} />);
-    // aiRatingBinary 4 against a 0.55 threshold, which is 3.20 as a rating.
-    expect(screen.getByTestId('v4-rating-chip')).toHaveTextContent('4.00 / 3.20');
+    const chip = screen.getByTestId('v4-rating-chip');
+    expect(chip).toHaveTextContent('quality 0.80 ✓');
+    expect(chip).toHaveTextContent('75px');
   });
 
-  it('says the gate is inert rather than printing a dead number for llm frames', () => {
-    const llmCam = { webcamId: 1, title: 'cam', llmIsSunset: true, llmQuality: 0.8 } as WindyWebcam;
+  it('labels the two numbers the gate compared, on the rating scale', () => {
+    render(<TileRatings layout={layout()} byId={byId()} {...ratingProps} />);
+    // aiRatingBinary 4 against a 0.55 threshold, which is 3.20 as a rating.
+    expect(screen.getByTestId('v4-rating-chip')).toHaveTextContent('detect 4.00 ≥ gate 3.20');
+  });
+
+  it('says a gate-failer is at the floor because of the gate, not its quality', () => {
+    const failer = { webcamId: 1, title: 'cam', aiRatingBinary: 2, aiRatingRegression: 4.2 } as WindyWebcam;
     render(
       <TileRatings
-        layout={layout()}
-        byId={new Map([[1, { img: {} as HTMLImageElement, webcam: llmCam }]])}
+        layout={withTile({ passes: false, pinnedToFloor: true, height: 40 })}
+        byId={idFor(failer)}
         {...ratingProps}
       />
     );
     const chip = screen.getByTestId('v4-rating-chip');
+    expect(chip).toHaveTextContent('quality 0.80 ✗');
+    expect(chip).toHaveTextContent('detect 2.00 < gate 3.20');
+    expect(chip).toHaveTextContent('floor · failed gate');
+  });
+
+  it('explains a passer sitting at the floor because its quality is under the score floor', () => {
+    render(
+      <TileRatings
+        layout={layout()}
+        byId={byId()}
+        cfg={v4Config({ ...ratingCfg, scoreFloor: 0.9 })}
+        feed="sunset"
+      />
+    );
+    expect(screen.getByTestId('v4-rating-chip')).toHaveTextContent('floor · quality ≤ 0.90');
+  });
+
+  it('explains the exit taper when the camera is leaving the window', () => {
+    // 3° inside a 6° taper on the -24 night edge: smoothstep(0.5) = 0.50.
+    render(
+      <TileRatings layout={withTile({ sunAltitudeDeg: -21 })} byId={byId()} {...ratingProps} />
+    );
+    expect(screen.getByTestId('v4-rating-chip')).toHaveTextContent('exit taper ×0.50');
+  });
+
+  it('explains a passer past the exit edge, which the taper pins to the floor', () => {
+    render(
+      <TileRatings layout={withTile({ sunAltitudeDeg: -26 })} byId={byId()} {...ratingProps} />
+    );
+    expect(screen.getByTestId('v4-rating-chip')).toHaveTextContent('floor · past night edge');
+  });
+
+  it('adds no explanation when the tile is simply at its quality height', () => {
+    render(<TileRatings layout={layout()} byId={byId()} {...ratingProps} />);
+    const text = screen.getByTestId('v4-rating-chip').textContent ?? '';
+    expect(text).not.toMatch(/floor|taper/);
+  });
+
+  it('names Claude as the judge and says the gate is inert for llm frames', () => {
+    const llmCam = { webcamId: 1, title: 'cam', llmIsSunset: true, llmQuality: 0.8 } as WindyWebcam;
+    render(<TileRatings layout={layout()} byId={idFor(llmCam)} {...ratingProps} />);
+    const chip = screen.getByTestId('v4-rating-chip');
     expect(chip).toHaveAttribute('data-judge', 'llm');
-    expect(chip).toHaveTextContent('gate n/a');
+    expect(chip).toHaveTextContent('claude 0.80 ✓');
+    expect(chip).toHaveTextContent('claude says sunset · gate n/a');
+  });
+
+  it('says unscored rather than printing dashes for a frame no judge saw', () => {
+    render(
+      <TileRatings
+        layout={withTile({ passes: false, score: null, pinnedToFloor: true })}
+        byId={idFor(unscoredWebcam)}
+        {...ratingProps}
+      />
+    );
+    expect(screen.getByTestId('v4-rating-chip')).toHaveTextContent('unscored');
   });
 
   it('scales the text so it is readable across a room', () => {
@@ -113,8 +191,9 @@ describe('ModelReadout', () => {
   it('renders a chip containing both readouts', () => {
     render(<ModelReadout layout={layout()} byId={byId()} />);
     const chip = screen.getByTestId('v4-model-chip');
-    expect(chip).toHaveTextContent('sunset 0.75');
-    expect(chip).toHaveTextContent('4.2');
+    // Both heads named, so the two numbers cannot be read as one score.
+    expect(chip).toHaveTextContent('detect 0.75 · sunset');
+    expect(chip).toHaveTextContent('quality 4.2 / 5');
   });
 
   it('renders exactly one "not scored" line and nothing bogus when neither readout is present', () => {

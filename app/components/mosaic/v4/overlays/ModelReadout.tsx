@@ -47,12 +47,15 @@ export function ModelReadout({
               <div>not scored</div>
             ) : (
               <>
+                {/* Named heads: detection is a probability, quality a 1-5
+                    rating. Two bare numbers on different scales read as one
+                    score, which is how a 1.9 got compared against a 0.75. */}
                 <div>
                   {detection
-                    ? `${detection.verdict} ${detection.probability.toFixed(2)}`
-                    : '—'}
+                    ? `detect ${detection.probability.toFixed(2)} · ${detection.verdict}`
+                    : 'detect —'}
                 </div>
-                <div>{quality === null ? '—' : quality.toFixed(1)}</div>
+                <div>{quality === null ? 'quality —' : `quality ${quality.toFixed(1)} / 5`}</div>
               </>
             )}
             {tile.pinnedToFloor && <div>floored</div>}

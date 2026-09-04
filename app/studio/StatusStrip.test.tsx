@@ -32,7 +32,7 @@ describe('StatusStrip', () => {
     expect(screen.getByText('rev 14')).toBeInTheDocument();
     expect(screen.getByText('polled 32s ago')).toBeInTheDocument();
     expect(screen.getByText('↑1/39 ↓3/42 pass')).toBeInTheDocument();
-    expect(screen.getByText('in sync')).toBeInTheDocument();
+    expect(screen.getByText('dials match glass')).toBeInTheDocument();
   });
 
   it('shows the deploying state with a countdown to the next poll', () => {
@@ -73,7 +73,31 @@ describe('StatusStrip', () => {
       />
     );
 
-    expect(screen.getByText('7 differ')).toBeInTheDocument();
+    expect(screen.getByText('7 dials differ')).toBeInTheDocument();
+  });
+
+  // "in sync" used to be the whole state word, and it was read as "the glass
+  // shows this picture". It never meant that: the strip compares settings
+  // rows, and a scene preview is a different pool at a different moment.
+  it('says the preview is a scene when one is selected, so matching dials is not read as a matching picture', () => {
+    const now = new Date('2026-08-30T12:00:00Z');
+    vi.setSystemTime(now);
+
+    render(
+      <StatusStrip
+        glassVersion="v4"
+        liveRevision={14}
+        lastPollAt={new Date(now.getTime() - 5_000).toISOString()}
+        deployedAtMs={null}
+        diffCount={0}
+        sunrisePass={{ pass: 1, total: 39 }}
+        sunsetPass={{ pass: 3, total: 42 }}
+        previewing="scene"
+      />
+    );
+
+    expect(screen.getByText(/dials match glass/)).toBeInTheDocument();
+    expect(screen.getByText(/previewing a scene · glass is live/)).toBeInTheDocument();
   });
 
   it('shows the stale state with a red kiosk-unreachable poll label when there has been no poll', () => {

@@ -39,6 +39,7 @@ export function StatusStrip({
   sunrisePass,
   sunsetPass,
   droppedKeys = [],
+  previewing = 'live',
 }: {
   glassVersion: string;
   liveRevision: number;
@@ -48,6 +49,13 @@ export function StatusStrip({
   sunrisePass: GatePassCount;
   sunsetPass: GatePassCount;
   droppedKeys?: DroppedKey[];
+  /**
+   * What the pane beside this strip is composing. The state word compares
+   * settings rows, nothing else; "in sync" got read as "the glass shows this
+   * picture", which a scene preview never is. Naming the source keeps a
+   * matching dial set from being mistaken for a matching picture.
+   */
+  previewing?: 'live' | 'scene';
 }) {
   const [nowMs, setNowMs] = useState(() => Date.now());
 
@@ -72,7 +80,7 @@ export function StatusStrip({
   let stateWord: React.ReactNode;
   switch (state.kind) {
     case 'insync':
-      stateWord = <span style={{ color: dim }}>in sync</span>;
+      stateWord = <span style={{ color: dim }}>dials match glass</span>;
       break;
     case 'deploying':
       stateWord = (
@@ -82,7 +90,7 @@ export function StatusStrip({
       );
       break;
     case 'drift':
-      stateWord = <span style={{ color: amber }}>{diffCount} differ</span>;
+      stateWord = <span style={{ color: amber }}>{diffCount} dials differ</span>;
       break;
     case 'stale':
       stateWord = <span style={{ color: red }}>stale</span>;
@@ -132,7 +140,20 @@ export function StatusStrip({
           {droppedKeys.map((d) => `${d.key} (${d.reason})`).join(', ')}
         </span>
       )}
-      <span style={{ marginLeft: 'auto' }}>{stateWord}</span>
+      {previewing === 'scene' && (
+        <span
+          data-testid="status-strip-previewing"
+          style={{ marginLeft: 'auto', color: amber }}
+          title={
+            'The pane is composing a saved scene: a pool from another moment. ' +
+            'The glass is composing the live pool. Matching dials do not make ' +
+            'these the same picture.'
+          }
+        >
+          previewing a scene · glass is live
+        </span>
+      )}
+      <span style={{ marginLeft: previewing === 'scene' ? 0 : 'auto' }}>{stateWord}</span>
     </div>
   );
 }
