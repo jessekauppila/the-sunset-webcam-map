@@ -11,8 +11,8 @@ describe('V4_SETTINGS_SCHEMA', () => {
       'bandCount', 'tileGapPx', 'latNorth', 'latSouth',
       'axisNightEdgeDeg', 'axisDayEdgeDeg', 'hysteresisMargin', 'minDwellMs',
       'showFeedLabel', 'showTileRatings', 'showModelReadout', 'showCentreLine',
-      'motionMode', 'motionOrder', 'motionDurationMs', 'motionStaggerMs',
-      'crossfadeMs', 'waveGridMs',
+      'motionMode', 'motionOrder', 'motionDurationMs', 'changeSpreadMs',
+      'transitionStyle', 'fadeMs', 'fadeScale', 'crossfadeMs', 'waveGridMs',
     ]) {
       expect(keys).toContain(key);
     }
@@ -120,8 +120,8 @@ describe('configFromSettings', () => {
       schemaDefaults(V4_SETTINGS_SCHEMA)
     ) as unknown as Record<string, unknown>;
     const motionKeys = new Set([
-      'motionMode', 'motionOrder', 'motionDurationMs', 'motionStaggerMs',
-      'waveGridMs', 'crossfadeMs',
+      'motionMode', 'motionOrder', 'motionDurationMs', 'changeSpreadMs',
+      'transitionStyle', 'fadeMs', 'fadeScale', 'waveGridMs', 'crossfadeMs',
     ]);
     for (const knob of V4_SETTINGS_SCHEMA) {
       if (motionKeys.has(knob.key)) continue;

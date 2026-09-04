@@ -23,7 +23,8 @@ const layout = (x = 10): Layout => ({
 const byId = (img: HTMLImageElement) => new Map([[1, { img, webcam }]]);
 
 const CUT: MotionConfig = {
-  mode: 'cut', order: 'none', durationMs: 900, staggerMs: 0, waveGridMs: 0,
+  mode: 'cut', order: 'none', durationMs: 900, spreadMs: 0, waveGridMs: 0,
+  transition: 'dissolve', fadeMs: 900, fadeScale: 0.85, gapPx: 0,
 };
 
 /**

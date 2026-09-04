@@ -144,19 +144,35 @@ export const V4_SETTINGS_SCHEMA: SettingsSchema = [
   },
   {
     key: 'motionOrder', kind: 'enum',
-    options: ['none', 'latitude', 'sweep', 'magnitude'] as const, default: 'none',
-    label: 'stagger order', section: 'motion',
-    description: 'Which tile moves first. sweep runs one wave across both panels in the direction the terminator travels, so the wall reads as the world turning; latitude and magnitude are arbitrary orderings kept for comparison. Needs a stagger span to have any effect.',
+    options: ['scatter', 'none', 'latitude', 'sweep', 'magnitude'] as const, default: 'scatter',
+    label: 'change order', section: 'motion',
+    description: 'Which tile changes first within the spread. scatter gives each camera a fixed random point in the minute, so nothing on the wall betrays the poll. sweep runs one wave across both panels in the direction the terminator travels. none changes everything at once, which is the cron tell. latitude and magnitude are arbitrary orderings kept for comparison.',
+  },
+  {
+    key: 'changeSpreadMs', kind: 'number', min: 0, max: 120_000, step: 1_000, default: 60_000,
+    label: 'change spread (ms)', section: 'motion',
+    description: 'Spread between the first change and the last after each poll: every move, arrival, departure and frame crossfade waits its own share of this. At 60000, the poll interval, change arrives as a steady trickle. 0 restores v3 timing exactly, everything at once on the minute.',
+  },
+  {
+    key: 'transitionStyle', kind: 'enum',
+    options: ['fadeThrough', 'dissolve'] as const, default: 'fadeThrough',
+    label: 'transition', section: 'motion',
+    description: 'fadeThrough: a departing tile fades fully to black before anything arrives in its pixels, so two cameras are never drawn over each other. dissolve: the departure and the arrival run at once, one picture through another. Compare with ?transitionStyle=dissolve beside the default.',
+  },
+  {
+    key: 'fadeMs', kind: 'number', min: 0, max: 60_000, step: 500, default: 20_000,
+    label: 'fade (ms)', section: 'motion',
+    description: 'How long an arrival fades in and a departure fades out. A replacement under fadeThrough takes twice this. Separate from travel: this is about appearing and leaving, not moving.',
+  },
+  {
+    key: 'fadeScale', kind: 'number', min: 0.3, max: 1, step: 0.05, default: 0.85,
+    label: 'fade scale', section: 'motion',
+    description: 'A tile fades in from, and out to, this fraction of its size about its own centre. 1 is a pure fade; smaller reads as arriving and receding.',
   },
   {
     key: 'motionDurationMs', kind: 'number', min: 0, max: 60_000, step: 100, default: 30_000,
     label: 'travel (ms)', section: 'motion',
-    description: 'How long a tile takes to reach its new place. In drift mode this is the time constant instead: the wall closes 99.9% of the gap in this long, so a big number is what makes the movement too slow to catch.',
-  },
-  {
-    key: 'motionStaggerMs', kind: 'number', min: 0, max: 20_000, step: 100, default: 0,
-    label: 'stagger span (ms)', section: 'motion',
-    description: 'Spread between the first tile to move and the last. 0 moves everything at once.',
+    description: 'How long a tile that STAYS takes to reach a new place or size. In drift mode this is the time constant instead: the wall closes 99.9% of the gap in this long, so a big number is what makes the movement too slow to catch. Arrivals and departures use fade (ms), not this.',
   },
   {
     key: 'crossfadeMs', kind: 'number', min: 0, max: 8_000, step: 100, default: 1_500,
@@ -236,6 +252,8 @@ export function configFromSettings(values: SettingsValues): V4Config {
 /**
  * The motion dials, kept out of V4Config on purpose: the composition engine
  * decides where a tile belongs and has no business knowing how it gets there.
+ * `tileGapPx` crosses over because the fade-through overlap test must agree
+ * with the engine's about what "touching" means.
  */
 export function motionFromSettings(values: SettingsValues): {
   motion: MotionConfig;
@@ -246,8 +264,12 @@ export function motionFromSettings(values: SettingsValues): {
       mode: values.motionMode as MotionConfig['mode'],
       order: values.motionOrder as MotionConfig['order'],
       durationMs: values.motionDurationMs as number,
-      staggerMs: values.motionStaggerMs as number,
+      spreadMs: values.changeSpreadMs as number,
       waveGridMs: values.waveGridMs as number,
+      transition: values.transitionStyle as MotionConfig['transition'],
+      fadeMs: values.fadeMs as number,
+      fadeScale: values.fadeScale as number,
+      gapPx: values.tileGapPx as number,
     },
     crossfadeMs: values.crossfadeMs as number,
   };
