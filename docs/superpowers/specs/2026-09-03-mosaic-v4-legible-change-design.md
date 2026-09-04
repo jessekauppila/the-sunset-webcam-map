@@ -131,8 +131,10 @@ the edge.
 ### 6.1 Vocabulary
 
 `motion.ts` keeps its shape: a track per tile with `from`, `to`, `current`,
-`startAt`. Three things are added to a track: `endAt` for an exit, an
-optional `pending` retarget (§7), and the phase key that scheduled it.
+`startAt`. Three things are added to a track: a `phase` (`enter`, `travel` or
+`exit`), an optional `pending` retarget (§7), and the tile's `lat`, so a
+departing track can still be keyed by latitude after it has left the layout.
+An exit keeps no end of its own — it is derived as `startAt + fadeMs`.
 
 ### 6.2 Dials
 
@@ -151,8 +153,9 @@ inside one tile.
 A track that is in the state and absent from the new targets starts exiting
 at `now + delay(id)` (§7) and ends at `startAt + fadeMs`. Its exit pose is
 its current pose scaled about its own centre by `fadeScale`, opacity 0. Exit
-always runs as a tween over `fadeMs`, regardless of `motionMode`; that is
-what v3 does today and it is right, drift has no target to chase.
+always runs as a tween over `fadeMs` in `tween` and `drift` modes; that is
+what v3 does today and it is right, drift has no target to chase. `cut`
+snaps, because a cut that fades is not a cut.
 
 ### 6.4 Entry, and the rule that forbids overlap
 
@@ -211,6 +214,12 @@ the `sweep` origin.
    then, and a newer image arriving first replaces the pending one (the
    skipped frame was at most a minute old). `commit()` returns the delay
    map so the canvas and the motion layer schedule from one clock.
+
+The map covers **departing** ids as well as arriving ones, and each entry is
+the delay to the start the motion layer actually settled on — recorded
+*after* the fade-through wait of §6.4, not the raw `key × spread`. So a tile
+held behind a departure holds its frame crossfade for exactly as long as it
+holds its pixels.
 
 ### 7.4 Cost, stated honestly
 
