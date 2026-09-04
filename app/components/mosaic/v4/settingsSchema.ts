@@ -31,6 +31,11 @@ export const V4_SETTINGS_SCHEMA: SettingsSchema = [
     description: 'Hard ceiling on tile count, passers kept first. 0 means unlimited.',
   },
   {
+    key: 'missGraceCycles', kind: 'number', min: 0, max: 5, step: 1, default: 2,
+    label: 'miss grace (cycles)', section: 'visibility',
+    description: 'How many consecutive polls a camera can go missing — dropped from the pool, or its frame failed to load — before its tile leaves. Each cycle is a minute. A one-poll blip no longer fades a tile out and back in. 0 drops at once.',
+  },
+  {
     key: 'floorPx', kind: 'number', min: 20, max: 600, step: 10, default: 100,
     label: 'floor (px)', section: 'sizing',
     description: 'Height of the smallest tile. Gate-failers pin to exactly this.',
@@ -225,6 +230,7 @@ export function configFromSettings(values: SettingsValues): V4Config {
     gateThreshold: values.gateThreshold as number,
     failedCamPolicy: values.failedCamPolicy as V4Config['failedCamPolicy'],
     maxTiles: values.maxTiles as number,
+    missGraceCycles: values.missGraceCycles as number,
     floorPx: values.floorPx as number,
     ceilingPx: values.ceilingPx as number,
     curve: values.curve as V4Config['curve'],

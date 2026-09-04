@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { WindyWebcam } from '@/app/lib/types';
 import { readSignal, type QualitySource } from './qualitySignal';
 import { sunAltitudeDeg } from './solarPosition';
@@ -10,6 +10,8 @@ export interface LoadedTilesResult {
   tiles: TileInput[];
   byId: Map<number, { img: HTMLImageElement; webcam: WindyWebcam }>;
   skipped: number;
+  /** Tiles carried over from a previous cycle because their camera went missing. */
+  held: number;
   loading: boolean;
 }
 
@@ -18,12 +20,18 @@ export interface LoadTilesOptions {
   gateThreshold: number;
   /** The moment to compute solar position for; defaults to render time. */
   at?: string | number;
+  /**
+   * How many consecutive cycles a camera may go missing — absent from the
+   * pool, or failed to load — before its tile is dropped. 0 drops at once.
+   */
+  missGraceCycles?: number;
 }
 
 const EMPTY: LoadedTilesResult = {
   tiles: [],
   byId: new Map(),
   skipped: 0,
+  held: 0,
   loading: false,
 };
 
@@ -37,13 +45,21 @@ function momentOf(at?: string | number): Date {
  * Loads a preview image per webcam and resolves each to the TileInput the
  * engine needs: natural dimensions, the gate/score signal, and the sun's
  * altitude at that place and moment. Failed loads are skipped, never drawn
- * as black boxes, but they are counted.
+ * as black boxes, but they are counted. A camera that goes missing for up to
+ * `missGraceCycles` cycles is held with its last frame rather than exiting
+ * and re-entering (spec §8).
  */
 export function useLoadedTiles(
   webcams: WindyWebcam[],
-  { qualitySource, gateThreshold, at }: LoadTilesOptions
+  { qualitySource, gateThreshold, at, missGraceCycles = 0 }: LoadTilesOptions
 ): LoadedTilesResult {
   const [result, setResult] = useState<LoadedTilesResult>(EMPTY);
+
+  // The last settled batch and each camera's run of misses — the memory the
+  // grace needs. Refs, not state: they are read and written inside the
+  // effect and must not re-trigger it.
+  const lastRef = useRef<Pick<LoadedTilesResult, 'tiles' | 'byId'>>({ tiles: [], byId: new Map() });
+  const missesRef = useRef(new Map<number, number>());
 
   useEffect(() => {
     let cancelled = false;
@@ -57,10 +73,12 @@ export function useLoadedTiles(
       // and an unconditional setState there is an infinite render loop:
       // effect -> new state object -> re-render -> new array -> effect.
       // Returning `prev` unchanged makes React skip the re-render.
+      lastRef.current = { tiles: [], byId: new Map() };
+      missesRef.current.clear();
       setResult((prev) =>
         prev.tiles.length === 0 && prev.skipped === noPreviewCount && !prev.loading
           ? prev
-          : { tiles: [], byId: new Map(), skipped: noPreviewCount, loading: false }
+          : { tiles: [], byId: new Map(), skipped: noPreviewCount, held: 0, loading: false }
       );
       return () => {
         cancelled = true;
@@ -75,6 +93,7 @@ export function useLoadedTiles(
       tiles: prev.tiles,
       byId: prev.byId,
       skipped: prev.skipped,
+      held: prev.held,
       loading: true,
     }));
 
@@ -86,9 +105,36 @@ export function useLoadedTiles(
 
     const maybeFinish = () => {
       settled += 1;
-      if (settled === withPreview.length && !cancelled) {
-        setResult({ tiles: [...tiles], byId: new Map(byId), skipped, loading: false });
+      if (settled !== withPreview.length || cancelled) return;
+
+      // Anything that loaded this cycle has no misses.
+      for (const id of byId.keys()) missesRef.current.delete(id);
+
+      // Carry over what went missing, for as long as the grace allows. The
+      // held tile keeps its frame and its signal but gets a FRESH altitude,
+      // so the exit taper keeps advancing while it is held.
+      let held = 0;
+      for (const [id, entry] of lastRef.current.byId) {
+        if (byId.has(id)) continue;
+        const misses = (missesRef.current.get(id) ?? 0) + 1;
+        if (misses > missGraceCycles) {
+          missesRef.current.delete(id);
+          continue;
+        }
+        const prevTile = lastRef.current.tiles.find((t) => t.id === id);
+        if (!prevTile) continue;
+        missesRef.current.set(id, misses);
+        tiles.push({
+          ...prevTile,
+          sunAltitudeDeg: sunAltitudeDeg(moment, prevTile.lat, prevTile.lng),
+        });
+        byId.set(id, entry);
+        held += 1;
       }
+
+      const next = { tiles: [...tiles], byId: new Map(byId), skipped, held, loading: false };
+      lastRef.current = { tiles: next.tiles, byId: next.byId };
+      setResult(next);
     };
 
     // CORS first so CORS-enabled hosts (the Windy CDN) leave the canvas
@@ -132,7 +178,7 @@ export function useLoadedTiles(
     return () => {
       cancelled = true;
     };
-  }, [webcams, qualitySource, gateThreshold, at]);
+  }, [webcams, qualitySource, gateThreshold, at, missGraceCycles]);
 
   return result;
 }

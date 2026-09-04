@@ -58,6 +58,7 @@ export interface V4Config {
   gateThreshold: number; // [0,1] probability
   failedCamPolicy: FailedCamPolicy;
   maxTiles: number; // 0 = unlimited
+  missGraceCycles: number; // cycles a missing camera is held before its tile leaves
   // sizing
   floorPx: number;
   ceilingPx: number;

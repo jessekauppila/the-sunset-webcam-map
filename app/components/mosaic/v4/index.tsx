@@ -53,8 +53,13 @@ export function MosaicV4({
     };
   }, [search, settings]);
 
-  const signal = { qualitySource: cfg.qualitySource, gateThreshold: cfg.gateThreshold, at };
-  const { tiles, byId, skipped } = useLoadedTiles(webcams, signal);
+  const signal = {
+    qualitySource: cfg.qualitySource,
+    gateThreshold: cfg.gateThreshold,
+    at,
+    missGraceCycles: cfg.missGraceCycles,
+  };
+  const { tiles, byId, skipped, held } = useLoadedTiles(webcams, signal);
   // Loaded, never drawn: the peer pool exists only so both panels can settle
   // on one overflow scale. Its images cost a fetch each, but they are the
   // same frames the twin screen is already loading.
@@ -125,6 +130,7 @@ export function MosaicV4({
           layout={layout}
           feed={feed}
           skipped={skipped}
+          held={held}
           bandCount={cfg.bandCount}
           bandGrid={cfg.bandGrid}
         />

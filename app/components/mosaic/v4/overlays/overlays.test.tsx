@@ -89,6 +89,11 @@ describe('SetupOverlay', () => {
     expect(screen.getByTestId('v4-setup-counts')).toHaveTextContent('skipped 3');
   });
 
+  it('shows the held count so a carried-over tile is not mistaken for live', () => {
+    render(<SetupOverlay layout={layout()} feed="sunset" skipped={3} held={2} />);
+    expect(screen.getByTestId('v4-setup-counts')).toHaveTextContent('held 2');
+  });
+
   it('shows the applied composition scale so shrinking is visible', () => {
     render(<SetupOverlay layout={layout()} feed="sunset" skipped={0} />);
     expect(screen.getByTestId('v4-setup-counts')).toHaveTextContent('scale 0.80');

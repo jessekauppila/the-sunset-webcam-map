@@ -8,17 +8,21 @@ import type { BandGrid, Layout } from '../engine/types';
  * designed; `dropped` means the composition could not fit even at the scale
  * floor and is the one that says the wall is struggling. Conflating them
  * would make an ordinary crowded band read as an overflow emergency.
+ * `held` is a camera that went missing this cycle and is being carried on
+ * its last frame; it is on the wall, but not live.
  */
 export function SetupOverlay({
   layout,
   feed,
   skipped,
+  held = 0,
   bandCount,
   bandGrid,
 }: {
   layout: Layout;
   feed: 'sunrise' | 'sunset';
   skipped: number;
+  held?: number;
   bandCount?: number;
   bandGrid?: BandGrid;
 }) {
@@ -57,7 +61,7 @@ export function SetupOverlay({
         }}
       >
         {feed} · tiles {layout.tiles.length} · evicted {layout.evicted.length} ·
-        dropped {layout.dropped.length} · skipped {skipped} ·
+        dropped {layout.dropped.length} · skipped {skipped} · held {held} ·
         scale {layout.scale.toFixed(2)}
         {bandGrid !== undefined && ` · bands ${bandCount ?? '?'} ${bandGrid}`}
       </div>

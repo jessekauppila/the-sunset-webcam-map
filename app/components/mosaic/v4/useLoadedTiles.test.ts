@@ -170,3 +170,89 @@ describe('useLoadedTiles', () => {
     expect(result.current.byId.get(1)).toBeUndefined();
   });
 });
+
+describe('useLoadedTiles — miss grace', () => {
+  // Load both cameras, then hand the hook a pool without camera 1.
+  async function loadThenDrop(graceCycles: number) {
+    const hook = renderHook(
+      ({ cams, at }) => useLoadedTiles(cams, { ...opts, missGraceCycles: graceCycles, at }),
+      { initialProps: { cams: [cam(1, 'https://x/a.jpg'), cam(2, 'https://x/b.jpg')], at: '2026-03-20T12:00:00Z' } }
+    );
+    await waitFor(() => expect(created).toHaveLength(2));
+    created[0].onload?.();
+    created[1].onload?.();
+    await waitFor(() => expect(hook.result.current.tiles).toHaveLength(2));
+    return hook;
+  }
+
+  /** One refetch cycle without camera 1; camera 2 loads. */
+  async function cycleWithout1(hook: Awaited<ReturnType<typeof loadThenDrop>>, at: string) {
+    const before = created.length;
+    hook.rerender({ cams: [cam(2, 'https://x/b.jpg')], at });
+    await waitFor(() => expect(created).toHaveLength(before + 1));
+    created[before].onload?.();
+    await waitFor(() => expect(hook.result.current.loading).toBe(false));
+  }
+
+  it('holds a camera missing from one cycle, with a FRESH solar altitude', async () => {
+    const hook = await loadThenDrop(2);
+    const altBefore = hook.result.current.tiles.find((t) => t.id === 1)!.sunAltitudeDeg;
+
+    await cycleWithout1(hook, '2026-03-20T18:00:00Z');
+    const ids = hook.result.current.tiles.map((t) => t.id).sort();
+    expect(ids).toEqual([1, 2]);
+    expect(hook.result.current.held).toBe(1);
+    expect(hook.result.current.byId.get(1)).toBeDefined();
+    const altAfter = hook.result.current.tiles.find((t) => t.id === 1)!.sunAltitudeDeg;
+    expect(altAfter).not.toBe(altBefore);
+  });
+
+  it('drops the camera once it has missed more than missGraceCycles cycles', async () => {
+    const hook = await loadThenDrop(2);
+    await cycleWithout1(hook, '2026-03-20T12:01:00Z');
+    await cycleWithout1(hook, '2026-03-20T12:02:00Z');
+    expect(hook.result.current.tiles.map((t) => t.id).sort()).toEqual([1, 2]);
+    await cycleWithout1(hook, '2026-03-20T12:03:00Z');
+    expect(hook.result.current.tiles.map((t) => t.id)).toEqual([2]);
+    expect(hook.result.current.held).toBe(0);
+    expect(hook.result.current.byId.get(1)).toBeUndefined();
+  });
+
+  it('resets the count when the camera comes back', async () => {
+    const hook = await loadThenDrop(1);
+    await cycleWithout1(hook, '2026-03-20T12:01:00Z');
+    // Back for one cycle.
+    const before = created.length;
+    hook.rerender({ cams: [cam(1, 'https://x/a.jpg'), cam(2, 'https://x/b.jpg')], at: '2026-03-20T12:02:00Z' });
+    await waitFor(() => expect(created).toHaveLength(before + 2));
+    created[before].onload?.();
+    created[before + 1].onload?.();
+    await waitFor(() => expect(hook.result.current.loading).toBe(false));
+    expect(hook.result.current.held).toBe(0);
+    // Gone again: held, not dropped — the earlier miss was forgiven.
+    await cycleWithout1(hook, '2026-03-20T12:03:00Z');
+    expect(hook.result.current.tiles.map((t) => t.id).sort()).toEqual([1, 2]);
+  });
+
+  it('treats a failed load like a missing camera', async () => {
+    const hook = await loadThenDrop(2);
+    const before = created.length;
+    hook.rerender({ cams: [cam(1, 'https://x/a.jpg'), cam(2, 'https://x/b.jpg')], at: '2026-03-20T12:01:00Z' });
+    await waitFor(() => expect(created).toHaveLength(before + 2));
+    created[before].onerror?.(); // camera 1, CORS attempt
+    await waitFor(() => expect(created).toHaveLength(before + 3));
+    created[before + 2].onerror?.(); // camera 1, plain attempt
+    created[before + 1].onload?.(); // camera 2
+    await waitFor(() => expect(hook.result.current.loading).toBe(false));
+    expect(hook.result.current.tiles.map((t) => t.id).sort()).toEqual([1, 2]);
+    expect(hook.result.current.held).toBe(1);
+    expect(hook.result.current.skipped).toBe(1);
+  });
+
+  it('missGraceCycles 0 drops immediately (the v3 behaviour)', async () => {
+    const hook = await loadThenDrop(0);
+    await cycleWithout1(hook, '2026-03-20T12:01:00Z');
+    expect(hook.result.current.tiles.map((t) => t.id)).toEqual([2]);
+    expect(hook.result.current.held).toBe(0);
+  });
+});
