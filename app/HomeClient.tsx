@@ -27,6 +27,9 @@ import { HardExamplesQueue } from './components/HardExamples/HardExamplesQueue';
 import { OpsTab } from './components/Ops/OpsTab';
 import { KioskTab } from './components/Kiosk/KioskTab';
 
+/** Height of the navigation band above the view, in px. */
+const NAV_BAND_HEIGHT = 44;
+
 interface Props {
   manifestRuns: ManifestEntry[];
 }
@@ -91,13 +94,39 @@ export function HomeClient({ manifestRuns }: Props) {
   const allWebcams = useAllWebcamsStore((t) => t.allWebcams);
 
   return (
-    <main className="relative w-full">
-      <div>
+    <main
+      className="relative w-full"
+      style={{
+        height: '100vh',
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden',
+      }}
+    >
+      {/*
+        Navigation gets its own band above the view rather than floating over
+        it. A floating control in the top-right corner sat on top of anything
+        the view drew there, and a map popup could never rise above it because
+        the popup lives inside the map's stacking context. The band costs
+        NAV_BAND_HEIGHT of globe and buys a corner nothing else can claim.
+      */}
+      <header
+        style={{
+          height: NAV_BAND_HEIGHT,
+          flex: 'none',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'flex-end',
+          padding: '0 16px',
+          background: '#000',
+        }}
+      >
+        <MapMosaicModeToggle mode={mode} onModeChange={setMode} />
+      </header>
+
+      <div style={{ position: 'relative', flex: 1, minHeight: 0 }}>
         {/* Main View Container - handles map, globe, and mosaic modes */}
         <MainViewContainer userLocation={userLocation} mode={mode} />
-
-        {/* Mode Toggle */}
-        <MapMosaicModeToggle mode={mode} onModeChange={setMode} />
 
         {/* Drawer Toggle Button - positioned over the map */}
         <IconButton

@@ -33,7 +33,7 @@ export function MyCamerasView({ userLocation }: { userLocation: Location }) {
   const markerWebcams = useMemo(() => visible.map(myCameraToWindyWebcam), [visible]);
 
   return (
-    <section className="map-container w-full h-screen" style={{ position: 'relative' }}>
+    <section className="map-container w-full h-full" style={{ position: 'relative' }}>
       <SimpleMap
         userLocation={userLocation}
         mode="my-cameras"

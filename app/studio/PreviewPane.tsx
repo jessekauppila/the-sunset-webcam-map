@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { useTerminatorStore } from '@/app/store/useTerminatorStore';
 import { resolveMosaic } from '@/app/components/mosaic/registry';
 import type { PanelSize } from '@/app/kiosk/panelPreview';
@@ -56,6 +56,7 @@ export function PreviewPane({
   error = null,
   at,
   onSceneSaved,
+  nav,
 }: {
   view: FeedView;
   onViewChange: (v: FeedView) => void;
@@ -79,6 +80,12 @@ export function PreviewPane({
   error?: string | null;
   at?: string;
   onSceneSaved?: (id: number) => void;
+  /**
+   * Site navigation, rendered at the right end of the top row. It shares the
+   * row with the view controls instead of floating over the pane, so nothing
+   * the pane draws (the tile-detail card in particular) can end up under it.
+   */
+  nav?: ReactNode;
 }) {
   const liveSunrise = useTerminatorStore((t) => t.sunrise);
   const liveSunset = useTerminatorStore((t) => t.sunset);
@@ -132,94 +139,119 @@ export function PreviewPane({
         position: 'relative',
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+      {/*
+        1fr | controls | 1fr keeps the controls centered while the nav sits
+        at the right edge. When the pane is too narrow for both, the grid
+        columns give way rather than letting the two paint over each other.
+      */}
+      <div
+        style={{
+          width: '100%',
+          display: 'grid',
+          gridTemplateColumns: '1fr auto 1fr',
+          alignItems: 'center',
+          gap: 12,
+        }}
+      >
+        <div />
         <div
-          role="group"
-          aria-label="feed view"
           style={{
             display: 'flex',
-            border: `1px solid ${hairline}`,
-            borderRadius: 6,
-            overflow: 'hidden',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexWrap: 'wrap',
+            gap: 12,
           }}
         >
-          {SEGMENTS.map((seg) => (
-            <button
-              key={seg}
-              type="button"
-              aria-pressed={view === seg}
-              onClick={() => onViewChange(seg)}
-              style={{
-                padding: '4px 14px',
-                fontSize: 12,
-                textTransform: 'capitalize',
-                cursor: 'pointer',
-                border: 'none',
-                background: view === seg ? '#1d2432' : 'transparent',
-                color: view === seg ? '#e5e7eb' : dim,
-              }}
-            >
-              {seg}
-            </button>
-          ))}
-        </div>
+          <div
+            role="group"
+            aria-label="feed view"
+            style={{
+              display: 'flex',
+              border: `1px solid ${hairline}`,
+              borderRadius: 6,
+              overflow: 'hidden',
+            }}
+          >
+            {SEGMENTS.map((seg) => (
+              <button
+                key={seg}
+                type="button"
+                aria-pressed={view === seg}
+                onClick={() => onViewChange(seg)}
+                style={{
+                  padding: '4px 14px',
+                  fontSize: 12,
+                  textTransform: 'capitalize',
+                  cursor: 'pointer',
+                  border: 'none',
+                  background: view === seg ? '#1d2432' : 'transparent',
+                  color: view === seg ? '#e5e7eb' : dim,
+                }}
+              >
+                {seg}
+              </button>
+            ))}
+          </div>
 
-        <span
-          data-testid="studio-geometry-chip"
-          style={{
-            fontFamily: mono,
-            fontSize: 11,
-            letterSpacing: '0.05em',
-            color: dim,
-            border: `1px solid ${hairline}`,
-            borderRadius: 999,
-            padding: '3px 12px',
-          }}
-        >
-          {panelPresetLabel}
-        </span>
-
-        <select
-          aria-label="data source"
-          data-testid="studio-scene-select"
-          value={sceneSource.kind === 'live' ? 'live' : String(sceneSource.id)}
-          onChange={(e) => {
-            const raw = e.target.value;
-            onSceneSourceChange?.(
-              raw === 'live' ? { kind: 'live' } : { kind: 'scene', id: Number(raw) }
-            );
-          }}
-          style={{
-            fontSize: 12,
-            background: '#0e1119',
-            color: '#e5e7eb',
-            border: `1px solid ${hairline}`,
-            borderRadius: 6,
-            padding: '4px 8px',
-          }}
-        >
-          <option value="live">live</option>
-          {scenes.map((scene) => (
-            <option key={scene.id} value={scene.id}>
-              {sceneOptionLabel(scene)}
-            </option>
-          ))}
-        </select>
-
-        <SaveSceneButton onSaved={onSceneSaved} />
-
-        {sceneUnresolved && (
           <span
-            data-testid="studio-scene-status"
+            data-testid="studio-geometry-chip"
             style={{
               fontFamily: mono,
               fontSize: 11,
-              color: error ? '#f0a04b' : dim,
+              letterSpacing: '0.05em',
+              color: dim,
+              border: `1px solid ${hairline}`,
+              borderRadius: 999,
+              padding: '3px 12px',
             }}
           >
-            {error ?? 'loading scene…'}
+            {panelPresetLabel}
           </span>
-        )}
+
+          <select
+            aria-label="data source"
+            data-testid="studio-scene-select"
+            value={sceneSource.kind === 'live' ? 'live' : String(sceneSource.id)}
+            onChange={(e) => {
+              const raw = e.target.value;
+              onSceneSourceChange?.(
+                raw === 'live' ? { kind: 'live' } : { kind: 'scene', id: Number(raw) }
+              );
+            }}
+            style={{
+              fontSize: 12,
+              background: '#0e1119',
+              color: '#e5e7eb',
+              border: `1px solid ${hairline}`,
+              borderRadius: 6,
+              padding: '4px 8px',
+            }}
+          >
+            <option value="live">live</option>
+            {scenes.map((scene) => (
+              <option key={scene.id} value={scene.id}>
+                {sceneOptionLabel(scene)}
+              </option>
+            ))}
+          </select>
+
+          <SaveSceneButton onSaved={onSceneSaved} />
+
+          {sceneUnresolved && (
+            <span
+              data-testid="studio-scene-status"
+              style={{
+                fontFamily: mono,
+                fontSize: 11,
+                color: error ? '#f0a04b' : dim,
+              }}
+            >
+              {error ?? 'loading scene…'}
+            </span>
+          )}
+        </div>
+        <div style={{ justifySelf: 'end' }}>{nav}</div>
       </div>
 
       {showSceneRow && (
@@ -329,7 +361,9 @@ export function PreviewPane({
           data-testid="studio-tile-detail"
           style={{
             position: 'absolute',
-            top: 16,
+            // Below the top row (16 padding + ~28 row + 16 gap), not over it:
+            // the nav lives at the row's right end and must stay clickable.
+            top: 60,
             right: 16,
             zIndex: 5,
             display: 'flex',

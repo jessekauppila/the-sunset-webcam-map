@@ -120,9 +120,9 @@ export default function SimpleMap({
   });
 
   return (
-    <div>
-      {/* First Section - Full Screen Map */}
-      <section className="map-container w-full h-screen">
+    <div className="h-full">
+      {/* Fills whatever the page gives it (the homepage view area below the nav band) */}
+      <section className="map-container w-full h-full">
         <div ref={interactionContainerRef} className="w-full h-full">
           <div
             ref={mapContainer}
