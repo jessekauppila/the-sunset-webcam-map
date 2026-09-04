@@ -64,6 +64,7 @@ export interface V4Config {
   curve: SizingCurve;
   scoreFloor: number; // score that renders at floorPx (absolute curves only)
   scoreCeiling: number; // score that renders at ceilingPx (absolute curves only)
+  exitTaperDeg: number; // degrees inside the exit edge over which a passer shrinks to the floor; 0 disables
   sharedScale: boolean; // adopt one overflow scale across both feeds
   // arrangement — bands vertically, solar altitude horizontally, both absolute
   bandCount: number;

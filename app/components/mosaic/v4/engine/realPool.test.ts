@@ -104,6 +104,16 @@ describe('the real pool, on the real axis', () => {
     // 13 x 480 drew 5 / evicted 37 here and showed 1 of the 4 real sunsets;
     // 8 x 240 (decided 2026-09-03) shows 3 of 4. Update these numbers when
     // the dials move again.
+    //
+    // v4 adds the exit taper (2026-09-03): tiles within 6 deg of the night
+    // edge shrink toward the floor, so they collide less and eviction admits
+    // more. Numbers re-pinned from the run, not predicted. On THIS fixture at
+    // these dials the four assertions below are unchanged (still 8/34/3/9):
+    // one drawn passer (id 28629957, alt -19.3deg) IS tapered, shrinking from
+    // 204.3px to 191.8px, but not enough to flip any collision, so the
+    // admitted/evicted SET is identical with and without the taper. The
+    // taper is exercised on this fixture; it just doesn't move these
+    // particular counts.
     const layout = compose(sunset, viewport, cfg, 'sunset');
     expect(layout.tiles.length).toBe(8);
     expect(layout.evicted.length).toBe(34);

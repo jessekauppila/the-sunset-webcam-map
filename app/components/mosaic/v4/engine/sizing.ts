@@ -1,4 +1,7 @@
+import { exitEdgeDeg } from './axis';
 import type { SizedTile, TileInput, V4Config } from './types';
+
+const smoothstep = (t: number): number => t * t * (3 - 2 * t);
 
 /**
  * Percentile of each passer within the passers alone, ties sharing the mean
@@ -43,6 +46,28 @@ export function normalizeScore(score: number, cfg: V4Config): number {
 }
 
 /**
+ * Multiplier on a passer's score height in [0,1]: 0 at or past the exit
+ * edge, 1 once the tile is exitTaperDeg or more inside the window. A sunset
+ * therefore gets smaller as it ends and leaves from the floor, using the
+ * altitude the loader already computes — the score, re-rated only while the
+ * camera is still inside the sweep, would otherwise hold it at full size
+ * until the pool dropped it (spec §2, §5).
+ */
+export function exitTaper(
+  altDeg: number | null,
+  cfg: V4Config,
+  feed: 'sunrise' | 'sunset'
+): number {
+  if (cfg.exitTaperDeg <= 0 || altDeg === null) return 1;
+  const edge = exitEdgeDeg(cfg, feed);
+  // Angular distance INSIDE the window from the exit edge.
+  const inside = feed === 'sunset' ? altDeg - edge : edge - altDeg;
+  if (inside <= 0) return 0;
+  if (inside >= cfg.exitTaperDeg) return 1;
+  return smoothstep(inside / cfg.exitTaperDeg);
+}
+
+/**
  * Sizes every tile by height, then derives width from the source aspect
  * ratio. Two rules are fixed directives, not knobs:
  *   - gate-failers pin to the EXACT floor, never spreading across the curve
@@ -52,9 +77,15 @@ export function normalizeScore(score: number, cfg: V4Config): number {
  * `linear` and `easeIn` are ABSOLUTE: height is a function of the score
  * alone, so a mediocre night looks mediocre instead of promoting its own
  * best frame to the ceiling. `percentileAmongPassers` is relative and is
- * kept only for comparison — it cannot agree across two panels.
+ * kept only for comparison — it cannot agree across two panels. The exit
+ * taper (`exitTaper`) multiplies the passer's spread above the floor;
+ * failers are already at the floor and never tapered.
  */
-export function sizeTiles(tiles: TileInput[], cfg: V4Config): SizedTile[] {
+export function sizeTiles(
+  tiles: TileInput[],
+  cfg: V4Config,
+  feed: 'sunrise' | 'sunset'
+): SizedTile[] {
   const span = cfg.ceilingPx - cfg.floorPx;
   const percentiles =
     cfg.curve === 'percentileAmongPassers'
@@ -70,7 +101,7 @@ export function sizeTiles(tiles: TileInput[], cfg: V4Config): SizedTile[] {
         const norm = normalizeScore(t.score, cfg);
         unit = cfg.curve === 'easeIn' ? norm * norm : norm;
       }
-      height = cfg.floorPx + span * unit;
+      height = cfg.floorPx + span * unit * exitTaper(t.sunAltitudeDeg, cfg, feed);
     }
     const aspect = t.srcHeight > 0 ? t.srcWidth / t.srcHeight : 4 / 3;
     return { ...t, height, width: height * aspect, pinnedToFloor: !(t.passes && t.score !== null) };

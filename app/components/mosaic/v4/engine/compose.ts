@@ -53,7 +53,7 @@ function fits(
   history: CompositionHistory,
   scale: number
 ): boolean {
-  const sized = scaleTiles(sizeTiles(candidates, cfg), scale);
+  const sized = scaleTiles(sizeTiles(candidates, cfg, feed), scale);
   return arrange(sized, viewport, cfg, feed, history).extent <= viewport.height;
 }
 
@@ -102,14 +102,14 @@ export function requiredScale(
   history: CompositionHistory
 ): number {
   let scale = 1;
-  let extent = arrange(sizeTiles(candidates, cfg), viewport, cfg, feed, history).extent;
+  let extent = arrange(sizeTiles(candidates, cfg, feed), viewport, cfg, feed, history).extent;
 
   for (let pass = 0; pass < MAX_SCALE_PASSES && extent > viewport.height; pass++) {
     const next = Math.max(MIN_COMPOSITION_SCALE, scale * (viewport.height / extent));
     if (next === scale) break;
     scale = next;
     extent = arrange(
-      scaleTiles(sizeTiles(candidates, cfg), scale), viewport, cfg, feed, history
+      scaleTiles(sizeTiles(candidates, cfg, feed), scale), viewport, cfg, feed, history
     ).extent;
   }
 
@@ -187,7 +187,7 @@ export function compose(
     );
   }
 
-  let sized = scaleTiles(sizeTiles(candidates, cfg), scale);
+  let sized = scaleTiles(sizeTiles(candidates, cfg, feed), scale);
   let placement = arrange(sized, viewport, cfg, feed, history);
 
   // Last resort: still overflowing at the scale floor. Keep the longest
@@ -199,7 +199,7 @@ export function compose(
     );
     for (const t of candidates.slice(keep)) droppedIds.add(t.id);
     candidates = candidates.slice(0, keep);
-    sized = scaleTiles(sizeTiles(candidates, cfg), scale);
+    sized = scaleTiles(sizeTiles(candidates, cfg, feed), scale);
     placement = arrange(sized, viewport, cfg, feed, history);
   }
 

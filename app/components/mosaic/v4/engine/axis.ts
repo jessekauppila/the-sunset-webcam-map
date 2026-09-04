@@ -69,3 +69,12 @@ export function tileX(
     tile.sunAltitudeDeg === null ? 0.5 : altitudeToUnit(tile.sunAltitudeDeg, cfg, feed);
   return unit * Math.max(0, viewportWidth - tile.width);
 }
+
+/**
+ * The edge a camera leaves through. Altitude FALLS on the sunset panel, so
+ * cameras leave at the night edge; it RISES on sunrise, so they leave at the
+ * day edge. The other edge is where they arrive.
+ */
+export function exitEdgeDeg(cfg: AxisConfig, feed: 'sunrise' | 'sunset'): number {
+  return feed === 'sunset' ? cfg.axisNightEdgeDeg : cfg.axisDayEdgeDeg;
+}

@@ -57,6 +57,11 @@ export const V4_SETTINGS_SCHEMA: SettingsSchema = [
     description: 'Score that renders at ceiling height. Lower it when real scores never reach 1 and the panel looks uniformly small. Ignored by percentileAmongPassers.',
   },
   {
+    key: 'exitTaperDeg', kind: 'number', min: 0, max: 15, step: 0.5, default: 6,
+    label: 'exit taper (deg)', section: 'sizing',
+    description: 'Over the last few degrees before a camera leaves the window (the night edge on sunset, the day edge on sunrise) its tile eases from its score height down to the floor, so a sunset gets smaller as it ends instead of vanishing at full size. Uses the solar altitude the client already computes; no rating cadence involved. 0 disables.',
+  },
+  {
     key: 'sharedScale', kind: 'boolean', default: true,
     label: 'match both screens', section: 'sizing',
     description: 'Shrink both panels by the same amount, taken from whichever is more crowded. Off, each panel shrinks to its own tile count and a sunrise floor tile can outgrow a sunset ceiling tile.',
@@ -209,6 +214,7 @@ export function configFromSettings(values: SettingsValues): V4Config {
     curve: values.curve as V4Config['curve'],
     scoreFloor: values.scoreFloor as number,
     scoreCeiling: values.scoreCeiling as number,
+    exitTaperDeg: values.exitTaperDeg as number,
     sharedScale: values.sharedScale as boolean,
     bandCount: values.bandCount as number,
     bandGrid: values.bandGrid as V4Config['bandGrid'],
