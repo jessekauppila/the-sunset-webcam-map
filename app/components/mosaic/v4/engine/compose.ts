@@ -142,7 +142,7 @@ function largestFittingCount(
 }
 
 /**
- * The full v3 pipeline: signal-derived flags in, placed pixels out. Pure —
+ * The full v4 pipeline: signal-derived flags in, placed pixels out. Pure —
  * no DOM, no Image, no clock. The memory hysteresis needs arrives as
  * `history`, which the caller owns (spec §5.4).
  *

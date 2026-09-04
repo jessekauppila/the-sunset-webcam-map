@@ -137,7 +137,7 @@ describe('MosaicCanvas', () => {
 
   it('moves a tile toward its new place instead of jumping there', () => {
     const now = vi.spyOn(performance, 'now').mockReturnValue(0);
-    const raf = stubRaf(2, 1000);
+    stubRaf(2, 1000);
     const ctx = stubContext();
     const img = {} as HTMLImageElement;
     const tween: MotionConfig = { ...CUT, mode: 'tween', durationMs: 5_000 };
@@ -152,7 +152,6 @@ describe('MosaicCanvas', () => {
     // The entry (fadeMs 900) is over by now; the retarget below is travel.
     now.mockReturnValue(2000);
     stubRaf(2, 2000);
-    void raf;
 
     rerender(
       <MosaicCanvas
@@ -306,6 +305,53 @@ describe('MosaicCanvas — scheduled change', () => {
                     motion={tween} crossfadeMs={0} panelSlot={0} />
     );
     expect(drawn(ctx)).toContain(img);
+  });
+
+  it('does not swap a departing tile to a newer frame mid-exit', () => {
+    // Spec §6: a departed tile keeps its LAST frame while it fades out.
+    // Promoting a pending frame for a tile that has left the pool changes the
+    // picture underneath a departure that is already on its way out.
+    const clock = vi.spyOn(performance, 'now').mockReturnValue(0);
+    stubRaf(2, 1000);
+    const ctx = stubContext();
+    const oldImg = { id: 'old' } as unknown as HTMLImageElement;
+    const newImg = { id: 'new' } as unknown as HTMLImageElement;
+    // sweep on panel 1 gives this tile a 6000ms delay; fadeMs 5000 keeps the
+    // exit drawing long past the pending frame's stamp.
+    const tween: MotionConfig = {
+      ...CUT, mode: 'tween', fadeMs: 5_000, order: 'sweep', spreadMs: 10_000,
+    };
+    const empty: Layout = { ...layout(), tiles: [] };
+
+    const { rerender } = render(
+      <MosaicCanvas layout={layout()} byId={byId(oldImg)} width={300} height={500}
+                    motion={tween} crossfadeMs={0} panelSlot={1} />
+    );
+
+    // Let the entry (startAt 6000, fadeMs 5000) finish before anything else.
+    clock.mockReturnValue(12_000);
+    stubRaf(2, 12_000);
+    rerender(
+      <MosaicCanvas layout={layout()} byId={byId(oldImg)} width={300} height={500}
+                    motion={tween} crossfadeMs={0} panelSlot={1} />
+    );
+    // A newer frame arrives and is stamped for 12000 + 6000 = 18000.
+    rerender(
+      <MosaicCanvas layout={layout()} byId={byId(newImg)} width={300} height={500}
+                    motion={tween} crossfadeMs={0} panelSlot={1} />
+    );
+
+    // The tile now leaves the pool. Its exit is scheduled for 18000 too, so
+    // the loop's clock passes the pending stamp while the exit is drawing.
+    stubRaf(2, 19_000);
+    (ctx.drawImage as ReturnType<typeof vi.fn>).mockClear();
+    rerender(
+      <MosaicCanvas layout={empty} byId={new Map()} width={300} height={500}
+                    motion={tween} crossfadeMs={0} panelSlot={1} />
+    );
+
+    expect(drawn(ctx)).toContain(oldImg);
+    expect(drawn(ctx)).not.toContain(newImg);
   });
 
   it('sleeps on a timer until the next scheduled change instead of spinning', () => {

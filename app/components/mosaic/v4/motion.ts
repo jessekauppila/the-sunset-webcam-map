@@ -309,13 +309,31 @@ export function commit(
       track.to = arrival;
       track.startAt = start;
       track.pending = null;
-    } else if (track.phase === 'enter' && now < fadeEnd(track, cfg)) {
-      // Still arriving: restart the fade from wherever it is, so it only
-      // ever moves inside the union of the current rect and the new
-      // arrival — opacity continues from its current value.
+    } else if (track.phase === 'enter' && now >= track.startAt && now < fadeEnd(track, cfg)) {
+      // Mid-entry: restart the fade from wherever it is, so it only ever
+      // moves inside the union of the current rect and the new arrival —
+      // opacity continues from its current value. The restart still goes
+      // through the fade-through wait: if a departure it would overlap is
+      // still running, `startAt` lands in the future and the tween holds the
+      // tile frozen at `from` — its current, non-overlapping pose — until
+      // that departure has finished.
       track.from = { ...track.current };
       track.to = arrival;
-      track.startAt = now;
+      track.startAt = clearedAt(state, arrival, now, cfg, t.id);
+      track.pending = null;
+      delays.set(t.id, track.startAt - now);
+    } else if (track.phase === 'enter' && now < track.startAt) {
+      // An entry whose moment has not come — usually one `clearedAt` pushed
+      // out behind a departure. Keep its schedule (restarting it from `now`
+      // would throw the wait away and draw two cameras in one rect), but
+      // re-check clearance and re-aim it at the new arrival.
+      const origin = scaled(arrival, cfg.fadeScale, 0);
+      track.from = origin;
+      track.current = { ...origin };
+      track.to = arrival;
+      track.startAt = clearedAt(state, arrival, track.startAt, cfg, t.id);
+      track.pending = null;
+      delays.set(t.id, track.startAt - now);
     } else {
       const startAt = clearedAt(state, arrival, start, cfg, t.id);
       track.pending = { to: arrival, startAt };
@@ -325,6 +343,14 @@ export function commit(
 
   return delays;
 }
+
+/**
+ * The loop sleeps between scheduled changes, so the first frame after a wake
+ * carries seconds of dt; a drift that closed that much in one frame would
+ * snap. Cap the step so a wake frame moves at most a tenth of a second's
+ * worth.
+ */
+const MAX_DRIFT_STEP_MS = 100;
 
 function easeInOutCubic(t: number): number {
   return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
@@ -369,7 +395,8 @@ export function sample(
       // Exponential chase: reaches 99.9% of the way in durationMs. A long time
       // constant turns the 60s poll steps into movement too slow to catch.
       const tau = Math.max(16, cfg.durationMs);
-      const k = 1 - Math.pow(0.001, Math.max(0, dtMs) / tau);
+      const step = Math.min(Math.max(0, dtMs), MAX_DRIFT_STEP_MS);
+      const k = 1 - Math.pow(0.001, step / tau);
       current.x = lerp(current.x, to.x, k);
       current.y = lerp(current.y, to.y, k);
       current.width = lerp(current.width, to.width, k);

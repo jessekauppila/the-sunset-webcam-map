@@ -136,7 +136,11 @@ describe('motion — travel', () => {
     const step = sample(s, 1100, 100, c)[0];
     expect(step.x).toBeGreaterThan(0);
     expect(step.x).toBeLessThan(1000);
-    const later = sample(s, 2000, 900, c)[0];
+    // A single 900ms step no longer stands in for 900ms of drift: the chase
+    // caps its step at 100ms so a wake frame cannot snap. Run the rest of
+    // the time constant at frame cadence instead.
+    let later = step;
+    for (let now = 1116; now <= 2000; now += 16) later = sample(s, now, 16, c)[0];
     expect(later.x).toBeGreaterThan(900);
     expect(later.x).toBeLessThanOrEqual(1000);
   });
@@ -347,6 +351,95 @@ describe('fade-through — two cameras never share pixels', () => {
         }
       }
     }
+  });
+
+  it('keeps a waiting entry waiting across a second commit', () => {
+    // The 60s poll commits again while an entry is still parked behind a
+    // departure. A commit that restarted that entry from `now` would throw
+    // the wait away and draw both cameras in the same rect.
+    const s = createMotionState();
+    commit(s, [target(1, { x: 100, y: 100 })], FT, 0, CTX);
+    settle(s, FT, 1000);
+
+    // Tile 1 leaves (exit 1000..2000); tile 2 arrives in its pixels and is
+    // held until 2000.
+    commit(s, [target(2, { x: 100, y: 100 })], FT, 1000, CTX);
+    // The next poll re-commits the same layout, mid-exit.
+    commit(s, [target(2, { x: 100, y: 100 })], FT, 1500, CTX);
+
+    const mid = byId(sample(s, 1800, 16, FT));
+    expect(mid.has(1)).toBe(true);
+    expect(mid.has(2)).toBe(false);
+
+    const later = byId(sample(s, 2500, 16, FT));
+    expect(later.has(1)).toBe(false);
+    expect(later.get(2)!.opacity).toBeGreaterThan(0);
+    expect(later.get(2)!.opacity).toBeLessThan(1);
+  });
+
+  it('reports the real delay for a redirected entry', () => {
+    // The delay map drives the canvas's frame crossfades. A re-committed
+    // entry that is still waiting must report the wait it actually kept,
+    // not the key × spread it would have had with no departure in the way.
+    const s = createMotionState();
+    commit(s, [target(1, { x: 100, y: 100 })], FT, 0, CTX);
+    settle(s, FT, 1000);
+    commit(s, [target(2, { x: 100, y: 100 })], FT, 1000, CTX);
+
+    const delays = commit(s, [target(2, { x: 100, y: 100 })], FT, 1500, CTX);
+    // startAt is still 2000 (tile 1's exit ends there); now is 1500.
+    expect(delays.get(2)).toBe(500);
+  });
+
+  it('PROPERTY: re-committing mid-flight never draws two frames over each other', () => {
+    const s = createMotionState();
+    const c = cfg({ transition: 'fadeThrough', order: 'scatter', spreadMs: 700 });
+    commit(s, [target(1, { x: 100, y: 100 }), target(3, { x: 100, y: 300 })], c, 0, CTX);
+    settle(s, c, 1000);
+
+    const next = () => [target(2, { x: 120, y: 110 }), target(4, { x: 90, y: 320 })];
+    commit(s, next(), c, 1000, CTX);
+
+    // The poll fires again twice while the wave is still in flight.
+    let recommittedAt1500 = false;
+    let recommittedAt3000 = false;
+    for (let now = 1000; now <= 6000; now += 16) {
+      if (!recommittedAt1500 && now >= 1500) {
+        commit(s, next(), c, now, CTX);
+        recommittedAt1500 = true;
+      }
+      if (!recommittedAt3000 && now >= 3000) {
+        commit(s, next(), c, now, CTX);
+        recommittedAt3000 = true;
+      }
+      const frames = sample(s, now, 16, c);
+      for (let i = 0; i < frames.length; i++) {
+        for (let j = i + 1; j < frames.length; j++) {
+          const a = frames[i], b = frames[j];
+          const clear =
+            a.x + a.width <= b.x || b.x + b.width <= a.x ||
+            a.y + a.height <= b.y || b.y + b.height <= a.y;
+          expect(`${now}: ${a.id} vs ${b.id} clear=${clear}`).toBe(`${now}: ${a.id} vs ${b.id} clear=true`);
+        }
+      }
+    }
+  });
+});
+
+describe('motion — drift after a long sleep', () => {
+  it('does not close a retarget in one frame after a long sleep', () => {
+    // The render loop parks between scheduled changes, so the frame that
+    // promotes a pending retarget carries seconds of dt. An unclamped
+    // exponential chase closes the whole gap in that one frame — a snap.
+    const s = createMotionState();
+    const c = cfg({ mode: 'drift', durationMs: 6000 });
+    commit(s, [target(1, { x: 0 })], c, 0, CTX);
+    settle(s, c, 1000);
+
+    commit(s, [target(1, { x: 1000 })], c, 1000, CTX);
+    const woken = sample(s, 13_000, 12_000, c)[0];
+    expect(woken.x).toBeGreaterThan(0);
+    expect(woken.x).toBeLessThan(200);
   });
 });
 

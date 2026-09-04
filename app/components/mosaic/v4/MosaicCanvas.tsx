@@ -102,7 +102,10 @@ export function MosaicCanvas({
       if (!ctx) return;
 
       const p = propsRef.current;
-      const dt = lastTimeRef.current === 0 ? 16 : now - lastTimeRef.current;
+      // The loop sleeps on a timer between scheduled changes, so the frame
+      // that wakes it carries seconds of dt. Cap it here as well as inside
+      // `sample`, so its drift-settled test sees consistent steps.
+      const dt = Math.min(lastTimeRef.current === 0 ? 16 : now - lastTimeRef.current, 100);
       lastTimeRef.current = now;
 
       const frames = sample(stateRef.current, now, dt, p.motion);
@@ -116,7 +119,10 @@ export function MosaicCanvas({
         live.add(frame.id);
         const entry = p.byId.get(frame.id);
         const fade = fadesRef.current.get(frame.id);
-        if (fade?.pending && now >= fade.pending.at) {
+        // Only a tile still in the pool takes a newer frame. A departing one
+        // keeps its LAST frame through the exit fade (spec §6): swapping the
+        // picture underneath a departure is change nobody asked to see.
+        if (entry && fade?.pending && now >= fade.pending.at) {
           fade.prev = fade.current;
           fade.current = fade.pending.img;
           fade.startedAt = fade.pending.at;
@@ -170,7 +176,11 @@ export function MosaicCanvas({
       // rather than holding a rAF loop open across the whole spread.
       let next = nextEventAt(stateRef.current, now);
       for (const f of fadesRef.current.values()) {
-        if (f.pending && (next === null || f.pending.at < next)) next = f.pending.at;
+        // A stamp already in the past is not a wake-up; arming a 0 ms timer
+        // for it would just spin the loop.
+        if (f.pending && f.pending.at > now && (next === null || f.pending.at < next)) {
+          next = f.pending.at;
+        }
       }
       if (next !== null && wakeRef.current === null) {
         wakeRef.current = setTimeout(() => {

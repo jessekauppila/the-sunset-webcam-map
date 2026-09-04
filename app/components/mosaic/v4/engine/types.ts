@@ -50,7 +50,7 @@ export type SizingCurve = 'linear' | 'easeIn' | 'percentileAmongPassers';
  */
 export type BandGrid = 'full' | 'inset';
 
-/** Every v3 composition knob, resolved to concrete values. */
+/** Every v4 composition knob, resolved to concrete values. */
 export interface V4Config {
   // signal
   qualitySource: 'auto' | 'model' | 'llm';

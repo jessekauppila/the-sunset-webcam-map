@@ -3,7 +3,7 @@ import type { V4Config } from './engine/types';
 import type { MotionConfig } from './motion';
 
 /**
- * Every v3 composition knob. Defaults here ARE what the engine does with no
+ * Every v4 composition knob. Defaults here ARE what the engine does with no
  * settings present — the done-signal for phase 2 is that no composition
  * constant survives in source.
  */
