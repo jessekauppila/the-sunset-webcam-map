@@ -22,10 +22,19 @@ export type RatingCardProps = {
   disabled?: boolean;
   /**
    * When true, hides the StarRating widget and the rate-handler entry
-   * point. The AI verdict + rating block stays visible. Used by the
-   * public map popup; drawer surfaces leave this unset.
+   * point. The AI verdict + rating block stays visible. Used where the
+   * frame on screen cannot be named to the labeling endpoint.
    */
   readOnly?: boolean;
+  /**
+   * The other half of the two-scale rubric: a verdict that this frame is not
+   * a sunset at all, which carries no quality score. Surfaces writing gold
+   * labels pass it; a surface that only collects quality leaves it unset and
+   * the button does not render.
+   */
+  onReject?: () => Promise<RateResult | void>;
+  /** Why the control is unavailable, shown in place of it when readOnly. */
+  readOnlyNote?: string;
 };
 
 function inferLocation(webcam: WindyWebcam) {
@@ -47,6 +56,8 @@ export function RatingCard({
   heading,
   disabled = false,
   readOnly = false,
+  onReject,
+  readOnlyNote,
 }: RatingCardProps) {
   const [currentRating, setCurrentRating] = useState<number>(
     initialRating ?? 0
@@ -88,6 +99,26 @@ export function RatingCard({
       setCurrentRating(initialRating);
     }
   }, [initialRating]);
+
+  const handleReject = async () => {
+    if (disabled || submitting || !onReject) return;
+    setSubmitting(true);
+    setError(null);
+    try {
+      const result = await onReject();
+      // A rejected frame carries no quality, so the stars go back to empty
+      // rather than keeping a score the label no longer holds.
+      setCurrentRating(0);
+      setFeedback({
+        message: result?.message ?? 'Recorded: not a sunset.',
+        tone: result?.tone ?? 'neutral',
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to submit');
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   const handleRate = async (value: number) => {
     if (disabled || submitting) return;
@@ -238,6 +269,16 @@ export function RatingCard({
               name={webcam.title}
               className={submitting ? 'opacity-75' : ''}
             />
+            {onReject ? (
+              <button
+                type="button"
+                onClick={handleReject}
+                disabled={disabled || submitting}
+                className="mt-1 rounded border border-gray-400 bg-gray-100 px-2 py-1 text-xs text-gray-700 hover:bg-gray-50 disabled:opacity-60"
+              >
+                Not a sunset
+              </button>
+            ) : null}
             {submitting ? (
               <p className="text-xs text-gray-500">
                 Saving your rating…
@@ -245,6 +286,10 @@ export function RatingCard({
             ) : null}
           </div>
         )}
+
+        {readOnly && readOnlyNote ? (
+          <p className="text-xs italic text-gray-500">{readOnlyNote}</p>
+        ) : null}
 
         {!readOnly && feedback ? (
           <div

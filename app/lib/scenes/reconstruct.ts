@@ -4,6 +4,7 @@ import type { WindyWebcam } from '@/app/lib/types';
 import type { SceneState } from './types';
 
 export interface HistoricalSnapshotRow {
+  snapshot_id: number;
   webcam_id: number;
   phase: 'sunrise' | 'sunset' | null;
   rank: number | null;
@@ -94,6 +95,9 @@ export function rowsToSceneState(rows: HistoricalSnapshotRow[]): ReconstructResu
       aiModelVersionBinary: r.ai_model_version_binary ?? undefined,
       aiModelVersionRegression: r.ai_model_version_regression ?? undefined,
       lastUpdatedOn: r.snapshot_captured_at,
+      // Every reconstructed tile IS an archived frame, so it can be labeled
+      // by id without capturing anything.
+      frameId: r.snapshot_id,
     };
     state[r.phase].push(cam);
   }
@@ -113,6 +117,7 @@ export async function reconstructScene(
   const to = new Date(at.getTime() + windowMs);
   const rows = (await sql`
     SELECT DISTINCT ON (s.webcam_id)
+      s.id AS snapshot_id,
       s.webcam_id, s.phase, s.rank, s.firebase_url,
       s.captured_at AS snapshot_captured_at,
       s.llm_quality, s.llm_is_sunset, s.llm_model,

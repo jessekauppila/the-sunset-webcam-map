@@ -34,6 +34,7 @@ type TerminatorRow = {
   calibration_multiplier: number | string | null;
   ai_model_version_regression: string | null;
   // From LEFT JOIN LATERAL on webcam_snapshots (only populated for source='custom')
+  latest_snapshot_id: number | null;
   latest_snapshot_url: string | null;
   latest_snapshot_captured_at: string | null;
   // From LEFT JOIN cameras (only populated for source='custom')
@@ -74,6 +75,7 @@ export async function fetchTerminatorWebcams(): Promise<WindyWebcam[]> {
            w.ai_rating_binary, w.ai_model_version_binary,
            w.ai_rating_regression, w.ai_model_version_regression,
            w.calibration_multiplier,
+           ls.id                as latest_snapshot_id,
            ls.firebase_url      as latest_snapshot_url,
            ls.captured_at       as latest_snapshot_captured_at,
            c.device_class,
@@ -83,7 +85,7 @@ export async function fetchTerminatorWebcams(): Promise<WindyWebcam[]> {
     join webcams w on w.id = s.webcam_id
     left join cameras c on c.id = w.custom_camera_id
     left join lateral (
-      select firebase_url, captured_at
+      select id, firebase_url, captured_at
       from webcam_snapshots
       where webcam_id = w.id and w.source = 'custom'
       order by captured_at desc
@@ -153,6 +155,12 @@ export async function fetchTerminatorWebcams(): Promise<WindyWebcam[]> {
       hardwareId: row.hardware_id ?? undefined,
       latestSnapshotCapturedAt: hasCustomSnapshot
         ? row.latest_snapshot_captured_at ?? undefined
+        : undefined,
+      // Only when the preview on screen IS this archived frame. A windy row
+      // renders its own CDN preview, so carrying the id of some unrelated
+      // archived frame would let a labeling surface name the wrong image.
+      frameId: hasCustomSnapshot
+        ? row.latest_snapshot_id ?? undefined
         : undefined,
     };
   });

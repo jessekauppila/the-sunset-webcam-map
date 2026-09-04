@@ -128,6 +128,20 @@ export interface WindyWebcam {
   // images.current.preview. Only set when liveAssetKind === 'custom_snapshot'.
   latestSnapshotCapturedAt?: string;
 
+  /**
+   * `webcam_snapshots.id` of the archived frame that IS
+   * `images.current.preview` — the frame identity a labeling surface needs to
+   * name what is on screen.
+   *
+   * Present when the displayed image is already a durable archived frame:
+   * every scene tile, and live custom-camera tiles. ABSENT for live Windy
+   * tiles, whose preview URL is a Windy CDN address that is not in the
+   * archive at all (and whose content rotates behind a fixed URL every ~10
+   * minutes, so the URL cannot stand in for identity). A surface that wants
+   * to label one of those has to capture the frame first.
+   */
+  frameId?: number;
+
   // "My Cameras" view only — present for the owner's own custom cameras.
   // Absent on Windy/terminator webcams, so existing markers are unchanged.
   cameraHealth?: CameraHealth;

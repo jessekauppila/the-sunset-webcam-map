@@ -36,14 +36,21 @@ vi.mock('@/app/components/mosaic/registry', () => ({
       webcams: Array<{ webcamId: number }>;
       peerWebcams?: Array<{ webcamId: number }>;
       at?: string | number;
+      onSelect?: (webcam: { webcamId: number }) => void;
     }) => {
       capturedFeeds.push(props.feed);
       capturedAt.push(props.at);
       capturedPeers.set(props.feed, props.peerWebcams ?? []);
+      // Stands in for the real versions' canvas hit-testing: every version
+      // fires onSelect with the webcam behind the tile that was clicked.
       return (
         <div data-testid={`mosaic-${props.feed}`}>
           {props.webcams.map((w) => (
-            <div key={w.webcamId} data-testid={`tile-${w.webcamId}`} />
+            <div
+              key={w.webcamId}
+              data-testid={`tile-${w.webcamId}`}
+              onClick={() => props.onSelect?.(w)}
+            />
           ))}
         </div>
       );
@@ -376,5 +383,76 @@ describe('PreviewPane — a scene\'s notes and dials', () => {
     const report = screen.getByTestId('studio-restore-report').textContent ?? '';
     expect(report).toContain('3 of 4');
     expect(report).toContain('retiredDial');
+  });
+  it('opens a detail card for the camera whose tile was clicked', () => {
+    render(
+      <PreviewPane
+        view="sunset" onViewChange={() => {}} panel={PANEL} panelPresetLabel="x"
+        versionName="v2"
+      />
+    );
+    expect(screen.queryByTestId('studio-tile-detail')).toBeNull();
+    fireEvent.click(screen.getByTestId('tile-1'));
+    const detail = screen.getByTestId('studio-tile-detail');
+    expect(detail.textContent).toContain('Rate this sunset');
+  });
+
+  it('closes the detail card', () => {
+    render(
+      <PreviewPane
+        view="sunset" onViewChange={() => {}} panel={PANEL} panelPresetLabel="x"
+        versionName="v2"
+      />
+    );
+    fireEvent.click(screen.getByTestId('tile-1'));
+    fireEvent.click(screen.getByTestId('studio-tile-detail-close'));
+    expect(screen.queryByTestId('studio-tile-detail')).toBeNull();
+  });
+
+  it('offers the rating control on a live tile', () => {
+    render(
+      <PreviewPane
+        view="sunset" onViewChange={() => {}} panel={PANEL} panelPresetLabel="x"
+        versionName="v2"
+      />
+    );
+    fireEvent.click(screen.getByTestId('tile-1'));
+    expect(screen.getByRole('button', { name: /not a sunset/i })).toBeTruthy();
+  });
+
+  /**
+   * A scene is a moment in the past. There is no frame to name for a tile the
+   * archive cannot supply, and capturing one would fetch tonight's image, so
+   * the control has to be off rather than quietly labeling the wrong frame.
+   */
+  it('withholds the rating control on a scene tile with no archived frame', () => {
+    render(
+      <PreviewPane
+        view="sunset" onViewChange={() => {}} panel={PANEL} panelPresetLabel="x"
+        versionName="v2" sceneSource={{ kind: 'scene', id: 4 }}
+        sceneState={{
+          sunrise: [],
+          sunset: [{ webcamId: 9, title: 'frozen cam' } as unknown as WindyWebcam],
+        }}
+      />
+    );
+    fireEvent.click(screen.getByTestId('tile-9'));
+    expect(screen.queryByRole('button', { name: /not a sunset/i })).toBeNull();
+    expect(screen.getByTestId('studio-tile-detail').textContent).toContain('nothing to label');
+  });
+
+  it('keeps the rating control on a scene tile that names an archived frame', () => {
+    render(
+      <PreviewPane
+        view="sunset" onViewChange={() => {}} panel={PANEL} panelPresetLabel="x"
+        versionName="v2" sceneSource={{ kind: 'scene', id: 4 }}
+        sceneState={{
+          sunrise: [],
+          sunset: [{ webcamId: 9, title: 'archived cam', frameId: 5150 } as unknown as WindyWebcam],
+        }}
+      />
+    );
+    fireEvent.click(screen.getByTestId('tile-9'));
+    expect(screen.getByRole('button', { name: /not a sunset/i })).toBeTruthy();
   });
 });

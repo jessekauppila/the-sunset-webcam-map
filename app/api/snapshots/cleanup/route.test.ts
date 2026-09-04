@@ -71,6 +71,16 @@ describe('GET /api/snapshots/cleanup', () => {
     expect(q).toMatch(/rating\s+is\s+not\s+null\s+or\s+is_sunset_verdict\s+is\s+not\s+null/i);
   });
 
+  it('excludes gold-labeled frames — the label names the row by id', async () => {
+    cleanupEnabledMock.value = true;
+    sqlMock.mockResolvedValueOnce([]);
+    await GET(makeReq());
+    const [strings] = sqlMock.mock.calls[0];
+    const q = strings.join('?');
+    expect(q).toMatch(/manual_labels/i);
+    expect(q).toMatch(/source\s*=\s*'webcam'/i);
+  });
+
   it('excludes high-ai_rating snapshots (best-of frames the leaderboard ranks)', async () => {
     cleanupEnabledMock.value = true;
     sqlMock.mockResolvedValueOnce([]);
