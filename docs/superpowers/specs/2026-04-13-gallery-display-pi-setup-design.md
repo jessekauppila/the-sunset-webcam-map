@@ -178,13 +178,12 @@ nano ~/reload-kiosk.sh
 
 Paste:
 
-```bash
-#!/bin/bash
-# Reload all Chromium kiosk windows by sending Ctrl+R via xdotool
-# Requires: sudo apt install -y xdotool (done in Step 2)
-DISPLAY=:0 xdotool search --class chromium key --clearmodifiers ctrl+r
-echo "Reloaded all kiosk windows"
-```
+> **SUPERSEDED 2026-09-02.** The one-liner this spec originally told you to
+> paste never worked: `xdotool search --class chromium key ...` delivers the
+> keystroke via XSendEvent, which Chromium ignores, and it targets only the
+> first window. The script printed success for months while the glass never
+> reloaded. Copy `scripts/pi/reload-kiosk.sh` from the repo instead. Background:
+> `docs/solutions/integration-issues/chromium-ignores-xdotool-keystrokes-without-focus.md`
 
 ```bash
 chmod +x ~/reload-kiosk.sh

@@ -94,6 +94,14 @@ Why: `docs/solutions/workflow-issues/migrations-need-a-ledger.md`.
 - **Never let an ML fallback masquerade as real model output.** Persist
   `pathTaken`, surface a fallbacks counter.
 
+## The kiosk Pi (the glass)
+
+Settings reach the Pi on their own within a minute of a /studio Deploy. Code
+does not: the Pi's Chromium tabs run the build they loaded until someone
+reloads them. After a kiosk-affecting merge builds, run
+`bash scripts/pi/kiosk-doctor.sh --sync --reload`. The full procedure and the
+failure table: `docs/ops/pushing-an-update-to-the-glass.md`.
+
 ## Data gotchas
 
 - **`ai_rating` is junk** (a removed baseline heuristic). The real quality
@@ -115,9 +123,15 @@ boots/config → `snap-now.sh` on the device.
 
 ## Where knowledge lives
 
-`docs/solutions/` holds accumulated lessons; also `docs/ops/`, `docs/ml/`
+`docs/solutions/` holds accumulated lessons, filed by category
+(`integration-issues/`, `best-practices/`, …) with YAML frontmatter — grep
+`module:`, `tags:`, or `problem_type:` to find one. Also `docs/ops/`, `docs/ml/`
 (incl. `rating-rubric.md`), `docs/hardware/`, `docs/plans/`. Check there before
 re-deriving something.
+
+`CONCEPTS.md` at the repo root is the shared domain vocabulary — the display
+chain (Feed, Pool, Gate, Mosaic, Composition, Tile, Glass, Dial) — relevant when
+orienting or naming things.
 
 The repo root has accumulated a lot of loose planning `.md` files — treat
 `docs/` as authoritative over root-level notes.

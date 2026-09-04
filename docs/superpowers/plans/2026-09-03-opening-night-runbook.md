@@ -54,7 +54,7 @@ Pacific first, UTC beside it. The show runs in the freshest hours of the UTC day
 - Rings, tick cadence, and flag state stay as they are from here. Live images
   keep flowing; the freeze is on configuration, not on content.
 - Decide from five preview days whether the ring stays on.
-- Merge or park `fix/kiosk-reload-verification`. It has never run against the Pi.
+- Merge the kiosk runbook PR (it carries `fix/kiosk-reload-verification`, which ran end to end on the Pi 2026-09-04). Procedure: `docs/ops/pushing-an-update-to-the-glass.md`.
 
 ### Thu Sep 11 — rehearsal
 - Run the kiosk exactly as it will run. Run `scripts/pi/kiosk-doctor.sh` on the Pi.
@@ -90,7 +90,7 @@ Pacific first, UTC beside it. The show runs in the freshest hours of the UTC day
 - [x] Gate check rebuilt into `scripts/windy-gate-check.mjs` after the scratchpad copy was lost
 
 ### Open risks on the glass — confirm
-- [ ] `fix/kiosk-reload-verification`: pushed, unmerged, never run on the Pi; also edits `CLAUDE.md`
+- [x] `fix/kiosk-reload-verification`: ran on the Pi 2026-09-04 (`--sync --reload`, 2 of 2 windows); lands with the kiosk runbook PR
 - [ ] Mosaic v3 on the actual panels: #120 and #122 merged; confirm the band scale on the glass, not the studio
 - [ ] Kiosk Pi reachable and rendering `main` (Deploy copies settings rows only; the Pi renders `main`)
 - [ ] Two known limits of retention (final review 2026-09-03): the hold is
