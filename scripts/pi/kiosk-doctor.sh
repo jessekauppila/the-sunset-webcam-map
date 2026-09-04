@@ -44,7 +44,11 @@ info() { printf '        %s\n' "$1"; }
 # Checked first and fatally, because every downstream symptom is identical to
 # "the Pi is dead" when this Mac is simply not on the tailnet.
 say "1. This Mac's tailnet"
-if ifconfig 2>/dev/null | grep -q 'inet 100\.'; then
+if [ -n "${KIOSK_HOST:-}" ]; then
+  # An explicit host is the LAN route (sunsetdisplay.lan / 192.168.8.x on the
+  # GL-X3000 wifi). The tailnet is irrelevant to it, so don't fail on it.
+  info "KIOSK_HOST=$HOST — skipping the tailnet check (LAN route)"
+elif ifconfig 2>/dev/null | grep -q 'inet 100\.'; then
   ok "on the tailnet"
 else
   bad "this Mac has no 100.x tailnet address — the Pi's state is UNKNOWN from here"
@@ -63,10 +67,29 @@ if ssh -o ConnectTimeout=8 -o BatchMode=yes "pi@$HOST" true 2>/dev/null; then
   ok "ssh succeeded — the Pi is powered and networked"
 else
   bad "cannot ssh to $HOST"
-  info "This Mac IS on the tailnet, so this is the Pi's end: powered off, or"
-  info "off the network. Note the Pi rides the GL-X3000 travel router — if the"
-  info "router left the Pi's location, the Pi has no internet regardless of power."
-  info "Confirm which at login.tailscale.com/admin/machines, then power-cycle in person."
+  # Re-run once, unsilenced, so the reason is on screen: a timeout means the
+  # Pi is unreachable; "Permission denied (publickey)" means it is up and
+  # refusing this Mac's key, which no amount of power-cycling will fix.
+  ERR=$(ssh -o ConnectTimeout=8 -o BatchMode=yes "pi@$HOST" true 2>&1)
+  info "ssh: $ERR"
+  case "$ERR" in
+    *"Permission denied"*)
+      info "The Pi is UP and refusing this Mac's key. Power-cycling will not help."
+      info "Add ~/.ssh/id_ed25519.pub to /home/pi/.ssh/authorized_keys on the Pi"
+      info "(dir mode 700, file mode 600), from its keyboard or another authorized machine." ;;
+    *"Host key verification"*)
+      info "No known_hosts entry for this name. Use the address instead, e.g."
+      info "  KIOSK_HOST=192.168.8.223 bash $0" ;;
+    *)
+      if [ -n "${KIOSK_HOST:-}" ]; then
+        info "Is this Mac on the Pi's wifi (the GL-X3000 network)? The LAN route needs it."
+      else
+        info "This Mac IS on the tailnet, so this is the Pi's end: powered off, or"
+        info "off the network. Note the Pi rides the GL-X3000 travel router — if the"
+        info "router left the Pi's location, the Pi has no internet regardless of power."
+        info "Confirm which at login.tailscale.com/admin/machines, then power-cycle in person."
+      fi ;;
+  esac
   exit 1
 fi
 

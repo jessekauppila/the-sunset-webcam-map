@@ -94,6 +94,14 @@ Why: `docs/solutions/workflow-issues/migrations-need-a-ledger.md`.
 - **Never let an ML fallback masquerade as real model output.** Persist
   `pathTaken`, surface a fallbacks counter.
 
+## The kiosk Pi (the glass)
+
+Settings reach the Pi on their own within a minute of a /studio Deploy. Code
+does not: the Pi's Chromium tabs run the build they loaded until someone
+reloads them. After a kiosk-affecting merge builds, run
+`bash scripts/pi/kiosk-doctor.sh --sync --reload`. The full procedure and the
+failure table: `docs/ops/pushing-an-update-to-the-glass.md`.
+
 ## Data gotchas
 
 - **`ai_rating` is junk** (a removed baseline heuristic). The real quality
