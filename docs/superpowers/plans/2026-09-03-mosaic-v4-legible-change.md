@@ -1294,7 +1294,6 @@ function stubRaf(maxFrames = 4, base = 1000) {
 
 Two existing tests need the clocks reconciled, because v4 no longer draws a tile at opacity 0 (v3 drew it with `globalAlpha` 0, which is why they passed):
 
-- In `afterEach`, add `vi.useRealTimers();` before `vi.restoreAllMocks()`.
 - In "moves a tile toward its new place instead of jumping there": pin the effect's clock and give the second phase a later loop clock —
 
 ```ts
@@ -1434,21 +1433,21 @@ describe('MosaicCanvas — scheduled change', () => {
   });
 
   it('sleeps on a timer until the next scheduled change instead of spinning', () => {
-    vi.useFakeTimers();
     vi.spyOn(performance, 'now').mockReturnValue(0);
+    const setTimeoutSpy = vi.spyOn(globalThis, 'setTimeout');
     const raf = stubRaf(8, 1000);
     stubContext();
     const tween: MotionConfig = { ...CUT, mode: 'tween', order: 'sweep', spreadMs: 10_000, fadeMs: 100 };
 
-    // Entry for the tile is scheduled at 6000ms; nothing to draw until then.
+    // The tile's entry is scheduled at 6000ms. The first draw runs at 1016,
+    // finds nothing moving, and must arm one timer for 6000 - 1016 = 4984ms
+    // rather than requesting frame after frame until then.
     render(
       <MosaicCanvas layout={layout()} byId={byId({} as HTMLImageElement)} width={300} height={500}
                     motion={tween} crossfadeMs={0} panelSlot={1} />
     );
-    const before = raf.count();
-    expect(before).toBeLessThanOrEqual(2);
-    expect(vi.getTimerCount()).toBe(1);
-    vi.useRealTimers();
+    expect(raf.count()).toBe(1);
+    expect(setTimeoutSpy.mock.calls.some((c) => c[1] === 4984)).toBe(true);
   });
 });
 ```
