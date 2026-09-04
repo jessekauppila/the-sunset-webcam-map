@@ -963,8 +963,34 @@ The QR for the pop-up is simply the deployed URL + `/ring` (e.g. `https://<deplo
 ## Known v1 limitations (intentional, documented — not silent)
 
 - **Read-modify-write races:** two phones syncing in the same instant can both load the same session and one overwrite the other. Acceptable at pop-up scale (a handful of phones, 20s cadence). If contention shows up, move `assignOrKeep`+save into an atomic Upstash `eval` (Lua) — out of scope for the spike.
-- **Cost:** `/api/ring/sync` calls `getRankedCameras()` (→ `fetchTerminatorWebcams()`, a DB read) on every heartbeat. Fine for a few phones; if a real installation scales up, back `getRankedCameras()` with the existing terminator cache (`app/lib/cache.ts`, 300s TTL) instead of hitting Neon each time. Flagged given known DB-cost sensitivity.
+- **Cost:** ~~`/api/ring/sync` calls `getRankedCameras()` (→ `fetchTerminatorWebcams()`, a DB read) on every heartbeat.~~ **Closed 2026-09-03 before merge** — `getRankedCameras()` now reads the existing 300s terminator cache first (`app/lib/cache.ts`), the same one `/api/db-terminator-webcams` uses, and repopulates it on a miss. See "Merge decision" below.
 - **Sunrise + sunset both included:** `rank` is per-phase, so the ring interleaves top sunrises and sunsets. This is desired (the whole terminator), but "single global best" is therefore approximate.
+
+## Merge decision (2026-09-03)
+
+The spike sat unmerged for five weeks with a clean merge against main and no
+device verification. Merged anyway, with one change, for these reasons:
+
+- **It touches nothing that exists.** Every file is new (`app/lib/ring/*`,
+  `app/api/ring/sync`, `app/ring`). Merging cannot regress the map, the kiosk,
+  the studio or the cron. The only new surface is a URL nobody links to.
+- **Parked branches rot.** The standing rule in this repo is to land small
+  increments the same day, because a fix stranded on an unmerged branch is
+  undone when the feature it fixes finally merges. Five weeks was already too
+  long; another dial change in `masterConfig.ts` or `terminatorPayload.ts`
+  would have turned a clean merge into a conflict to re-derive.
+- **The one thing that could cost money is fixed first.** `/api/ring/sync` is
+  unauthenticated by design (the audience's phones have no accounts) and each
+  phone heartbeats every 20s. Uncached, that was one Neon read per phone per
+  20s, and one curious person with the URL could hold a read loop open alone.
+  Reading the existing 300s terminator cache caps the whole ring at one
+  database read per five minutes, which is the ceiling the map already lives
+  under. This was flagged in the PR as "before scaling up"; it is cheaper to
+  do it before the URL exists on production than to remember it later.
+- **Still not done, and not a merge blocker:** device verification (wake lock
+  persistence, multi-phone assignment, the ~60s release), the physical kit,
+  and the read-modify-write race on the session key. Those need a phone in
+  hand or a crowd, not a merge.
 
 ---
 
