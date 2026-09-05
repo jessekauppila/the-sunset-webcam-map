@@ -55,5 +55,5 @@ export const SOLO_VERSIONS = { solo, solo2 } as const;
  */
 export function resolveSoloVersion(raw: string | null | undefined): SoloVersionSpec | null {
   if (raw == null || raw === '') return solo as SoloVersionSpec;
-  return raw in SOLO_VERSIONS ? (SOLO_VERSIONS[raw as SoloVersionName] as SoloVersionSpec) : null;
+  return Object.hasOwn(SOLO_VERSIONS, raw) ? (SOLO_VERSIONS[raw as SoloVersionName] as SoloVersionSpec) : null;
 }
