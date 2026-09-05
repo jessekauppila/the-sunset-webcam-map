@@ -10,8 +10,7 @@ export const runtime = 'nodejs';
 const LABEL_MAX = 60;
 
 /** Optional `{ label }`. No body, or a malformed one, is a deploy with no label. */
-async function labelOf(request?: Request): Promise<string | null> {
-  if (!request) return null;
+async function labelOf(request: Request): Promise<string | null> {
   try {
     const body = (await request.json()) as { label?: unknown };
     return typeof body?.label === 'string' && body.label.trim()
@@ -22,7 +21,7 @@ async function labelOf(request?: Request): Promise<string | null> {
   }
 }
 
-export async function POST(request?: Request) {
+export async function POST(request: Request) {
   const denied = await requireOwner();
   if (denied) return denied;
   const label = await labelOf(request);

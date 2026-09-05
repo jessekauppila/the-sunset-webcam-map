@@ -42,7 +42,7 @@ describe('POST /api/kiosk/settings/deploy', () => {
     requireOwnerMock.mockResolvedValueOnce(
       NextResponse.json({ error: 'Forbidden' }, { status: 403 }),
     );
-    const res = await POST();
+    const res = await POST(reqPost());
     expect(res.status).toBe(403);
     expect(copyProfileMock).not.toHaveBeenCalled();
     expect(setKioskLiveSettingsCacheMock).not.toHaveBeenCalled();
@@ -85,7 +85,7 @@ describe('POST /api/kiosk/settings/deploy', () => {
     const live = { namespaces: {}, revision: 5 };
     copyProfileMock.mockResolvedValueOnce(live);
     recordDeployMock.mockResolvedValueOnce(null);
-    const res = await POST();
+    const res = await POST(reqPost());
     expect(recordDeployMock).toHaveBeenCalledWith(live, null);
     expect(await res.json()).toEqual({ live, deploy: null });
   });
