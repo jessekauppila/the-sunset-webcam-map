@@ -337,7 +337,7 @@ export async function insertWindyDisagreementSnapshot(opts: {
   // Why this row entered the archive. 'trickle' is the unbiased control arm
   // (masterConfig SAVE_RANDOM_TRICKLE_RATE) and must stay separable from the
   // model-gated reasons, or the arm is unrecoverable after the fact.
-  intakeReason?: 'disagreement' | 'high_rated' | 'trickle' | 'all_rated';
+  intakeReason?: 'disagreement' | 'high_rated' | 'trickle' | 'all_rated' | 'kiosk_bin';
 }): Promise<number> {
   const [row] = (await sql`
     insert into webcam_snapshots (
