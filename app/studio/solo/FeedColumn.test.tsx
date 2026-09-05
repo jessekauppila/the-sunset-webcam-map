@@ -48,3 +48,19 @@ it('with nothing on glass the panel says so and the queue starts at the projecti
   expect(screen.getByText('nothing on glass yet')).toBeInTheDocument();
   expect(screen.getAllByText('cam9').length).toBeGreaterThan(0);
 });
+
+it('solo2 with valleys tags queued draws PEAK and VALLEY and captions the local time', async () => {
+  const { SOLO_VERSIONS } = await import('@/app/lib/solo/versions');
+  const { SOLO2_SETTINGS_SCHEMA, dialsFrom2 } = await import('@/app/lib/solo2/settingsSchema');
+  const d2 = { ...dialsFrom2(schemaDefaults(SOLO2_SETTINGS_SCHEMA)), valleys: 1 };
+  const at = Date.UTC(2026, 8, 5, 2, 42);
+  const es = [entry(1, 'sunset', 0.9), entry(2, 'sunset', 0.8), entry(3, 'sunset', 0.7)]
+    .map((e) => ({ ...e, capturedAt: at, timezone: 'America/Mazatlan', region: 'BCS', country: 'Mexico' }));
+  const v = buildStateView({ feed: 'sunrise', dials: d2, entries: es,
+    screen: { feed: 'sunrise', currentSnapshotId: 1, shownSince: 0, slot: 0, sunsetStreak: 1 },
+    nowMs: 0, admitted: { sunset: 0, nonSunset: 0 }, zone: { minDeg: -24, maxDeg: -2 }, version: SOLO_VERSIONS.solo2 });
+  render(<FeedColumn feed="sunrise" server={v} projected={v} liveDials={d2} studioDials={d2} nowMs={0} version={SOLO_VERSIONS.solo2} onSelect={vi.fn()} />);
+  expect(screen.getAllByText('VALLEY').length).toBeGreaterThan(0);
+  expect(screen.getAllByText('PEAK').length).toBeGreaterThan(0);
+  expect(screen.getByText('BCS, Mexico · 7:42 pm')).toBeInTheDocument();
+});

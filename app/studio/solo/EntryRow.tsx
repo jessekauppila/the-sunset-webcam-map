@@ -2,6 +2,7 @@
 
 import type { EntryView } from '@/app/api/kiosk/solo/view';
 import type { Feed } from '@/app/lib/solo/types';
+import type { Role } from '@/app/lib/solo2/types';
 
 const COLOR = { sunset: '#7ee2ac', non_sunset: '#c3cad6' } as const;
 const mono = 'ui-monospace, SFMono-Regular, Menlo, monospace';
@@ -19,13 +20,15 @@ function Tag({ children, bg, fg, title }: { children: string; bg: string; fg: st
  * One frame, wherever it sits: a bin or the queue. The outline is always the
  * colour of the bin the frame belongs to, so the queue reads at a glance.
  */
-export function EntryRow({ entry: e, feed, place, onGlass = false, repeat = false, cameraIndex, onClick }: {
+export function EntryRow({ entry: e, feed, place, onGlass = false, repeat = false, cameraIndex, role, onClick }: {
   entry: EntryView;
   feed: Feed;
   place: 'sunset' | 'non_sunset' | 'queue';
   onGlass?: boolean;
   repeat?: boolean;
   cameraIndex?: { n: number; m: number };
+  /** solo2: what this queued draw is inside its bar. */
+  role?: Role;
   onClick: (entry: EntryView) => void;
 }) {
   const scores = e.bin === 'sunset'
@@ -59,6 +62,8 @@ export function EntryRow({ entry: e, feed, place, onGlass = false, repeat = fals
           {cameraIndex && (
             <Tag bg="#7ea6e2" fg="#061224" title="Same camera as another queue entry">{`CAM ${cameraIndex.n}/${cameraIndex.m}`}</Tag>
           )}
+          {role === 'peak' && <Tag bg="#f5a344" fg="#1a1000" title="Beat 0 of the bar: the best remaining frame">PEAK</Tag>}
+          {role === 'valley' && <Tag bg="#3a4356" fg="#e5e7eb" title="A valley: the lowest eligible frame, unshown first">VALLEY</Tag>}
         </div>
         <div style={{ color: '#c3cad6', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{e.title}</div>
         <div style={{ color: '#6b7280', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{placeText}</div>

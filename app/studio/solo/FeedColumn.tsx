@@ -4,6 +4,9 @@ import type { ReactNode } from 'react';
 import type { EntryView, StateView } from '@/app/api/kiosk/solo/view';
 import { nextBoundaryMs } from '@/app/lib/solo/schedule';
 import type { Feed, SoloDials } from '@/app/lib/solo/types';
+import type { SoloVersionSpec } from '@/app/lib/solo/versions';
+import { captionLines } from '@/app/lib/solo2/caption';
+import type { Solo2Dials } from '@/app/lib/solo2/types';
 import { EntryRow } from './EntryRow';
 
 const mono = 'ui-monospace, SFMono-Regular, Menlo, monospace';
@@ -25,13 +28,14 @@ function Bin({ color, title, hint, children }: { color: string; title: string; h
  * and the queue as the STUDIO dials would order them. Every frame appears in
  * exactly one of the three columns; the on-glass frame heads the queue.
  */
-export function FeedColumn({ feed, server, projected, liveDials, nowMs, onSelect }: {
+export function FeedColumn({ feed, server, projected, liveDials, nowMs, version, onSelect }: {
   feed: Feed;
   server: StateView;
   projected: StateView;
   liveDials: SoloDials;
   studioDials: SoloDials;
   nowMs: number;
+  version?: SoloVersionSpec;
   onSelect: (entry: EntryView, feed: Feed) => void;
 }) {
   const boundary = nextBoundaryMs(nowMs, feed, liveDials.dwellS, liveDials.offsetS);
@@ -46,15 +50,20 @@ export function FeedColumn({ feed, server, projected, liveDials, nowMs, onSelect
     !!server.next[0] && !!projected.next[0] && server.next[0].snapshotId !== projected.next[0].snapshotId;
   const qSun = queue.filter((e) => e.bin === 'sunset').length;
   const qNon = queue.length - qSun;
+  // Roles are parallel to projected.next; the on-glass frame at index 0 has none.
+  const showRoles = version?.name === 'solo2' && (liveDials as Partial<Solo2Dials>).valleys !== undefined
+    && ((projected.dials as Partial<Solo2Dials>).valleys ?? 0) > 0;
+  const roleOf = (i: number) => (showRoles && i > 0 ? projected.nextRoles[i - 1] : undefined);
+  const cap = current && captionLines(current.entry, {
+    showPlace: liveDials.showPlace, timeStyle: (liveDials as Partial<Solo2Dials>).timeStyle ?? 'off',
+  });
 
   const caption = current && (
     <>
-      {liveDials.showPlace && (
+      {cap && (
         <div style={{ position: 'absolute', left: 12, bottom: 10, color: '#fff', textShadow: '0 1px 3px #000', fontSize: 14 }}>
-          {current.entry.title}
-          <small style={{ display: 'block', fontSize: 11, opacity: 0.8 }}>
-            {[current.entry.region, current.entry.country].filter(Boolean).join(', ')}
-          </small>
+          {cap.title}
+          <small style={{ display: 'block', fontSize: 11, opacity: 0.8 }}>{cap.sub}</small>
         </div>
       )}
       <div style={{
@@ -131,7 +140,7 @@ export function FeedColumn({ feed, server, projected, liveDials, nowMs, onSelect
             camSeen.set(e.webcamId, n);
             return (
               <EntryRow key={`${e.snapshotId}-${i}`} entry={e} feed={feed} place="queue" onGlass={i === 0 && !!current}
-                repeat={repeat} cameraIndex={m > 1 ? { n, m } : undefined} onClick={(x) => onSelect(x, feed)} />
+                repeat={repeat} cameraIndex={m > 1 ? { n, m } : undefined} role={roleOf(i)} onClick={(x) => onSelect(x, feed)} />
             );
           })}
         </Bin>

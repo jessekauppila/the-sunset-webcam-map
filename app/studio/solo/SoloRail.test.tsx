@@ -1,4 +1,4 @@
-import { it, expect, vi } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { SoloRail } from './SoloRail';
 import { SOLO_SETTINGS_SCHEMA } from '@/app/lib/solo/settingsSchema';
@@ -38,4 +38,24 @@ it('reset buttons clear one section each', () => {
   render(<SoloRail api={a} deploySlot={null} />);
   fireEvent.click(screen.getByText('reset glass'));
   expect(a.resetSection).toHaveBeenCalledWith('solo', 'glass');
+});
+
+describe('solo2', async () => {
+  const { SOLO_VERSIONS } = await import('@/app/lib/solo/versions');
+  const { SOLO2_SETTINGS_SCHEMA } = await import('@/app/lib/solo2/settingsSchema');
+  const api2 = () => api({
+    effective: (ns) => (ns === 'solo2' ? mergeSettings(SOLO2_SETTINGS_SCHEMA, { prelude: true, leadS: 4 }) : { activeVersion: 'solo2', panelPreset: 'ktc-l' }),
+    diffByNamespace: { solo2: ['valleys'] },
+  });
+  it('renders every solo2 knob, selects write strings, and the budget line reads the dials', () => {
+    const a = api2();
+    render(<SoloRail api={a} deploySlot={null} version={SOLO_VERSIONS.solo2} />);
+    for (const k of SOLO2_SETTINGS_SCHEMA) expect(screen.getByLabelText(k.label)).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('transition'), { target: { value: 'dip' } });
+    expect(a.setKnob).toHaveBeenCalledWith('solo2', 'transition', 'dip');
+    fireEvent.change(screen.getByLabelText('valleys per peak'), { target: { value: '2' } });
+    expect(a.setKnob).toHaveBeenCalledWith('solo2', 'valleys', 2);
+    expect(screen.getByText('prelude 4.5 s + lead 4 s + hold 11.5 s')).toBeInTheDocument();
+    expect(screen.getByText(/dials solo2/)).toBeInTheDocument();
+  });
 });
