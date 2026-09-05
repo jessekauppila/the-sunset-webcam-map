@@ -51,8 +51,8 @@ describe('solo2', async () => {
     const a = api2();
     render(<SoloRail api={a} deploySlot={null} version={SOLO_VERSIONS.solo2} />);
     for (const k of SOLO2_SETTINGS_SCHEMA) expect(screen.getByLabelText(k.label)).toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText('transition'), { target: { value: 'dip' } });
-    expect(a.setKnob).toHaveBeenCalledWith('solo2', 'transition', 'dip');
+    fireEvent.change(screen.getByLabelText('camera change'), { target: { value: 'crossfade' } });
+    expect(a.setKnob).toHaveBeenCalledWith('solo2', 'transition', 'crossfade');
     fireEvent.change(screen.getByLabelText('valleys per peak'), { target: { value: '2' } });
     expect(a.setKnob).toHaveBeenCalledWith('solo2', 'valleys', 2);
     expect(screen.getByText('prelude 4.5 s + lead 4 s + hold 11.5 s')).toBeInTheDocument();

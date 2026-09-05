@@ -64,3 +64,25 @@ it('solo2 with valleys tags queued draws PEAK and VALLEY and captions the local 
   expect(screen.getAllByText('PEAK').length).toBeGreaterThan(0);
   expect(screen.getByText('BCS, Mexico · 7:42 pm')).toBeInTheDocument();
 });
+
+it('solo2 with the prelude on groups a camera\'s earlier frames under the queued draw and flags their own later turns', async () => {
+  const { SOLO_VERSIONS } = await import('@/app/lib/solo/versions');
+  const { SOLO2_SETTINGS_SCHEMA, dialsFrom2 } = await import('@/app/lib/solo2/settingsSchema');
+  const d2 = { ...dialsFrom2(schemaDefaults(SOLO2_SETTINGS_SCHEMA)), prelude: true, preludeFrames: 3, repeatAllowance: 0 };
+  const at = Date.UTC(2026, 8, 5, 2, 42);
+  const cam = (id: number, score: number, minutesBefore: number) => ({
+    ...entry(id, 'sunset', score, 7), capturedAt: at - minutesBefore * 60_000, timezone: 'America/Mazatlan',
+  });
+  // Camera 7 has three frames; the best (3) is on glass with 1 and 2 as its prelude. Camera 9 is alone.
+  const es = [cam(1, 0.6, 44), cam(2, 0.7, 28), cam(3, 0.9, 0), { ...entry(4, 'sunset', 0.8, 9), capturedAt: at, timezone: 'America/Mazatlan' }];
+  const v = buildStateView({ feed: 'sunrise', dials: d2, entries: es,
+    screen: { feed: 'sunrise', currentSnapshotId: 3, shownSince: 0, slot: 0, sunsetStreak: 1 },
+    nowMs: 0, admitted: { sunset: 0, nonSunset: 0 }, zone: { minDeg: -24, maxDeg: -2 }, version: SOLO_VERSIONS.solo2 });
+  render(<FeedColumn feed="sunrise" server={v} projected={v} liveDials={d2} studioDials={d2} nowMs={0} version={SOLO_VERSIONS.solo2} onSelect={vi.fn()} />);
+  // The on-glass row is a group whose earlier frames read 6:58 pm then 7:14 pm.
+  const groups = screen.getAllByRole('group');
+  expect(groups.length).toBeGreaterThan(0);
+  expect(groups[0]).toHaveTextContent(/6:58 pm.*7:14 pm.*cam3/s);
+  // Frames 1 and 2 still get their own turn somewhere later, flagged.
+  expect(screen.getAllByText('PRELUDE').length).toBeGreaterThan(0);
+});
