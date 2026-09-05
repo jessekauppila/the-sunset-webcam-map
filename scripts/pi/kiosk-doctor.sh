@@ -103,6 +103,8 @@ STATE=$(ssh -o ConnectTimeout=10 "pi@$HOST" '
     echo "X=up"
     echo "DPMS=$(xset q | awk "/Monitor is/ {print \$3}")"
     echo "OUTPUTS=$(xrandr 2>/dev/null | grep -c " connected")"
+    xrandr --query 2>/dev/null | awk "/connected/ {print \"ROT=\" \$1 \" \" \$2 \" \" \$3 \" \" \$4 \" \" \$5}"
+    echo "ORIENTATION=$(grep -s "^ORIENTATION=" /home/pi/kiosk.env | cut -d= -f2)"
   else
     echo "X=down"
   fi
@@ -119,6 +121,11 @@ if [ "$(get X)" = "up" ]; then
   DPMS=$(get DPMS)
   OUTPUTS=$(get OUTPUTS)
   info "monitors connected: ${OUTPUTS:-unknown}"
+  # Orientation is a setting on the Pi (kiosk.env) and a fact in X (xrandr).
+  # Both are printed so a mismatch between them, or with the /studio panel
+  # preset, is visible here rather than only on the glass.
+  info "kiosk.env ORIENTATION=$(get ORIENTATION) (empty = portrait default)"
+  printf '%s\n' "$STATE" | grep '^ROT=' | sed 's/^ROT=/xrandr /' | while read -r line; do info "$line"; done
   case "$DPMS" in
     On)  ok "monitors are awake (DPMS On)" ;;
     "")  info "DPMS state not reported" ;;
