@@ -9,11 +9,20 @@ import type { KnobDescriptor, KnobValue } from '@/app/lib/settings/schema';
 import type { StudioSettingsApi } from '../useStudioSettings';
 import { RulesBox } from './RulesBox';
 
+/** The rail's two pages: the glass + bins dials, and the caption dials. */
+export type RailTab = 'dials' | 'caption';
+const TABS: { id: RailTab; label: string; hint: string }[] = [
+  { id: 'dials', label: 'Dials', hint: 'Timing, overlays and the ordering algorithm.' },
+  { id: 'caption', label: 'Caption', hint: 'The picture\'s frame on black and the words beneath it. The preview draws them as you move.' },
+];
+
 const GROUPS = [
-  { section: 'glass', title: 'Glass · what the screen draws', color: '#f5a344',
+  { section: 'glass', tab: 'dials', title: 'Glass · what the screen draws', color: '#f5a344',
     hint: 'These change what the screens draw. They never change which frame comes next.' },
-  { section: 'bins', title: 'Bins · the ordering algorithm', color: '#4fd1c5',
+  { section: 'bins', tab: 'dials', title: 'Bins · the ordering algorithm', color: '#4fd1c5',
     hint: 'These change which frame comes next. The queue re-runs the moment one moves.' },
+  { section: 'caption', tab: 'caption', title: 'Caption · the picture and its words', color: '#c4a7f7',
+    hint: 'Sizes are glass pixels on a 1920-wide panel; grays are percent of white. Deploy sends them to the glass like any other dial.' },
 ] as const;
 
 const mono = 'ui-monospace, SFMono-Regular, Menlo, monospace';
@@ -58,14 +67,17 @@ function Control({ knob, value, differs, onChange }: {
 }
 
 /**
- * The solo studio's dial rail. Two colour-coded groups straight from the
- * schema's sections, a bold label wherever the studio value differs from
- * the glass, and the rules box stating §4 with the values in force.
+ * The solo studio's dial rail. Two tabs: the colour-coded glass and bins
+ * groups with the rules box, and the caption group. Every group comes
+ * straight from the schema's sections, with a bold label wherever the studio
+ * value differs from the glass.
  */
-export function SoloRail({ api, deploySlot, version = SOLO_VERSIONS.solo as SoloVersionSpec }: {
+export function SoloRail({ api, deploySlot, version = SOLO_VERSIONS.solo as SoloVersionSpec, tab = 'dials', onTab }: {
   api: StudioSettingsApi;
   deploySlot: ReactNode;
   version?: SoloVersionSpec;
+  tab?: RailTab;
+  onTab?: (tab: RailTab) => void;
 }) {
   const ns = version.namespace;
   const values = api.effective(ns);
@@ -79,7 +91,19 @@ export function SoloRail({ api, deploySlot, version = SOLO_VERSIONS.solo as Solo
         title="Which version the glass runs and the panel geometry. Both are shared dials, set on /studio.">
         glass {String(shared.activeVersion)} · panel {String(shared.panelPreset)} · dials {version.name}
       </div>
-      {GROUPS.map((g) => (
+      <div role="tablist" aria-label="Rail pages" style={{ display: 'flex', gap: 4, margin: '4px 0 6px' }}>
+        {TABS.map((t) => (
+          <button key={t.id} type="button" role="tab" aria-selected={tab === t.id} title={t.hint}
+            onClick={() => onTab?.(t.id)} style={{
+              flex: 1, padding: '5px 0', fontSize: 11, letterSpacing: '.06em', textTransform: 'uppercase', cursor: 'pointer',
+              background: tab === t.id ? '#1d2432' : 'transparent', color: tab === t.id ? '#e5e7eb' : '#8b95a7',
+              border: '1px solid #1d2432', borderRadius: 4,
+            }}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+      {GROUPS.filter((g) => g.tab === tab).map((g) => (
         <section key={g.section}>
           <h4 title={g.hint} style={{
             margin: '10px 0 6px', fontSize: 11, letterSpacing: '.06em', textTransform: 'uppercase',
@@ -100,7 +124,7 @@ export function SoloRail({ api, deploySlot, version = SOLO_VERSIONS.solo as Solo
           {g.section === 'glass' && version.name === 'solo2' && <DwellBudget dials={dials as Solo2Dials} />}
         </section>
       ))}
-      <RulesBox dials={dials} version={version} />
+      {tab === 'dials' && <RulesBox dials={dials} version={version} />}
     </div>
   );
 }

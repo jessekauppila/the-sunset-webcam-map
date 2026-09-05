@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { soloFontClassName } from './soloFonts';
 
 export const metadata: Metadata = {
   title: 'Sunset Webcam — Kiosk Display',
@@ -11,7 +12,7 @@ export default function KioskLayout({
 }) {
   return (
     <div
-      className="bg-black w-screen h-screen overflow-hidden"
+      className={`bg-black w-screen h-screen overflow-hidden ${soloFontClassName}`}
       style={{ cursor: 'none' }}
     >
       {children}

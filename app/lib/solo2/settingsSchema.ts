@@ -1,7 +1,7 @@
 import type { NumberKnob, SettingsSchema, SettingsValues } from '@/app/lib/settings/schema';
 import { SOLO_SETTINGS_SCHEMA } from '@/app/lib/solo/settingsSchema';
 import { dialsFrom } from '@/app/lib/solo/settingsSchema';
-import type { Screens, Solo2Dials, TimeStyle, Transition } from './types';
+import type { Screens, Solo2Dials, Transition } from './types';
 
 export const SOLO2_NAMESPACE = 'solo2';
 
@@ -13,8 +13,8 @@ const solo = (key: string) => {
 
 /**
  * solo's dials plus the solo2 additions, in the order the rail shows them.
- * Every added dial defaults to solo's behaviour except `timeStyle`, which
- * defaults to the 12-hour clock because the time is the point (spec §1).
+ * Every added dial defaults to solo's behaviour; the fade and the dissolves
+ * are the exceptions decided 2026-09-05. The caption dials are solo's.
  */
 export const SOLO2_SETTINGS_SCHEMA: SettingsSchema = [
   // ---- glass ----
@@ -57,11 +57,6 @@ export const SOLO2_SETTINGS_SCHEMA: SettingsSchema = [
     description: 'How long each prelude frame is held. Frames dissolve into the next over the same-camera fade, capped at this step.',
   },
   solo('showPlace'),
-  {
-    key: 'timeStyle', kind: 'enum', options: ['off', '12h', '12h-there', '24h', 'sun', '12h-sun'], default: '12h',
-    label: 'time', section: 'glass',
-    description: 'What follows the place on the caption: the local clock at the camera when the picture was taken (12h → "7:42 pm", 24h → "19:42"), the sun\'s height ("sun 1.2° above the horizon"), or both.',
-  },
   solo('showScores'),
   solo('showRank'),
   solo('showTally'),
@@ -83,6 +78,8 @@ export const SOLO2_SETTINGS_SCHEMA: SettingsSchema = [
   },
   solo('zoneGrace'),
   solo('promoteNew'),
+  // ---- caption ---- (all solo's; the time dial included)
+  ...SOLO_SETTINGS_SCHEMA.filter((k) => k.section === 'caption'),
 ] as const;
 
 /** Typed view of a merged `solo2` values object (mergeSettings output). */
@@ -96,7 +93,6 @@ export function dialsFrom2(values: SettingsValues): Solo2Dials {
     prelude: values.prelude as boolean,
     preludeFrames: values.preludeFrames as number,
     preludeStepS: values.preludeStepS as number,
-    timeStyle: values.timeStyle as TimeStyle,
     valleys: values.valleys as number,
     screens: values.screens as Screens,
   };

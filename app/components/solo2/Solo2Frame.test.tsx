@@ -16,11 +16,13 @@ const prelude = [{ snapshotId: 1, imageUrl: 'u1' }, { snapshotId: 2, imageUrl: '
 const plan = fitPlan({ ...D, prelude: true, leadS: 4 }, 2);
 const main = { layer: 'main' as const, leadProgress: 0 };
 
-it('main stage: the chosen frame with place and local time, no scores by default', () => {
+it('main stage: the chosen frame inset on black with place and local time, no scores by default', () => {
   render(<Solo2Frame entry={e} prelude={prelude} previous={null} stage={main} plan={plan} dials={D} width={1920} height={1080} />);
   expect(screen.getByTestId('top')).toHaveAttribute('src', 'u3');
+  expect(screen.getByTestId('stack')).toHaveStyle({ left: '125px', top: '43px', width: '1671px', height: '940px' });
   expect(screen.getByText('Pier')).toBeInTheDocument();
-  expect(screen.getByText('Baja California Sur, Mexico · 7:42 pm')).toBeInTheDocument();
+  expect(screen.getByText('Baja California Sur, Mexico')).toBeInTheDocument();
+  expect(screen.getByTestId('caption-time')).toHaveTextContent('7:42 pm there');
   expect(screen.queryByText(/q 0\.91/)).toBeNull();
 });
 
@@ -54,11 +56,12 @@ it('the sequence is stacked: frames up to the stage are opaque, later ones trans
   expect(layers().map((l) => l[2])).toEqual(['none', 'none', 'none']); // 0 is a cut
 });
 
-it('time style off leaves just the place; 24h reads 19:42', () => {
+it('time style off leaves just the place; 24h inline reads place · 19:42', () => {
   const { rerender } = render(<Solo2Frame entry={e} prelude={[]} previous={null} stage={main} plan={plan} dials={{ ...D, timeStyle: 'off' }} width={1920} height={1080} />);
   expect(screen.getByText('Baja California Sur, Mexico')).toBeInTheDocument();
-  rerender(<Solo2Frame entry={e} prelude={[]} previous={null} stage={main} plan={plan} dials={{ ...D, timeStyle: '24h' }} width={1920} height={1080} />);
-  expect(screen.getByText('Baja California Sur, Mexico · 19:42')).toBeInTheDocument();
+  expect(screen.queryByTestId('caption-time')).toBeNull();
+  rerender(<Solo2Frame entry={e} prelude={[]} previous={null} stage={main} plan={plan} dials={{ ...D, timeStyle: '24h', timeLine: 'inline' }} width={1920} height={1080} />);
+  expect(screen.getByTestId('caption-place')).toHaveTextContent('Baja California Sur, Mexico · 19:42');
 });
 
 it('cut shows no previous layer; crossfade keeps it and animates the top; dip adds the black veil', () => {

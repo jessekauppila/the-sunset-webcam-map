@@ -62,7 +62,7 @@ it('solo2 with valleys tags queued draws PEAK and VALLEY and captions the local 
   render(<FeedColumn feed="sunrise" server={v} projected={v} liveDials={d2} studioDials={d2} nowMs={0} version={SOLO_VERSIONS.solo2} onSelect={vi.fn()} />);
   expect(screen.getAllByText('VALLEY').length).toBeGreaterThan(0);
   expect(screen.getAllByText('PEAK').length).toBeGreaterThan(0);
-  expect(screen.getByText('BCS, Mexico · 7:42 pm')).toBeInTheDocument();
+  expect(screen.getByText('BCS, Mexico · 7:42 pm there')).toBeInTheDocument();
 });
 
 it('solo2 with the prelude on groups a camera\'s earlier frames under the queued draw and flags their own later turns', async () => {

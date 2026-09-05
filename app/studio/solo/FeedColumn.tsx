@@ -5,7 +5,7 @@ import type { EntryView, StateView } from '@/app/api/kiosk/solo/view';
 import { nextBoundaryMs } from '@/app/lib/solo/schedule';
 import type { Feed, SoloDials } from '@/app/lib/solo/types';
 import type { SoloVersionSpec } from '@/app/lib/solo/versions';
-import { captionLines } from '@/app/lib/solo2/caption';
+import { captionLines } from '@/app/lib/solo/caption';
 import { preludePlan } from '@/app/lib/solo2/prelude';
 import type { Solo2Dials } from '@/app/lib/solo2/types';
 import { EntryRow, type Sequence } from './EntryRow';
@@ -70,9 +70,7 @@ export function FeedColumn({ feed, server, projected, liveDials, nowMs, version,
   };
   const queueSeqs = queue.map((e, i) => seqFor(e, i > 0 ? queue[i - 1] : null));
   const preludedInQueue = new Set(queueSeqs.flatMap((s) => s?.earlier.map((f) => f.snapshotId) ?? []));
-  const cap = current && captionLines(current.entry, {
-    showPlace: liveDials.showPlace, timeStyle: (liveDials as Partial<Solo2Dials>).timeStyle ?? 'off',
-  });
+  const cap = current && captionLines(current.entry, liveDials);
 
   const caption = current && (
     <>
