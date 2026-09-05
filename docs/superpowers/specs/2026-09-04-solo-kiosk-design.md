@@ -51,8 +51,9 @@ The mode is fully reversible: the mosaic is one dial away.
   queue is not shown in its bin: every frame lives in exactly one place.
 - **Tally** — how many times a frame has been on glass. Displayed as
   `shown ×N`. Never resets; the frame leaves the bin instead.
-- **Tier** — the tally after the sunset repeat allowance is applied. The
-  first sort key across both bins.
+- **Rest** — the draws a frame sits out after it has been on glass. Dial
+  **rest** (0–12 draws, default 4). Measured from `last_shown_at` in slots
+  of the current dwell.
 - **Zone** — the union of solar altitudes the sweep gathers,
   `TERMINATOR_POOL_COVERAGE_DEG` widened by whichever escalation rings ran.
   A camera outside it leaves the bins.
@@ -84,42 +85,53 @@ Stated once, in the order they apply. The studio prints this list with the
 live dial values substituted, so the rule on screen is always the rule in
 force.
 
-1. **Lowest tier first, across both bins.**
-   `tier = tally − allowance` for sunset-bin frames (floored at 0), `tally`
-   for non-sunset frames. Dial: **sunset repeat allowance** (0–3, default 1).
-   At 0 this is strict variety; a sunset shown once ranks below every unshown
-   non-sunset. At 1 a sunset shown once still competes with unshown frames.
-2. **Within a tier, sunsets only while there are enough of them.** If the
-   sunset bin holds at least **sunset floor** frames in that tier (0–12,
-   default 6), draw from the sunset bin. Otherwise interleave: **mix** sunsets
-   per non-sunset (1–6, default 2), counted as a streak that resets on each
-   non-sunset draw. If one bin is empty in the tier, draw from the other.
-   Rule 1 still comes first: a floor of 0 means "sunsets only within a
-   tier", and an unshown non-sunset outranks a sunset that has spent its
-   repeat allowance. To never show non-sunsets, set the detection floor to 1.
-3. **Within a bin, best first.** Sunset bin by quality, non-sunset bin by
-   detection probability. **Promote new frames** (boolean, default on) adds
-   +0.10 to a frame that arrived while an older frame from the same camera
-   was already in the bin; the flag clears the first time it is shown. Ties
-   break by lower tally, then earlier `entered_at`.
+1. **Choose the bin.** Count the sunset-bin frames that are eligible, not on
+   glass and not resting. If there are at least **sunset floor** of them
+   (0–12, default 6), draw from the sunset bin. Otherwise interleave: **mix**
+   sunsets per non-sunset (1–6, default 2), counted as a streak that resets
+   on each non-sunset draw. If one bin has no such frames, draw from the
+   other. A floor of 0 means sunsets whenever any sunset is ready. To never
+   show non-sunsets, set the detection floor to 1.
+2. **A shown frame rests.** For **rest** draws (0–12, default 4) after it
+   was on glass, a frame is not a candidate in either bin. Rest is counted in
+   slots of the current dwell from `last_shown_at`; a frame never shown is
+   never resting. If every eligible frame is resting, rest is waived for
+   that draw and rule 4 alone applies.
+3. **Within a bin, least shown first, then best.** Lower tally first; then
+   sunset bin by quality, non-sunset bin by detection probability. **Promote
+   new frames** (boolean, default on) adds +0.10 to a frame that arrived
+   while an older frame from the same camera was already in the bin; the
+   flag clears the first time it is shown. Remaining ties break by earlier
+   `entered_at`, then snapshot id.
 4. **Never the same frame twice in a row on one screen.** If it is the only
    eligible frame, it repeats.
 5. **Floors.** Sunset bin: quality ≥ **quality floor** (0–1, default 0.55).
    Non-sunset bin: detection probability ≥ **detection floor** (0–1, default
    0.30). Frames below a floor stay in the table, render dimmed with a FLOOR
-   tag, and are not eligible. Raising the detection floor shrinks the
-   non-sunset bin, which brings the sunsets back sooner.
+   tag, and are not eligible.
 
-Worked case, one good sunset and eight non-sunsets, allowance 1, floor 6,
-mix 2: `S, N1, S, N2, N3, N4, N5, N6, N7, N8, S, N1 …`. The operator chose
-this over strict variety (sunset every 9th slot) and sunset-heavy (allowance
-2, alternating for the first minute and a half).
+Worked cases, floor 6, mix 2, rest 4:
+
+- One good sunset and eight non-sunsets: `S, N1, N2, N3, N4, S, N5, N6, N7,
+  N8, S, N1 …`. The sunset returns every fifth draw; with rest 0 it would
+  alternate `S, N1, S, N2 …`, the sunset-heavy shape the operator rejected.
+- Five sunsets and thirty-five non-sunsets (the 2026-09-05 sunrise screen):
+  `S1, S2, N, S3, S4, N, S5, S1, N …`. Two of every three draws are sunsets
+  no matter how large the non-sunset bin grows. Under the earlier
+  tally-across-bins rule this screen queued no sunset for 20-plus draws.
+- Twenty sunsets: sunsets only, since at least six are always rested. A
+  rich night shows no non-sunsets unless the floor is raised above the bin.
+
+History: until 2026-09-05 rule 1 was "lowest tier across both bins", tier
+being tally minus a **sunset repeat allowance** (0–3). It made each bin's
+airtime proportional to its size, which starved the sunsets whenever the
+non-sunset bin was several times larger. The allowance dial is gone; stored
+values are ignored.
 
 The engine is a **pure function**:
-`next(entries, dials, screenState) → entry | null` and
-`project(entries, dials, screenState, n) → entry[]`. No clock, no I/O. The
-mockup's JavaScript is the reference implementation and its sequences are
-the first test fixtures.
+`next(entries, dials, screenState, slot, feed) → entry | null` and
+`project(entries, dials, screenState, n, firstSlot, feed) → entry[]`. No
+clock, no I/O; time enters only as the slot and each entry's `last_shown_at`.
 
 ---
 
@@ -264,7 +276,7 @@ as drawn in the mockup:
   degrees.
 - **Rail** on the left in two colour-coded groups. **Glass** (amber): dwell,
   offset, fade, the four overlay toggles, panel. **Bins** (teal): quality
-  floor, detection floor, sunset floor, mix, repeat allowance, zone grace,
+  floor, detection floor, sunset floor, mix, rest, zone grace,
   promote new. Under them, the **rules box** that restates §4 with the
   current values. Every dial, header, tag and row has a tooltip.
 - **Two feed columns**, sunrise then sunset. Each: the panel at true aspect
@@ -331,7 +343,7 @@ Phases 1–4 are wanted before the freeze on 2026-09-10.
 
 ## 9. Testing
 
-- Rule engine: the three allowance sequences from the mockup; floor 0 never
+- Rule engine: the rest sequences in §4; floor 0 never
   draws a non-sunset while a sunset exists; empty sunset bin draws
   non-sunsets; rule 4 with a single eligible frame; promotion flag clears on
   first showing; tier ties broken by tally then `entered_at`.

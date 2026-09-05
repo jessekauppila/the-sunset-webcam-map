@@ -17,7 +17,7 @@ export interface SoloVersionSpec<D extends SoloDials = SoloDials> {
   namespace: string;
   schema: SettingsSchema;
   dialsFrom(values: SettingsValues): D;
-  /** The next frame for a draw at `slot`; solo ignores the slot. */
+  /** The next frame for a draw at `slot`. */
   next(entries: BinEntry[], d: D, state: ScreenState, slot: number, feed: Feed): BinEntry | null;
   /** `n` draws forward, the first at `firstSlot`. */
   project(entries: BinEntry[], d: D, state: ScreenState, n: number, firstSlot: number, feed: Feed): BinEntry[];
@@ -32,8 +32,8 @@ const solo: SoloVersionSpec<SoloDials> = {
   namespace: SOLO_NAMESPACE,
   schema: SOLO_SETTINGS_SCHEMA,
   dialsFrom,
-  next: (entries, d, state) => next(entries, d, state),
-  project: (entries, d, state, n) => project(entries, d, state, n),
+  next,
+  project,
   roleAt: () => 'peak',
 };
 

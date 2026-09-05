@@ -39,7 +39,7 @@ export interface ViewEntry extends BinEntry {
 export function toViewEntry(e: StoredEntry): ViewEntry {
   return {
     snapshotId: e.snapshotId, webcamId: e.webcamId, bin: e.bin, quality: e.quality,
-    detection: e.detection, isNew: e.isNew, tally: e.tally, enteredAt: e.enteredAt,
+    detection: e.detection, isNew: e.isNew, tally: e.tally, enteredAt: e.enteredAt, lastShownAt: e.lastShownAt,
     imageUrl: e.imageUrl, title: e.title, city: e.city, region: e.region, country: e.country,
     capturedAt: e.capturedAt, timezone: e.timezone, sunAltitudeDeg: e.sunAltitudeDeg,
   };

@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { schemaDefaults } from '@/app/lib/settings/schema';
 import { project } from '@/app/lib/solo/engine';
 import type { BinEntry, ScreenState } from '@/app/lib/solo/types';
+import { boundaryMs } from '@/app/lib/solo/schedule';
 import { beatOf, next2, project2, roleAt } from './engine';
 import { SOLO2_SETTINGS_SCHEMA, dialsFrom2 } from './settingsSchema';
 import type { Solo2Dials } from './types';
@@ -11,11 +12,11 @@ const S0: ScreenState = { lastSnapshotId: null, sunsetStreak: 0 };
 
 function sun(id: number, q: number, extra: Partial<BinEntry> = {}): BinEntry {
   return { snapshotId: id, webcamId: 1000 + id, bin: 'sunset', quality: q, detection: 0.9,
-    isNew: false, tally: 0, enteredAt: id, ...extra };
+    isNew: false, tally: 0, enteredAt: id, lastShownAt: null, ...extra };
 }
 function non(id: number, det: number, extra: Partial<BinEntry> = {}): BinEntry {
   return { snapshotId: id, webcamId: 2000 + id, bin: 'non_sunset', quality: null, detection: det,
-    isNew: false, tally: 0, enteredAt: id, ...extra };
+    isNew: false, tally: 0, enteredAt: id, lastShownAt: null, ...extra };
 }
 const eightNon = () => [1, 2, 3, 4, 5, 6, 7, 8].map((i) => non(100 + i, 0.6 - i * 0.02));
 /** S1..S21 by descending quality, all eligible. */
@@ -43,15 +44,20 @@ describe('beatOf / roleAt', () => {
 });
 
 describe('valleys 0 is solo', () => {
-  it('reproduces the thin-night fixtures for every allowance', () => {
-    for (const repeatAllowance of [0, 1, 2]) {
-      const d = { ...D, repeatAllowance };
+  it('reproduces the thin-night fixtures for every rest', () => {
+    for (const rest of [0, 4, 8]) {
+      const d = { ...D, rest };
       const entries = [sun(1, 0.97), ...eightNon()];
-      expect(labels(project2(entries, d, S0, 12, 5, 'sunset'))).toEqual(labels(project(entries, d, S0, 12)));
+      expect(labels(project2(entries, d, S0, 12, 5, 'sunset'))).toEqual(labels(project(entries, d, S0, 12, 5, 'sunset')));
     }
   });
   it('reproduces solo on a full sunset bin', () => {
-    expect(labels(project2(twentyOne(), D, S0, 8, 0, 'sunrise'))).toEqual(labels(project(twentyOne(), D, S0, 8)));
+    expect(labels(project2(twentyOne(), D, S0, 8, 0, 'sunrise'))).toEqual(labels(project(twentyOne(), D, S0, 8, 0, 'sunrise')));
+  });
+  it('reproduces solo on the 2026-09-05 shape: five sunsets, thirty-five non-sunsets', () => {
+    const many = Array.from({ length: 35 }, (_, i) => non(200 + i, 0.6 - i * 0.005));
+    const five = [1, 2, 3, 4, 5].map((i) => sun(i, 0.95 - i * 0.02));
+    expect(labels(project2([...five, ...many], D, S0, 12, 0, 'sunrise'))).toEqual(labels(project([...five, ...many], D, S0, 12, 0, 'sunrise')));
   });
 });
 
@@ -74,8 +80,8 @@ describe('rhythm', () => {
     expect(labels(project2(twentyOne(), d, S0, 2, 0, 'sunset'))).toEqual(['S21', 'S1']);
   });
   it('a valley prefers an unshown frame over a lower-scored one already shown', () => {
-    const d = { ...D, valleys: 1, repeatAllowance: 1 };
-    // tally 1 with allowance 1 is still tier 0, so both compete in the pool.
+    const d = { ...D, valleys: 1 };
+    // Frame 3 has been shown once (never resting: no lastShownAt); rule 3 puts tally before score.
     const entries = [sun(1, 0.95), sun(2, 0.6), sun(3, 0.58, { tally: 1 })];
     expect(next2(entries, d, S0, 1, 'sunrise')?.snapshotId).toBe(2);
   });
@@ -97,5 +103,14 @@ describe('rhythm', () => {
     const entries = [sun(1, 0.95), sun(2, 0.6), sun(3, 0.55, { isNew: true })];
     // 0.55 + 0.10 = 0.65 > 0.60, so frame 2 is now the lowest.
     expect(next2(entries, d, S0, 1, 'sunrise')?.snapshotId).toBe(2);
+  });
+  it('a resting frame is out of both the peak and the valley', () => {
+    const d = { ...D, valleys: 1 };
+    const shown = { tally: 1, lastShownAt: boundaryMs(0, 'sunrise', D.dwellS, D.offsetS) };
+    const entries = [sun(1, 0.95, shown), sun(2, 0.6), sun(3, 0.58, shown)];
+    // slot 1 is a valley: the lowest score among the rested is frame 2, the only one.
+    expect(next2(entries, d, S0, 1, 'sunrise')?.snapshotId).toBe(2);
+    // slot 2 is a peak: frame 2 is on glass, 1 and 3 still rest → rest waived → best is 1.
+    expect(next2(entries, d, { lastSnapshotId: 2, sunsetStreak: 1 }, 2, 'sunrise')?.snapshotId).toBe(1);
   });
 });

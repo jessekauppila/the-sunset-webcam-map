@@ -65,7 +65,7 @@ export const SOLO2_SETTINGS_SCHEMA: SettingsSchema = [
   solo('detectionFloor'),
   solo('sunsetFloor'),
   solo('mix'),
-  solo('repeatAllowance'),
+  solo('rest'),
   {
     key: 'valleys', kind: 'number', min: 0, max: 3, step: 1, default: 0,
     label: 'valleys per peak', section: 'bins',

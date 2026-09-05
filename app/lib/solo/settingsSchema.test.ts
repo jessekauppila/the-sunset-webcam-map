@@ -11,7 +11,7 @@ describe('SOLO_SETTINGS_SCHEMA', () => {
     const d = dialsFrom(schemaDefaults(SOLO_SETTINGS_SCHEMA));
     expect(d).toEqual({
       qualityFloor: 0.55, detectionFloor: 0.3, sunsetFloor: 6, mix: 2,
-      repeatAllowance: 1, promoteNew: true, zoneGrace: 2,
+      rest: 4, promoteNew: true, zoneGrace: 2,
       dwellS: 20, offsetS: 10, fadeS: 0,
       showPlace: true, showScores: false, showRank: false, showTally: false,
       // the caption as dialled in on 2026-09-05
@@ -43,12 +43,19 @@ describe('SOLO_SETTINGS_SCHEMA', () => {
   });
 
   it('dialsFrom reads merged deviations', () => {
-    const merged = mergeSettings(SOLO_SETTINGS_SCHEMA, { repeatAllowance: 3, dwellS: 5, titleGray: 90, font: 'serif' });
+    const merged = mergeSettings(SOLO_SETTINGS_SCHEMA, { rest: 7, dwellS: 5, titleGray: 90, font: 'serif' });
     const d = dialsFrom(merged);
-    expect(d.repeatAllowance).toBe(3);
+    expect(d.rest).toBe(7);
     expect(d.dwellS).toBe(5);
     expect(d.mix).toBe(2);
     expect(d.titleGray).toBe(90);
     expect(d.font).toBe('serif');
+  });
+
+  it('drops a stored repeatAllowance from before 2026-09-05 and has no such dial', () => {
+    expect(SOLO_SETTINGS_SCHEMA.find((k) => k.key === 'repeatAllowance')).toBeUndefined();
+    const merged = mergeSettings(SOLO_SETTINGS_SCHEMA, { repeatAllowance: 3 });
+    expect('repeatAllowance' in merged).toBe(false);
+    expect(merged.rest).toBe(4);
   });
 });
