@@ -55,6 +55,7 @@ describe('POST /api/kiosk/settings/deploy', () => {
     };
     requireOwnerMock.mockResolvedValueOnce(null);
     copyProfileMock.mockResolvedValueOnce(liveSettings);
+    recordDeployMock.mockResolvedValueOnce(null);
 
     const res = await POST(reqPost());
     expect(res.status).toBe(200);
