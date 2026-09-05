@@ -32,6 +32,28 @@ it('prelude stage: an earlier frame with no caption and no scores', () => {
   expect(screen.queryByText(/shown/)).toBeNull();
 });
 
+it('the sequence is stacked: frames up to the stage are opaque, later ones transparent, each dissolving over the same-camera fade capped at the step', () => {
+  const { rerender } = render(<Solo2Frame entry={e} prelude={prelude} previous={null} stage={{ layer: 'prelude', index: 1 }} plan={plan}
+    dials={{ ...D, sameCameraFadeS: 1 }} width={1920} height={1080} />);
+  const layers = () => screen.getAllByTestId(/^seq-/).map((l) => [l.getAttribute('data-testid'), l.style.opacity, l.style.transition]);
+  expect(layers()).toEqual([
+    ['seq-0', '1', 'none'],
+    ['seq-1', '1', 'opacity 1s linear'],
+    ['seq-2', '0', 'opacity 1s linear'],
+  ]);
+  rerender(<Solo2Frame entry={e} prelude={prelude} previous={null} stage={main} plan={plan}
+    dials={{ ...D, sameCameraFadeS: 5 }} width={1920} height={1080} />);
+  expect(layers()).toEqual([
+    ['seq-0', '1', 'none'],
+    ['seq-1', '1', 'opacity 1.5s linear'], // capped at the 1.5 s step
+    ['seq-2', '1', 'opacity 1.5s linear'],
+  ]);
+  expect(screen.getByTestId('top')).toHaveAttribute('src', 'u3');
+  rerender(<Solo2Frame entry={e} prelude={prelude} previous={null} stage={main} plan={plan}
+    dials={{ ...D, sameCameraFadeS: 0 }} width={1920} height={1080} />);
+  expect(layers().map((l) => l[2])).toEqual(['none', 'none', 'none']); // 0 is a cut
+});
+
 it('time style off leaves just the place; 24h reads 19:42', () => {
   const { rerender } = render(<Solo2Frame entry={e} prelude={[]} previous={null} stage={main} plan={plan} dials={{ ...D, timeStyle: 'off' }} width={1920} height={1080} />);
   expect(screen.getByText('Baja California Sur, Mexico')).toBeInTheDocument();
@@ -40,15 +62,30 @@ it('time style off leaves just the place; 24h reads 19:42', () => {
 });
 
 it('cut shows no previous layer; crossfade keeps it and animates the top; dip adds the black veil', () => {
-  const prev = { ...e, snapshotId: 0, imageUrl: 'u0' };
-  const { rerender } = render(<Solo2Frame entry={e} prelude={[]} previous={prev} stage={main} plan={plan} dials={D} width={100} height={50} />);
+  const prev = { ...e, snapshotId: 0, webcamId: 99, imageUrl: 'u0' };
+  const { rerender } = render(<Solo2Frame entry={e} prelude={[]} previous={prev} stage={main} plan={plan} dials={{ ...D, transition: 'cut' }} width={100} height={50} />);
   expect(screen.getAllByRole('presentation').map((i) => i.getAttribute('src'))).toEqual(['u3']);
   rerender(<Solo2Frame entry={e} prelude={[]} previous={prev} stage={main} plan={plan} dials={{ ...D, transition: 'crossfade', fadeS: 2 }} width={100} height={50} />);
   expect(screen.getAllByRole('presentation').map((i) => i.getAttribute('src'))).toEqual(['u0', 'u3']);
-  expect(screen.getByTestId('top').parentElement!.parentElement).toHaveStyle({ animation: 'solo2-fade-in 2s ease both' });
+  expect(screen.getByTestId('stack')).toHaveStyle({ animation: 'solo2-fade-in 2s ease both' });
   expect(screen.queryByTestId('dip')).toBeNull();
   rerender(<Solo2Frame entry={e} prelude={[]} previous={prev} stage={main} plan={plan} dials={{ ...D, transition: 'dip', fadeS: 2 }} width={100} height={50} />);
   expect(screen.getByTestId('dip')).toHaveStyle({ animation: 'solo2-dip 1s linear both' });
+});
+
+it('a change to the same camera dissolves over the same-camera fade, never through black', () => {
+  const prev = { ...e, snapshotId: 0, imageUrl: 'u0' }; // same webcamId as e
+  render(<Solo2Frame entry={e} prelude={[]} previous={prev} stage={main} plan={plan}
+    dials={{ ...D, transition: 'dip', fadeS: 4, sameCameraFadeS: 1 }} width={100} height={50} />);
+  expect(screen.getAllByRole('presentation').map((i) => i.getAttribute('src'))).toEqual(['u0', 'u3']);
+  expect(screen.queryByTestId('dip')).toBeNull();
+  expect(screen.getByTestId('stack')).toHaveStyle({ animation: 'solo2-fade-in 1s ease both' });
+});
+
+it('the defaults dip through black between cameras', () => {
+  const prev = { ...e, snapshotId: 0, webcamId: 99, imageUrl: 'u0' };
+  render(<Solo2Frame entry={e} prelude={[]} previous={prev} stage={main} plan={plan} dials={D} width={100} height={50} />);
+  expect(screen.getByTestId('dip')).toHaveStyle({ animation: 'solo2-dip 0.75s linear both' });
 });
 
 it('the lead pushes the frame in by progress and lands the next frame still', () => {

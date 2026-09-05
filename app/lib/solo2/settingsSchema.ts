@@ -1,4 +1,4 @@
-import type { SettingsSchema, SettingsValues } from '@/app/lib/settings/schema';
+import type { NumberKnob, SettingsSchema, SettingsValues } from '@/app/lib/settings/schema';
 import { SOLO_SETTINGS_SCHEMA } from '@/app/lib/solo/settingsSchema';
 import { dialsFrom } from '@/app/lib/solo/settingsSchema';
 import type { Screens, Solo2Dials, TimeStyle, Transition } from './types';
@@ -21,11 +21,16 @@ export const SOLO2_SETTINGS_SCHEMA: SettingsSchema = [
   solo('dwellS'),
   solo('offsetS'),
   {
-    key: 'transition', kind: 'enum', options: ['cut', 'crossfade', 'dip'], default: 'cut',
-    label: 'transition', section: 'glass',
-    description: 'How a frame gives way to the next. Cut is instant; crossfade dissolves over the fade time; dip goes through black in the same time.',
+    key: 'transition', kind: 'enum', options: ['cut', 'crossfade', 'dip'], default: 'dip',
+    label: 'camera change', section: 'glass',
+    description: 'How a frame gives way to one from a different camera. Cut is instant; crossfade dissolves over the fade time; dip goes through black in the same time.',
   },
-  { ...solo('fadeS'), description: 'How long a crossfade or dip takes. Ignored by cut.' },
+  { ...(solo('fadeS') as NumberKnob), default: 1.5, description: 'How long a camera change takes: the whole dissolve, or the dip down plus up. Ignored by cut.' },
+  {
+    key: 'sameCameraFadeS', kind: 'number', min: 0, max: 5, step: 0.5, default: 1.5,
+    label: 'same-camera fade (s)', section: 'glass',
+    description: 'Dissolve between two frames of the same camera: each prelude step, and a change to a later frame of the camera on glass. Never through black. 0 is a cut.',
+  },
   {
     key: 'leadS', kind: 'number', min: 0, max: 10, step: 0.5, default: 0,
     label: 'lead (s)', section: 'glass',
@@ -49,7 +54,7 @@ export const SOLO2_SETTINGS_SCHEMA: SettingsSchema = [
   {
     key: 'preludeStepS', kind: 'number', min: 0.5, max: 5, step: 0.5, default: 1.5,
     label: 'prelude step (s)', section: 'glass',
-    description: 'How long each prelude frame is held. Steps are hard cuts: a time-lapse reads as cuts.',
+    description: 'How long each prelude frame is held. Frames dissolve into the next over the same-camera fade, capped at this step.',
   },
   solo('showPlace'),
   {
@@ -85,6 +90,7 @@ export function dialsFrom2(values: SettingsValues): Solo2Dials {
   return {
     ...dialsFrom(values),
     transition: values.transition as Transition,
+    sameCameraFadeS: values.sameCameraFadeS as number,
     leadS: values.leadS as number,
     leadScale: values.leadScale as number,
     prelude: values.prelude as boolean,

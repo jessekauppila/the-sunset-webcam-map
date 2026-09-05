@@ -18,15 +18,31 @@ const KEYFRAMES = `
 `;
 
 /**
+ * How this dwell arrives (spec §4.2). The same camera always dissolves, over
+ * the same-camera fade; a camera change uses the transition dial and its
+ * fade. Exported so the studio can say the same thing about a queued row.
+ */
+export function arrival(
+  entry: { webcamId: number }, previous: { webcamId: number } | null, d: Pick<Solo2Dials, 'transition' | 'fadeS' | 'sameCameraFadeS'>,
+): { kind: Solo2Dials['transition']; fadeS: number } {
+  if (previous && previous.webcamId === entry.webcamId) {
+    return d.sameCameraFadeS > 0 ? { kind: 'crossfade', fadeS: d.sameCameraFadeS } : { kind: 'cut', fadeS: 0 };
+  }
+  return d.transition === 'cut' || d.fadeS <= 0 ? { kind: 'cut', fadeS: 0 } : { kind: d.transition, fadeS: d.fadeS };
+}
+
+/**
  * One dwell on one panel (spec §4). Layers, bottom to top: the previous
- * frame (unless the transition is a cut), the dip's black veil, and the top
- * image, which is a prelude frame or the chosen frame depending on the
- * stage. The chosen frame's overlays mount only when it is on; prelude
- * frames carry nothing, so the score on glass is always the score of the
- * picture on glass.
+ * frame (unless the arrival is a cut), the dip's black veil, then the
+ * sequence: every prelude frame and the chosen frame stacked in capture
+ * order, each opaque once the clock-driven stage has reached it and
+ * dissolving in over the same-camera fade. The chosen frame's overlays mount
+ * only when it is on; prelude frames carry nothing, so the score on glass is
+ * always the score of the picture on glass.
  */
 export function Solo2Frame({ entry, prelude, previous, stage, plan, dials, width, height }: {
   entry: EntryView;
+  /** Already cut to what the plan shows (preludePlan), oldest first. */
   prelude: PreludeFrame[];
   previous: EntryView | null;
   stage: Stage;
@@ -38,13 +54,15 @@ export function Solo2Frame({ entry, prelude, previous, stage, plan, dials, width
   const layer = { position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' } as const;
   const scale = Math.max(1, Math.min(width, height) / 540); // overlay text scales with the panel
   const onMain = stage.layer === 'main';
-  const top = onMain ? entry : prelude[Math.min(stage.index, prelude.length - 1)] ?? entry;
-  const fade = dials.transition === 'cut' ? 0 : dials.fadeS;
-  const showPrevious = fade > 0 && !!previous;
+  const sequence: PreludeFrame[] = [...prelude, entry];
+  const shown = onMain ? sequence.length - 1 : Math.min(stage.index, prelude.length - 1);
+  const stepFade = Math.min(Math.max(0, dials.sameCameraFadeS), plan.preludeStepS);
 
+  const arrive = arrival(entry, previous, dials);
+  const showPrevious = arrive.kind !== 'cut' && !!previous;
   const inAnimation =
-    dials.transition === 'crossfade' && fade > 0 ? `solo2-fade-in ${fade}s ease both`
-    : dials.transition === 'dip' && fade > 0 ? `solo2-fade-in ${fade / 2}s ease ${fade / 2}s both`
+    arrive.kind === 'crossfade' ? `solo2-fade-in ${arrive.fadeS}s ease both`
+    : arrive.kind === 'dip' ? `solo2-fade-in ${arrive.fadeS / 2}s ease ${arrive.fadeS / 2}s both`
     : undefined;
 
   // The lead: a slow push over the last seconds, driven by the clock stage
@@ -67,16 +85,23 @@ export function Solo2Frame({ entry, prelude, previous, stage, plan, dials, width
         // eslint-disable-next-line @next/next/no-img-element
         <img key={`prev-${previous.snapshotId}`} src={previous.imageUrl} alt="" role="presentation" style={layer} />
       )}
-      {dials.transition === 'dip' && showPrevious && (
+      {arrive.kind === 'dip' && showPrevious && (
         <div key={`dip-${entry.snapshotId}`} data-testid="dip" style={{
-          ...layer, background: '#000', animation: `solo2-dip ${fade / 2}s linear both`,
+          ...layer, background: '#000', animation: `solo2-dip ${arrive.fadeS / 2}s linear both`,
         }} />
       )}
-      {/* keyed by the chosen frame so the entry animation runs once per dwell; prelude steps only swap the src */}
-      <div key={`top-${entry.snapshotId}`} style={{ ...layer, animation: inAnimation }}>
+      {/* keyed by the chosen frame so the arrival runs once per dwell; the stage only changes opacities inside */}
+      <div key={`stack-${entry.snapshotId}`} data-testid="stack" style={{ ...layer, animation: inAnimation }}>
         <div style={pushStyle} data-testid="push">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={top.imageUrl} alt="" role="presentation" data-testid="top" style={layer} />
+          {sequence.map((f, i) => (
+            <div key={f.snapshotId} data-testid={`seq-${i}`} style={{
+              ...layer, opacity: i <= shown ? 1 : 0,
+              transition: i > 0 && stepFade > 0 ? `opacity ${stepFade}s linear` : 'none',
+            }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={f.imageUrl} alt="" role="presentation" data-testid={i === shown ? 'top' : undefined} style={layer} />
+            </div>
+          ))}
         </div>
       </div>
       {caption && (

@@ -6,7 +6,7 @@ import type { EntryView } from '@/app/api/kiosk/solo/view';
 import { mergeSettings } from '@/app/lib/settings/schema';
 import { SOLO2_SETTINGS_SCHEMA, dialsFrom2 } from '@/app/lib/solo2/settingsSchema';
 import { fitPlan } from '@/app/lib/solo2/plan';
-import { preludeFor } from '@/app/lib/solo2/prelude';
+import { preludePlan } from '@/app/lib/solo2/prelude';
 import { useSoloGlass } from '@/app/components/solo/useSoloGlass';
 import { Solo2Frame } from './Solo2Frame';
 import { useStage } from './useStage';
@@ -43,8 +43,10 @@ export function Solo2Kiosk(props: MosaicProps) {
     lastRef.current = current;
   }, [current]);
 
-  const prelude = current && dials.prelude ? preludeFor(current, glass.entries, dials.preludeFrames) : [];
-  const plan = fitPlan(dials, prelude.length);
+  // The prelude continues from the previous frame when it is the same camera (spec §4.4).
+  const { frames: prelude, plan } = current
+    ? preludePlan(current, glass.entries, dials, previous)
+    : { frames: [] as EntryView[], plan: fitPlan(dials, 0) };
   // The dwell began one dwell before the next boundary; both are pure clock math.
   const startMs = glass.boundaryMs - dials.dwellS * 1000;
   const stage = useStage(plan, startMs);
@@ -55,9 +57,9 @@ export function Solo2Kiosk(props: MosaicProps) {
   useEffect(() => {
     if (!nextEntry) return;
     preload(nextEntry.imageUrl);
-    if (dials.prelude) for (const p of preludeFor(nextEntry, glass.entries, dials.preludeFrames)) preload(p.imageUrl);
+    for (const p of preludePlan(nextEntry, glass.entries, dials, current).frames) preload(p.imageUrl);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nextId, dials.prelude, dials.preludeFrames]);
+  }, [nextId, dials.prelude, dials.preludeFrames, dials.preludeStepS, dials.dwellS, dials.leadS]);
 
   const debug = props.allowDebugOverlays !== false && (props.search ?? '').includes('debug=1');
 

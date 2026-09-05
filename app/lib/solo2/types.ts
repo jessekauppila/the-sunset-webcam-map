@@ -18,7 +18,10 @@ export type Role = 'peak' | 'valley';
  */
 export interface Solo2Dials extends SoloDials {
   // glass
+  /** Between cameras (spec §4.2). The same camera always dissolves. */
   transition: Transition;
+  /** Dissolve length between two frames of the same camera: prelude steps, and a same-camera change. 0 is a cut. */
+  sameCameraFadeS: number;
   leadS: number;
   leadScale: number;
   prelude: boolean;
