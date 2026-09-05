@@ -6,12 +6,14 @@ import { schemaDefaults } from '@/app/lib/settings/schema';
 
 it('states the five rules with the dial values in force', () => {
   const d = dialsFrom(schemaDefaults(SOLO_SETTINGS_SCHEMA));
-  render(<RulesBox dials={{ ...d, repeatAllowance: 2, sunsetFloor: 4, mix: 3 }} />);
-  expect(screen.getByText(/minus/).textContent).toContain('2');
-  expect(screen.getByText(/sunsets only/).textContent).toContain('4');
+  render(<RulesBox dials={{ ...d, rest: 2, sunsetFloor: 4, mix: 3 }} />);
+  expect(screen.getByText(/rested sunsets/).textContent).toContain('4');
   expect(screen.getByText(/per non-sunset/).textContent).toContain('3');
+  expect(screen.getByText(/rests/).textContent).toContain('2');
+  expect(screen.getByText(/least shown first/)).toBeInTheDocument();
   expect(screen.getByText(/Never the same frame twice/)).toBeInTheDocument();
   expect(screen.getByText(/Floors/).textContent).toContain('0.55');
+  expect(screen.queryByText(/minus/)).toBeNull();
 });
 
 it('solo2 with valleys states the rhythm inside rule 3; without valleys it reads like solo', async () => {
