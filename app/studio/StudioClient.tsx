@@ -9,6 +9,7 @@ import { MapMosaicModeToggle } from '@/app/components/MapMosaicModeToggle';
 import { useStudioSettings } from './useStudioSettings';
 import { useSceneWebcams, type SceneSource } from './useSceneWebcams';
 import { DeployButton } from './DeployButton';
+import { DeployHistory } from './DeployHistory';
 import { StatusStrip } from './StatusStrip';
 import { resolveMosaicName } from '@/app/components/mosaic/registry';
 import { mergeSettings } from '@/app/lib/settings/schema';
@@ -189,11 +190,14 @@ export function StudioClient() {
             api={settingsApi}
             onCollapse={() => setRailCollapsed(true)}
             deploySlot={
-              <DeployButton
-                diffCount={settingsApi.diffCount}
-                onDeploy={settingsApi.deploy}
-                onRevert={settingsApi.revert}
-              />
+              <>
+                <DeployButton
+                  diffCount={settingsApi.diffCount}
+                  onDeploy={settingsApi.deploy}
+                  onRevert={settingsApi.revert}
+                />
+                <DeployHistory api={settingsApi} />
+              </>
             }
           />
           <div

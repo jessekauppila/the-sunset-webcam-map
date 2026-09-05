@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useStudioSettings } from '../useStudioSettings';
 import { DeployButton } from '../DeployButton';
+import { DeployHistory } from '../DeployHistory';
 import { SoloRail } from './SoloRail';
 import { FeedColumn } from './FeedColumn';
 import { SoloStatusStrip } from './SoloStatusStrip';
@@ -53,7 +54,12 @@ export function SoloStudioClient() {
         </Link>
       </div>
       <aside style={{ background: railBg, borderRight: `1px solid ${border}`, padding: 10, overflowY: 'auto' }}>
-        <SoloRail api={api} deploySlot={<DeployButton diffCount={api.diffCount} onDeploy={api.deploy} onRevert={api.revert} />} />
+        <SoloRail api={api} deploySlot={
+          <>
+            <DeployButton diffCount={api.diffCount} onDeploy={api.deploy} onRevert={api.revert} />
+            <DeployHistory api={api} />
+          </>
+        } />
       </aside>
       <main style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, padding: 12, overflowY: 'auto', minWidth: 0 }}>
         {(['sunrise', 'sunset'] as const).map((feed) => {
