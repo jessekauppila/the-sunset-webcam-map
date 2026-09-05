@@ -73,10 +73,11 @@ vi.mock('./lib/dbOperations', () => ({
   insertWindyDisagreementSnapshot: (...a: unknown[]) =>
     insertWindyDisagreementSnapshotMock(...a),
 }));
+const maintainBinsMock = vi.fn(async () => ({ leftZone: 0, expired: 0 }));
 vi.mock('./lib/binAdmission', () => ({
   decideBin: () => null,
   enterBins: async () => ({ sunset: 0, nonSunset: 0, duplicates: 0 }),
-  maintainBins: async () => ({ leftZone: 0, expired: 0 }),
+  maintainBins: (...a: unknown[]) => maintainBinsMock(...(a as [])),
 }));
 vi.mock('@/app/lib/settings/liveSettings', () => ({
   getLiveSettingsCached: async () => null,
@@ -650,6 +651,26 @@ describe('GET /api/cron/update-cameras', () => {
     expect(upsertSweepGeometryMock.mock.calls[0][1]).toMatchObject({
       forcedOffsetsDeg: '',
     });
+    expect(maintainBinsMock).toHaveBeenCalledWith(
+      expect.objectContaining({ zone: { minDeg: -24, maxDeg: -2 } }),
+    );
+  });
+
+  it('ages the bins against every ring that swept, not only the guaranteed ones', async () => {
+    // A thin sunrise feed escalates to +15.75 and -15.75; the cameras those
+    // rings admit must be inside the zone the same tick checks them against.
+    classifyMock.mockReturnValue({
+      sunrise: Array.from(
+        { length: TERMINATOR_CAMERA_FLOOR - 1 },
+        (_, i) => ({ webcamId: `thin-${i}` }),
+      ),
+      sunset: HEALTHY_CLASSIFY_RESULT.sunset,
+    });
+    const res = await GET(makeReq());
+    expect(res.status).toBe(200);
+    expect(maintainBinsMock).toHaveBeenCalledWith(
+      expect.objectContaining({ zone: { minDeg: -39.75, maxDeg: 13.75 } }),
+    );
   });
 
   it('sweeps the day-side ring on a healthy tick when the switch is on', async () => {
