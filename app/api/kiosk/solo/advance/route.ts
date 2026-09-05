@@ -5,7 +5,10 @@ import { afterShowing, next } from '@/app/lib/solo/engine';
 import { slotFor } from '@/app/lib/solo/schedule';
 import { SOLO_NAMESPACE, SOLO_SETTINGS_SCHEMA, dialsFrom } from '@/app/lib/solo/settingsSchema';
 import { commitAdvance, countAdmittedSince, getScreenState, listActiveEntries } from '@/app/lib/solo/store';
-import { buildStateView, parseFeed } from '../view';
+import { isFlagEnabled, SWEEP_FORCE_DAY_RING } from '@/app/lib/runtimeFlags';
+import { sweepGeometry } from '@/app/api/cron/update-cameras/lib/sweepGeometry';
+import { TERMINATOR_DAY_SIDE_OFFSETS_DEG } from '@/app/lib/masterConfig';
+import { buildStateView, parseFeed, toViewEntry } from '../view';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -61,9 +64,14 @@ export async function POST(request: Request) {
       }
     }
   }
-  const admitted = await countAdmittedSince(feed, nowMs - LAST_PULL_WINDOW_MS);
+  const [admitted, forcedDayRing] = await Promise.all([
+    countAdmittedSince(feed, nowMs - LAST_PULL_WINDOW_MS),
+    isFlagEnabled(SWEEP_FORCE_DAY_RING),
+  ]);
+  const geometry = sweepGeometry(forcedDayRing ? TERMINATOR_DAY_SIDE_OFFSETS_DEG : []);
+  const zone = { minDeg: geometry.coverageMinDeg, maxDeg: geometry.coverageMaxDeg };
   return NextResponse.json({
     advanced,
-    ...buildStateView({ feed, dials, entries, screen, nowMs, admitted }),
+    ...buildStateView({ feed, dials, entries: entries.map(toViewEntry), screen, nowMs, admitted, zone }),
   });
 }

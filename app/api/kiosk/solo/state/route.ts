@@ -5,7 +5,10 @@ import { getProfileSettings } from '@/app/lib/settings/store';
 import { mergeSettings } from '@/app/lib/settings/schema';
 import { SOLO_NAMESPACE, SOLO_SETTINGS_SCHEMA, dialsFrom } from '@/app/lib/solo/settingsSchema';
 import { countAdmittedSince, getScreenState, listActiveEntries } from '@/app/lib/solo/store';
-import { buildStateView, parseFeed } from '../view';
+import { isFlagEnabled, SWEEP_FORCE_DAY_RING } from '@/app/lib/runtimeFlags';
+import { sweepGeometry } from '@/app/api/cron/update-cameras/lib/sweepGeometry';
+import { TERMINATOR_DAY_SIDE_OFFSETS_DEG } from '@/app/lib/masterConfig';
+import { buildStateView, parseFeed, toViewEntry } from '../view';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -31,10 +34,16 @@ export async function GET(request: NextRequest) {
   const dials = dialsFrom(mergeSettings(SOLO_SETTINGS_SCHEMA, profile?.namespaces[SOLO_NAMESPACE]));
 
   const nowMs = Date.now();
-  const [entries, screen, admitted] = await Promise.all([
+  const [entries, screen, admitted, forcedDayRing] = await Promise.all([
     listActiveEntries(feed),
     getScreenState(feed),
     countAdmittedSince(feed, nowMs - LAST_PULL_WINDOW_MS),
+    isFlagEnabled(SWEEP_FORCE_DAY_RING),
   ]);
-  return NextResponse.json(buildStateView({ feed, dials, entries, screen, nowMs, admitted }));
+  // The same zone the cron ages entries against (binAdmission.maintainBins).
+  const geometry = sweepGeometry(forcedDayRing ? TERMINATOR_DAY_SIDE_OFFSETS_DEG : []);
+  const zone = { minDeg: geometry.coverageMinDeg, maxDeg: geometry.coverageMaxDeg };
+  return NextResponse.json(buildStateView({
+    feed, dials, entries: entries.map(toViewEntry), screen, nowMs, admitted, zone,
+  }));
 }
