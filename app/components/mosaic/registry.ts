@@ -9,6 +9,7 @@ import { MosaicV4 } from './v4';
 import { V4_SETTINGS_SCHEMA } from './v4/settingsSchema';
 import type { SettingsSchema } from '@/app/lib/settings/schema';
 import { SOLO_SETTINGS_SCHEMA } from '@/app/lib/solo/settingsSchema';
+import { SoloKiosk } from '@/app/components/solo';
 
 /**
  * Every mosaic version deployed, side by side. All versions ship in one
@@ -22,6 +23,9 @@ export const MOSAIC_VERSIONS: Record<string, MosaicComponent> = {
   v2: MosaicV2,
   v3: MosaicV3,
   v4: MosaicV4,
+  // Not a mosaic: one archived frame per screen from the server-owned bins.
+  // Registered here so the active-version dial can put it on the glass.
+  solo: SoloKiosk,
 };
 
 export const DEFAULT_MOSAIC_VERSION = 'v1';
@@ -32,8 +36,6 @@ export const MOSAIC_SETTINGS_SCHEMAS: Record<string, SettingsSchema> = {
   v2: V2_SETTINGS_SCHEMA,
   v3: V3_SETTINGS_SCHEMA,
   v4: V4_SETTINGS_SCHEMA,
-  // Phase 1 of the solo kiosk registers the namespace so PATCH /api/kiosk/settings
-  // accepts its dials; the renderer joins MOSAIC_VERSIONS in phase 2.
   solo: SOLO_SETTINGS_SCHEMA,
 };
 
