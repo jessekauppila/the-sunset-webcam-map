@@ -7,6 +7,7 @@ describe('toWebcam', () => {
       snapshotId: 88213, webcamId: 42, bin: 'sunset', quality: 0.91, detection: 0.88, isNew: false,
       tally: 1, enteredAt: 0, imageUrl: 'https://storage.googleapis.com/x.jpg', title: 'Pier',
       city: 'Lisbon', region: 'Lisboa', country: 'Portugal', eligible: true, rank: 1,
+      capturedAt: 0, timezone: null, sunAltitudeDeg: null,
     }, 'sunset');
     expect(w.frameId).toBe(88213);
     expect(w.webcamId).toBe(42);

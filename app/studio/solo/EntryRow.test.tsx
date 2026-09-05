@@ -5,7 +5,7 @@ import { EntryRow } from './EntryRow';
 const e = {
   snapshotId: 7, webcamId: 3, bin: 'sunset' as const, quality: 0.91, detection: 0.88, isNew: true,
   tally: 2, enteredAt: 0, imageUrl: 'u', title: 'Pier', city: 'Lisbon', region: '', country: 'Portugal',
-  eligible: true, rank: 1,
+  eligible: true, rank: 1, capturedAt: 0, timezone: null, sunAltitudeDeg: null,
 };
 
 it('shows tally first, scores, place, and the tags', () => {

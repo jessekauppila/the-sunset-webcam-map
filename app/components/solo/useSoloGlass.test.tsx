@@ -52,7 +52,17 @@ describe('useSoloGlass', () => {
     await advance(20_000);
     expect(result.current.current?.snapshotId).toBe(2);
     const adv = calls.find((c) => c.url.includes('/advance'));
-    expect(adv?.body).toEqual({ feed: 'sunrise', slot: 50_000_001 });
+    expect(adv?.body).toEqual({ feed: 'sunrise', slot: 50_000_001, version: 'solo' });
+    expect(calls[0].url).toContain('version=solo');
+  });
+  it('names its version in the state URL and the advance body, and surfaces the entries', async () => {
+    const { result } = renderHook(() => useSoloGlass({ feed: 'sunrise', dials: D, drive: true, dozing: false, version: 'solo2' }));
+    await flush();
+    expect(calls[0].url).toContain('version=solo2');
+    expect(result.current.entries).toEqual([]);
+    expect(result.current.nextEntries.map((e) => e.snapshotId)).toEqual([2]);
+    await advance(20_000);
+    expect(calls.find((c) => c.url.includes('/advance'))?.body).toMatchObject({ version: 'solo2' });
   });
   it('does not advance while dozing or when it only follows', async () => {
     const { result, rerender } = renderHook(

@@ -1,6 +1,8 @@
 import 'server-only';
+import tzLookup from 'tz-lookup';
 import { sql } from '@/app/lib/db';
 import type { BinEntry, BinKind, Feed } from './types';
+import { sunAltitudeDeg } from './zone';
 
 /**
  * Every SQL touch of kiosk_bin_entries and kiosk_screen_state (spec §5).
@@ -16,6 +18,12 @@ export interface StoredEntry extends BinEntry {
   country: string;
   lat: number;
   lng: number;
+  /** When the picture was taken, ms since epoch (UTC). */
+  capturedAt: number;
+  /** IANA zone at the camera, from its coordinates; null when unresolvable. */
+  timezone: string | null;
+  /** Solar altitude at the camera when the picture was taken, degrees. */
+  sunAltitudeDeg: number | null;
   firstShownAt: number | null;
   lastShownAt: number | null;
 }
@@ -29,6 +37,8 @@ interface EntryRow {
   is_new: boolean;
   tally: string | number;
   entered_at: string;
+  /** `captured_at::text`: a naive UTC timestamp, see parseUtcText. */
+  captured_at: string;
   first_shown_at: string | null;
   last_shown_at: string | null;
   firebase_url: string;
@@ -43,7 +53,29 @@ interface EntryRow {
 const num = (v: string | number) => Number(v);
 const ms = (v: string | null) => (v ? Date.parse(v) : null);
 
+/**
+ * `webcam_snapshots.captured_at` is `timestamp without time zone` holding
+ * UTC. The Neon driver parses a naive timestamp as CLIENT-local, which is
+ * right on Vercel (UTC) and seven hours off on a Mac, so the query selects
+ * `::text` and this parses it as UTC explicitly (solo2 spec §4.5).
+ */
+export function parseUtcText(text: string): number {
+  const t = text.trim().replace(' ', 'T');
+  return Date.parse(/(Z|[+-]\d\d(:?\d\d)?)$/.test(t) ? t : `${t}Z`);
+}
+
+function zoneOf(lat: number, lng: number): string | null {
+  try {
+    return Number.isFinite(lat) && Number.isFinite(lng) ? tzLookup(lat, lng) : null;
+  } catch {
+    return null;
+  }
+}
+
 function toEntry(feed: Feed, r: EntryRow): StoredEntry {
+  const lat = num(r.lat);
+  const lng = num(r.lng);
+  const capturedAt = parseUtcText(r.captured_at);
   return {
     feed,
     snapshotId: num(r.snapshot_id),
@@ -61,8 +93,12 @@ function toEntry(feed: Feed, r: EntryRow): StoredEntry {
     city: r.city ?? '',
     region: r.region ?? '',
     country: r.country ?? '',
-    lat: num(r.lat),
-    lng: num(r.lng),
+    lat,
+    lng,
+    capturedAt,
+    timezone: zoneOf(lat, lng),
+    sunAltitudeDeg: Number.isFinite(capturedAt) && Number.isFinite(lat) && Number.isFinite(lng)
+      ? sunAltitudeDeg(new Date(capturedAt), lat, lng) : null,
   };
 }
 
@@ -70,7 +106,7 @@ export async function listActiveEntries(feed: Feed): Promise<StoredEntry[]> {
   const rows = (await sql`
     select e.snapshot_id, e.webcam_id, e.bin, e.quality, e.detection, e.is_new, e.tally,
            e.entered_at, e.first_shown_at, e.last_shown_at,
-           s.firebase_url, w.title, w.city, w.region, w.country, w.lat, w.lng
+           s.firebase_url, s.captured_at::text as captured_at, w.title, w.city, w.region, w.country, w.lat, w.lng
     from kiosk_bin_entries e
     join webcam_snapshots s on s.id = e.snapshot_id
     join webcams w on w.id = e.webcam_id

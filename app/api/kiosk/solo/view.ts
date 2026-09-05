@@ -1,4 +1,6 @@
-import { isEligible, project } from '@/app/lib/solo/engine';
+import { isEligible } from '@/app/lib/solo/engine';
+import { SOLO_VERSIONS, type SoloVersionSpec } from '@/app/lib/solo/versions';
+import type { Role } from '@/app/lib/solo2/types';
 import { nextBoundaryMs, slotFor } from '@/app/lib/solo/schedule';
 import type { ScreenRow, StoredEntry } from '@/app/lib/solo/store';
 import type { BinEntry, Feed, SoloDials } from '@/app/lib/solo/types';
@@ -26,6 +28,12 @@ export interface ViewEntry extends BinEntry {
   city: string;
   region: string;
   country: string;
+  /** When the picture was taken, ms since epoch. */
+  capturedAt: number;
+  /** IANA zone at the camera, for the local-time caption; null when unknown. */
+  timezone: string | null;
+  /** Solar altitude at the camera when the picture was taken, degrees; null when unknown. */
+  sunAltitudeDeg: number | null;
 }
 
 export function toViewEntry(e: StoredEntry): ViewEntry {
@@ -33,6 +41,7 @@ export function toViewEntry(e: StoredEntry): ViewEntry {
     snapshotId: e.snapshotId, webcamId: e.webcamId, bin: e.bin, quality: e.quality,
     detection: e.detection, isNew: e.isNew, tally: e.tally, enteredAt: e.enteredAt,
     imageUrl: e.imageUrl, title: e.title, city: e.city, region: e.region, country: e.country,
+    capturedAt: e.capturedAt, timezone: e.timezone, sunAltitudeDeg: e.sunAltitudeDeg,
   };
 }
 
@@ -47,6 +56,8 @@ export interface StateView {
   dials: SoloDials;
   current: { entry: EntryView; shownSince: number | null; slot: number | null } | null;
   next: EntryView[];
+  /** Parallel to `next`: what each draw is inside its bar. All peaks for solo. */
+  nextRoles: Role[];
   bins: { sunset: EntryView[]; nonSunset: EntryView[] };
   schedule: { slot: number; nextBoundaryMs: number };
   lastPull: { admitted: { sunset: number; nonSunset: number } };
@@ -77,8 +88,11 @@ export function buildStateView(input: {
   nowMs: number;
   admitted: { sunset: number; nonSunset: number };
   zone: Zone;
+  /** Which engine projects the queue. Defaults to solo, so older callers are unchanged. */
+  version?: SoloVersionSpec;
 }): StateView {
   const { feed, dials, entries, screen, nowMs } = input;
+  const version = input.version ?? (SOLO_VERSIONS.solo as SoloVersionSpec);
   const ranks = rankMap(entries);
   const byId = new Map(entries.map((e) => [e.snapshotId, e]));
   const view = (e: ViewEntry): EntryView => ({
@@ -92,7 +106,9 @@ export function buildStateView(input: {
     lastSnapshotId: currentEntry?.snapshotId ?? null,
     sunsetStreak: screen?.sunsetStreak ?? 0,
   };
-  const next = project(entries, dials, state, NEXT_COUNT);
+  // The next draw happens at the next boundary, whose slot is one past now's.
+  const firstSlot = slotFor(nowMs, feed, dials.dwellS, dials.offsetS) + 1;
+  const next = version.project(entries, dials, state, NEXT_COUNT, firstSlot, feed);
   const queued = new Set([currentEntry?.snapshotId, ...next.map((e) => e.snapshotId)]);
   const remaining = entries.filter((e) => !queued.has(e.snapshotId));
 
@@ -103,6 +119,7 @@ export function buildStateView(input: {
       ? { entry: view(currentEntry), shownSince: screen?.shownSince ?? null, slot: screen?.slot ?? null }
       : null,
     next: next.map((e) => view(byId.get(e.snapshotId)!)),
+    nextRoles: next.map((_, i) => version.roleAt(firstSlot + i, feed, dials)),
     bins: {
       sunset: remaining.filter((e) => e.bin === 'sunset').sort(byScore).map(view),
       nonSunset: remaining.filter((e) => e.bin === 'non_sunset').sort(byScore).map(view),

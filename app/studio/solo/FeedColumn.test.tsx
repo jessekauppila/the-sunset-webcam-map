@@ -9,6 +9,7 @@ const D = dialsFrom(schemaDefaults(SOLO_SETTINGS_SCHEMA));
 const entry = (id: number, bin: 'sunset' | 'non_sunset', score: number, webcamId = 100 + id): ViewEntry => ({
   snapshotId: id, webcamId, bin, quality: bin === 'sunset' ? score : null, detection: bin === 'sunset' ? 0.9 : score,
   isNew: false, tally: 0, enteredAt: id, imageUrl: `u${id}`, title: `cam${id}`, city: '', region: '', country: '',
+  capturedAt: 0, timezone: null, sunAltitudeDeg: null,
 });
 const view = (dials = D) => buildStateView({
   feed: 'sunset', dials,

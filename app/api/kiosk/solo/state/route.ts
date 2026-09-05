@@ -3,7 +3,7 @@ import { requireOwner } from '@/app/lib/owner';
 import { getLiveSettingsCached } from '@/app/lib/settings/liveSettings';
 import { getProfileSettings } from '@/app/lib/settings/store';
 import { mergeSettings } from '@/app/lib/settings/schema';
-import { SOLO_NAMESPACE, SOLO_SETTINGS_SCHEMA, dialsFrom } from '@/app/lib/solo/settingsSchema';
+import { resolveSoloVersion } from '@/app/lib/solo/versions';
 import { countAdmittedSince, getScreenState, listActiveEntries } from '@/app/lib/solo/store';
 import { isFlagEnabled, SWEEP_FORCE_DAY_RING } from '@/app/lib/runtimeFlags';
 import { sweepGeometry } from '@/app/api/cron/update-cameras/lib/sweepGeometry';
@@ -24,6 +24,9 @@ const LAST_PULL_WINDOW_MS = 10 * 60 * 1000;
 export async function GET(request: NextRequest) {
   const feed = parseFeed(request.nextUrl.searchParams.get('feed'));
   if (!feed) return NextResponse.json({ error: 'feed must be sunrise or sunset' }, { status: 400 });
+  // Which version's dials and engine: solo unless told otherwise (solo2 spec §5.2).
+  const version = resolveSoloVersion(request.nextUrl.searchParams.get('version'));
+  if (!version) return NextResponse.json({ error: 'version must be solo or solo2' }, { status: 400 });
 
   const studio = request.nextUrl.searchParams.get('profile') === 'studio';
   if (studio) {
@@ -31,7 +34,7 @@ export async function GET(request: NextRequest) {
     if (denied) return denied;
   }
   const profile = studio ? await getProfileSettings('studio') : await getLiveSettingsCached();
-  const dials = dialsFrom(mergeSettings(SOLO_SETTINGS_SCHEMA, profile?.namespaces[SOLO_NAMESPACE]));
+  const dials = version.dialsFrom(mergeSettings(version.schema, profile?.namespaces[version.namespace]));
 
   const nowMs = Date.now();
   const [entries, screen, admitted, forcedDayRing] = await Promise.all([
@@ -44,6 +47,6 @@ export async function GET(request: NextRequest) {
   const geometry = sweepGeometry(forcedDayRing ? TERMINATOR_DAY_SIDE_OFFSETS_DEG : []);
   const zone = { minDeg: geometry.coverageMinDeg, maxDeg: geometry.coverageMaxDeg };
   return NextResponse.json(buildStateView({
-    feed, dials, entries: entries.map(toViewEntry), screen, nowMs, admitted, zone,
+    feed, dials, entries: entries.map(toViewEntry), screen, nowMs, admitted, zone, version,
   }));
 }

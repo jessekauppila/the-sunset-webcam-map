@@ -1,9 +1,10 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import type { EntryView, StateView } from '@/app/api/kiosk/solo/view';
+import type { EntryView, StateView, ViewEntry } from '@/app/api/kiosk/solo/view';
 import { slotFor } from '@/app/lib/solo/schedule';
 import type { Feed, SoloDials } from '@/app/lib/solo/types';
+import type { SoloVersionName } from '@/app/lib/solo/versions';
 import { msUntilBoundary } from './schedule';
 
 const STATE_REFRESH_MS = 60_000;
@@ -15,6 +16,10 @@ export interface SoloGlass {
   boundaryMs: number;
   error: string | null;
   queueLength: number;
+  /** The whole projected queue, for preloading beyond the first. */
+  nextEntries: EntryView[];
+  /** Every active entry, so a renderer can derive a prelude (solo2). */
+  entries: ViewEntry[];
 }
 
 function preload(url: string): Promise<void> {
@@ -32,11 +37,13 @@ function preload(url: string): Promise<void> {
  * preload the one after. Two tabs stay staggered because both read the same
  * clock; a reload just waits for its next boundary.
  */
-export function useSoloGlass({ feed, dials, drive, dozing }: {
+export function useSoloGlass({ feed, dials, drive, dozing, version = 'solo' }: {
   feed: Feed;
   dials: SoloDials;
   drive: boolean;
   dozing: boolean;
+  /** Which version's dials and engine the server should use. */
+  version?: SoloVersionName;
 }): SoloGlass {
   const [view, setView] = useState<StateView | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -54,7 +61,7 @@ export function useSoloGlass({ feed, dials, drive, dozing }: {
     let alive = true;
     const load = async () => {
       try {
-        const res = await fetch(`/api/kiosk/solo/state?feed=${feed}`);
+        const res = await fetch(`/api/kiosk/solo/state?feed=${feed}&version=${version}`);
         if (!res.ok) throw new Error(`state ${res.status}`);
         const v = (await res.json()) as StateView;
         if (!alive) return;
@@ -70,7 +77,7 @@ export function useSoloGlass({ feed, dials, drive, dozing }: {
       alive = false;
       clearInterval(t);
     };
-  }, [feed]);
+  }, [feed, version]);
 
   // The boundary timer. Re-armed after every fire and whenever dials change.
   useEffect(() => {
@@ -83,7 +90,7 @@ export function useSoloGlass({ feed, dials, drive, dozing }: {
           const res = await fetch('/api/kiosk/solo/advance', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ feed, slot }),
+            body: JSON.stringify({ feed, slot, version }),
           });
           if (!res.ok) throw new Error(`advance ${res.status}`);
           const v = (await res.json()) as StateView & { advanced: boolean };
@@ -97,7 +104,7 @@ export function useSoloGlass({ feed, dials, drive, dozing }: {
       setTick((n) => n + 1); // re-arm
     }, wait);
     return () => clearTimeout(t);
-  }, [feed, dials.dwellS, dials.offsetS, tick]);
+  }, [feed, version, dials.dwellS, dials.offsetS, tick]);
 
   const nowMs = Date.now();
   return {
@@ -107,5 +114,7 @@ export function useSoloGlass({ feed, dials, drive, dozing }: {
     boundaryMs: nowMs + msUntilBoundary(nowMs, feed, dials.dwellS, dials.offsetS),
     error,
     queueLength: view?.next.length ?? 0,
+    nextEntries: view?.next ?? [],
+    entries: view?.entries ?? [],
   };
 }

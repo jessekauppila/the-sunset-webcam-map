@@ -31,7 +31,7 @@ beforeEach(() => {
   listActiveEntries.mockResolvedValue([]);
   getScreenState.mockResolvedValue(null);
   countAdmittedSince.mockResolvedValue({ sunset: 0, nonSunset: 0 });
-  getLiveSettingsCached.mockResolvedValue({ namespaces: { solo: { dwellS: 30 } }, revision: 1 });
+  getLiveSettingsCached.mockResolvedValue({ namespaces: { solo: { dwellS: 30 }, solo2: { dwellS: 9, valleys: 1 } }, revision: 1 });
   getProfileSettings.mockResolvedValue({ namespaces: { solo: { dwellS: 7 } }, revision: 1 });
 });
 
@@ -39,6 +39,15 @@ describe('GET /api/kiosk/solo/state', () => {
   it('rejects a missing or unknown feed', async () => {
     expect((await get('')).status).toBe(400);
     expect((await get('?feed=noon')).status).toBe(400);
+  });
+  it('version=solo2 reads the solo2 namespace and reports roles; unknown versions are refused', async () => {
+    expect((await get('?feed=sunset&version=v4')).status).toBe(400);
+    const res = await get('?feed=sunset&version=solo2');
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.dials.dwellS).toBe(9);
+    expect(body.dials.valleys).toBe(1);
+    expect(body.nextRoles).toEqual([]);
   });
   it('live profile by default, no owner check', async () => {
     const res = await get('?feed=sunset');

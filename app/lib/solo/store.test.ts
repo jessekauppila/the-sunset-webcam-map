@@ -30,12 +30,17 @@ describe('listActiveEntries', () => {
       snapshot_id: '7', webcam_id: '3', bin: 'sunset', quality: '0.91', detection: '0.88',
       is_new: true, tally: '2', entered_at: '2026-09-04T01:00:00Z', first_shown_at: null, last_shown_at: null,
       firebase_url: 'https://storage.googleapis.com/x.jpg', title: 'Pier', city: 'Lisbon', region: 'Lisboa',
-      country: 'Portugal', lat: '38.700000', lng: '-9.400000',
+      country: 'Portugal', lat: '38.700000', lng: '-9.400000', captured_at: '2026-09-04 00:59:30.5',
     }]);
     const [e] = await listActiveEntries('sunset');
     expect(e).toMatchObject({ snapshotId: 7, webcamId: 3, bin: 'sunset', quality: 0.91, detection: 0.88,
       isNew: true, tally: 2, feed: 'sunset', lat: 38.7, lng: -9.4, imageUrl: 'https://storage.googleapis.com/x.jpg' });
     expect(e.enteredAt).toBe(Date.parse('2026-09-04T01:00:00Z'));
+    // captured_at is naive UTC text: parsed as UTC whatever the host's zone.
+    expect(e.capturedAt).toBe(Date.UTC(2026, 8, 4, 0, 59, 30, 500));
+    expect(e.timezone).toBe('Europe/Lisbon');
+    expect(e.sunAltitudeDeg).toBeLessThan(0); // 01:59 in Lisbon is night
+    expect(lastQuery()).toMatch(/captured_at::text/);
     expect(lastQuery()).toMatch(/removed_at is null/i);
   });
 });

@@ -24,6 +24,7 @@ const entry = (id: number, q: number, tally = 0) => ({
   feed: 'sunset', snapshotId: id, webcamId: 100 + id, bin: 'sunset', quality: q, detection: 0.9,
   isNew: false, tally, enteredAt: id, firstShownAt: null, lastShownAt: null,
   imageUrl: `u${id}`, title: '', city: '', region: '', country: '', lat: 0, lng: 0,
+  capturedAt: 0, timezone: null, sunAltitudeDeg: null,
 });
 const post = (body: unknown) =>
   POST(new Request('http://t/api/kiosk/solo/advance', { method: 'POST', body: JSON.stringify(body) }));
@@ -58,6 +59,17 @@ describe('POST /api/kiosk/solo/advance', () => {
     expect(body.current.entry.snapshotId).toBe(1);
     expect(body.current.entry.tally).toBe(1);
     expect(commitAdvance).toHaveBeenCalledWith('sunrise', 50_000_000, expect.objectContaining({ snapshotId: 1 }), 1);
+  });
+  it('version=solo2 with valleys 1 draws the valley on an odd slot', async () => {
+    getLiveSettingsCached.mockResolvedValue({ namespaces: { solo2: { valleys: 1 } }, revision: 1 });
+    listActiveEntries.mockResolvedValue([entry(1, 0.9), entry(2, 0.8), entry(3, 0.7)]);
+    vi.setSystemTime(new Date(1_000_000_020_000)); // slot 50_000_001: beat 1 = valley
+    const res = await post({ feed: 'sunrise', slot: 50_000_001, version: 'solo2' });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.current.entry.snapshotId).toBe(3);
+    expect(body.nextRoles[0]).toBe('peak');
+    expect((await post({ feed: 'sunrise', slot: 50_000_001, version: 'nope' })).status).toBe(400);
   });
   it('is a no-op for a slot already committed', async () => {
     getScreenState.mockResolvedValue({ feed: 'sunrise', currentSnapshotId: 1, shownSince: 1, slot: 50_000_000, sunsetStreak: 1 });
