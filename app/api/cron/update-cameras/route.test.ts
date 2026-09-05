@@ -73,6 +73,14 @@ vi.mock('./lib/dbOperations', () => ({
   insertWindyDisagreementSnapshot: (...a: unknown[]) =>
     insertWindyDisagreementSnapshotMock(...a),
 }));
+vi.mock('./lib/binAdmission', () => ({
+  decideBin: () => null,
+  enterBins: async () => ({ sunset: 0, nonSunset: 0, duplicates: 0 }),
+  maintainBins: async () => ({ leftZone: 0, expired: 0 }),
+}));
+vi.mock('@/app/lib/settings/liveSettings', () => ({
+  getLiveSettingsCached: async () => null,
+}));
 vi.mock('./lib/aiScoring', () => ({
   scoreImage: (...a: unknown[]) => scoreMock(...a),
   computeDisagreementKind: (...a: unknown[]) =>

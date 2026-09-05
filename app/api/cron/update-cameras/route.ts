@@ -58,6 +58,10 @@ import {
   insertWindyDisagreementSnapshot,
 } from './lib/dbOperations';
 import { computeDisagreementKind, scoreImage } from './lib/aiScoring';
+import { decideBin, enterBins, maintainBins, type Admission } from './lib/binAdmission';
+import { getLiveSettingsCached } from '@/app/lib/settings/liveSettings';
+import { mergeSettings } from '@/app/lib/settings/schema';
+import { SOLO_NAMESPACE, SOLO_SETTINGS_SCHEMA, dialsFrom } from '@/app/lib/solo/settingsSchema';
 import { backfillArchiveSnapshotScores } from './lib/archiveBackfill';
 import { computeTickStats, upsertDailyStats } from './lib/dailyStats';
 import { captureProviderUsageDaily } from './lib/providerUsage';
@@ -177,6 +181,13 @@ export async function GET(req: Request) {
     sunrise: sunriseList.length,
     sunset: sunsetList.length,
   });
+
+  // Solo kiosk admission (spec §5.3) collects during scoring and writes once
+  // after the loop. Feed comes from the same classification the pool uses.
+  const feedByExternalId = new Map<string, 'sunrise' | 'sunset'>();
+  for (const w of sunriseList) feedByExternalId.set(String(w.webcamId), 'sunrise');
+  for (const w of sunsetList) feedByExternalId.set(String(w.webcamId), 'sunset');
+  const admissions: Admission[] = [];
 
   // Get mapping of external IDs to internal IDs
   const externalIds = windyAll.map((w) => String(w.webcamId));
@@ -299,27 +310,33 @@ export async function GET(req: Request) {
       // Drawn independently per frame — no seed, because the point is that
       // nothing about the frame influences whether it is kept.
       const isTrickle = Math.random() < SAVE_RANDOM_TRICKLE_RATE;
+      const binKind = decideBin(scored);
+      const binFeed = feedByExternalId.get(externalId) ?? null;
       const shouldPersist =
         disagreementKind !== null ||
         isHighRated ||
         isTrickle ||
-        SAVE_ALL_RATED_SNAPSHOTS;
+        SAVE_ALL_RATED_SNAPSHOTS ||
+        (binKind !== null && binFeed !== null);
       // Precedence matters for the analysis, not for the write: a frame that
       // would have been saved anyway is NOT part of the unbiased arm, so the
       // gated reasons win and 'trickle' marks only frames nothing else caught.
-      const intakeReason: 'disagreement' | 'high_rated' | 'trickle' | 'all_rated' =
+      // 'kiosk_bin' likewise marks only frames the bins alone brought in.
+      const intakeReason: 'disagreement' | 'high_rated' | 'trickle' | 'all_rated' | 'kiosk_bin' =
         disagreementKind !== null
           ? 'disagreement'
           : isHighRated
             ? 'high_rated'
             : isTrickle
               ? 'trickle'
-              : 'all_rated';
+              : SAVE_ALL_RATED_SNAPSHOTS
+                ? 'all_rated'
+                : 'kiosk_bin';
       if (shouldPersist) {
         try {
           const capturedAt = new Date();
           const upload = await uploadToFirebase(bytes, webcamId, capturedAt);
-          await insertWindyDisagreementSnapshot({
+          const snapshotId = await insertWindyDisagreementSnapshot({
             webcamId,
             phase: 'sunset', // informational; queue doesn't filter by phase
             firebaseUrl: upload.url,
@@ -337,6 +354,12 @@ export async function GET(req: Request) {
             aiModelVersionBinary: scored.binaryModelVersion,
             intakeReason,
           });
+          if (binKind !== null && binFeed !== null && typeof scored.binaryRawScore === 'number') {
+            admissions.push({
+              feed: binFeed, bin: binKind, snapshotId, webcamId,
+              rawQuality: scored.rawScore, detection: scored.binaryRawScore,
+            });
+          }
         } catch (persistError) {
           console.warn(
             `[update-cameras] Failed to persist Windy disagreement snapshot for webcam ${webcamId}:`,
@@ -366,6 +389,28 @@ export async function GET(req: Request) {
     }
     const batch = windyAll.slice(i, i + SCORING_CONCURRENCY);
     await Promise.all(batch.map(scoreOneWindy));
+  }
+
+  // Solo kiosk bins: enter what this tick admitted, then age every entry
+  // against where its camera's sun is now. Non-fatal: a failure here must not
+  // cost the pool its update.
+  let bins:
+    | { admitted: Awaited<ReturnType<typeof enterBins>>; removed: Awaited<ReturnType<typeof maintainBins>> }
+    | { error: true };
+  try {
+    const live = await getLiveSettingsCached();
+    const dials = dialsFrom(mergeSettings(SOLO_SETTINGS_SCHEMA, live?.namespaces[SOLO_NAMESPACE]));
+    const geometry = sweepGeometry(forcedOffsets);
+    const admitted = await enterBins(admissions);
+    const removed = await maintainBins({
+      now: new Date(),
+      zone: { minDeg: geometry.coverageMinDeg, maxDeg: geometry.coverageMaxDeg },
+      grace: dials.zoneGrace,
+    });
+    bins = { admitted, removed };
+  } catch (error) {
+    console.warn('[update-cameras] solo bins failed:', error);
+    bins = { error: true };
   }
 
   // Model-score backfill top-up — bounded by the same tick deadline. Custom-cam
@@ -548,5 +593,6 @@ export async function GET(req: Request) {
     sweep: sweep.telemetry,
     retention: sweepHold,
     forcedDayRing,
+    bins,
   });
 }
