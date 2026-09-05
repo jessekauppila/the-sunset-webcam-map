@@ -126,8 +126,9 @@ Each row, newest first, monospace:
 
 - **Summary** is what changed **against the previous deploy**: up to three
   `key value` pairs, then `+n`. Computed client-side from consecutive
-  snapshots with `diffKeys` per namespace; a namespace that appears or
-  disappears is listed as `v4 reset`. Deploy #1 shows `first recorded`.
+  snapshots with `diffKeys` per namespace; a namespace that disappears
+  reads as its keys returning to their default values. Deploy #1 shows
+  `first recorded`; an identical redeploy shows `no dial changes`.
 - **`glass` badge** on the row whose snapshot equals the live profile
   (deviation-equality per namespace, not "the newest id": a failed record
   would otherwise mislabel). **`studio` badge** on the row equal to the
@@ -198,8 +199,8 @@ starts now (`feat/deploy-history`).
 
 - History write fails → Deploy still succeeds; response says
   `deploy: null`; rail shows "history not recorded".
-- Load of a missing id → 404 → rail row shows `gone` and the list
-  revalidates.
+- Load of a missing id → 404 → rail row shows `gone`; the list refreshes
+  within 30 s.
 - Load with schema drift → keys dropped and counted in the response, never
   silently.
 - Preview with an empty queue → panel shows "nothing eligible with these
