@@ -178,6 +178,13 @@ export function StudioClient() {
             userSelect: resizing ? 'none' : undefined,
           }}
         >
+          <a
+            href="/studio/solo"
+            title="The solo kiosk's studio: bins, queue, and its own dials"
+            style={{ display: 'block', fontSize: 11, color: '#8b95a7', marginBottom: 6 }}
+          >
+            solo studio →
+          </a>
           <StudioRail
             api={settingsApi}
             onCollapse={() => setRailCollapsed(true)}

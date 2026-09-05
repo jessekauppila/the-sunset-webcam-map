@@ -1,0 +1,88 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import Link from 'next/link';
+import { useStudioSettings } from '../useStudioSettings';
+import { DeployButton } from '../DeployButton';
+import { SoloRail } from './SoloRail';
+import { FeedColumn } from './FeedColumn';
+import { SoloStatusStrip } from './SoloStatusStrip';
+import { useSoloState } from './useSoloState';
+import { toWebcam } from './toWebcam';
+import { SOLO_NAMESPACE, SOLO_SETTINGS_SCHEMA, dialsFrom } from '@/app/lib/solo/settingsSchema';
+import { mergeSettings } from '@/app/lib/settings/schema';
+import type { EntryView } from '@/app/api/kiosk/solo/view';
+import type { Feed } from '@/app/lib/solo/types';
+import { FrameLabelCard } from '@/app/components/Webcam/FrameLabelCard';
+
+const bg = '#0b0e14';
+const railBg = '#10141d';
+const border = '#1d2432';
+const mono = 'ui-monospace, SFMono-Regular, Menlo, monospace';
+
+/**
+ * /studio/solo: the bins transparency surface (spec §6.4). Dials edit the
+ * studio profile through the same hook /studio uses; the queue columns
+ * re-project with those dials at once, while the panels and countdowns run
+ * on the live profile, because that is what the glass runs.
+ */
+export function SoloStudioClient() {
+  const api = useStudioSettings();
+  const studioDials = dialsFrom(api.effective(SOLO_NAMESPACE));
+  const liveDials = dialsFrom(mergeSettings(SOLO_SETTINGS_SCHEMA, api.live?.namespaces?.[SOLO_NAMESPACE]));
+  const sunrise = useSoloState('sunrise', studioDials);
+  const sunset = useSoloState('sunset', studioDials);
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  const [selected, setSelected] = useState<{ entry: EntryView; feed: Feed } | null>(null);
+
+  useEffect(() => {
+    const t = setInterval(() => setNowMs(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, []);
+
+  return (
+    <div style={{
+      display: 'grid', gridTemplateColumns: '250px 1fr', gridTemplateRows: '30px 1fr', height: '100vh',
+      background: bg, color: '#e5e7eb', overflow: 'hidden',
+    }}>
+      <div style={{ gridColumn: '1 / -1', background: '#0e1119', borderBottom: `1px solid ${border}`, display: 'flex', alignItems: 'center' }}>
+        <SoloStatusStrip nowMs={nowMs} sunrise={sunrise.server} sunset={sunset.server}
+          liveRevision={api.liveRevision} diffCount={api.diffCount} zone={sunset.server?.zone ?? sunrise.server?.zone} />
+        <Link href="/studio" style={{ marginLeft: 'auto', marginRight: 12, fontSize: 11, color: '#8b95a7' }} title="The mosaic studio">
+          ← mosaic studio
+        </Link>
+      </div>
+      <aside style={{ background: railBg, borderRight: `1px solid ${border}`, padding: 10, overflowY: 'auto' }}>
+        <SoloRail api={api} deploySlot={<DeployButton diffCount={api.diffCount} onDeploy={api.deploy} onRevert={api.revert} />} />
+      </aside>
+      <main style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, padding: 12, overflowY: 'auto', minWidth: 0 }}>
+        {(['sunrise', 'sunset'] as const).map((feed) => {
+          const s = feed === 'sunrise' ? sunrise : sunset;
+          return s.server && s.projected ? (
+            <FeedColumn key={feed} feed={feed} server={s.server} projected={s.projected} liveDials={liveDials}
+              studioDials={studioDials} nowMs={nowMs} onSelect={(entry, f) => setSelected({ entry, feed: f })} />
+          ) : (
+            <div key={feed} style={{ color: '#4b5568', fontFamily: mono, fontSize: 12 }}>{s.error ?? `loading ${feed}…`}</div>
+          );
+        })}
+      </main>
+      {selected && (
+        <div
+          onClick={(e) => { if (e.target === e.currentTarget) setSelected(null); }}
+          style={{ position: 'fixed', inset: 0, background: '#000a', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+        >
+          <div style={{ background: railBg, border: `1px solid ${border}`, borderRadius: 10, width: 'min(760px, 92vw)', padding: 14 }}>
+            <button type="button" onClick={() => setSelected(null)} style={{
+              float: 'right', background: 'transparent', color: '#8b95a7', border: `1px solid ${border}`,
+              borderRadius: 6, padding: '3px 8px', cursor: 'pointer',
+            }}>close</button>
+            <div style={{ fontFamily: mono, fontSize: 12, color: '#9aa3b2', marginBottom: 8 }}>
+              frame {selected.entry.snapshotId} · {selected.entry.bin === 'sunset' ? 'sunset' : 'non-sunset'} bin · shown ×{selected.entry.tally}
+            </div>
+            <FrameLabelCard webcam={toWebcam(selected.entry, selected.feed)} allowCapture={false} />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

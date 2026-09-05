@@ -9,6 +9,9 @@ const countAdmittedSince = vi.fn();
 const getLiveSettingsCached = vi.fn();
 const getProfileSettings = vi.fn();
 vi.mock('server-only', () => ({}));
+// sweepGeometry's module pulls in the Neon client; the route only uses its pure half.
+vi.mock('@/app/lib/db', () => ({ sql: vi.fn() }));
+vi.mock('@/app/lib/runtimeFlags', () => ({ isFlagEnabled: async () => false, SWEEP_FORCE_DAY_RING: 'x' }));
 vi.mock('@/app/lib/owner', () => ({ requireOwner: () => requireOwner() }));
 vi.mock('@/app/lib/solo/store', () => ({
   listActiveEntries: (...a: unknown[]) => listActiveEntries(...a),
@@ -40,7 +43,9 @@ describe('GET /api/kiosk/solo/state', () => {
   it('live profile by default, no owner check', async () => {
     const res = await get('?feed=sunset');
     expect(res.status).toBe(200);
-    expect((await res.json()).dials.dwellS).toBe(30);
+    const body = await res.json();
+    expect(body.dials.dwellS).toBe(30);
+    expect(body.zone).toEqual({ minDeg: -24, maxDeg: -2 });
     expect(requireOwner).not.toHaveBeenCalled();
   });
   it('studio profile is owner-gated and projects with studio dials', async () => {

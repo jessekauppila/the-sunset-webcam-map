@@ -7,6 +7,9 @@ const commitAdvance = vi.fn();
 const countAdmittedSince = vi.fn();
 const getLiveSettingsCached = vi.fn();
 vi.mock('server-only', () => ({}));
+// sweepGeometry's module pulls in the Neon client; the route only uses its pure half.
+vi.mock('@/app/lib/db', () => ({ sql: vi.fn() }));
+vi.mock('@/app/lib/runtimeFlags', () => ({ isFlagEnabled: async () => false, SWEEP_FORCE_DAY_RING: 'x' }));
 vi.mock('@/app/lib/solo/store', () => ({
   listActiveEntries: (...a: unknown[]) => listActiveEntries(...a),
   getScreenState: (...a: unknown[]) => getScreenState(...a),
