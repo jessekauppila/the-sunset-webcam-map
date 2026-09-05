@@ -347,6 +347,7 @@ export function PreviewPane({
                   peerWebcams={peerOf(feed)}
                   search=""
                   settings={settings}
+                  driveSchedule={false}
                   at={at}
                   onSelect={setSelected}
                 />
