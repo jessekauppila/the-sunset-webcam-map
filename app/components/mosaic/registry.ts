@@ -10,6 +10,8 @@ import { V4_SETTINGS_SCHEMA } from './v4/settingsSchema';
 import type { SettingsSchema } from '@/app/lib/settings/schema';
 import { SOLO_SETTINGS_SCHEMA } from '@/app/lib/solo/settingsSchema';
 import { SoloKiosk } from '@/app/components/solo';
+import { SOLO2_SETTINGS_SCHEMA } from '@/app/lib/solo2/settingsSchema';
+import { Solo2Kiosk } from '@/app/components/solo2';
 
 /**
  * Every mosaic version deployed, side by side. All versions ship in one
@@ -26,6 +28,8 @@ export const MOSAIC_VERSIONS: Record<string, MosaicComponent> = {
   // Not a mosaic: one archived frame per screen from the server-owned bins.
   // Registered here so the active-version dial can put it on the glass.
   solo: SoloKiosk,
+  // solo with rhythm, lead, prelude, transitions and local time (solo2 spec).
+  solo2: Solo2Kiosk,
 };
 
 export const DEFAULT_MOSAIC_VERSION = 'v1';
@@ -37,6 +41,7 @@ export const MOSAIC_SETTINGS_SCHEMAS: Record<string, SettingsSchema> = {
   v3: V3_SETTINGS_SCHEMA,
   v4: V4_SETTINGS_SCHEMA,
   solo: SOLO_SETTINGS_SCHEMA,
+  solo2: SOLO2_SETTINGS_SCHEMA,
 };
 
 /** Unknown or missing names fall back to the pinned default. */
