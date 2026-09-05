@@ -4,7 +4,7 @@
 
 **Goal:** Put the solo kiosk on the glass, reversibly: the two panels turned landscape by a one-line setting on the Pi, the panel preset and active version flipped from `/studio`, verified on the screens with the doctor script and the solo studio, and the whole procedure written into the runbook with its rollback.
 
-**Architecture:** The Pi's `~/kiosk-launch.sh` is today the only copy of the rotation logic and lives outside the repo. This phase brings it into `scripts/pi/` as the canonical copy, makes orientation a value in `/home/pi/kiosk.env` (default `portrait`, so nothing changes until someone edits it), and teaches the doctor to report each output's rotation. Switching modes is then: edit one line on the Pi, reboot, flip two dials, Deploy.
+**Architecture:** (Corrected 2026-09-04 after reading the Pi's script: the panels are Dell 1920×1080 mounted "open book", each output rotated the opposite way, `right` and `left`, tiled at x=0 and x=1080. Landscape is both outputs `normal` at x=0 and x=1920, windows 1920×1080, preset `dell-l`. The plan's Task 2 code below was written before that and is superseded by the committed `scripts/pi/kiosk-launch.sh`.) The Pi's `~/kiosk-launch.sh` is today the only copy of the rotation logic and lives outside the repo. This phase brings it into `scripts/pi/` as the canonical copy, makes orientation a value in `/home/pi/kiosk.env` (default `portrait`, so nothing changes until someone edits it), and teaches the doctor to report each output's rotation. Switching modes is then: edit one line on the Pi, reboot, flip two dials, Deploy.
 
 **Tech Stack:** bash, xrandr, ssh, the existing `kiosk-doctor.sh --sync --reload` flow.
 
