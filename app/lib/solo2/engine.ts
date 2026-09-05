@@ -1,10 +1,11 @@
-import { afterShowing, isEligible, rankScore, tierOf } from '@/app/lib/solo/engine';
+import { afterShowing, choosePool, rankScore } from '@/app/lib/solo/engine';
+import { boundaryMs } from '@/app/lib/solo/schedule';
 import type { BinEntry, Feed, ScreenState } from '@/app/lib/solo/types';
 import type { Role, Solo2Dials } from './types';
 
 /**
  * solo's rules with rule 3 on a beat (spec §3). Pure: no clock, no I/O.
- * Composes solo's helpers rather than copying them; solo's engine is not
+ * Draws from solo's choosePool rather than copying it; solo's engine is not
  * touched.
  */
 
@@ -41,25 +42,9 @@ function compareValley(d: Solo2Dials) {
 export function next2(
   entries: BinEntry[], d: Solo2Dials, state: ScreenState, slot: number, feed: Feed,
 ): BinEntry | null {
-  const eligible = entries.filter((e) => isEligible(e, d));
-  // Rule 4.
-  let candidates = eligible.filter((e) => e.snapshotId !== state.lastSnapshotId);
-  if (candidates.length === 0) candidates = eligible;
-  if (candidates.length === 0) return null;
-
-  // Rule 1.
-  const minTier = Math.min(...candidates.map((e) => tierOf(e, d)));
-  const tier = candidates.filter((e) => tierOf(e, d) === minTier);
-  const sunsets = tier.filter((e) => e.bin === 'sunset');
-  const nonSunsets = tier.filter((e) => e.bin === 'non_sunset');
-
-  // Rule 2.
-  let pool: BinEntry[];
-  if (nonSunsets.length === 0) pool = sunsets;
-  else if (sunsets.length === 0) pool = nonSunsets;
-  else if (sunsets.length >= d.sunsetFloor) pool = sunsets;
-  else pool = state.sunsetStreak >= d.mix ? nonSunsets : sunsets;
-
+  // Rules 5, 4, 2 and 1 are solo's.
+  const pool = choosePool(entries, d, state, slot, feed);
+  if (pool.length === 0) return null;
   // Rule 3, on the beat.
   const cmp = roleAt(slot, feed, d) === 'peak' ? comparePeak(d) : compareValley(d);
   return [...pool].sort(cmp)[0];
@@ -81,6 +66,7 @@ export function project2(
     out.push({ ...pick });
     pick.tally += 1;
     pick.isNew = false;
+    pick.lastShownAt = boundaryMs(firstSlot + i, feed, d.dwellS, d.offsetS);
     s = afterShowing(pick, s);
   }
   return out;
