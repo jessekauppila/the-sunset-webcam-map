@@ -118,6 +118,26 @@ what xrandr is actually doing.
 2. `ssh pi@sunsetdisplay 'printf "ORIENTATION=portrait\n" > /home/pi/kiosk.env && sudo reboot'`
 3. Turn the monitors back. Doctor to confirm.
 
+### Solo → solo2 (and back)
+
+`solo2` (spec `docs/superpowers/specs/2026-09-04-solo2-rhythm-design.md`) is
+a second registered version beside `solo`: same bins, same schedule, same
+landscape panels, its own dials in the `solo2` namespace. Switching is
+settings only, once the build that carries it is on the glass.
+
+1. Merge and build the code that carries `solo2` in the version list.
+   `vercel ls --prod`.
+2. `bash scripts/pi/kiosk-doctor.sh --sync --reload` so both tabs run that
+   build. Without this step the dial does nothing: the tabs do not know the
+   version.
+3. In `/studio`: active version = `solo2`. Hold Deploy. Tabs pick it up
+   within a minute. Every `solo2` dial starts at `solo`'s behaviour except
+   the caption's local time, so the glass looks the same until you tune.
+4. Tune on `/studio/solo2` (valleys, screens, lead, transition, prelude,
+   time). Deploy there.
+5. Back: `/studio`, active version = `solo`. Hold Deploy. The `solo2` dials
+   stay where you left them for next time.
+
 ## When it does not work
 
 | Symptom | Meaning | Do |

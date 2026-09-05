@@ -27,7 +27,7 @@ ln -s ~/main-repo/node_modules ~/repo-feature/node_modules
 cd ~/repo-feature && npx vitest run <path>   # works immediately
 ```
 Caveats:
-- If the branch **adds a new dependency**, run `npm install <pkg>` in the worktree — with the symlink it installs into the *shared* `node_modules`, which is fine (the package.json/lock changes stay on the branch). A *later* worktree off `main` (which lacks the dep in package.json) may need its own `npm install` to pick it up — expect a one-time install there.
+- If the branch **adds a new dependency**, run `npm install <pkg>` in the worktree. Observed 2026-09-04 (npm 10): npm does **not** install through the symlink — it replaces the worktree's `node_modules` symlink with a real, full install (~20 s, 1,300 packages) and leaves the main checkout's tree without the package. That is fine for the branch (package.json/lock changes stay on it), but after the PR merges the main checkout needs its own `npm install` before it can build or test that code. Check with `ls -ld node_modules` in the worktree if unsure which state you are in.
 - `git worktree remove --force` removes the symlink (a dir entry), **not** the real `node_modules` it points to.
 
 **Python repos — usually nothing needed** if the package is installed editable (`pip install -e`) into a shared interpreter, since `pythonpath = ["src"]` (pytest) resolves from the worktree's own `src/`. Just run `python3 -m pytest` in the worktree.
