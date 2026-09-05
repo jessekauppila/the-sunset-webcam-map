@@ -13,12 +13,13 @@ import {
   type SettingsSchema,
   type SettingsValues,
 } from '@/app/lib/settings/schema';
-import { SHARED_NAMESPACE, SHARED_SCHEMA } from '@/app/lib/settings/sharedSchema';
-import { MOSAIC_SETTINGS_SCHEMAS } from '@/app/components/mosaic/registry';
+import { schemaFor, KNOWN_NAMESPACES } from '@/app/lib/settings/knownSchemas';
 import type { ProfileSettings } from '@/app/lib/settings/store';
+import type { DeployRow, DroppedDeployKey } from '@/app/lib/settings/deploys';
 
 const DEBOUNCE_MS = 400;
 const SETTINGS_URL = '/api/kiosk/settings';
+const DEPLOYS_URL = '/api/kiosk/deploys';
 
 interface SettingsResponse {
   studio: ProfileSettings;
@@ -45,18 +46,18 @@ export interface StudioSettingsApi {
   applyNamespace: (namespace: string, deviations: SettingsValues) => DroppedKey[];
   diffByNamespace: Record<string, string[]>; // diffKeys(schema, studio[ns], live[ns]) per known ns
   diffCount: number; // total across namespaces — the badge number
-  deploy: () => Promise<void>;
+  deploy: (label?: string) => Promise<void>;
   revert: () => Promise<void>;
+  /** Recorded deploys, newest first. [] until the first fetch lands. */
+  deploys: DeployRow[];
+  /** Put a recorded deploy into the studio profile (the glass is untouched). Returns the keys the current schema could not take. */
+  loadDeploy: (id: number) => Promise<DroppedDeployKey[]>;
+  relabelDeploy: (id: number, label: string | null) => Promise<void>;
+  /** Whether the last deploy this session was written to history; null before any deploy. */
+  lastDeployRecorded: boolean | null;
   deployedAtMs: number | null; // Date.now() at last successful deploy this session
   droppedKeys: DroppedKey[]; // keys the last PATCH per namespace could not store
 }
-
-function schemaFor(namespace: string): SettingsSchema | null {
-  if (namespace === SHARED_NAMESPACE) return SHARED_SCHEMA;
-  return MOSAIC_SETTINGS_SCHEMAS[namespace] ?? null;
-}
-
-const KNOWN_NAMESPACES = [SHARED_NAMESPACE, ...Object.keys(MOSAIC_SETTINGS_SCHEMAS)];
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -70,6 +71,12 @@ export function useStudioSettings(): StudioSettingsApi {
   const { data, isLoading, mutate } = useSWR<SettingsResponse>(SETTINGS_URL, fetcher, {
     refreshInterval: 30_000,
   });
+  const { data: deploysData, mutate: mutateDeploys } = useSWR<{ deploys: DeployRow[] }>(
+    DEPLOYS_URL,
+    fetcher,
+    { refreshInterval: 30_000 }
+  );
+  const [lastDeployRecorded, setLastDeployRecorded] = useState<boolean | null>(null);
 
   // Per-namespace optimistic overlay: full local deviation set for a
   // namespace once it has been touched this session, keyed by namespace.
@@ -265,19 +272,28 @@ export function useStudioSettings(): StudioSettingsApi {
     [diffByNamespace]
   );
 
-  const deploy = useCallback(async () => {
-    await flushPending();
-    const res = await fetch('/api/kiosk/settings/deploy', { method: 'POST' });
-    if (!res.ok) {
-      throw new Error(`deploy failed: ${res.status}`);
-    }
-    const json = (await res.json()) as { live: ProfileSettings };
-    await mutate(
-      (current) => (current ? { ...current, live: json.live } : current),
-      { revalidate: false }
-    );
-    setDeployedAtMs(Date.now());
-  }, [flushPending, mutate]);
+  const deploy = useCallback(
+    async (label?: string) => {
+      await flushPending();
+      const res = await fetch('/api/kiosk/settings/deploy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(label ? { label } : {}),
+      });
+      if (!res.ok) {
+        throw new Error(`deploy failed: ${res.status}`);
+      }
+      const json = (await res.json()) as { live: ProfileSettings; deploy: DeployRow | null };
+      await mutate(
+        (current) => (current ? { ...current, live: json.live } : current),
+        { revalidate: false }
+      );
+      setDeployedAtMs(Date.now());
+      setLastDeployRecorded(json.deploy != null);
+      void mutateDeploys();
+    },
+    [flushPending, mutate, mutateDeploys]
+  );
 
   const revert = useCallback(async () => {
     cancelPending();
@@ -294,6 +310,42 @@ export function useStudioSettings(): StudioSettingsApi {
     setOverlay({});
   }, [cancelPending, mutate]);
 
+  // Same shape as revert(): the studio profile is replaced by the server,
+  // so pending debounced edits are discarded, not sent on top of it.
+  const loadDeploy = useCallback(
+    async (id: number): Promise<DroppedDeployKey[]> => {
+      cancelPending();
+      const res = await fetch(`${DEPLOYS_URL}/${id}/load`, { method: 'POST' });
+      if (!res.ok) {
+        throw new Error(`load deploy failed: ${res.status}`);
+      }
+      const json = (await res.json()) as { studio: ProfileSettings; dropped: DroppedDeployKey[] };
+      await mutate(
+        (current) => (current ? { ...current, studio: json.studio } : current),
+        { revalidate: false }
+      );
+      overlayRef.current = {};
+      setOverlay({});
+      return json.dropped;
+    },
+    [cancelPending, mutate]
+  );
+
+  const relabelDeploy = useCallback(
+    async (id: number, label: string | null) => {
+      const res = await fetch(`${DEPLOYS_URL}/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ label }),
+      });
+      if (!res.ok) {
+        throw new Error(`relabel failed: ${res.status}`);
+      }
+      void mutateDeploys();
+    },
+    [mutateDeploys]
+  );
+
   return {
     loading: isLoading,
     studio,
@@ -308,6 +360,10 @@ export function useStudioSettings(): StudioSettingsApi {
     diffCount,
     deploy,
     revert,
+    deploys: deploysData?.deploys ?? [],
+    loadDeploy,
+    relabelDeploy,
+    lastDeployRecorded,
     deployedAtMs,
     droppedKeys,
   };
