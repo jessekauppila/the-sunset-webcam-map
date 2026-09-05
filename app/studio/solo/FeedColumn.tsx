@@ -4,7 +4,11 @@ import type { ReactNode } from 'react';
 import type { EntryView, StateView } from '@/app/api/kiosk/solo/view';
 import { nextBoundaryMs } from '@/app/lib/solo/schedule';
 import type { Feed, SoloDials } from '@/app/lib/solo/types';
-import { EntryRow } from './EntryRow';
+import type { SoloVersionSpec } from '@/app/lib/solo/versions';
+import { captionLines } from '@/app/lib/solo2/caption';
+import { preludePlan } from '@/app/lib/solo2/prelude';
+import type { Solo2Dials } from '@/app/lib/solo2/types';
+import { EntryRow, type Sequence } from './EntryRow';
 
 const mono = 'ui-monospace, SFMono-Regular, Menlo, monospace';
 const LABEL: Record<Feed, string> = { sunrise: 'Sunrise · left screen', sunset: 'Sunset · right screen' };
@@ -25,13 +29,14 @@ function Bin({ color, title, hint, children }: { color: string; title: string; h
  * and the queue as the STUDIO dials would order them. Every frame appears in
  * exactly one of the three columns; the on-glass frame heads the queue.
  */
-export function FeedColumn({ feed, server, projected, liveDials, nowMs, onSelect }: {
+export function FeedColumn({ feed, server, projected, liveDials, nowMs, version, onSelect }: {
   feed: Feed;
   server: StateView;
   projected: StateView;
   liveDials: SoloDials;
   studioDials: SoloDials;
   nowMs: number;
+  version?: SoloVersionSpec;
   onSelect: (entry: EntryView, feed: Feed) => void;
 }) {
   const boundary = nextBoundaryMs(nowMs, feed, liveDials.dwellS, liveDials.offsetS);
@@ -46,15 +51,35 @@ export function FeedColumn({ feed, server, projected, liveDials, nowMs, onSelect
     !!server.next[0] && !!projected.next[0] && server.next[0].snapshotId !== projected.next[0].snapshotId;
   const qSun = queue.filter((e) => e.bin === 'sunset').length;
   const qNon = queue.length - qSun;
+  // Roles are parallel to projected.next; the on-glass frame at index 0 has none.
+  const showRoles = version?.name === 'solo2' && (liveDials as Partial<Solo2Dials>).valleys !== undefined
+    && ((projected.dials as Partial<Solo2Dials>).valleys ?? 0) > 0;
+  const roleOf = (i: number) => (showRoles && i > 0 ? projected.nextRoles[i - 1] : undefined);
+  // solo2: a row is as tall as its time on glass, and a dwell with a prelude
+  // is one group. The pool is every frame the studio holds (bins ∪ queue),
+  // which is every entry; the queue's predecessor is the "previous" frame so
+  // the group continues from it, as the glass does.
+  const d2 = version?.name === 'solo2' ? (projected.dials as Solo2Dials) : null;
+  const rowS = d2 ? d2.dwellS : undefined;
+  const all: EntryView[] = [...projected.bins.sunset, ...projected.bins.nonSunset, ...queue];
+  const seqFor = (e: EntryView, prev: EntryView | null): Sequence | undefined => {
+    if (!d2 || !d2.prelude) return undefined;
+    const { frames, plan } = preludePlan(e, all, d2, prev);
+    if (frames.length === 0) return undefined;
+    return { earlier: frames, stepS: plan.preludeStepS, holdS: plan.dwellS - frames.length * plan.preludeStepS };
+  };
+  const queueSeqs = queue.map((e, i) => seqFor(e, i > 0 ? queue[i - 1] : null));
+  const preludedInQueue = new Set(queueSeqs.flatMap((s) => s?.earlier.map((f) => f.snapshotId) ?? []));
+  const cap = current && captionLines(current.entry, {
+    showPlace: liveDials.showPlace, timeStyle: (liveDials as Partial<Solo2Dials>).timeStyle ?? 'off',
+  });
 
   const caption = current && (
     <>
-      {liveDials.showPlace && (
+      {cap && (
         <div style={{ position: 'absolute', left: 12, bottom: 10, color: '#fff', textShadow: '0 1px 3px #000', fontSize: 14 }}>
-          {current.entry.title}
-          <small style={{ display: 'block', fontSize: 11, opacity: 0.8 }}>
-            {[current.entry.region, current.entry.country].filter(Boolean).join(', ')}
-          </small>
+          {cap.title}
+          <small style={{ display: 'block', fontSize: 11, opacity: 0.8 }}>{cap.sub}</small>
         </div>
       )}
       <div style={{
@@ -107,13 +132,15 @@ export function FeedColumn({ feed, server, projected, liveDials, nowMs, onSelect
         <Bin color="#7ee2ac" title={`Sunset bin · ${projected.bins.sunset.length} waiting · ${qSun} queued`}
           hint="Frames the detection head calls a sunset, ordered by quality. Shown frames sink below unshown ones. Dimmed rows are below the quality floor.">
           {projected.bins.sunset.map((e) => (
-            <EntryRow key={e.snapshotId} entry={e} feed={feed} place="sunset" onClick={(x) => onSelect(x, feed)} />
+            <EntryRow key={e.snapshotId} entry={e} feed={feed} place="sunset" onClick={(x) => onSelect(x, feed)}
+              sequence={seqFor(e, null)} rowS={rowS} preluded={preludedInQueue.has(e.snapshotId)} />
           ))}
         </Bin>
         <Bin color="#c3cad6" title={`Non-sunset bin · ${projected.bins.nonSunset.length} waiting · ${qNon} queued`}
           hint="Frames the detection head does not call a sunset, ordered by detection probability so 'almost a sunset' is on top. Dimmed rows are below the detection floor.">
           {projected.bins.nonSunset.map((e) => (
-            <EntryRow key={e.snapshotId} entry={e} feed={feed} place="non_sunset" onClick={(x) => onSelect(x, feed)} />
+            <EntryRow key={e.snapshotId} entry={e} feed={feed} place="non_sunset" onClick={(x) => onSelect(x, feed)}
+              sequence={seqFor(e, null)} rowS={rowS} preluded={preludedInQueue.has(e.snapshotId)} />
           ))}
         </Bin>
         <Bin color="#4b5568" title="On glass + next up"
@@ -129,9 +156,12 @@ export function FeedColumn({ feed, server, projected, liveDials, nowMs, onSelect
             const m = camCount.get(e.webcamId) ?? 1;
             const n = (camSeen.get(e.webcamId) ?? 0) + 1;
             camSeen.set(e.webcamId, n);
+            // Flagged when a dwell above this one already played the frame inside its prelude.
+            const preluded = queueSeqs.slice(0, i).some((s) => s?.earlier.some((f) => f.snapshotId === e.snapshotId));
             return (
               <EntryRow key={`${e.snapshotId}-${i}`} entry={e} feed={feed} place="queue" onGlass={i === 0 && !!current}
-                repeat={repeat} cameraIndex={m > 1 ? { n, m } : undefined} onClick={(x) => onSelect(x, feed)} />
+                repeat={repeat} cameraIndex={m > 1 ? { n, m } : undefined} role={roleOf(i)} onClick={(x) => onSelect(x, feed)}
+                sequence={queueSeqs[i]} rowS={rowS} preluded={preluded} />
             );
           })}
         </Bin>

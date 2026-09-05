@@ -10,7 +10,7 @@ import { FeedColumn } from './FeedColumn';
 import { SoloStatusStrip } from './SoloStatusStrip';
 import { useSoloState } from './useSoloState';
 import { toWebcam } from './toWebcam';
-import { SOLO_NAMESPACE, SOLO_SETTINGS_SCHEMA, dialsFrom } from '@/app/lib/solo/settingsSchema';
+import { SOLO_VERSIONS, type SoloVersionSpec } from '@/app/lib/solo/versions';
 import { mergeSettings } from '@/app/lib/settings/schema';
 import type { EntryView } from '@/app/api/kiosk/solo/view';
 import type { Feed } from '@/app/lib/solo/types';
@@ -27,12 +27,15 @@ const mono = 'ui-monospace, SFMono-Regular, Menlo, monospace';
  * re-project with those dials at once, while the panels and countdowns run
  * on the live profile, because that is what the glass runs.
  */
-export function SoloStudioClient() {
+export function SoloStudioClient({ version = SOLO_VERSIONS.solo as SoloVersionSpec }: { version?: SoloVersionSpec }) {
   const api = useStudioSettings();
-  const studioDials = dialsFrom(api.effective(SOLO_NAMESPACE));
-  const liveDials = dialsFrom(mergeSettings(SOLO_SETTINGS_SCHEMA, api.live?.namespaces?.[SOLO_NAMESPACE]));
-  const sunrise = useSoloState('sunrise', studioDials);
-  const sunset = useSoloState('sunset', studioDials);
+  const studioDials = version.dialsFrom(api.effective(version.namespace));
+  const liveDials = version.dialsFrom(mergeSettings(version.schema, api.live?.namespaces?.[version.namespace]));
+  const sunrise = useSoloState('sunrise', studioDials, version);
+  const sunset = useSoloState('sunset', studioDials, version);
+  const other = version.name === 'solo2'
+    ? { href: '/studio/solo', label: '← solo studio', title: 'The original solo kiosk\'s studio' }
+    : { href: '/studio/solo2', label: 'solo2 studio →', title: 'solo with rhythm, lead, prelude, transitions and local time' };
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [selected, setSelected] = useState<{ entry: EntryView; feed: Feed } | null>(null);
 
@@ -49,12 +52,15 @@ export function SoloStudioClient() {
       <div style={{ gridColumn: '1 / -1', background: '#0e1119', borderBottom: `1px solid ${border}`, display: 'flex', alignItems: 'center' }}>
         <SoloStatusStrip nowMs={nowMs} sunrise={sunrise.server} sunset={sunset.server}
           liveRevision={api.liveRevision} diffCount={api.diffCount} zone={sunset.server?.zone ?? sunrise.server?.zone} />
-        <Link href="/studio" style={{ marginLeft: 'auto', marginRight: 12, fontSize: 11, color: '#8b95a7' }} title="The mosaic studio">
+        <Link href={other.href} style={{ marginLeft: 'auto', marginRight: 14, fontSize: 11, color: '#f5a344' }} title={other.title}>
+          {other.label}
+        </Link>
+        <Link href="/studio" style={{ marginRight: 12, fontSize: 11, color: '#8b95a7' }} title="The mosaic studio">
           ← mosaic studio
         </Link>
       </div>
       <aside style={{ background: railBg, borderRight: `1px solid ${border}`, padding: 10, overflowY: 'auto' }}>
-        <SoloRail api={api} deploySlot={
+        <SoloRail api={api} version={version} deploySlot={
           <>
             <DeployButton diffCount={api.diffCount} onDeploy={api.deploy} onRevert={api.revert} />
             <DeployHistory api={api} />
@@ -66,7 +72,7 @@ export function SoloStudioClient() {
           const s = feed === 'sunrise' ? sunrise : sunset;
           return s.server && s.projected ? (
             <FeedColumn key={feed} feed={feed} server={s.server} projected={s.projected} liveDials={liveDials}
-              studioDials={studioDials} nowMs={nowMs} onSelect={(entry, f) => setSelected({ entry, feed: f })} />
+              studioDials={studioDials} nowMs={nowMs} version={version} onSelect={(entry, f) => setSelected({ entry, feed: f })} />
           ) : (
             <div key={feed} style={{ color: '#4b5568', fontFamily: mono, fontSize: 12 }}>{s.error ?? `loading ${feed}…`}</div>
           );

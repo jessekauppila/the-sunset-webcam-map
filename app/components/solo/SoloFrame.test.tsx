@@ -8,6 +8,7 @@ const D = dialsFrom(schemaDefaults(SOLO_SETTINGS_SCHEMA));
 const e = {
   snapshotId: 1, webcamId: 1, bin: 'sunset' as const, quality: 0.91, detection: 0.88, isNew: false, tally: 2, enteredAt: 0,
   imageUrl: 'u1', title: 'Pier', city: 'Lisbon', region: 'Lisboa', country: 'Portugal', eligible: true, rank: 3,
+  capturedAt: 0, timezone: null, sunAltitudeDeg: null,
 };
 
 it('draws the place by default and nothing else', () => {

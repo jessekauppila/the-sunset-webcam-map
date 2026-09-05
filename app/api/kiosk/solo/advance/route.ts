@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server';
 import { getLiveSettingsCached } from '@/app/lib/settings/liveSettings';
 import { mergeSettings } from '@/app/lib/settings/schema';
-import { afterShowing, next } from '@/app/lib/solo/engine';
+import { afterShowing } from '@/app/lib/solo/engine';
 import { slotFor } from '@/app/lib/solo/schedule';
-import { SOLO_NAMESPACE, SOLO_SETTINGS_SCHEMA, dialsFrom } from '@/app/lib/solo/settingsSchema';
+import { resolveSoloVersion } from '@/app/lib/solo/versions';
 import { commitAdvance, countAdmittedSince, getScreenState, getSweptZone, listActiveEntries } from '@/app/lib/solo/store';
 import { isFlagEnabled, SWEEP_FORCE_DAY_RING } from '@/app/lib/runtimeFlags';
 import { sweepGeometry } from '@/app/api/cron/update-cameras/lib/sweepGeometry';
@@ -24,7 +24,7 @@ const SLOT_TOLERANCE = 1;
  * lands on the same frame.
  */
 export async function POST(request: Request) {
-  let body: { feed?: unknown; slot?: unknown };
+  let body: { feed?: unknown; slot?: unknown; version?: unknown };
   try {
     body = await request.json();
   } catch {
@@ -35,9 +35,11 @@ export async function POST(request: Request) {
   if (!feed || slot === null) {
     return NextResponse.json({ error: 'feed and integer slot required' }, { status: 400 });
   }
+  const version = resolveSoloVersion(typeof body.version === 'string' ? body.version : null);
+  if (!version) return NextResponse.json({ error: 'version must be solo or solo2' }, { status: 400 });
 
   const live = await getLiveSettingsCached();
-  const dials = dialsFrom(mergeSettings(SOLO_SETTINGS_SCHEMA, live?.namespaces[SOLO_NAMESPACE]));
+  const dials = version.dialsFrom(mergeSettings(version.schema, live?.namespaces[version.namespace]));
   const nowMs = Date.now();
   const serverSlot = slotFor(nowMs, feed, dials.dwellS, dials.offsetS);
   if (Math.abs(slot - serverSlot) > SLOT_TOLERANCE) {
@@ -52,7 +54,7 @@ export async function POST(request: Request) {
       lastSnapshotId: screenBefore?.currentSnapshotId ?? null,
       sunsetStreak: screenBefore?.sunsetStreak ?? 0,
     };
-    const pick = next(entries, dials, state);
+    const pick = version.next(entries, dials, state, slot, feed);
     if (pick) {
       const after = afterShowing(pick, state);
       advanced = await commitAdvance(feed, slot, pick, after.sunsetStreak);
@@ -75,6 +77,6 @@ export async function POST(request: Request) {
   const zone = sweptZone ?? { minDeg: geometry.coverageMinDeg, maxDeg: geometry.coverageMaxDeg };
   return NextResponse.json({
     advanced,
-    ...buildStateView({ feed, dials, entries: entries.map(toViewEntry), screen, nowMs, admitted, zone }),
+    ...buildStateView({ feed, dials, entries: entries.map(toViewEntry), screen, nowMs, admitted, zone, version }),
   });
 }

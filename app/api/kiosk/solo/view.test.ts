@@ -10,6 +10,7 @@ const stored = (id: number, bin: 'sunset' | 'non_sunset', score: number, tally =
   quality: bin === 'sunset' ? score : null, detection: bin === 'sunset' ? 0.9 : score,
   isNew: false, tally, enteredAt: id,
   imageUrl: `u${id}`, title: `t${id}`, city: '', region: '', country: '',
+  capturedAt: 0, timezone: null, sunAltitudeDeg: null,
 });
 
 describe('parseFeed', () => {
@@ -25,6 +26,7 @@ describe('toViewEntry', () => {
   it('drops coordinates and feed, keeps identity, scores, and place', () => {
     const v = toViewEntry({
       ...stored(1, 'sunset', 0.9), feed: 'sunset', lat: 1, lng: 2, firstShownAt: null, lastShownAt: null,
+      capturedAt: 5, timezone: 'Europe/Lisbon', sunAltitudeDeg: -1.5,
     });
     expect(v).not.toHaveProperty('lat');
     expect(v).not.toHaveProperty('feed');
@@ -67,5 +69,24 @@ describe('buildStateView', () => {
       admitted: { sunset: 0, nonSunset: 0 }, zone: { minDeg: -24, maxDeg: 14 } });
     expect(v.entries).toHaveLength(1);
     expect(v.zone).toEqual({ minDeg: -24, maxDeg: 14 });
+  });
+});
+
+describe('buildStateView with a version', () => {
+  it('solo2 with valleys 1 alternates roles and draws peaks best-first, valleys worst-first', async () => {
+    const { SOLO_VERSIONS } = await import('@/app/lib/solo/versions');
+    const v2 = SOLO_VERSIONS.solo2;
+    const dials = { ...v2.dialsFrom(schemaDefaults(v2.schema)), valleys: 1 };
+    const entries = [stored(1, 'sunset', 0.9), stored(2, 'sunset', 0.8), stored(3, 'sunset', 0.7)];
+    // nowMs 0 on sunrise → slot 0 now, first draw at slot 1 (a valley).
+    const v = buildStateView({ feed: 'sunrise', dials, entries, screen: null, nowMs: 0,
+      admitted: { sunset: 0, nonSunset: 0 }, zone: ZONE, version: v2 });
+    expect(v.nextRoles.slice(0, 4)).toEqual(['valley', 'peak', 'valley', 'peak']);
+    expect(v.next.slice(0, 4).map((e) => e.snapshotId)).toEqual([3, 1, 2, 1]);
+  });
+  it('solo reports every draw as a peak', () => {
+    const v = buildStateView({ feed: 'sunset', dials: D, entries: [stored(1, 'sunset', 0.9)], screen: null, nowMs: 0,
+      admitted: { sunset: 0, nonSunset: 0 }, zone: ZONE });
+    expect(v.nextRoles).toEqual(v.next.map(() => 'peak'));
   });
 });

@@ -1,9 +1,11 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import { SOLO_NAMESPACE, SOLO_SETTINGS_SCHEMA, dialsFrom } from '@/app/lib/solo/settingsSchema';
+import { SOLO_VERSIONS, type SoloVersionSpec } from '@/app/lib/solo/versions';
+import { DwellBudget } from './DwellBudget';
+import type { Solo2Dials } from '@/app/lib/solo2/types';
 import { SHARED_NAMESPACE } from '@/app/lib/settings/sharedSchema';
-import type { KnobDescriptor } from '@/app/lib/settings/schema';
+import type { KnobDescriptor, KnobValue } from '@/app/lib/settings/schema';
 import type { StudioSettingsApi } from '../useStudioSettings';
 import { RulesBox } from './RulesBox';
 
@@ -20,7 +22,7 @@ function Control({ knob, value, differs, onChange }: {
   knob: KnobDescriptor;
   value: number | boolean | string;
   differs: boolean;
-  onChange: (v: number | boolean) => void;
+  onChange: (v: KnobValue) => void;
 }) {
   const id = `solo-${knob.key}`;
   const labelStyle = { color: '#c3cad6', fontSize: 12, fontWeight: differs ? 700 : 400, cursor: 'help' } as const;
@@ -42,7 +44,17 @@ function Control({ knob, value, differs, onChange }: {
       </div>
     );
   }
-  return null; // no enum knobs in the solo schema
+  return (
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 6, padding: '3px 4px' }}>
+      <label htmlFor={id} title={knob.description} style={labelStyle}>{knob.label}</label>
+      <select id={id} value={value as string} onChange={(e) => onChange(e.target.value)} style={{
+        background: '#1a2130', color: '#d7dce6', border: '1px solid #2a3242', borderRadius: 4,
+        padding: '2px 6px', fontSize: 12, fontFamily: mono,
+      }}>
+        {knob.options.map((o) => <option key={o} value={o}>{o}</option>)}
+      </select>
+    </div>
+  );
 }
 
 /**
@@ -50,16 +62,22 @@ function Control({ knob, value, differs, onChange }: {
  * schema's sections, a bold label wherever the studio value differs from
  * the glass, and the rules box stating §4 with the values in force.
  */
-export function SoloRail({ api, deploySlot }: { api: StudioSettingsApi; deploySlot: ReactNode }) {
-  const values = api.effective(SOLO_NAMESPACE);
+export function SoloRail({ api, deploySlot, version = SOLO_VERSIONS.solo as SoloVersionSpec }: {
+  api: StudioSettingsApi;
+  deploySlot: ReactNode;
+  version?: SoloVersionSpec;
+}) {
+  const ns = version.namespace;
+  const values = api.effective(ns);
   const shared = api.effective(SHARED_NAMESPACE);
-  const diff = new Set(api.diffByNamespace[SOLO_NAMESPACE] ?? []);
+  const diff = new Set(api.diffByNamespace[ns] ?? []);
+  const dials = version.dialsFrom(values);
   return (
     <div style={{ fontSize: 12 }}>
       {deploySlot}
       <div style={{ fontFamily: mono, color: '#8b95a7', padding: '6px 4px' }}
         title="Which version the glass runs and the panel geometry. Both are shared dials, set on /studio.">
-        glass {String(shared.activeVersion)} · panel {String(shared.panelPreset)}
+        glass {String(shared.activeVersion)} · panel {String(shared.panelPreset)} · dials {version.name}
       </div>
       {GROUPS.map((g) => (
         <section key={g.section}>
@@ -69,19 +87,20 @@ export function SoloRail({ api, deploySlot }: { api: StudioSettingsApi; deploySl
             borderLeft: `3px solid ${g.color}`, display: 'flex', justifyContent: 'space-between', cursor: 'help',
           }}>
             <span>{g.title}</span>
-            <button type="button" onClick={() => api.resetSection(SOLO_NAMESPACE, g.section)}
+            <button type="button" onClick={() => api.resetSection(ns, g.section)}
               title={`Put every ${g.section} dial back to its code default`}
               style={{ background: 'transparent', border: 0, color: g.color, fontSize: 10, cursor: 'pointer' }}>
               reset {g.section}
             </button>
           </h4>
-          {SOLO_SETTINGS_SCHEMA.filter((k) => k.section === g.section).map((k) => (
+          {version.schema.filter((k) => k.section === g.section).map((k) => (
             <Control key={k.key} knob={k} value={values[k.key]} differs={diff.has(k.key)}
-              onChange={(v) => api.setKnob(SOLO_NAMESPACE, k.key, v)} />
+              onChange={(v) => api.setKnob(ns, k.key, v)} />
           ))}
+          {g.section === 'glass' && version.name === 'solo2' && <DwellBudget dials={dials as Solo2Dials} />}
         </section>
       ))}
-      <RulesBox dials={dialsFrom(values)} />
+      <RulesBox dials={dials} version={version} />
     </div>
   );
 }
