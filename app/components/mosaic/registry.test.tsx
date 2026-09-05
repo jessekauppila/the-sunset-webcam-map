@@ -10,8 +10,16 @@ import { MosaicV1 } from './v1';
 vi.mock('./v1', () => ({
   MosaicV1: () => null,
 }));
+vi.mock('@/app/components/solo', () => ({
+  SoloKiosk: () => null,
+}));
 
 describe('mosaic registry', () => {
+  it('registers the solo renderer as a version, so the active-version dial can select it', () => {
+    expect(MOSAIC_VERSIONS.solo).toBeDefined();
+    expect(DEFAULT_MOSAIC_VERSION).not.toBe('solo'); // the public site keeps the mosaic
+  });
+
   it('pins v1 as the default version', () => {
     expect(DEFAULT_MOSAIC_VERSION).toBe('v1');
     expect(MOSAIC_VERSIONS[DEFAULT_MOSAIC_VERSION]).toBeDefined();

@@ -7,10 +7,10 @@ describe('SHARED_SCHEMA', () => {
   it('activeVersion defaults to the registry pin so an empty DB changes nothing', () => {
     expect(schemaDefaults(SHARED_SCHEMA).activeVersion).toBe(DEFAULT_MOSAIC_VERSION);
   });
-  it('panelPreset options are the named panelPreview presets', () => {
+  it('panelPreset options are the named panelPreview presets, both orientations', () => {
     const knob = SHARED_SCHEMA.find((k) => k.key === 'panelPreset');
     expect(knob?.kind).toBe('enum');
-    expect(knob && 'options' in knob ? [...knob.options] : []).toEqual(['dell', 'ktc']);
+    expect(knob && 'options' in knob ? [...knob.options] : []).toEqual(['dell', 'ktc', 'dell-l', 'ktc-l']);
   });
   it('exports the namespace constant used by storage rows', () => {
     expect(SHARED_NAMESPACE).toBe('shared');

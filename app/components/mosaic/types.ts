@@ -31,6 +31,19 @@ export interface MosaicProps {
    * while keeping the overlay reachable by hand on the device.
    */
   allowDebugOverlays?: boolean;
+  /**
+   * The kiosk is dozing (quiet hours, or the operator's doze switch). A
+   * version that advances state on a clock — the solo renderer's tally —
+   * must not do so while nobody can see the screen. Mosaic versions ignore it.
+   */
+  dozing?: boolean;
+  /**
+   * Whether this surface DRIVES the schedule (calls advance at boundaries) or
+   * only FOLLOWS what the glass is showing. Defaults to true; /studio's
+   * preview passes false. A preview that advanced the queue would count
+   * showings nobody saw on the wall.
+   */
+  driveSchedule?: boolean;
   onSelect?: (webcam: WindyWebcam) => void;
   /** Raw query string of the hosting page, for version-specific params. */
   search?: string;

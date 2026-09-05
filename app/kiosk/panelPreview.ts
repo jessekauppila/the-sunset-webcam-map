@@ -14,7 +14,8 @@ export interface PanelSize {
 }
 
 /**
- * The panels actually in play, portrait — the orientation they hang in.
+ * The panels actually in play, in both orientations: portrait for the mosaic
+ * versions, landscape (`-l`) for the solo kiosk.
  *
  * The single definition. `?panel=` parses against it, the shared settings
  * schema builds its enum and its help text from it, and /studio sizes the
@@ -23,6 +24,11 @@ export interface PanelSize {
 export const PANEL_PRESETS: Record<string, PanelSize> = {
   dell: { width: 1080, height: 1920 },
   ktc: { width: 1440, height: 2560 },
+  // The same two panels turned landscape, for the solo kiosk (spec
+  // 2026-09-04-solo-kiosk-design §6.3). Which orientation the Pi draws is a
+  // setting on the Pi; this preset must agree with it.
+  'dell-l': { width: 1920, height: 1080 },
+  'ktc-l': { width: 2560, height: 1440 },
 };
 
 export const DEFAULT_PANEL_PRESET = 'dell';

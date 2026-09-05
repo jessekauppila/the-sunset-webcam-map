@@ -83,6 +83,41 @@ Backwards, the settings API discards the unknown key and the studio status
 strip shows `⚠ not stored: <key> (unknown)`. Deploy will keep reporting in
 sync while the panels show nothing new.
 
+## Switching the glass between mosaic and solo
+
+The solo kiosk (spec `docs/superpowers/specs/2026-09-04-solo-kiosk-design.md`)
+runs the panels **landscape**. Three things must agree: the Pi's rotation
+(`/home/pi/kiosk.env`), the panel preset (`dell` vs `dell-l`), and the active
+version (`v1`..`v4` vs `solo`). Change them in this order.
+
+`kiosk-launch.sh` is now in the repo (`scripts/pi/`) and reaches the Pi with
+`--sync`; the Pi reads `ORIENTATION` from `/home/pi/kiosk.env` at boot.
+Missing file means portrait, so a lost file falls back to the mosaic
+arrangement, never to a blank glass. The doctor prints both the setting and
+what xrandr is actually doing.
+
+### Mosaic → solo
+
+1. Merge and build the code that carries `solo` in the version list.
+   `vercel ls --prod`.
+2. Sync the scripts and reload: `bash scripts/pi/kiosk-doctor.sh --sync --reload`.
+3. Set the orientation and reboot the Pi:
+   `ssh pi@sunsetdisplay 'printf "ORIENTATION=landscape\n" > /home/pi/kiosk.env && sudo reboot'`
+4. Turn the monitors on their stands. The doctor's `xrandr` lines say which
+   way the Pi draws; the picture on the panels says whether the stand agrees.
+5. In `/studio`: panel = `dell-l`, active version = `solo`. Hold Deploy. The
+   tabs pick it up within a minute and start advancing.
+6. Verify on the glass: `bash scripts/pi/kiosk-doctor.sh --reload` twice,
+   30 s apart; the two screenshots must differ AND the frame on each panel
+   must be the "on glass" row in `/studio/solo` for that feed.
+
+### Solo → mosaic (rollback)
+
+1. In `/studio`: active version = `v1` (or whichever was live), panel =
+   `dell`. Hold Deploy.
+2. `ssh pi@sunsetdisplay 'printf "ORIENTATION=portrait\n" > /home/pi/kiosk.env && sudo reboot'`
+3. Turn the monitors back. Doctor to confirm.
+
 ## When it does not work
 
 | Symptom | Meaning | Do |

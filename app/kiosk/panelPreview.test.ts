@@ -1,9 +1,13 @@
 import { describe, it, expect } from 'vitest';
-import { parsePanelPreview, fitScale } from './panelPreview';
+import { parsePanelPreview, fitScale, PANEL_PRESETS } from './panelPreview';
 
 const parse = (qs: string) => parsePanelPreview(new URLSearchParams(qs));
 
 describe('parsePanelPreview', () => {
+  it('offers each panel in both orientations', () => {
+    expect(parsePanelPreview(new URLSearchParams('panel=ktc-l'))).toEqual({ width: 2560, height: 1440 });
+    expect(PANEL_PRESETS['dell-l']).toEqual({ width: 1920, height: 1080 });
+  });
   it('returns null when no panel is requested, so the kiosk fills the window', () => {
     expect(parse('')).toBeNull();
     expect(parse('setup=1&floor=120')).toBeNull();
