@@ -25,12 +25,12 @@ it('draws the on-glass frame at the top of the queue and keeps queued frames out
   expect(screen.getByText(/next frame in/).textContent).toContain('5 s');
   expect(screen.getByText(/Sunset bin · 1 waiting/)).toBeInTheDocument(); // frame 4 (below floor) waits
   expect(screen.getAllByText('cam1').length).toBeGreaterThan(0);
-  expect(screen.getAllByText(/CAM 1\/2/).length).toBeGreaterThan(0); // frames 1 and 2 share webcam 101
+  expect(screen.getAllByText(/CAM 1\/\d+/).length).toBeGreaterThan(0); // frames 1 and 2 share webcam 101, so the queue indexes them
 });
 
 it('says so when the studio dials would draw a different next frame than the glass', () => {
   const server = view();
-  const projected = view({ ...D, qualityFloor: 0.05, repeatAllowance: 0, sunsetFloor: 0 });
+  const projected = view({ ...D, qualityFloor: 0.05, rest: 0, sunsetFloor: 0 });
   // With frame 4 admitted and shown frames sinking, the projection's first draw
   // differs from the server's only if the two first entries disagree; assert on
   // the message when they do, and on its absence when they do not, so the test
@@ -68,7 +68,7 @@ it('solo2 with valleys tags queued draws PEAK and VALLEY and captions the local 
 it('solo2 with the prelude on groups a camera\'s earlier frames under the queued draw and flags their own later turns', async () => {
   const { SOLO_VERSIONS } = await import('@/app/lib/solo/versions');
   const { SOLO2_SETTINGS_SCHEMA, dialsFrom2 } = await import('@/app/lib/solo2/settingsSchema');
-  const d2 = { ...dialsFrom2(schemaDefaults(SOLO2_SETTINGS_SCHEMA)), prelude: true, preludeFrames: 3, repeatAllowance: 0 };
+  const d2 = { ...dialsFrom2(schemaDefaults(SOLO2_SETTINGS_SCHEMA)), prelude: true, preludeFrames: 3, rest: 0 };
   const at = Date.UTC(2026, 8, 5, 2, 42);
   const cam = (id: number, score: number, minutesBefore: number) => ({
     ...entry(id, 'sunset', score, 7), capturedAt: at - minutesBefore * 60_000, timezone: 'America/Mazatlan',

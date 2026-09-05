@@ -19,6 +19,8 @@ export interface BinEntry {
   tally: number;
   /** ms since epoch. Tie-breaker after score. */
   enteredAt: number;
+  /** When this frame was last on glass, ms since epoch. Undefined or null = never (rule 2). */
+  lastShownAt?: number | null;
 }
 
 // ---- caption dials (see lib/solo/caption.ts) ----
@@ -44,7 +46,7 @@ export interface SoloDials {
   detectionFloor: number;
   sunsetFloor: number;
   mix: number;
-  repeatAllowance: number;
+  rest: number;
   promoteNew: boolean;
   zoneGrace: number;
   // glass group — change what the screen draws

@@ -70,9 +70,9 @@ export const SOLO_SETTINGS_SCHEMA: SettingsSchema = [
     description: 'Below the sunset floor: this many sunsets between each non-sunset.',
   },
   {
-    key: 'repeatAllowance', kind: 'number', min: 0, max: 3, step: 1, default: 1,
-    label: 'sunset repeat allowance', section: 'bins',
-    description: 'Extra showings a sunset gets before an unshown non-sunset outranks it. 0 = strict variety.',
+    key: 'rest', kind: 'number', min: 0, max: 12, step: 1, default: 4,
+    label: 'rest (draws)', section: 'bins',
+    description: 'Draws a frame sits out after it has been on glass, in either bin. 0 = only never twice in a row.',
   },
   {
     key: 'zoneGrace', kind: 'number', min: 0, max: 5, step: 1, default: 2,
@@ -186,7 +186,7 @@ export function dialsFrom(values: SettingsValues): SoloDials {
     detectionFloor: values.detectionFloor as number,
     sunsetFloor: values.sunsetFloor as number,
     mix: values.mix as number,
-    repeatAllowance: values.repeatAllowance as number,
+    rest: values.rest as number,
     promoteNew: values.promoteNew as boolean,
     zoneGrace: values.zoneGrace as number,
     dwellS: values.dwellS as number,
