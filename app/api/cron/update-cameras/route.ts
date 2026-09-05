@@ -47,7 +47,7 @@ import {
   upsertSweepStats,
   type RingGateCounts,
 } from './lib/sweepStats';
-import { sweepGeometry, upsertSweepGeometry } from './lib/sweepGeometry';
+import { sweepGeometry, sweptZone, upsertSweepGeometry } from './lib/sweepGeometry';
 import {
   upsertWebcams,
   getWebcamIdMap,
@@ -400,11 +400,13 @@ export async function GET(req: Request) {
   try {
     const live = await getLiveSettingsCached();
     const dials = dialsFrom(mergeSettings(SOLO_SETTINGS_SCHEMA, live?.namespaces[SOLO_NAMESPACE]));
-    const geometry = sweepGeometry(forcedOffsets);
     const admitted = await enterBins(admissions);
+    // The rings that swept THIS tick, escalations included. The guaranteed
+    // geometry (sweepGeometry) is narrower whenever a thin feed escalated,
+    // and aging against it evicts what the escalation ring just admitted.
     const removed = await maintainBins({
       now: new Date(),
-      zone: { minDeg: geometry.coverageMinDeg, maxDeg: geometry.coverageMaxDeg },
+      zone: sweptZone(sweep.telemetry.rings.map((r) => r.offsetDeg)),
       grace: dials.zoneGrace,
     });
     bins = { admitted, removed };

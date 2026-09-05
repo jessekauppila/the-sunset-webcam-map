@@ -60,6 +60,24 @@ export function coverageSpan(
   };
 }
 
+/**
+ * The band the solo bins are aged against: every ring that swept THIS tick,
+ * escalations included, not only the guaranteed ones.
+ *
+ * Admission takes any camera the sweep returned, so removal has to accept
+ * the same band or the two disagree whenever a thin feed escalates. On
+ * 2026-09-05 the sunrise terminator sat over the Pacific, the feed escalated
+ * to +15.75 every tick, and every golden-hour camera it admitted (+1 to +11
+ * degrees) was evicted as out of the -24..-2 guaranteed zone three ticks
+ * later. The base ring is always included so a telemetry gap cannot narrow
+ * the zone below what the sweep always covers.
+ */
+export function sweptZone(ringOffsetsDeg: readonly number[]): { minDeg: number; maxDeg: number } {
+  const offsets = [...new Set([0, ...ringOffsetsDeg])];
+  const { min, max } = coverageSpan(offsets.map((o) => TERMINATOR_SUN_ALTITUDE_DEG + o));
+  return { minDeg: min, maxDeg: max };
+}
+
 export function sweepGeometry(forcedOffsets: readonly number[]): SweepGeometry {
   const guaranteed = [0, ...forcedOffsets];
   const { min: coverageMinDeg, max: coverageMaxDeg } = coverageSpan(

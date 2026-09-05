@@ -8,6 +8,7 @@ const listActiveEntries = vi.fn();
 const markSeen = vi.fn();
 const markOutOfZone = vi.fn();
 const removeStale = vi.fn();
+const saveSweptZone = vi.fn();
 vi.mock('server-only', () => ({}));
 vi.mock('@/app/lib/solo/store', () => ({
   insertEntry: (...a: unknown[]) => insertEntry(...a),
@@ -17,6 +18,7 @@ vi.mock('@/app/lib/solo/store', () => ({
   markSeen: (...a: unknown[]) => markSeen(...a),
   markOutOfZone: (...a: unknown[]) => markOutOfZone(...a),
   removeStale: (...a: unknown[]) => removeStale(...a),
+  saveSweptZone: (...a: unknown[]) => saveSweptZone(...a),
 }));
 
 import { decideBin, enterBins, maintainBins, BIN_ADMIT_DETECTION_FLOOR } from './binAdmission';
@@ -87,6 +89,22 @@ describe('maintainBins', () => {
     expect(removeStale).toHaveBeenCalledWith('sunset', { grace: 2, maxAgeHours: 24 });
     expect(removeStale).toHaveBeenCalledWith('sunrise', { grace: 2, maxAgeHours: 24 });
     expect(out).toEqual({ leftZone: 0, expired: 0 });
+  });
+  it('records the zone it aged entries against, so the state route shows the same band', async () => {
+    listActiveEntries.mockResolvedValue([]);
+    const wide = { minDeg: -39.75, maxDeg: 13.75 };
+    await maintainBins({ now: seattleDusk, zone: wide, grace: 2 });
+    expect(saveSweptZone).toHaveBeenCalledWith(wide);
+  });
+  it('a golden-hour camera the escalation ring admitted is in zone when the zone includes that ring', async () => {
+    // Honolulu at 17:06Z on 2026-09-05: sun at +10.8 and rising. Evicted
+    // under the guaranteed-rings zone (-24..-2); kept under the swept one.
+    const honolulu = entry('sunrise', 7, 21.29701, -157.86688);
+    listActiveEntries.mockImplementation(async (feed: string) => (feed === 'sunrise' ? [honolulu] : []));
+    const at = new Date('2026-09-05T17:06:38Z');
+    await maintainBins({ now: at, zone: { minDeg: -24, maxDeg: 13.75 }, grace: 2 });
+    expect(markSeen).toHaveBeenCalledWith('sunrise', [7]);
+    expect(markOutOfZone).toHaveBeenCalledWith('sunrise', []);
   });
   it('absence from a poll is not a reason: only zone membership drives the counters', async () => {
     listActiveEntries.mockImplementation(async (feed: string) =>
