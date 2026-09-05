@@ -1,8 +1,11 @@
 # solo2 — rhythm, anticipation, prelude, and local time for the solo kiosk
 
-**Date:** 2026-09-04
+**Date:** 2026-09-04, amended 2026-09-05 (dissolves, studio groups)
 **Status:** Design agreed in conversation (2026-09-04 evening); built overnight
-as one PR for the operator to look at on 2026-09-05.
+as one PR for the operator to look at on 2026-09-05. The 09-05 review asked
+for two changes, folded into the same PR: the prelude dissolves instead of
+cutting (§4.1, §4.2, §4.4), and the studio groups a dwell's frames into one
+box whose height is time (§5.4).
 **Predecessor:** `2026-09-04-solo-kiosk-design.md` (the `solo` version: bins,
 the five rules, the schedule, the glass, `/studio/solo`). Everything there
 still holds; this document only states what `solo2` adds.
@@ -41,9 +44,12 @@ without a viewer identity:
    operator can pick one on the studio.
 
 Every new dial defaults to `solo`'s behaviour (rhythm off, lead 0, prelude
-off, cut transition), with one exception: the time caption defaults to
-`7:42 pm`, because that is the point. The branch is therefore reversible on
-the glass by dials as well as by git.
+off), with two exceptions: the time caption defaults to `7:42 pm`, because
+that is the point, and the transitions default to a dissolve (decided
+2026-09-05: a camera change dips through black over 1.5 s, the same camera
+crossfades over 1.5 s). `solo`'s hard cut is one dial away (**camera
+change** = cut, **same-camera fade** = 0). The branch is therefore
+reversible on the glass by dials as well as by git.
 
 Not in scope, decided 2026-09-04: call-and-response between screens (most
 coupling, first thing to break on a tab reload), same-camera deduplication
@@ -131,13 +137,25 @@ For a dwell `D` beginning at boundary `B`, with `k` prelude frames, step
 
 | from | what |
 |---|---|
-| `B` | transition (per dial) into prelude frame 1 if `k > 0`, else into the chosen frame |
-| `B + i·t` | hard cut to prelude frame `i + 1` |
-| `B + k·t` | hard cut to the chosen frame; caption and score overlays mount now |
+| `B` | arrival (§4.2) into prelude frame 1 if `k > 0`, else into the chosen frame |
+| `B + i·t` | prelude frame `i + 1` dissolves in over the **same-camera fade** (capped at `t`) |
+| `B + k·t` | the chosen frame dissolves in the same way; caption and score overlays mount now |
 | `B + D − L` | the chosen frame begins a linear push from scale 1.00 to **lead scale** |
 | `B + D` | the next dwell begins; the incoming frame is at scale 1.00 |
 
-Prelude steps are hard cuts on purpose: a time-lapse reads as cuts.
+Prelude steps were hard cuts in the first build ("a time-lapse reads as
+cuts"). Reversed 2026-09-05: the point of the prelude is the sun visibly
+dropping, and a dissolve between two frames of the same camera is the
+closest thing to that motion without inventing any. The whole sequence
+(prelude frames, then the chosen frame) is stacked as layers in capture
+order; each layer becomes opaque when the clock-driven stage reaches it,
+with a CSS opacity transition of the same-camera fade. A reloaded tab
+renders every reached layer opaque at once and joins in the right place.
+
+The prelude **continues from the frame on glass** when that frame is the
+same camera: `preludeFor` takes an `afterMs` and keeps only captures after
+it, so a camera drawn twice in a row plays forward rather than rewinding
+past the picture the viewer just saw.
 
 The stage is computed from the wall clock, not from timers chained since
 mount: `stageAt(elapsedMs, plan)` is a pure function, so a tab that reloads
@@ -149,17 +167,27 @@ still no room, it shortens the lead. The studio prints the budget under the
 glass dials and turns it red when clamped. The rule lives in one pure
 function (`fitPlan`) used by both.
 
-### 4.2 Transition
+### 4.2 Arrival: the same camera dissolves, a camera change dips
 
-**transition** (`cut` | `crossfade` | `dip`, default `cut`), with **fade**
-(0–10 s, default 0) as its duration:
+How a dwell arrives depends on whether the camera changed (`arrival()` in
+`Solo2Frame.tsx`, pure, so the studio can say the same):
 
-- `cut` — what `solo` ships.
-- `crossfade` — the previous frame underneath, the incoming fades in over
-  `fade`. Reads as a double exposure for the whole duration; kept as an
-  option.
-- `dip` — the previous frame fades to black over `fade / 2`, then the
-  incoming fades up from black over `fade / 2`. What photo slideshows use.
+- **Same camera as the frame on glass** — always a crossfade, over
+  **same-camera fade** (0–5 s, default 1.5). Never through black: the
+  viewer is watching one sunset continue. 0 is a cut.
+- **A different camera** — **camera change** (`cut` | `crossfade` | `dip`,
+  default `dip`), with **fade** (0–10 s, default 1.5) as its duration:
+  - `cut` — what `solo` ships.
+  - `crossfade` — the previous frame underneath, the incoming fades in over
+    `fade`. Reads as a double exposure for the whole duration; kept as an
+    option.
+  - `dip` — the previous frame fades to black over `fade / 2`, then the
+    incoming fades up from black over `fade / 2`. What photo slideshows
+    use, and the default: black between cameras says "another place".
+
+The same-camera fade is also the dissolve inside the prelude (§4.1). One
+dial, one meaning: how long two pictures of the same scene take to become
+each other.
 
 ### 4.3 Lead
 
@@ -174,9 +202,12 @@ a late-joining tab is in sync.
 **prelude step** (0.5–5 s, default 1.5).
 
 The prelude of a frame is a pure function over the entries the state
-endpoint already returns: `preludeFor(entry, entries, max)` = the other
-entries with the same camera, captured earlier, sorted by capture time, the
-last `max` of them. No new query. Frames below a floor are fine as prelude
+endpoint already returns: `preludeFor(entry, entries, max, afterMs?)` = the
+other entries with the same camera, captured earlier (and after `afterMs`
+when given), sorted by capture time, the last `max` of them. No new query.
+`preludePlan(entry, entries, dials, previous?)` wraps it with `fitPlan` and
+returns the frames the budget actually keeps, newest kept, so the renderer
+and the studio never disagree about which frames play. Frames below a floor are fine as prelude
 (they are earlier pictures of the same scene); frames removed from the bins
 are not returned by the endpoint and simply shorten the prelude. Frames the
 cron never archived (detection below 0.20) were never pictures we hold.
@@ -275,6 +306,25 @@ Additions:
 - under the glass group, the dwell budget line
   (`prelude 4.5 s + lead 4 s + hold 11.5 s`), red when clamped;
 - queue rows carry a **PEAK** / **VALLEY** tag from `nextRoles`;
+- **height is time** (added 2026-09-05): on `/studio/solo2` every row in the
+  bins and the queue is as tall as its time on glass, 4 px per second, so
+  the column reads as a timeline. Dwell, prelude step and lead are the
+  dials that set it; the row is a projection of them, not a dial of its own;
+- **a dwell is one box** (added 2026-09-05): with the prelude dial on, a
+  frame that will play earlier frames of its camera first becomes a group:
+  the earlier frames stacked above the chosen one in capture order, each a
+  light-bordered strip (thumbnail + local time, e.g. `6:58 pm`, `7:14 pm`)
+  as tall as a prelude step, then the chosen frame with its usual
+  annotations and the time on its place line, all inside one thick
+  bin-coloured border (green sunset, grey non-sunset). Queue rows continue
+  from their predecessor as the glass does; bin rows show the full prelude
+  a draw would get. Every frame in the group is clickable and opens its own
+  detail;
+- **PRELUDE** tag (added 2026-09-05): a frame that an earlier queued dwell
+  already shows inside its prelude carries the tag when it comes back for
+  its own turn, in the queue or in a bin. This makes the parked same-camera
+  dedup question visible without deciding it: the tag is how often a
+  viewer sees a picture twice;
 - the panel preview's caption uses `captionLines`, so it shows the time;
 - the rules box states rule 3 with valleys and screens substituted;
 - each studio links to the other.
@@ -312,6 +362,18 @@ Code, then settings, as `docs/ops/pushing-an-update-to-the-glass.md` says:
   unknown version → 400; default stays `solo`.
 - Registry: `solo2` registered and present in the `activeVersion` options.
 - Renderer: prelude frames carry no caption; caption mounts with the chosen
-  frame; the transition kinds render their layers; a dial change re-plans.
+  frame; the transition kinds render their layers; a dial change re-plans;
+  the sequence is stacked with opacity by stage and a transition of the
+  same-camera fade capped at the step (0 is `none`); a same-camera previous
+  frame crossfades over the same-camera fade even when the camera-change
+  dial says dip; the defaults dip between cameras.
+- `preludePlan`: keeps the newest frames when the budget clamps; continues
+  after a same-camera previous frame; ignores another camera's.
+- Studio rows: a sequence renders as a group with the bin-coloured border,
+  one light-bordered button per frame with its local time; heights follow
+  the step and the hold at `PX_PER_S`, never below `MIN_FRAME_PX`; a row
+  without a sequence keeps its shape and takes `rowS` as its height; the
+  PRELUDE tag; FeedColumn groups the on-glass row and flags the earlier
+  frames' own turns.
 - Studio: enum control writes a string; the budget line reads the plan;
   PEAK/VALLEY tags appear on queue rows.
