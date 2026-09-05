@@ -3,6 +3,7 @@
 import type { ReactNode } from 'react';
 import { SOLO_VERSIONS, type SoloVersionSpec } from '@/app/lib/solo/versions';
 import { DwellBudget } from './DwellBudget';
+import type { Solo2Dials } from '@/app/lib/solo2/types';
 import { SHARED_NAMESPACE } from '@/app/lib/settings/sharedSchema';
 import type { KnobDescriptor, KnobValue } from '@/app/lib/settings/schema';
 import type { StudioSettingsApi } from '../useStudioSettings';
@@ -96,7 +97,7 @@ export function SoloRail({ api, deploySlot, version = SOLO_VERSIONS.solo as Solo
             <Control key={k.key} knob={k} value={values[k.key]} differs={diff.has(k.key)}
               onChange={(v) => api.setKnob(ns, k.key, v)} />
           ))}
-          {g.section === 'glass' && 'leadS' in dials && <DwellBudget dials={dials} />}
+          {g.section === 'glass' && version.name === 'solo2' && <DwellBudget dials={dials as Solo2Dials} />}
         </section>
       ))}
       <RulesBox dials={dials} version={version} />
