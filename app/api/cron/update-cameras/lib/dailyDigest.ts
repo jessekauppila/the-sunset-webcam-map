@@ -9,6 +9,7 @@ import {
   type SweepRingStats,
 } from './sweepStats';
 import { coverageSpan } from './sweepGeometry';
+import { getBinDigestSummary, type BinDigestSummary } from '@/app/lib/solo/store';
 import { deriveDailyDeltas } from '@/app/components/Ops/opsMath';
 import type { ProviderUsageRow, CostEventRow } from '@/app/lib/opsTypes';
 import {
@@ -250,6 +251,19 @@ export function formatSweepLine(summary: SweepDigestSummary | null): string {
 // for free). Reads the same table the Ops chart reads, so the email can never
 // disagree with the dashboard. Non-fatal by contract: every failure path
 // returns instead of throwing.
+
+/**
+ * The solo kiosk's cost line (spec §7): how many frames the bins brought into
+ * the archive today, so the admission rule's price is readable in money's
+ * proxy, rows. Silent when the table is not migrated.
+ */
+export function formatBinLine(summary: BinDigestSummary | null): string {
+  if (!summary) return '';
+  const a = summary.admittedToday;
+  return `<p style="font:12px sans-serif">Solo bins: admitted ${a.sunset} sunsets + ${a.nonSunset} non-sunsets today, ` +
+    `${summary.removedToday} removed; waiting now ${summary.activeNow.sunrise} sunrise / ${summary.activeNow.sunset} sunset.</p>`;
+}
+
 export async function sendDailyUsageDigest(
   now: Date,
 ): Promise<{ sent: true } | { skipped: string }> {
@@ -279,6 +293,8 @@ export async function sendDailyUsageDigest(
     // Same isolation contract: swallows its own failures and returns null, so
     // an unmigrated sweep table degrades this section to silence.
     const sweep = await getSweepDigestSummary();
+    // Same contract again: the solo bins table may not be migrated yet.
+    const bins = await getBinDigestSummary();
 
     const rows = usage.map((r) => ({ ...r, compute_time_s: Number(r.compute_time_s) }));
     const deltas = deriveDailyDeltas(rows);
@@ -351,6 +367,7 @@ export async function sendDailyUsageDigest(
         ${eventList}
         ${formatCalibrationLine(calibration)}
         ${formatSweepLine(sweep)}
+        ${formatBinLine(bins)}
         <p style="font:11px sans-serif;color:#6b7280">
           Same data as the Ops tab. Estimate uses $${NEON_COST_PER_CU_HOUR}/CU-hr;
           the invoice of record is Vercel → Settings → Billing.

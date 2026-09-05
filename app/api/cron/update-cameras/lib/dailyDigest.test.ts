@@ -2,6 +2,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 const sqlMock = vi.fn();
+vi.mock('@/app/lib/solo/store', () => ({
+  getBinDigestSummary: async () => null,
+}));
 vi.mock('@/app/lib/db', () => ({
   sql: (strings: TemplateStringsArray, ...values: unknown[]) =>
     sqlMock(strings, ...values),
@@ -10,6 +13,7 @@ vi.mock('@/app/lib/db', () => ({
 import {
   sendDailyUsageDigest,
   formatCalibrationLine,
+  formatBinLine,
   formatSweepLine,
   sweptAltitudeSpan,
 } from './dailyDigest';
@@ -422,5 +426,24 @@ describe('formatSweepLine', () => {
   it('says nothing about holds when none happened', () => {
     const html = formatSweepLine({ ...quiet, heldTicks: 0 });
     expect(html).not.toContain('held the last good pool');
+  });
+});
+
+describe('formatBinLine', () => {
+  it('is empty when the table is not there', () => {
+    expect(formatBinLine(null)).toBe('');
+  });
+  it('reads admissions, removals, and what is waiting', () => {
+    const html = formatBinLine({
+      admittedToday: { sunset: 41, nonSunset: 380 },
+      removedToday: 220,
+      activeNow: { sunrise: 12, sunset: 31 },
+    });
+    expect(html).toContain('Solo bins');
+    expect(html).toContain('41 sunsets');
+    expect(html).toContain('380 non-sunsets');
+    expect(html).toContain('220 removed');
+    expect(html).toContain('12 sunrise');
+    expect(html).toContain('31 sunset');
   });
 });
