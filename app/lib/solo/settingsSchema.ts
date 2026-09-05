@@ -59,7 +59,7 @@ export const SOLO_SETTINGS_SCHEMA: SettingsSchema = [
   {
     key: 'sunsetFloor', kind: 'number', min: 0, max: 12, step: 1, default: 6,
     label: 'sunset floor', section: 'bins',
-    description: 'While at least this many sunsets wait in the current tier, the queue is sunsets only. 0 = non-sunsets only when no sunset is eligible.',
+    description: 'While at least this many sunsets wait in the current tier, the queue is sunsets only. 0 = sunsets only within a tier; unshown non-sunsets still come before a sunset that has used its repeat allowance. To never show non-sunsets, set the detection floor to 1.',
   },
   {
     key: 'mix', kind: 'number', min: 1, max: 6, step: 1, default: 2,

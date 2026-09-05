@@ -94,6 +94,9 @@ force.
    default 6), draw from the sunset bin. Otherwise interleave: **mix** sunsets
    per non-sunset (1–6, default 2), counted as a streak that resets on each
    non-sunset draw. If one bin is empty in the tier, draw from the other.
+   Rule 1 still comes first: a floor of 0 means "sunsets only within a
+   tier", and an unshown non-sunset outranks a sunset that has spent its
+   repeat allowance. To never show non-sunsets, set the detection floor to 1.
 3. **Within a bin, best first.** Sunset bin by quality, non-sunset bin by
    detection probability. **Promote new frames** (boolean, default on) adds
    +0.10 to a frame that arrived while an older frame from the same camera
