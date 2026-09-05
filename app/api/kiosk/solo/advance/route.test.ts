@@ -6,6 +6,7 @@ const getScreenState = vi.fn();
 const commitAdvance = vi.fn();
 const countAdmittedSince = vi.fn();
 const getLiveSettingsCached = vi.fn();
+const getSweptZone = vi.fn();
 vi.mock('server-only', () => ({}));
 // sweepGeometry's module pulls in the Neon client; the route only uses its pure half.
 vi.mock('@/app/lib/db', () => ({ sql: vi.fn() }));
@@ -15,6 +16,7 @@ vi.mock('@/app/lib/solo/store', () => ({
   getScreenState: (...a: unknown[]) => getScreenState(...a),
   commitAdvance: (...a: unknown[]) => commitAdvance(...a),
   countAdmittedSince: (...a: unknown[]) => countAdmittedSince(...a),
+  getSweptZone: (...a: unknown[]) => getSweptZone(...a),
 }));
 vi.mock('@/app/lib/settings/liveSettings', () => ({ getLiveSettingsCached: () => getLiveSettingsCached() }));
 
@@ -38,12 +40,20 @@ beforeEach(() => {
   getScreenState.mockResolvedValue(null);
   commitAdvance.mockResolvedValue(true);
   countAdmittedSince.mockResolvedValue({ sunset: 0, nonSunset: 0 });
+  getSweptZone.mockResolvedValue(null);
 });
 afterEach(() => {
   vi.useRealTimers();
 });
 
 describe('POST /api/kiosk/solo/advance', () => {
+  it('echoes the zone the cron last aged entries against, falling back to the guaranteed rings', async () => {
+    expect((await (await post({ feed: 'sunrise', slot: 50_000_000 })).json()).zone)
+      .toEqual({ minDeg: -24, maxDeg: -2 });
+    getSweptZone.mockResolvedValue({ minDeg: -39.75, maxDeg: 13.75 });
+    expect((await (await post({ feed: 'sunrise', slot: 50_000_000 })).json()).zone)
+      .toEqual({ minDeg: -39.75, maxDeg: 13.75 });
+  });
   it('rejects bad bodies', async () => {
     expect((await post({})).status).toBe(400);
     expect((await post({ feed: 'sunrise', slot: 'x' })).status).toBe(400);

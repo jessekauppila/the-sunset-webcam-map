@@ -12,6 +12,7 @@ function api(over: Partial<StudioSettingsApi> = {}): StudioSettingsApi {
     setKnob: vi.fn(), resetSection: vi.fn(), applyNamespace: () => [],
     diffByNamespace: { solo: ['mix'] }, diffCount: 1,
     deploy: async () => {}, revert: async () => {}, deployedAtMs: null, droppedKeys: [],
+    deploys: [], loadDeploy: async () => [], relabelDeploy: async () => {}, lastDeployRecorded: null,
     ...over,
   };
 }

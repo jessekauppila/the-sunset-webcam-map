@@ -8,6 +8,7 @@ const getScreenState = vi.fn();
 const countAdmittedSince = vi.fn();
 const getLiveSettingsCached = vi.fn();
 const getProfileSettings = vi.fn();
+const getSweptZone = vi.fn();
 vi.mock('server-only', () => ({}));
 // sweepGeometry's module pulls in the Neon client; the route only uses its pure half.
 vi.mock('@/app/lib/db', () => ({ sql: vi.fn() }));
@@ -17,6 +18,7 @@ vi.mock('@/app/lib/solo/store', () => ({
   listActiveEntries: (...a: unknown[]) => listActiveEntries(...a),
   getScreenState: (...a: unknown[]) => getScreenState(...a),
   countAdmittedSince: (...a: unknown[]) => countAdmittedSince(...a),
+  getSweptZone: (...a: unknown[]) => getSweptZone(...a),
 }));
 vi.mock('@/app/lib/settings/liveSettings', () => ({ getLiveSettingsCached: () => getLiveSettingsCached() }));
 vi.mock('@/app/lib/settings/store', () => ({ getProfileSettings: (p: string) => getProfileSettings(p) }));
@@ -31,11 +33,17 @@ beforeEach(() => {
   listActiveEntries.mockResolvedValue([]);
   getScreenState.mockResolvedValue(null);
   countAdmittedSince.mockResolvedValue({ sunset: 0, nonSunset: 0 });
+  getSweptZone.mockResolvedValue(null);
   getLiveSettingsCached.mockResolvedValue({ namespaces: { solo: { dwellS: 30 }, solo2: { dwellS: 9, valleys: 1 } }, revision: 1 });
   getProfileSettings.mockResolvedValue({ namespaces: { solo: { dwellS: 7 } }, revision: 1 });
 });
 
 describe('GET /api/kiosk/solo/state', () => {
+  it('shows the zone the cron last aged entries against', async () => {
+    getSweptZone.mockResolvedValue({ minDeg: -39.75, maxDeg: 13.75 });
+    const body = await (await get('?feed=sunrise')).json();
+    expect(body.zone).toEqual({ minDeg: -39.75, maxDeg: 13.75 });
+  });
   it('rejects a missing or unknown feed', async () => {
     expect((await get('')).status).toBe(400);
     expect((await get('?feed=noon')).status).toBe(400);
@@ -49,7 +57,7 @@ describe('GET /api/kiosk/solo/state', () => {
     expect(body.dials.valleys).toBe(1);
     expect(body.nextRoles).toEqual([]);
   });
-  it('live profile by default, no owner check', async () => {
+  it('live profile by default, no owner check; guaranteed-rings zone until the cron has recorded one', async () => {
     const res = await get('?feed=sunset');
     expect(res.status).toBe(200);
     const body = await res.json();

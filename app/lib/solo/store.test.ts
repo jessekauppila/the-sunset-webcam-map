@@ -16,13 +16,36 @@ vi.mock('@/app/lib/db', async () => {
 import { sql } from '@/app/lib/db';
 import {
   listActiveEntries, insertEntry, removeStale, getScreenState, commitAdvance,
-  countAdmittedSince, getBinDigestSummary,
+  countAdmittedSince, getBinDigestSummary, saveSweptZone, getSweptZone,
 } from './store';
 
 const sqlMock = (sql as unknown as SqlTag).__sqlMock;
 const lastQuery = () => (sqlMock.mock.calls.at(-1)![0] as TemplateStringsArray).join('?');
 
 beforeEach(() => sqlMock.mockReset());
+
+describe('swept zone', () => {
+  it('saveSweptZone upserts the single row the cron aged entries against', async () => {
+    sqlMock.mockResolvedValueOnce([]);
+    await saveSweptZone({ minDeg: -39.75, maxDeg: 13.75 });
+    expect(lastQuery()).toMatch(/kiosk_sweep_zone/);
+    expect(sqlMock.mock.calls.at(-1)!.slice(1)).toEqual([-39.75, 13.75]);
+  });
+  it('saveSweptZone never throws: an unmigrated table must not cost the tick its bins', async () => {
+    sqlMock.mockRejectedValueOnce(new Error('relation "kiosk_sweep_zone" does not exist'));
+    await expect(saveSweptZone({ minDeg: -24, maxDeg: -2 })).resolves.toBeUndefined();
+  });
+  it('getSweptZone maps Neon strings to numbers', async () => {
+    sqlMock.mockResolvedValueOnce([{ min_deg: '-39.75', max_deg: '13.75' }]);
+    expect(await getSweptZone()).toEqual({ minDeg: -39.75, maxDeg: 13.75 });
+  });
+  it('getSweptZone is null when the table is missing or empty', async () => {
+    sqlMock.mockRejectedValueOnce(new Error('relation "kiosk_sweep_zone" does not exist'));
+    expect(await getSweptZone()).toBeNull();
+    sqlMock.mockResolvedValueOnce([]);
+    expect(await getSweptZone()).toBeNull();
+  });
+});
 
 describe('listActiveEntries', () => {
   it('maps rows into StoredEntry with numbers, not Neon strings', async () => {

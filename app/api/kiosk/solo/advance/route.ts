@@ -4,7 +4,7 @@ import { mergeSettings } from '@/app/lib/settings/schema';
 import { afterShowing } from '@/app/lib/solo/engine';
 import { slotFor } from '@/app/lib/solo/schedule';
 import { resolveSoloVersion } from '@/app/lib/solo/versions';
-import { commitAdvance, countAdmittedSince, getScreenState, listActiveEntries } from '@/app/lib/solo/store';
+import { commitAdvance, countAdmittedSince, getScreenState, getSweptZone, listActiveEntries } from '@/app/lib/solo/store';
 import { isFlagEnabled, SWEEP_FORCE_DAY_RING } from '@/app/lib/runtimeFlags';
 import { sweepGeometry } from '@/app/api/cron/update-cameras/lib/sweepGeometry';
 import { TERMINATOR_DAY_SIDE_OFFSETS_DEG } from '@/app/lib/masterConfig';
@@ -66,12 +66,15 @@ export async function POST(request: Request) {
       }
     }
   }
-  const [admitted, forcedDayRing] = await Promise.all([
+  const [admitted, sweptZone, forcedDayRing] = await Promise.all([
     countAdmittedSince(feed, nowMs - LAST_PULL_WINDOW_MS),
+    getSweptZone(),
     isFlagEnabled(SWEEP_FORCE_DAY_RING),
   ]);
+  // Same source as the state route: the zone the cron last used, else the
+  // guaranteed rings.
   const geometry = sweepGeometry(forcedDayRing ? TERMINATOR_DAY_SIDE_OFFSETS_DEG : []);
-  const zone = { minDeg: geometry.coverageMinDeg, maxDeg: geometry.coverageMaxDeg };
+  const zone = sweptZone ?? { minDeg: geometry.coverageMinDeg, maxDeg: geometry.coverageMaxDeg };
   return NextResponse.json({
     advanced,
     ...buildStateView({ feed, dials, entries: entries.map(toViewEntry), screen, nowMs, admitted, zone, version }),

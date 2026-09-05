@@ -7,6 +7,7 @@ import {
   markOutOfZone,
   markSeen,
   removeStale,
+  saveSweptZone,
 } from '@/app/lib/solo/store';
 import { inFeedZone, type Zone } from '@/app/lib/solo/zone';
 import type { BinKind, Feed } from '@/app/lib/solo/types';
@@ -72,6 +73,12 @@ export async function enterBins(
  * Removal is by zone, not by absence. Every active entry is checked against
  * where its camera's sun is right now; a poll that simply did not return the
  * camera changes nothing.
+ *
+ * `zone` must be the band the sweep actually gathered from this tick
+ * (sweepGeometry.sweptZone), escalation rings included: admission takes any
+ * camera the sweep returned, and a narrower zone here evicts what an
+ * escalation ring just brought in. The zone used is recorded so the state
+ * route can show the same band.
  */
 export async function maintainBins(opts: {
   now: Date;
@@ -79,6 +86,7 @@ export async function maintainBins(opts: {
   grace: number;
 }): Promise<{ leftZone: number; expired: number }> {
   const totals = { leftZone: 0, expired: 0 };
+  await saveSweptZone(opts.zone);
   for (const feed of FEEDS) {
     const entries = await listActiveEntries(feed);
     const seen = new Set<number>();

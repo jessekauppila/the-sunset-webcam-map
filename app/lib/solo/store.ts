@@ -193,6 +193,46 @@ export async function removeStale(
   return { leftZone: leftZone.length, expired: expired.length };
 }
 
+export interface SweptZone {
+  minDeg: number;
+  maxDeg: number;
+}
+
+/**
+ * Record the zone maintainBins just aged entries against, so the state and
+ * advance routes can show the same band instead of recomputing a guess from
+ * the flag alone. Escalation rings fire per tick, and only the cron knows
+ * which ones did. Non-fatal: an unmigrated table must not cost the tick its
+ * bins.
+ */
+export async function saveSweptZone(zone: SweptZone): Promise<void> {
+  try {
+    await sql`
+      insert into kiosk_sweep_zone (id, min_deg, max_deg, updated_at)
+      values (1, ${zone.minDeg}, ${zone.maxDeg}, now())
+      on conflict (id) do update
+        set min_deg = excluded.min_deg, max_deg = excluded.max_deg, updated_at = now()
+    `;
+  } catch (error) {
+    console.warn('[solo/store] swept zone persist failed:', error);
+  }
+}
+
+/** Null when the cron has not recorded a zone yet, or the table is missing. */
+export async function getSweptZone(): Promise<SweptZone | null> {
+  try {
+    const rows = (await sql`
+      select min_deg, max_deg from kiosk_sweep_zone where id = 1
+    `) as unknown as { min_deg: string | number; max_deg: string | number }[];
+    const r = rows[0];
+    if (!r) return null;
+    return { minDeg: num(r.min_deg), maxDeg: num(r.max_deg) };
+  } catch (error) {
+    console.warn('[solo/store] swept zone read failed:', error);
+    return null;
+  }
+}
+
 export interface ScreenRow {
   feed: Feed;
   currentSnapshotId: number | null;

@@ -7,10 +7,30 @@ vi.mock('@/app/lib/db', () => ({
     sqlMock(strings, ...values),
 }));
 
-import { coverageSpan, sweepGeometry, upsertSweepGeometry } from './sweepGeometry';
+import { coverageSpan, sweepGeometry, sweptZone, upsertSweepGeometry } from './sweepGeometry';
 
 beforeEach(() => {
   sqlMock.mockReset();
+});
+
+describe('sweptZone', () => {
+  it('is the base ring alone when only the base ring swept', () => {
+    expect(sweptZone([0])).toEqual({ minDeg: -24, maxDeg: -2 });
+  });
+
+  it('includes every ring that swept this tick, escalations included', () => {
+    // The 2026-09-05 sunrise bug: the sweep escalated to +15.75 for a thin
+    // sunrise feed and admitted golden-hour cameras at +1..+11, but the
+    // removal zone counted only the guaranteed rings (-24..-2), so every one
+    // of them was evicted three ticks later. Admission and removal must read
+    // the same band.
+    expect(sweptZone([0, 15.75, -15.75])).toEqual({ minDeg: -39.75, maxDeg: 13.75 });
+  });
+
+  it('always contains the base ring, even if telemetry omitted it', () => {
+    expect(sweptZone([15.75])).toEqual({ minDeg: -24, maxDeg: 13.75 });
+    expect(sweptZone([])).toEqual({ minDeg: -24, maxDeg: -2 });
+  });
 });
 
 describe('coverageSpan', () => {
