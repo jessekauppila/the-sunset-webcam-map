@@ -8,6 +8,7 @@ import { V3_SETTINGS_SCHEMA } from './v3/settingsSchema';
 import { MosaicV4 } from './v4';
 import { V4_SETTINGS_SCHEMA } from './v4/settingsSchema';
 import type { SettingsSchema } from '@/app/lib/settings/schema';
+import { SOLO_SETTINGS_SCHEMA } from '@/app/lib/solo/settingsSchema';
 
 /**
  * Every mosaic version deployed, side by side. All versions ship in one
@@ -31,6 +32,9 @@ export const MOSAIC_SETTINGS_SCHEMAS: Record<string, SettingsSchema> = {
   v2: V2_SETTINGS_SCHEMA,
   v3: V3_SETTINGS_SCHEMA,
   v4: V4_SETTINGS_SCHEMA,
+  // Phase 1 of the solo kiosk registers the namespace so PATCH /api/kiosk/settings
+  // accepts its dials; the renderer joins MOSAIC_VERSIONS in phase 2.
+  solo: SOLO_SETTINGS_SCHEMA,
 };
 
 /** Unknown or missing names fall back to the pinned default. */
