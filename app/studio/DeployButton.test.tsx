@@ -81,7 +81,7 @@ describe('DeployButton', () => {
   it('revert button is disabled when in sync', () => {
     render(<DeployButton diffCount={0} onDeploy={vi.fn()} onRevert={vi.fn()} />);
 
-    const revertButton = screen.getByRole('button', { name: /revert to glass/i });
+    const revertButton = screen.getByRole('button', { name: /discard changes/i });
     expect(revertButton).toBeDisabled();
   });
 
@@ -89,7 +89,7 @@ describe('DeployButton', () => {
     const onRevert = vi.fn().mockResolvedValue(undefined);
     render(<DeployButton diffCount={1} onDeploy={vi.fn()} onRevert={onRevert} />);
 
-    const revertButton = screen.getByRole('button', { name: /revert to glass/i });
+    const revertButton = screen.getByRole('button', { name: /discard changes/i });
     expect(revertButton).not.toBeDisabled();
 
     fireEvent.click(revertButton);
@@ -103,7 +103,7 @@ describe('DeployButton', () => {
       .mockResolvedValueOnce(undefined);
     render(<DeployButton diffCount={2} onDeploy={vi.fn()} onRevert={onRevert} />);
 
-    const revertButton = screen.getByRole('button', { name: /revert to glass/i });
+    const revertButton = screen.getByRole('button', { name: /discard changes/i });
 
     fireEvent.click(revertButton);
     await act(async () => {
@@ -124,7 +124,7 @@ describe('DeployButton', () => {
 
     expect(onRevert).toHaveBeenCalledTimes(2);
     expect(screen.queryByText('revert failed — try again')).not.toBeInTheDocument();
-    expect(screen.getByText('↩ revert to glass')).toBeInTheDocument();
+    expect(screen.getByText('↩ discard changes')).toBeInTheDocument();
   });
 
   it('compact variant renders DEPLOY and an N differ chip', () => {

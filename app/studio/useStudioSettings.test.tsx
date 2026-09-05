@@ -588,4 +588,72 @@ describe('useStudioSettings.applyNamespace — restoring a saved dial set', () =
     act(() => { dropped = result.current.applyNamespace('nope', { a: 1 }); });
     expect(dropped).toEqual([]);
   });
+
+  it('exposes the deploy list from /api/kiosk/deploys and [] before it loads', async () => {
+    const deploys = [{ id: 2, label: null, namespaces: { v1: { floorPx: 140 } }, deployedAt: 'T' }];
+    fetchMock = vi.fn(async (url: string) => ({
+      ok: true,
+      json: async () => (url === '/api/kiosk/deploys' ? { deploys } : settingsResponse({}, {})),
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+    const { result } = renderHook(() => useStudioSettings(), { wrapper });
+    expect(result.current.deploys).toEqual([]);
+    await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+    expect(result.current.deploys).toEqual(deploys);
+  });
+
+  it('loadDeploy replaces the studio profile, drops the local overlay, and returns the dropped keys', async () => {
+    const loaded = { namespaces: { v1: { floorPx: 200 } }, revision: 9 };
+    fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+      if (url === '/api/kiosk/deploys/7/load') {
+        return { ok: true, json: async () => ({ studio: loaded, dropped: [{ namespace: 'v1', key: 'ghost', reason: 'unknown' }] }) };
+      }
+      if (url === '/api/kiosk/deploys') return { ok: true, json: async () => ({ deploys: [] }) };
+      if (init?.method === 'PATCH') return { ok: true, json: async () => ({ revision: 2 }) };
+      return { ok: true, json: async () => settingsResponse({}, {}) };
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const { result } = renderHook(() => useStudioSettings(), { wrapper });
+    await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+    act(() => { result.current.setKnob('v1', 'floorPx', 140); }); // a pending, un-flushed edit
+    let dropped: unknown;
+    await act(async () => { dropped = await result.current.loadDeploy(7); });
+    expect(dropped).toEqual([{ namespace: 'v1', key: 'ghost', reason: 'unknown' }]);
+    expect(result.current.effective('v1').floorPx).toBe(200);
+    await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
+    expect(fetchMock.mock.calls.some(([, init]) => (init as RequestInit | undefined)?.method === 'PATCH')).toBe(false);
+  });
+
+  it('deploy(label) posts the label and remembers whether history was recorded', async () => {
+    fetchMock = vi.fn(async (url: string) => {
+      if (url === '/api/kiosk/settings/deploy') {
+        return { ok: true, json: async () => ({ live: { namespaces: {}, revision: 3 }, deploy: null }) };
+      }
+      if (url === '/api/kiosk/deploys') return { ok: true, json: async () => ({ deploys: [] }) };
+      return { ok: true, json: async () => settingsResponse({ floorPx: 140 }, {}) };
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const { result } = renderHook(() => useStudioSettings(), { wrapper });
+    await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+    expect(result.current.lastDeployRecorded).toBeNull();
+    await act(async () => { await result.current.deploy('opening night'); });
+    const call = fetchMock.mock.calls.find(([u]) => u === '/api/kiosk/settings/deploy');
+    expect(JSON.parse(String((call?.[1] as RequestInit).body))).toEqual({ label: 'opening night' });
+    expect(result.current.lastDeployRecorded).toBe(false);
+  });
+
+  it('relabelDeploy PATCHes the label', async () => {
+    fetchMock = vi.fn(async (url: string) => {
+      if (url === '/api/kiosk/deploys') return { ok: true, json: async () => ({ deploys: [] }) };
+      if (url === '/api/kiosk/deploys/7') return { ok: true, json: async () => ({ ok: true }) };
+      return { ok: true, json: async () => settingsResponse({}, {}) };
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const { result } = renderHook(() => useStudioSettings(), { wrapper });
+    await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+    await act(async () => { await result.current.relabelDeploy(7, 'opening night'); });
+    const call = fetchMock.mock.calls.find(([u]) => u === '/api/kiosk/deploys/7');
+    expect((call?.[1] as RequestInit).method).toBe('PATCH');
+    expect(JSON.parse(String((call?.[1] as RequestInit).body))).toEqual({ label: 'opening night' });
+  });
 });

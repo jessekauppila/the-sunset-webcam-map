@@ -252,7 +252,7 @@ export function DeployButton({
           opacity: inSync ? 0.35 : 1,
         }}
       >
-        {revertFailed ? 'revert failed — try again' : '↩ revert to glass'}
+        {revertFailed ? 'revert failed — try again' : '↩ discard changes'}
       </button>
     </div>
   );
