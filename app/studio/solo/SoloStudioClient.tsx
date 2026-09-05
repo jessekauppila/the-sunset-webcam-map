@@ -5,13 +5,16 @@ import Link from 'next/link';
 import { useStudioSettings } from '../useStudioSettings';
 import { DeployButton } from '../DeployButton';
 import { DeployHistory } from '../DeployHistory';
-import { SoloRail } from './SoloRail';
+import { SoloRail, type RailTab } from './SoloRail';
+import { CaptionPreview } from './CaptionPreview';
 import { FeedColumn } from './FeedColumn';
 import { SoloStatusStrip } from './SoloStatusStrip';
 import { useSoloState } from './useSoloState';
 import { toWebcam } from './toWebcam';
 import { SOLO_VERSIONS, type SoloVersionSpec } from '@/app/lib/solo/versions';
 import { mergeSettings } from '@/app/lib/settings/schema';
+import { SHARED_NAMESPACE } from '@/app/lib/settings/sharedSchema';
+import { PANEL_PRESETS } from '@/app/kiosk/panelPreview';
 import type { EntryView } from '@/app/api/kiosk/solo/view';
 import type { Feed } from '@/app/lib/solo/types';
 import { FrameLabelCard } from '@/app/components/Webcam/FrameLabelCard';
@@ -38,6 +41,11 @@ export function SoloStudioClient({ version = SOLO_VERSIONS.solo as SoloVersionSp
     : { href: '/studio/solo2', label: 'solo2 studio →', title: 'solo with rhythm, lead, prelude, transitions and local time' };
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [selected, setSelected] = useState<{ entry: EntryView; feed: Feed } | null>(null);
+  // Which rail page is up. The caption page swaps the queue columns for the
+  // screens drawn with the studio dials, so a caption dial shows its effect.
+  const [tab, setTab] = useState<RailTab>('dials');
+  const panelPreset = String(api.effective(SHARED_NAMESPACE).panelPreset ?? '');
+  const panel = PANEL_PRESETS[panelPreset] ?? PANEL_PRESETS['dell-l'];
 
   useEffect(() => {
     const t = setInterval(() => setNowMs(Date.now()), 1000);
@@ -60,7 +68,7 @@ export function SoloStudioClient({ version = SOLO_VERSIONS.solo as SoloVersionSp
         </Link>
       </div>
       <aside style={{ background: railBg, borderRight: `1px solid ${border}`, padding: 10, overflowY: 'auto' }}>
-        <SoloRail api={api} version={version} deploySlot={
+        <SoloRail api={api} version={version} tab={tab} onTab={setTab} deploySlot={
           <>
             <DeployButton diffCount={api.diffCount} onDeploy={api.deploy} onRevert={api.revert} />
             <DeployHistory api={api} />
@@ -68,7 +76,13 @@ export function SoloStudioClient({ version = SOLO_VERSIONS.solo as SoloVersionSp
         } />
       </aside>
       <main style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, padding: 12, overflowY: 'auto', minWidth: 0 }}>
-        {(['sunrise', 'sunset'] as const).map((feed) => {
+        {tab === 'caption' && (
+          <CaptionPreview dials={studioDials} panel={panel} screens={[
+            { feed: 'sunrise', server: sunrise.server ?? null, error: sunrise.error },
+            { feed: 'sunset', server: sunset.server ?? null, error: sunset.error },
+          ]} />
+        )}
+        {tab === 'dials' && (['sunrise', 'sunset'] as const).map((feed) => {
           const s = feed === 'sunrise' ? sunrise : sunset;
           return s.server && s.projected ? (
             <FeedColumn key={feed} feed={feed} server={s.server} projected={s.projected} liveDials={liveDials}

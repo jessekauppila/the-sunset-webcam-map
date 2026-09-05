@@ -1,7 +1,8 @@
 'use client';
 
 import type { EntryView } from '@/app/api/kiosk/solo/view';
-import { captionLines } from '@/app/lib/solo2/caption';
+import { pictureRect } from '@/app/lib/solo/caption';
+import { Caption } from '@/app/components/solo/Caption';
 import type { DwellPlan, Stage } from '@/app/lib/solo2/plan';
 import type { Solo2Dials } from '@/app/lib/solo2/types';
 
@@ -52,7 +53,14 @@ export function Solo2Frame({ entry, prelude, previous, stage, plan, dials, width
   height: number;
 }) {
   const layer = { position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' } as const;
-  const scale = Math.max(1, Math.min(width, height) / 540); // overlay text scales with the panel
+  // Where the picture sits (full-bleed or inset on black, per the caption
+  // dials). The previous frame and the stack take this box; the layers inside
+  // the stack fill it.
+  const picture = pictureRect(dials, width, height);
+  const pictureLayer = {
+    position: 'absolute', left: picture.left, top: picture.top, width: picture.width, height: picture.height, objectFit: 'cover',
+  } as const;
+  const scale = Math.max(1, Math.min(width, height) / 540); // score overlay text scales with the panel
   const onMain = stage.layer === 'main';
   const sequence: PreludeFrame[] = [...prelude, entry];
   const shown = onMain ? sequence.length - 1 : Math.min(stage.index, prelude.length - 1);
@@ -76,14 +84,12 @@ export function Solo2Frame({ entry, prelude, previous, stage, plan, dials, width
     transition: leadProgress > 0 && plan.leadS > 0 ? 'transform 260ms linear' : 'none',
   } as const;
 
-  const caption = onMain ? captionLines(entry, dials) : null;
-
   return (
     <div style={{ position: 'relative', width, height, background: '#000', overflow: 'hidden' }}>
       <style>{KEYFRAMES}</style>
       {showPrevious && (
         // eslint-disable-next-line @next/next/no-img-element
-        <img key={`prev-${previous.snapshotId}`} src={previous.imageUrl} alt="" role="presentation" style={layer} />
+        <img key={`prev-${previous.snapshotId}`} src={previous.imageUrl} alt="" role="presentation" style={pictureLayer} />
       )}
       {arrive.kind === 'dip' && showPrevious && (
         <div key={`dip-${entry.snapshotId}`} data-testid="dip" style={{
@@ -91,7 +97,7 @@ export function Solo2Frame({ entry, prelude, previous, stage, plan, dials, width
         }} />
       )}
       {/* keyed by the chosen frame so the arrival runs once per dwell; the stage only changes opacities inside */}
-      <div key={`stack-${entry.snapshotId}`} data-testid="stack" style={{ ...layer, animation: inAnimation }}>
+      <div key={`stack-${entry.snapshotId}`} data-testid="stack" style={{ ...pictureLayer, animation: inAnimation }}>
         <div style={pushStyle} data-testid="push">
           {sequence.map((f, i) => (
             <div key={f.snapshotId} data-testid={`seq-${i}`} style={{
@@ -104,15 +110,7 @@ export function Solo2Frame({ entry, prelude, previous, stage, plan, dials, width
           ))}
         </div>
       </div>
-      {caption && (
-        <div style={{
-          position: 'absolute', left: 24 * scale, bottom: 20 * scale, color: '#fff',
-          textShadow: '0 1px 4px #000', fontSize: 22 * scale, lineHeight: 1.2,
-        }}>
-          {caption.title}
-          <div style={{ fontSize: 15 * scale, opacity: 0.85 }}>{caption.sub}</div>
-        </div>
-      )}
+      {onMain && <Caption entry={entry} dials={dials} picture={picture} width={width} />}
       {onMain && (dials.showScores || dials.showRank || dials.showTally) && (
         <div style={{
           position: 'absolute', right: 24 * scale, bottom: 20 * scale, color: '#fff',

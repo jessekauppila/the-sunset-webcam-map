@@ -3,8 +3,8 @@ import type { SoloDials } from '@/app/lib/solo/types';
 /** How one frame gives way to the next (spec §4.2). */
 export type Transition = 'cut' | 'crossfade' | 'dip';
 
-/** The trailing item of the caption's second line (spec §4.5). */
-export type TimeStyle = 'off' | '12h' | '12h-there' | '24h' | 'sun' | '12h-sun';
+/** The time part of the caption moved to the solo dials with the caption section; re-exported for older imports. */
+export type { TimeStyle } from '@/app/lib/solo/types';
 
 /** Whether the two screens peak on the same beat or opposite ones (spec §3). */
 export type Screens = 'together' | 'alternate';
@@ -27,7 +27,6 @@ export interface Solo2Dials extends SoloDials {
   prelude: boolean;
   preludeFrames: number;
   preludeStepS: number;
-  timeStyle: TimeStyle;
   // bins
   valleys: number;
   screens: Screens;

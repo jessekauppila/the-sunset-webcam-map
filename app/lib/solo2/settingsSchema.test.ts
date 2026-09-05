@@ -15,11 +15,11 @@ describe('solo2 settings schema', () => {
       expect(mine!.section).toBe(k.section);
     }
   });
-  it('the additions default to solo\'s behaviour, except the time caption and the dissolves', () => {
+  it('the additions default to solo\'s behaviour, except the dissolves; the time dial is solo\'s', () => {
     const d = dialsFrom2(schemaDefaults(SOLO2_SETTINGS_SCHEMA));
     expect(d).toMatchObject({
       leadS: 0, leadScale: 1.03, prelude: false, preludeFrames: 3, preludeStepS: 1.5,
-      timeStyle: '12h', valleys: 0, screens: 'together',
+      timeStyle: '12h-there', valleys: 0, screens: 'together',
     });
     // Decided 2026-09-05: a camera change dips through black, the same camera dissolves.
     expect(d).toMatchObject({ transition: 'dip', fadeS: 1.5, sameCameraFadeS: 1.5 });
