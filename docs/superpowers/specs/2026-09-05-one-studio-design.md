@@ -351,10 +351,9 @@ merged). Before starting phase A, diff the studio files against whatever
   follow-up tape filmstrip (solo-stages-and-tape spec §4, not started) will
   sit under each screen in the solo version panel and is not in this design.
 - `feat/solo2-prelude-groups`: check whether anything is still unmerged.
-- `feat/solo2-camera-run` (peer session 51; approved and **building** as of
-  2026-09-05 evening; spec
-  `docs/superpowers/specs/2026-09-05-solo2-camera-run-design.md`). What it
-  changes that this design must take as given once it merges:
+- `feat/solo2-camera-run`, **PR #145** (peer session 51; opened 2026-09-05
+  evening; spec `docs/superpowers/specs/2026-09-05-solo2-camera-run-design.md`).
+  What it changes that this design must take as given once it merges:
   - solo2 dials: `prelude`, `preludeFrames`, `preludeStepS` removed, one
     `cameraRun` boolean added; `transition`, `fadeS`, `sameCameraFadeS` keep
     their keys with new labels. The rail reads the schema, so nothing here
@@ -364,13 +363,22 @@ merged). Before starting phase A, diff the studio files against whatever
   - `FeedColumn` / `EntryRow`: one box per camera, strips labelled i/k, the
     CAM and PRELUDE tags gone. §2.5's "kept verbatim" means *that* column,
     not the one on `main` today.
-  - `GlassPreview` **plays** for solo2: `Solo2Frame` on a looping local
-    clock, no advance posted. That is phase C scoped to solo2. Phase C lifts
-    it into `useSoloPreview` for both solo versions rather than writing a
-    second loop.
-  - `SoloStudioClient`'s frame modal gains prev/next through its column;
-    phase A deletes `SoloStudioClient`, so the modal with prev/next moves
-    into `StudioClient` intact.
+  - `GlassPreview` **plays** for solo2: the loop is
+    `app/studio/solo/useLoopingStage.ts`, consumed only by GlassPreview's
+    `PlayingScreen`. That is phase C scoped to solo2. Phase C lifts that
+    hook to both solo versions rather than writing a second loop.
+  - The frame modal is `app/studio/solo/FrameModal.tsx` (list + index,
+    ←/→, keys); `SoloStudioClient` only holds the selection state, and
+    `FeedColumn.onSelect` takes `(entry, feed, list)`. Phase A deletes
+    `SoloStudioClient` and keeps `FrameModal` and its selection state in
+    `StudioClient`.
+  - `DwellBudget` takes `frames`, `SoloRail` takes `runFrames`;
+    `app/lib/solo2/prelude.ts` is deleted; `view.ts` gives run members
+    their draw's stage through `version.shown()`.
+  - Appendix A concerns 1 and 2 are fixed in this PR
+    (`app/components/solo2/index.tsx`: the dwell start is the server's
+    `shownSince`, and `previous` + start derive in one render-phase update,
+    with tests). Phase C inherits the fix instead of making it.
   - `SoloVersionSpec` gains `shown()`; `commitAdvance` takes a list of ids.
   Its dwell readout becomes `N frames × step`; the one-line readout under
   `valleys per peak` (§2.4) is the slot for it.
@@ -483,7 +491,8 @@ that mounts the real `Solo2Kiosk` (follow mode), and it hits concern 1.
    (concerns 1 and 2 are unobserved); `stepFade` when
    `sameCameraFadeS > preludeStepS` has one line of coverage.
 
-**Into the phases:** concerns 1 and 2 are phase C acceptance criteria
-(and a heads-up to the camera-run branch, sent 2026-09-05). Concern 3 is a
+**Into the phases:** concerns 1 and 2 were sent to the camera-run session
+2026-09-05 and are fixed in PR #145 (§10); they stay phase C acceptance
+criteria so the lifted hook cannot regress them. Concern 3 is a
 one-line change in phase A. Concern 6's `Solo2Kiosk` current-change test
 lands with phase C.
