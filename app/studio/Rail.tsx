@@ -1,6 +1,6 @@
 'use client';
 
-import { Fragment, type CSSProperties, type ReactNode } from 'react';
+import { Fragment, useState, type CSSProperties, type ReactNode } from 'react';
 import type { StudioSettingsApi } from './useStudioSettings';
 import type { StudioSurface } from './surfaces';
 import { SHARED_NAMESPACE } from '@/app/lib/settings/sharedSchema';
@@ -44,6 +44,9 @@ const CAPTION_GROUP = {
 
 /** A mosaic version has as many sections as its schema names, all one colour. */
 const MOSAIC_COLOR = '#4a90d9';
+
+/** A section a version's schema names that this rail has no colour for. */
+const EXTRA_COLOR = '#8b95a7';
 
 const mono = 'ui-monospace, SFMono-Regular, Menlo, monospace';
 
@@ -107,15 +110,19 @@ function Control({ knob, value, differs, onChange }: {
 /**
  * A group's coloured bar: its name, its hint, and the reset for its section.
  * `asSummary` makes it a collapsible group's `<summary>` — the reset button
- * inside one has to swallow its click, or resetting a section would fold it.
+ * inside one has to swallow its click, or resetting a section would fold it,
+ * and the bar draws its own caret because a flex `<summary>` loses the
+ * browser's disclosure triangle.
  */
-function GroupHeader({ title, color, hint, section, onReset, asSummary = false }: {
+function GroupHeader({ title, color, hint, section, onReset, asSummary = false, open = false }: {
   title: string;
   color: string;
   hint: string;
   section: string;
   onReset: () => void;
   asSummary?: boolean;
+  /** Only read when `asSummary`: which way the caret points. */
+  open?: boolean;
 }) {
   const style: CSSProperties = {
     margin: '10px 0 6px', fontSize: 11, letterSpacing: '.06em', textTransform: 'uppercase',
@@ -125,7 +132,10 @@ function GroupHeader({ title, color, hint, section, onReset, asSummary = false }
   };
   const body = (
     <>
-      <span title={hint}>{title}</span>
+      <span title={hint}>
+        {asSummary && <span aria-hidden style={{ marginRight: 6 }}>{open ? '▾' : '▸'}</span>}
+        {title}
+      </span>
       <button type="button"
         onClick={(e) => {
           if (asSummary) {
@@ -174,6 +184,13 @@ export function Rail({ api, surface, tab, onTab, runFrames = 1, children }: {
     ? { dwellS: soloDials.dwellS, leadS: (soloDials as Partial<Solo2Dials>).leadS ?? 0 }
     : null;
   const page: RailTab = surface.hasPicturePage ? tab : 'play';
+  // A solo schema is expected to sort into glass and bins, but a knob in any
+  // other section has to land somewhere: a plain grey group after the two,
+  // rather than nowhere at all.
+  const soloExtras = sectionsOf(surface.schema).filter((s) => !(s in SOLO_GROUPS));
+  // Which collapsible groups are open. Unvisited sections fall back to
+  // "the first one", so the rail opens the same way it always did.
+  const [opened, setOpened] = useState<Record<string, boolean>>({});
 
   const knob = (k: KnobDescriptor, target: { ns: string; values: SettingsValues; diff: Set<string> }) => (
     <Fragment key={k.key}>
@@ -206,13 +223,25 @@ export function Rail({ api, surface, tab, onTab, runFrames = 1, children }: {
           {surface.schema.filter((k) => k.section === section).map((k) => knob(k, { ns, values, diff }))}
         </section>
       ))}
-      {page === 'play' && surface.kind === 'mosaic' && sectionsOf(surface.schema).map((section, i) => (
-        <details key={section} open={i === 0}>
-          <GroupHeader asSummary title={cap(section)} color={MOSAIC_COLOR} hint={`The ${section} dials.`}
+      {page === 'play' && surface.kind === 'solo' && soloExtras.map((section) => (
+        <section key={section}>
+          <GroupHeader title={cap(section)} color={EXTRA_COLOR} hint={`The ${section} dials.`}
             section={section} onReset={() => api.resetSection(ns, section)} />
           {surface.schema.filter((k) => k.section === section).map((k) => knob(k, { ns, values, diff }))}
-        </details>
+        </section>
       ))}
+      {page === 'play' && surface.kind === 'mosaic' && sectionsOf(surface.schema).map((section, i) => {
+        const open = opened[section] ?? i === 0;
+        return (
+          <details key={section} open={open}
+            onToggle={(e) => setOpened((o) => ({ ...o, [section]: e.currentTarget.open }))}>
+            <GroupHeader asSummary open={open} title={cap(section)} color={MOSAIC_COLOR}
+              hint={`The ${section} dials.`}
+              section={section} onReset={() => api.resetSection(ns, section)} />
+            {surface.schema.filter((k) => k.section === section).map((k) => knob(k, { ns, values, diff }))}
+          </details>
+        );
+      })}
       {page === 'picture' && (
         <section>
           <GroupHeader {...CAPTION_GROUP} section={CAPTION_SECTION}

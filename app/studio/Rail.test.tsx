@@ -59,6 +59,24 @@ describe('Rail, solo kind', () => {
     render(<Rail api={api()} surface={STUDIO_SURFACES.solo2} tab="play" onTab={noop} runFrames={3} />);
     expect(screen.getByTestId('dwell-budget')).toBeInTheDocument();
   });
+  it('a solo knob in a section beyond glass and bins still lands under a group of its own', () => {
+    const extra = {
+      key: 'zzz', kind: 'boolean', default: false,
+      label: 'zzz dial', section: 'extra', description: 'a knob the rail has no colour for',
+    } as const;
+    const schema = [...STUDIO_SURFACES.solo.schema, extra];
+    const surface = { ...STUDIO_SURFACES.solo, schema };
+    const a = api({
+      effective: (ns) => ns === 'shared'
+        ? mergeSettings(SHARED_SCHEMA, { activeVersion: 'solo2', panelPreset: 'dell' })
+        : mergeSettings(schema, {}),
+    });
+    render(<Rail api={a} surface={surface} tab="play" onTab={noop} />);
+    expect(screen.getByText('Extra')).toBeInTheDocument();
+    expect(screen.getByLabelText('zzz dial')).toBeInTheDocument();
+    fireEvent.click(screen.getByText('reset extra'));
+    expect(a.resetSection).toHaveBeenCalledWith('solo', 'extra');
+  });
   it('the tab click reports the other page', () => {
     const onTab = vi.fn();
     render(<Rail api={api()} surface={STUDIO_SURFACES.solo} tab="play" onTab={onTab} />);
@@ -86,5 +104,19 @@ describe('Rail, mosaic kind', () => {
     fireEvent.click(screen.getByText(`reset ${first}`));
     expect(a.resetSection).toHaveBeenCalledWith('v4', first);
     expect(screen.getAllByRole('group')[0]).toHaveAttribute('open');
+  });
+  it('a closed section opens on a click of its summary, and its caret turns down', () => {
+    render(<Rail api={api()} surface={STUDIO_SURFACES.v4} tab="play" onTab={noop} />);
+    const summaryOf = (i: number) => screen.getAllByRole('group')[i].querySelector('summary')!;
+    expect(summaryOf(0)).toHaveTextContent('▾');
+    expect(summaryOf(1)).toHaveTextContent('▸');
+    fireEvent.click(summaryOf(1));
+    expect(screen.getAllByRole('group')[1]).toHaveAttribute('open');
+    // jsdom opens the <details> on the click but queues its `toggle` event as
+    // a task, so nothing has reached React yet; a browser fires the same
+    // event a tick later. Deliver it here so the caret's source is asserted.
+    fireEvent(screen.getAllByRole('group')[1], new Event('toggle', { bubbles: true }));
+    expect(summaryOf(1)).toHaveTextContent('▾');
+    expect(summaryOf(0)).toHaveTextContent('▾');
   });
 });
