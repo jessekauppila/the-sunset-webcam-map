@@ -41,7 +41,9 @@ const clock = (e: EntryView) => formatTime('12h', e.capturedAt, e.timezone, null
  * above the chosen one in capture order, each its own light box with its
  * local time, all inside one bin-coloured border, so a dwell that plays
  * several pictures reads as one box. With `rowS` the row is as tall as the
- * time it gets on glass.
+ * time it gets on glass. Dimming means the frame will not be shown (it is
+ * below a floor); a repeat IS shown again, so it keeps full strength and a
+ * red tag says so.
  */
 export function EntryRow({
   entry: e, feed, place, onGlass = false, repeat = false, cameraIndex, role, sequence, rowS, preluded = false, onClick,
@@ -85,7 +87,7 @@ export function EntryRow({
       border: grouped ? `1px solid ${LIGHT}` : `1.5px solid ${COLOR[e.bin]}`,
       minHeight: grouped ? Math.max(0, sequence.holdS * PX_PER_S) : rowS !== undefined ? rowS * PX_PER_S : undefined,
       background: '#0e1119', fontFamily: mono, fontSize: 9.5, color: '#9aa3b2', cursor: 'pointer',
-      opacity: !e.eligible || repeat ? 0.45 : 1, boxShadow: grouped ? undefined : ring,
+      opacity: e.eligible ? 1 : 0.45, boxShadow: grouped ? undefined : ring,
     }}>
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src={e.imageUrl} alt="" style={{ width: 46, aspectRatio: '16/9', objectFit: 'cover', borderRadius: 3, display: 'block' }} />
@@ -93,10 +95,11 @@ export function EntryRow({
         <span style={{ fontWeight: e.tally > 0 ? 800 : 500, color: e.tally > 0 ? '#e5e7eb' : '#6b7280' }}>
           shown ×{e.tally}
         </span>
-        {' · '}{scores}{repeat ? ' · repeat' : ''}
+        {' · '}{scores}
         <div style={{ marginTop: 2 }}>
           {e.isNew && <Tag bg="#f5a344" fg="#1a1000" title="Newer frame from a camera already in the bin">NEW</Tag>}
           {!e.eligible && <Tag bg="#3a4356" fg="#e5e7eb" title="Below the floor dial">FLOOR</Tag>}
+          {repeat && <Tag bg="#8b2e2e" fg="#ffe1e1" title="Already earlier in this queue; the rest dial let it come round again">REPEAT</Tag>}
           {cameraIndex && (
             <Tag bg="#7ea6e2" fg="#061224" title="Same camera as another queue entry">{`CAM ${cameraIndex.n}/${cameraIndex.m}`}</Tag>
           )}

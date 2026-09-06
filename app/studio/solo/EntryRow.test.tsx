@@ -1,5 +1,5 @@
 import { it, expect, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, cleanup } from '@testing-library/react';
 import { EntryRow, MIN_FRAME_PX, PX_PER_S } from './EntryRow';
 
 const e = {
@@ -17,11 +17,14 @@ it('shows tally first, scores, place, and the tags', () => {
   expect(screen.getByText(/Lisbon, Portugal/)).toBeInTheDocument();
 });
 
-it('marks ineligible frames FLOOR and repeats as repeat', () => {
+it('dims an ineligible frame and tags it FLOOR; a repeat keeps full strength and is tagged REPEAT', () => {
   render(<EntryRow entry={{ ...e, eligible: false, isNew: false }} feed="sunset" place="sunset" onClick={vi.fn()} />);
   expect(screen.getByText('FLOOR')).toBeInTheDocument();
+  expect(screen.getByRole('button')).toHaveStyle({ opacity: '0.45' });
+  cleanup();
   render(<EntryRow entry={e} feed="sunset" place="queue" repeat onClick={vi.fn()} />);
-  expect(screen.getByText(/repeat/)).toBeInTheDocument();
+  expect(screen.getByText('REPEAT')).toBeInTheDocument();
+  expect(screen.getByRole('button')).toHaveStyle({ opacity: '1' });
 });
 
 it('non-sunset rows show only detection, and a click reports the entry', () => {
