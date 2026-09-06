@@ -99,9 +99,9 @@ describe('useStudioSettings', () => {
   });
 
   it('setKnob no-ops (no PATCH) when called with the current effective value, but a genuinely different value still PATCHes', async () => {
-    // Guards against leva's echo: it re-fires onChange on every
-    // deps-driven resync (e.g. after revert()), calling setKnob with the
-    // value each control already has. That must not schedule a PATCH.
+    // Guards against a control echoing its own value back on a resync
+    // (e.g. after revert()), calling setKnob with the value it already
+    // has — the leva rail this replaced did. That must not schedule a PATCH.
     const getResponse = settingsResponse({ floorPx: 140 }, {});
     fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
       if (!init || (!init.method && url === '/api/kiosk/settings')) {

@@ -58,4 +58,4 @@ sibling copy is not a preview.
 
 After this change the previously deployed `pictureHeight: 92` in the `solo`
 rows is inert; the glass falls back to the mockup default 87 until the shared
-caption is dialled and deployed from /studio/solo.
+caption is dialled and deployed from /studio.

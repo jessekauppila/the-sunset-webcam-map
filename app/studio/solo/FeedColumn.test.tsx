@@ -20,7 +20,7 @@ const view = (dials = D) => buildStateView({
 
 it('draws the on-glass frame at the top of the queue and keeps queued frames out of the bins', () => {
   const v = view();
-  render(<FeedColumn feed="sunset" server={v} projected={v} liveDials={D} studioDials={D} nowMs={5_000} onSelect={vi.fn()} />);
+  render(<FeedColumn feed="sunset" server={v} projected={v} liveDials={D} nowMs={5_000} onSelect={vi.fn()} />);
   // Sunset boundaries sit at 10 s, 30 s, … (offset 10): at 5 s the next is 5 s away.
   expect(screen.getByText(/next frame in/).textContent).toContain('5 s');
   expect(screen.getByText(/Sunset bin · 1 waiting/)).toBeInTheDocument(); // frame 4 (below floor) waits
@@ -31,7 +31,7 @@ it('draws the on-glass frame at the top of the queue and keeps queued frames out
 
 it('each bin is three labelled stages with counts, even when a stage is empty', () => {
   const v = view();
-  render(<FeedColumn feed="sunset" server={v} projected={v} liveDials={D} studioDials={D} nowMs={5_000} onSelect={vi.fn()} />);
+  render(<FeedColumn feed="sunset" server={v} projected={v} liveDials={D} nowMs={5_000} onSelect={vi.fn()} />);
   // Frame 4 (rating 1.4) is under the sunset floor; nothing rests; both bins render all three labels.
   expect(screen.getAllByText('IN LINE · 0')).toHaveLength(2);
   expect(screen.getAllByText('RESTING · 0')).toHaveLength(2);
@@ -44,7 +44,7 @@ it('each bin is three labelled stages with counts, even when a stage is empty', 
 it('the tape sits under the heading and above the bins with the server past and the projected next, and the button folds it away', () => {
   const v = view();
   const past = { ...v.bins.sunset[0], snapshotId: 2, imageUrl: 'u2', title: 'cam2', slot: 1, shownAt: 0 };
-  render(<FeedColumn feed="sunset" server={{ ...v, tape: [past] }} projected={v} liveDials={D} studioDials={D} nowMs={5_000} onSelect={vi.fn()} />);
+  render(<FeedColumn feed="sunset" server={{ ...v, tape: [past] }} projected={v} liveDials={D} nowMs={5_000} onSelect={vi.fn()} />);
   const tape = screen.getByTestId('tape');
   expect(screen.getByTestId('tape-past-2-1')).toBeInTheDocument();
   expect(screen.getByTestId('tape-current')).toBeInTheDocument();
@@ -66,7 +66,7 @@ it('says so when the studio dials would draw a different next frame than the gla
   // the message when they do, and on its absence when they do not, so the test
   // documents the rule rather than a coincidence.
   const expectMessage = server.next[0].snapshotId !== projected.next[0].snapshotId;
-  render(<FeedColumn feed="sunset" server={server} projected={projected} liveDials={D} studioDials={D} nowMs={0} onSelect={vi.fn()} />);
+  render(<FeedColumn feed="sunset" server={server} projected={projected} liveDials={D} nowMs={0} onSelect={vi.fn()} />);
   if (expectMessage) expect(screen.getByText(/projected with studio dials/)).toBeInTheDocument();
   else expect(screen.queryByText(/projected with studio dials/)).toBeNull();
 });
@@ -74,7 +74,7 @@ it('says so when the studio dials would draw a different next frame than the gla
 it('with nothing on glass the queue starts at the projection', () => {
   const v = buildStateView({ feed: 'sunrise', dials: D, entries: [entry(9, 'sunset', 0.9)], screen: null, nowMs: 0,
     admitted: { sunset: 0, nonSunset: 0 }, zone: { minDeg: -24, maxDeg: -2 } });
-  render(<FeedColumn feed="sunrise" server={v} projected={v} liveDials={D} studioDials={D} nowMs={0} onSelect={vi.fn()} />);
+  render(<FeedColumn feed="sunrise" server={v} projected={v} liveDials={D} nowMs={0} onSelect={vi.fn()} />);
   expect(screen.getAllByText('cam9').length).toBeGreaterThan(0);
 });
 
@@ -88,7 +88,7 @@ it('solo2 with valleys tags queued draws PEAK and VALLEY', async () => {
   const v = buildStateView({ feed: 'sunrise', dials: d2, entries: es,
     screen: { feed: 'sunrise', currentSnapshotId: 1, shownSince: 0, slot: 0, sunsetStreak: 1 },
     nowMs: 0, admitted: { sunset: 0, nonSunset: 0 }, zone: { minDeg: -24, maxDeg: -2 }, version: SOLO_VERSIONS.solo2 });
-  render(<FeedColumn feed="sunrise" server={v} projected={v} liveDials={d2} studioDials={d2} nowMs={0} version={SOLO_VERSIONS.solo2} onSelect={vi.fn()} />);
+  render(<FeedColumn feed="sunrise" server={v} projected={v} liveDials={d2} nowMs={0} version={SOLO_VERSIONS.solo2} onSelect={vi.fn()} />);
   expect(screen.getAllByText('VALLEY').length).toBeGreaterThan(0);
   expect(screen.getAllByText('PEAK').length).toBeGreaterThan(0);
 });
@@ -107,7 +107,7 @@ it('solo2 with the camera run on shows one box per camera, in the queue and in t
     screen: { feed: 'sunrise', currentSnapshotId: 3, shownSince: 0, slot: 0, sunsetStreak: 1 },
     nowMs: 0, admitted: { sunset: 0, nonSunset: 0 }, zone: { minDeg: -24, maxDeg: -2 }, version: SOLO_VERSIONS.solo2 });
   const onSelect = vi.fn();
-  render(<FeedColumn feed="sunrise" server={v} projected={v} liveDials={d2} studioDials={d2} nowMs={0} version={SOLO_VERSIONS.solo2} onSelect={onSelect} />);
+  render(<FeedColumn feed="sunrise" server={v} projected={v} liveDials={d2} nowMs={0} version={SOLO_VERSIONS.solo2} onSelect={onSelect} />);
   const groups = screen.getAllByRole('group');
   // The on-glass box is camera 7 oldest to newest with the count on the first picture; camera 9 is a box of two.
   expect(groups[0]).toHaveTextContent(/1\/3 · 6:58 pm.*2\/3 · 7:14 pm.*3\/3.*cam3/s);
@@ -133,7 +133,7 @@ it('solo2 with the camera run off lists every frame for itself', async () => {
   const es = [entry(1, 'sunset', 0.6, 7), entry(2, 'sunset', 0.9, 7)];
   const v = buildStateView({ feed: 'sunrise', dials: d2, entries: es, screen: null,
     nowMs: 0, admitted: { sunset: 0, nonSunset: 0 }, zone: { minDeg: -24, maxDeg: -2 }, version: SOLO_VERSIONS.solo2 });
-  render(<FeedColumn feed="sunrise" server={v} projected={v} liveDials={d2} studioDials={d2} nowMs={0} version={SOLO_VERSIONS.solo2} onSelect={vi.fn()} />);
+  render(<FeedColumn feed="sunrise" server={v} projected={v} liveDials={d2} nowMs={0} version={SOLO_VERSIONS.solo2} onSelect={vi.fn()} />);
   expect(screen.queryByRole('group')).toBeNull();
   expect(screen.getAllByText('cam1').length).toBeGreaterThan(0);
   expect(screen.getAllByText('cam2').length).toBeGreaterThan(0);

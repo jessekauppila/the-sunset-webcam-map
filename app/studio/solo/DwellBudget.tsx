@@ -11,7 +11,7 @@ const mono = 'ui-monospace, SFMono-Regular, Menlo, monospace';
  */
 export function DwellBudget({ dials, frames = 1 }: { dials: PlanDials; frames?: number }) {
   return (
-    <div title="How the dwell splits for the camera on glass: every frame of its run gets an even share, and the lead runs over the last seconds." style={{
+    <div data-testid="dwell-budget" title="How the dwell splits for the camera on glass: every frame of its run gets an even share, and the lead runs over the last seconds." style={{
       fontFamily: mono, fontSize: 11, padding: '4px 4px 0', color: '#8b95a7',
     }}>
       {describePlan(fitPlan(dials, frames))}

@@ -52,7 +52,7 @@ export function useLoadedTiles(
     const noPreviewCount = webcams.length - withPreview.length;
 
     if (withPreview.length === 0) {
-      // Bail out instead of always writing a fresh object. PreviewPane hands
+      // Bail out instead of always writing a fresh object. MosaicPreview hands
       // us a brand-new `[]` on every render while a scene is still resolving,
       // and an unconditional setState there is an infinite render loop:
       // effect -> new state object -> re-render -> new array -> effect.
