@@ -31,7 +31,7 @@ export function useSoloState(feed: Feed, studioDials: SoloDials, version: SoloVe
       : null;
     return buildStateView({
       feed, dials: studioDials, entries: data.entries, screen, nowMs: Date.now(),
-      admitted: data.lastPull.admitted, zone: data.zone, version,
+      admitted: data.lastPull.admitted, zone: data.zone, version, tape: data.tape,
     });
   }, [data, feed, studioDials, version]);
   return { server: data, projected, error: error ? String(error) : undefined };

@@ -61,6 +61,17 @@ describe('buildStateView', () => {
     expect(kinds[kinds.length - 1]).toBe('underFloor');
     expect(v.current?.entry.stage).toEqual({ kind: 'onGlass' });
   });
+  it('passes the draw log through as tape, oldest first, and defaults to empty', () => {
+    const entries = [stored(1, 'sunset', 0.9)];
+    const tape = [
+      { slot: 1, snapshotId: 5, shownAt: 20_000, imageUrl: 'u5', title: 'a', city: '', country: '', bin: 'sunset' as const },
+      { slot: 2, snapshotId: 6, shownAt: 40_000, imageUrl: 'u6', title: 'b', city: '', country: '', bin: null },
+    ];
+    const v = buildStateView({ feed: 'sunset', dials: D, entries, screen: null, nowMs: 0, admitted: { sunset: 0, nonSunset: 0 }, zone: ZONE, tape });
+    expect(v.tape.map((f) => f.snapshotId)).toEqual([5, 6]);
+    const bare = buildStateView({ feed: 'sunset', dials: D, entries, screen: null, nowMs: 0, admitted: { sunset: 0, nonSunset: 0 }, zone: ZONE });
+    expect(bare.tape).toEqual([]);
+  });
   it('current comes from the screen row and is excluded from next', () => {
     const entries = [stored(1, 'sunset', 0.9, 1), stored(2, 'sunset', 0.8)];
     const v = buildStateView({ feed: 'sunset', dials: D, entries,

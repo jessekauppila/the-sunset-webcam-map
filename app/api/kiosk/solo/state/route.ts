@@ -6,11 +6,11 @@ import { mergeSettings } from '@/app/lib/settings/schema';
 import { SHARED_NAMESPACE } from '@/app/lib/settings/sharedSchema';
 import { withCaption } from '@/app/lib/solo/captionSchema';
 import { resolveSoloVersion } from '@/app/lib/solo/versions';
-import { countAdmittedSince, getScreenState, getSweptZone, listActiveEntries } from '@/app/lib/solo/store';
+import { countAdmittedSince, getScreenState, getSweptZone, listActiveEntries, listRecentDraws } from '@/app/lib/solo/store';
 import { isFlagEnabled, SWEEP_FORCE_DAY_RING } from '@/app/lib/runtimeFlags';
 import { sweepGeometry } from '@/app/api/cron/update-cameras/lib/sweepGeometry';
 import { TERMINATOR_DAY_SIDE_OFFSETS_DEG } from '@/app/lib/masterConfig';
-import { buildStateView, parseFeed, toViewEntry } from '../view';
+import { buildStateView, parseFeed, TAPE_PAST, toViewEntry } from '../view';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -42,12 +42,13 @@ export async function GET(request: NextRequest) {
   ));
 
   const nowMs = Date.now();
-  const [entries, screen, admitted, sweptZone, forcedDayRing] = await Promise.all([
+  const [entries, screen, admitted, sweptZone, forcedDayRing, tape] = await Promise.all([
     listActiveEntries(feed),
     getScreenState(feed),
     countAdmittedSince(feed, nowMs - LAST_PULL_WINDOW_MS),
     getSweptZone(),
     isFlagEnabled(SWEEP_FORCE_DAY_RING),
+    listRecentDraws(feed, TAPE_PAST),
   ]);
   // The zone the cron last aged entries against (binAdmission.maintainBins),
   // escalation rings included. Until the cron has recorded one, the
@@ -55,6 +56,6 @@ export async function GET(request: NextRequest) {
   const geometry = sweepGeometry(forcedDayRing ? TERMINATOR_DAY_SIDE_OFFSETS_DEG : []);
   const zone = sweptZone ?? { minDeg: geometry.coverageMinDeg, maxDeg: geometry.coverageMaxDeg };
   return NextResponse.json(buildStateView({
-    feed, dials, entries: entries.map(toViewEntry), screen, nowMs, admitted, zone, version,
+    feed, dials, entries: entries.map(toViewEntry), screen, nowMs, admitted, zone, version, tape,
   }));
 }
