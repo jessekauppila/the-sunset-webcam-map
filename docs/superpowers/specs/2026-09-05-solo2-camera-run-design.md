@@ -1,7 +1,7 @@
 # solo2 — the camera run, a playing preview, and the caption locked on centre
 
 **Date:** 2026-09-05
-**Status:** approved in conversation by Jesse, building on `feat/solo2-camera-run`.
+**Status:** built; PR #145 (`feat/solo2-camera-run`), awaiting Jesse's signed-in look and merge.
 **Amends:** `2026-09-04-solo2-rhythm-design.md` §4.1, §4.2, §4.4, §5.4;
 `2026-09-04-solo-kiosk-design.md` §2 (the unit) for `solo2` only.
 **Coordinates with:** `2026-09-05-one-studio-design.md` (branch
