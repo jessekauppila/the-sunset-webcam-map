@@ -408,5 +408,82 @@ Then update §8's file list to match and start.
 - Preview: the solo2 surface mounts `Solo2Frame`; `useSoloPreview` advances
   through the projected order on a fake clock and never calls the advance
   route.
+- Preview, from Appendix A: on a boundary the preview sets `current` and
+  `startMs` in one update (no backwards prelude, no scale snap); `previous`
+  is right on the first render of a new dwell (underlay, transition kind
+  and prelude plan agree between render 1 and render 2).
 - Redirects: `/studio/solo` and `/studio/solo2` respond 307 to `/studio`.
 - Existing suites keep passing; `leva` removal is checked by `npm run build`.
+
+## Appendix A — solo2 feature audit (2026-09-05, code on `main` at 02d25604b)
+
+Jesse asked for this as part of the consolidation: "make sure the solo2
+component features are doing what we think they are." Read-only audit of
+`app/lib/solo2/`, `app/components/solo2/`, `app/lib/solo/versions.ts`, the
+solo API routes and their tests, against the solo2 spec. Suites run:
+8 files, 58 tests, all passing. The prelude rows are about to be replaced
+by the camera-run branch (§10); the rest stands.
+
+| feature | dials (default) | verdict |
+|---|---|---|
+| valleys-per-peak rhythm; valleys = 0 is solo | `valleys` (0) | works as specified; three fixtures prove valleys 0 ≡ solo (`engine.test.ts`) |
+| screens together / alternate | `screens` (together) | works as specified |
+| anticipation lead | `leadS` (0), `leadScale` (1.03) | works, differs from spec: a 250 ms stepped transform smoothed by a 260 ms transition rather than one CSS animation with a negative delay. Fine at 1.03 over ≥ 2 s; a 0.5 s lead is two steps |
+| prelude, cap, "counts as shown" | `prelude` (off), `preludeFrames` (3), `preludeStepS` (1.5) | sequence and cap work as specified. "Counts as shown" is **studio-only**: the PRELUDE tag exists, nothing touches tally or `lastShownAt` for prelude frames. Superseded by camera-run |
+| camera-change transition + same-camera fade | `transition` (dip), `fadeS` (1.5), `sameCameraFadeS` (1.5) | works as specified: dip is fade/2 down + fade/2 up, same camera never dips, in-prelude dissolve is min(fade, step) |
+| local-time caption | `timeStyle` in the **shared** caption schema | works, differs from spec: default is `12h-there`, spec says `12h`, and the test blesses the schema value. It is no longer a solo2 dial; solo draws it too |
+| dwell / offset / fade inherited | `dwellS`, `offsetS` from solo, `fadeS` re-defaulted 1.5 | works; the studio's row height uses the projected (studio) dwell, which is right |
+| `previous` at fade start | — | present in solo2 as in solo (concern 2), untested |
+| routes pick the engine | `?version=` / body `version` | works; previewing solo2 while the glass runs solo shows solo2's queue under solo's on-glass frame, by design |
+
+Every solo2 dial and every caption key has a reader. No spec feature lacks
+a dial (`MIN_HOLD_S = 3` is a constant in both). `EntryRow` hard-codes
+`12h` for row times regardless of `timeStyle`.
+
+**What the studio shows that the glass does not do:** `GlassPreview`
+renders `SoloFrame` with no previous frame and no fade for both solo
+studios, so on `/studio/solo2` the screens never show the prelude, the
+lead push, dip or crossfade, the same-camera dissolve, or the caption
+mounting after the prelude. The queue column is the only place roles and
+preludes are visible. The mosaic studio's `PreviewPane` is the one surface
+that mounts the real `Solo2Kiosk` (follow mode), and it hits concern 1.
+
+### Concerns, by severity
+
+1. **Follow mode replays the old frame's prelude at every boundary**
+   (`app/components/solo/useSoloGlass.ts:83-107`,
+   `app/components/solo2/index.tsx:52`). When the renderer is not driving
+   (studio preview, or the glass while dozing) the boundary timer ticks
+   without advancing, `boundaryMs` jumps a dwell forward, `startMs` moves,
+   and the still-current frame snaps from scale 1.03 to 1.0 and dissolves
+   backwards to its first prelude frame until the next state refresh. The
+   driven glass is fine because current and startMs change in one render.
+   **This becomes a real bug the moment a preview feeds `Solo2Frame` from a
+   client-side clock**, which is exactly phase C and the camera-run
+   branch's playing preview. Phase C must set `current` and `startMs` in
+   the same state update.
+2. **`previous` is one render stale** (`app/components/solo2/index.tsx:38-45`,
+   set in a trailing effect). The first render of a new dwell computes the
+   transition kind, the underlay image and the prelude plan against the
+   frame two dwells back. Effects: the underlay paints the wrong picture
+   for one frame at the start of a dip; a same-camera arrival can pick
+   `dip` on render 1 and flip to `crossfade` on render 2, restarting the
+   animation; the prelude frame count can differ between renders and
+   re-key the stage plan. Fix from the deploy-history spec §3.2 applies
+   verbatim: derive `previous` in the same state update. No test changes
+   `current` on `Solo2Kiosk`, so nothing observes it.
+3. `timeStyle` default drifted from spec (`12h-there` vs `12h`); amend the
+   spec or the default so they agree.
+4. The advance route builds dials without the caption keys while the state
+   route includes them. No consumer reads caption from the advance
+   response today; latent, not a bug.
+5. Lead is stepped at 4 Hz through React rather than one CSS animation.
+   Cosmetic; the CSS form would be smoother and cheaper.
+6. Test gaps: no test drives `Solo2Kiosk` through a `current` change
+   (concerns 1 and 2 are unobserved); `stepFade` when
+   `sameCameraFadeS > preludeStepS` has one line of coverage.
+
+**Into the phases:** concerns 1 and 2 are phase C acceptance criteria
+(and a heads-up to the camera-run branch, sent 2026-09-05). Concern 3 is a
+one-line change in phase A. Concern 6's `Solo2Kiosk` current-change test
+lands with phase C.
