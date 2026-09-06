@@ -7,7 +7,9 @@ import type { Feed, SoloDials } from '@/app/lib/solo/types';
 import type { SoloVersionSpec } from '@/app/lib/solo/versions';
 import { preludePlan } from '@/app/lib/solo2/prelude';
 import type { Solo2Dials } from '@/app/lib/solo2/types';
+import type { Stage } from '@/app/lib/solo/stages';
 import { EntryRow, type Sequence } from './EntryRow';
+import { reasonLine } from './reason';
 
 const mono = 'ui-monospace, SFMono-Regular, Menlo, monospace';
 const LABEL: Record<Feed, string> = { sunrise: 'Sunrise · left screen', sunset: 'Sunset · right screen' };
@@ -23,11 +25,51 @@ function Bin({ color, title, hint, children }: { color: string; title: string; h
   );
 }
 
+const STAGE_LABEL: Record<'inLine' | 'resting' | 'underFloor', string> = {
+  inLine: 'IN LINE', resting: 'RESTING', underFloor: 'UNDER FLOOR',
+};
+const STAGE_HINT: Record<'inLine' | 'resting' | 'underFloor', string> = {
+  inLine: 'Rested and above the floor, in the order the glass will draw them.',
+  resting: 'Shown within the last rest draws; back in line when the count runs out.',
+  underFloor: 'Below the bin\'s floor dial; never drawn until the dial or the score moves.',
+};
+
 /**
- * One feed's two bins and its queue as the STUDIO dials would order them.
- * Every frame appears in exactly one of the three columns; the on-glass
- * frame heads the queue. The screen itself is drawn above, by GlassPreview,
- * so nothing here repeats the picture.
+ * One stage of a bin: an outlined box with the stage name up its left edge
+ * (stages spec §3.2). Stays as a short box when empty so the three stages
+ * never shift.
+ */
+function StageBox({ kind, color, count, children }: {
+  kind: 'inLine' | 'resting' | 'underFloor'; color: string; count: number; children: ReactNode;
+}) {
+  return (
+    <div title={STAGE_HINT[kind]} style={{
+      display: 'grid', gridTemplateColumns: '14px 1fr', gap: 4, border: `1px solid ${color}`, borderRadius: 6,
+      padding: 3, marginBottom: 5, minHeight: 22, background: '#0b0e14',
+    }}>
+      <div style={{
+        writingMode: 'vertical-rl', transform: 'rotate(180deg)', fontSize: 8.5, fontWeight: 700,
+        letterSpacing: '.06em', color, whiteSpace: 'nowrap', textAlign: 'center', fontFamily: mono, cursor: 'help',
+      }}>{`${STAGE_LABEL[kind]} · ${count}`}</div>
+      <div style={{ minWidth: 0 }}>{children}</div>
+    </div>
+  );
+}
+
+const STAGE_KINDS = ['inLine', 'resting', 'underFloor'] as const;
+/** `queued` / `onGlass` never sit in a bin today; the fold keeps the partition total if that changes. */
+const byStage = (rows: EntryView[]) => ({
+  inLine: rows.filter((e) => e.stage.kind === 'inLine' || e.stage.kind === 'queued' || e.stage.kind === 'onGlass'),
+  resting: rows.filter((e) => e.stage.kind === 'resting'),
+  underFloor: rows.filter((e) => e.stage.kind === 'underFloor'),
+});
+
+/**
+ * One feed's two bins, each as three stages (in line, resting, under floor),
+ * and its queue as the STUDIO dials would order them. Every frame appears in
+ * exactly one of the three columns; the on-glass frame heads the queue. The
+ * screen itself is drawn above, by GlassPreview, so nothing here repeats the
+ * picture.
  */
 export function FeedColumn({ feed, server, projected, liveDials, nowMs, version, onSelect }: {
   feed: Feed;
@@ -81,18 +123,32 @@ export function FeedColumn({ feed, server, projected, liveDials, nowMs, version,
       </h3>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1.15fr', gap: 6 }}>
         <Bin color="#7ee2ac" title={`Sunset bin · ${projected.bins.sunset.length} waiting · ${qSun} queued`}
-          hint="Frames the detection head calls a sunset, ordered by rating (1–5). Shown frames sink below unshown ones. Dimmed rows are below the rating floor.">
-          {projected.bins.sunset.map((e) => (
-            <EntryRow key={e.snapshotId} entry={e} feed={feed} place="sunset" onClick={(x) => onSelect(x, feed)}
-              sequence={seqFor(e, null)} rowS={rowS} preluded={preludedInQueue.has(e.snapshotId)} />
-          ))}
+          hint="Frames the detection head calls a sunset. Three stages: in line (draw order), resting, under the rating floor.">
+          {STAGE_KINDS.map((kind) => {
+            const rows = byStage(projected.bins.sunset)[kind];
+            return (
+              <StageBox key={kind} kind={kind} color="#7ee2ac" count={rows.length}>
+                {rows.map((e) => (
+                  <EntryRow key={e.snapshotId} entry={e} feed={feed} place="sunset" reason={reasonLine(e.stage, e, nowMs)}
+                    onClick={(x) => onSelect(x, feed)} sequence={seqFor(e, null)} rowS={rowS} preluded={preludedInQueue.has(e.snapshotId)} />
+                ))}
+              </StageBox>
+            );
+          })}
         </Bin>
         <Bin color="#c3cad6" title={`Non-sunset bin · ${projected.bins.nonSunset.length} waiting · ${qNon} queued`}
-          hint="Frames the detection head does not call a sunset, ordered by sunset probability so 'almost a sunset' is on top. Dimmed rows are below the sunset-probability floor.">
-          {projected.bins.nonSunset.map((e) => (
-            <EntryRow key={e.snapshotId} entry={e} feed={feed} place="non_sunset" onClick={(x) => onSelect(x, feed)}
-              sequence={seqFor(e, null)} rowS={rowS} preluded={preludedInQueue.has(e.snapshotId)} />
-          ))}
+          hint="Frames the detection head does not call a sunset. Three stages: in line (draw order), resting, under the sunset-probability floor.">
+          {STAGE_KINDS.map((kind) => {
+            const rows = byStage(projected.bins.nonSunset)[kind];
+            return (
+              <StageBox key={kind} kind={kind} color="#c3cad6" count={rows.length}>
+                {rows.map((e) => (
+                  <EntryRow key={e.snapshotId} entry={e} feed={feed} place="non_sunset" reason={reasonLine(e.stage, e, nowMs)}
+                    onClick={(x) => onSelect(x, feed)} sequence={seqFor(e, null)} rowS={rowS} preluded={preludedInQueue.has(e.snapshotId)} />
+                ))}
+              </StageBox>
+            );
+          })}
         </Bin>
         <Bin color="#4b5568" title="On glass + next up"
           hint="The play order for this screen, computed from both bins by the five rules with the STUDIO dials. Top row is on glass. Row outline = which bin it came from. A queued frame is no longer in its bin.">
@@ -109,8 +165,11 @@ export function FeedColumn({ feed, server, projected, liveDials, nowMs, version,
             camSeen.set(e.webcamId, n);
             // Flagged when a dwell above this one already played the frame inside its prelude.
             const preluded = queueSeqs.slice(0, i).some((s) => s?.earlier.some((f) => f.snapshotId === e.snapshotId));
+            // A repeat row is a later draw than its stored stage says, so the reason comes from its place in the queue.
+            const stage: Stage = i === 0 && current ? { kind: 'onGlass' } : { kind: 'queued', position: current ? i : i + 1 };
             return (
               <EntryRow key={`${e.snapshotId}-${i}`} entry={e} feed={feed} place="queue" onGlass={i === 0 && !!current}
+                reason={reasonLine(stage, e, nowMs)}
                 repeat={repeat} cameraIndex={m > 1 ? { n, m } : undefined} role={roleOf(i)} onClick={(x) => onSelect(x, feed)}
                 sequence={queueSeqs[i]} rowS={rowS} preluded={preluded} />
             );
