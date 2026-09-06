@@ -77,4 +77,21 @@ describe('Header', () => {
     fireEvent.click(screen.getByTestId('discard-changes'));
     expect(a.revert).not.toHaveBeenCalled();
   });
+  it('the version and panel labels carry their schema description as a hint', () => {
+    const { container } = render(<Header api={api()} nowMs={NOW} />);
+    const versionDesc = SHARED_SCHEMA.find((k) => k.key === 'activeVersion')!.description;
+    const panelDesc = SHARED_SCHEMA.find((k) => k.key === 'panelPreset')!.description;
+    // The glyph is a sibling of the <label>, not a child of it: nesting it
+    // inside would make getByLabelText('version'/'panel') see the label's
+    // text as "version?"/"panel?" (Testing Library's getByLabelText walks
+    // the label's full descendant textContent, ignoring aria-hidden).
+    const versionLabel = container.querySelector('label[for="studio-header-version"]')!;
+    expect(versionLabel).toHaveAttribute('title', versionDesc);
+    expect(container.querySelector('label[for="studio-header-version"] + [data-testid="hint"]'))
+      .toHaveAttribute('title', versionDesc);
+    const panelLabel = container.querySelector('label[for="studio-header-panel"]')!;
+    expect(panelLabel).toHaveAttribute('title', panelDesc);
+    expect(container.querySelector('label[for="studio-header-panel"] + [data-testid="hint"]'))
+      .toHaveAttribute('title', panelDesc);
+  });
 });

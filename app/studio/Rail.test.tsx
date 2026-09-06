@@ -83,6 +83,24 @@ describe('Rail, solo kind', () => {
     fireEvent.click(screen.getByRole('tab', { name: 'Picture' }));
     expect(onTab).toHaveBeenCalledWith('picture');
   });
+  it('every play-page knob label carries a hint glyph whose title is its schema description', () => {
+    const { container } = render(<Rail api={api()} surface={STUDIO_SURFACES.solo2} tab="play" onTab={noop} />);
+    for (const k of SOLO2_SETTINGS_SCHEMA) {
+      // The glyph is a sibling of the <label>, not a child of it: nesting it
+      // inside the label would make getByLabelText(k.label) see "label?" and
+      // stop matching (see the Hint doc comment in Rail.tsx).
+      const hint = container.querySelector(`label[for="rail-${k.key}"] + [data-testid="hint"]`);
+      expect(hint).toHaveAttribute('title', k.description);
+    }
+  });
+  it('the play-page section headers carry a hint glyph matching their own hint', () => {
+    const { container } = render(<Rail api={api()} surface={STUDIO_SURFACES.solo2} tab="play" onTab={noop} />);
+    const headers = container.querySelectorAll('h4');
+    expect(headers.length).toBeGreaterThan(0);
+    headers.forEach((h) => {
+      expect(h.querySelector('[data-testid="hint"]')).toHaveAttribute('title', h.getAttribute('title'));
+    });
+  });
 });
 
 describe('Rail, mosaic kind', () => {

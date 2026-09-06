@@ -50,6 +50,67 @@ const EXTRA_COLOR = '#8b95a7';
 
 const mono = 'ui-monospace, SFMono-Regular, Menlo, monospace';
 
+/**
+ * The visible tooltip affordance. The `title` attributes on labels, section
+ * headers and tabs already carry the explanation, but nothing on the row
+ * signalled that hovering would show one — this glyph is that signal, and
+ * carries its own `title` so hovering it directly also works.
+ *
+ * It is placed as a sibling of a knob's `<label>`, never a child of it,
+ * even though visually it sits right after the label text. Testing
+ * Library's `getByLabelText` walks a `<label>`'s full descendant
+ * `textContent` (unlike `getByText`, which reads only direct text-node
+ * children) and does not honour `aria-hidden` while doing it, so a literal
+ * "?" nested inside the label would silently append to every knob's label
+ * text and break every `getByLabelText(knob.label)` call in this rail —
+ * including in `StudioClient.test.tsx`, which this change may not touch.
+ * `LabeledControl` below does the wrapping so every call site gets this for
+ * free.
+ */
+export function Hint({ text }: { text: string }) {
+  return (
+    <span
+      aria-hidden="true"
+      data-testid="hint"
+      title={text}
+      style={{
+        display: 'inline-block',
+        marginLeft: 5,
+        minWidth: 12,
+        height: 12,
+        lineHeight: '12px',
+        textAlign: 'center',
+        fontSize: 9,
+        fontFamily: mono,
+        color: '#8b95a7',
+        border: '1px solid #2a3242',
+        borderRadius: 999,
+        cursor: 'help',
+        verticalAlign: 'middle',
+      }}
+    >
+      ?
+    </span>
+  );
+}
+
+/** A knob's `<label>` plus its `Hint`, grouped so the two read as one unit
+ * next to the control without the glyph ever becoming a label descendant.
+ * Exported so `Header`'s version/panel labels get the same treatment. */
+export function LabeledControl({ id, description, style, children }: {
+  id: string;
+  description: string;
+  style: CSSProperties;
+  children: ReactNode;
+}) {
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center' }}>
+      <label htmlFor={id} title={description} style={style}>{children}</label>
+      <Hint text={description} />
+    </span>
+  );
+}
+
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 const sectionsOf = (schema: SettingsSchema) => [...new Set(schema.map((k) => k.section))];
 
@@ -79,7 +140,7 @@ function Control({ knob, value, differs, onChange }: {
   if (knob.kind === 'boolean') {
     return (
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '3px 4px' }}>
-        <label htmlFor={id} title={knob.description} style={labelStyle}>{knob.label}</label>
+        <LabeledControl id={id} description={knob.description} style={labelStyle}>{knob.label}</LabeledControl>
         <input id={id} type="checkbox" checked={value as boolean} onChange={(e) => onChange(e.target.checked)} />
       </div>
     );
@@ -87,7 +148,7 @@ function Control({ knob, value, differs, onChange }: {
   if (knob.kind === 'number') {
     return (
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 48px', gap: 6, alignItems: 'center', padding: '3px 4px' }}>
-        <label htmlFor={id} title={knob.description} style={labelStyle}>{knob.label}</label>
+        <LabeledControl id={id} description={knob.description} style={labelStyle}>{knob.label}</LabeledControl>
         <span style={{ fontFamily: mono, fontSize: 12, color: '#e5e7eb', textAlign: 'right' }}>{value}</span>
         <input id={id} type="range" min={knob.min} max={knob.max} step={knob.step} value={value as number}
           onChange={(e) => onChange(Number(e.target.value))} style={{ gridColumn: '1 / 2', width: '100%' }} />
@@ -96,7 +157,7 @@ function Control({ knob, value, differs, onChange }: {
   }
   return (
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 6, padding: '3px 4px' }}>
-      <label htmlFor={id} title={knob.description} style={labelStyle}>{knob.label}</label>
+      <LabeledControl id={id} description={knob.description} style={labelStyle}>{knob.label}</LabeledControl>
       <select id={id} value={value as string} onChange={(e) => onChange(e.target.value)} style={{
         background: '#1a2130', color: '#d7dce6', border: '1px solid #2a3242', borderRadius: 4,
         padding: '2px 6px', fontSize: 12, fontFamily: mono,
@@ -135,6 +196,7 @@ function GroupHeader({ title, color, hint, section, onReset, asSummary = false, 
       <span title={hint}>
         {asSummary && <span aria-hidden style={{ marginRight: 6 }}>{open ? '▾' : '▸'}</span>}
         {title}
+        <Hint text={hint} />
       </span>
       <button type="button"
         onClick={(e) => {
@@ -213,6 +275,7 @@ export function Rail({ api, surface, tab, onTab, runFrames = 1, children }: {
                 border: '1px solid #1d2432', borderRadius: 4,
               }}>
               {t.label}
+              <Hint text={t.hint} />
             </button>
           ))}
         </div>

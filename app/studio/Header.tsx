@@ -9,6 +9,7 @@ import { MapMosaicModeToggle } from '@/app/components/MapMosaicModeToggle';
 import { DeployButton } from './DeployButton';
 import { formatPollAge } from './pollAge';
 import { nextCronMs, formatCountdown } from './solo/countdown';
+import { LabeledControl } from './Rail';
 import type { StudioSettingsApi } from './useStudioSettings';
 
 const mono = 'ui-monospace, SFMono-Regular, Menlo, monospace';
@@ -95,6 +96,10 @@ export function Header({
     mergeSettings(SHARED_SCHEMA, api.live?.namespaces?.shared).activeVersion as string
   );
 
+  const describe = (key: string) => SHARED_SCHEMA.find((k) => k.key === key)?.description ?? '';
+  const versionHint = describe('activeVersion');
+  const panelHint = describe('panelPreset');
+
   const parts = [
     `glass ${liveVersion}`,
     `rev ${api.liveRevision}`,
@@ -129,9 +134,9 @@ export function Header({
       </span>
 
       <span style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 'none' }}>
-        <label htmlFor="studio-header-version" style={labelStyle(sharedDiff.includes('activeVersion'))}>
+        <LabeledControl id="studio-header-version" description={versionHint} style={labelStyle(sharedDiff.includes('activeVersion'))}>
           version
-        </label>
+        </LabeledControl>
         <select
           id="studio-header-version"
           aria-label="version"
@@ -148,9 +153,9 @@ export function Header({
       </span>
 
       <span style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 'none' }}>
-        <label htmlFor="studio-header-panel" style={labelStyle(sharedDiff.includes('panelPreset'))}>
+        <LabeledControl id="studio-header-panel" description={panelHint} style={labelStyle(sharedDiff.includes('panelPreset'))}>
           panel
-        </label>
+        </LabeledControl>
         <select
           id="studio-header-panel"
           aria-label="panel"
