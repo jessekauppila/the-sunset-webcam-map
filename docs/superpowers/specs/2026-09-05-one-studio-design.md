@@ -313,6 +313,13 @@ merged). Before starting phase A, diff the studio files against whatever
   must take #143's version of it, so **merge #143 first** or build A on top
   of it.
 - `feat/solo2-prelude-groups`: check whether anything is still unmerged.
+- `feat/solo2-camera-run` (peer session 51, design stage as of 2026-09-05, not
+  built): replaces solo2's prelude dials with one `camera run` boolean,
+  removes `pictureTop` and `captionAnchor` from the caption, and changes
+  `FeedColumn`/`EntryRow` to one box per camera. Its dwell readout becomes
+  `N frames × step`; the one-line readout under `valleys per peak` (§2.4) is
+  the slot for it. Schema changes need no page change here: the rail reads
+  the schema.
 - A peer session (`a5` in the memory notes) owned `SoloStudioClient`,
   `SoloRail` and `CaptionPreview` on 2026-09-05. Message it before phase A
   deletes `SoloStudioClient`.
