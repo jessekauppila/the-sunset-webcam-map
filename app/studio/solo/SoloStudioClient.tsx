@@ -11,6 +11,7 @@ import { FeedColumn } from './FeedColumn';
 import { SoloStatusStrip } from './SoloStatusStrip';
 import { useSoloState } from './useSoloState';
 import { toWebcam } from './toWebcam';
+import { formatTime } from '@/app/lib/solo/caption';
 import { SOLO_VERSIONS, type SoloVersionSpec } from '@/app/lib/solo/versions';
 import { mergeSettings } from '@/app/lib/settings/schema';
 import { withCaption } from '@/app/lib/solo/captionSchema';
@@ -112,6 +113,12 @@ export function SoloStudioClient({ version = SOLO_VERSIONS.solo as SoloVersionSp
             }}>close</button>
             <div style={{ fontFamily: mono, fontSize: 12, color: '#9aa3b2', marginBottom: 8 }}>
               frame {selected.entry.snapshotId} · {selected.entry.bin === 'sunset' ? 'sunset' : 'non-sunset'} bin · shown ×{selected.entry.tally}
+              {formatTime('12h', selected.entry.capturedAt, selected.entry.timezone, null) && (
+                <> · captured {formatTime('12h', selected.entry.capturedAt, selected.entry.timezone, null)} there</>
+              )}
+              {'shownAt' in selected.entry && typeof selected.entry.shownAt === 'number' && (
+                <> · drawn at {new Date(selected.entry.shownAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</>
+              )}
             </div>
             <FrameLabelCard webcam={toWebcam(selected.entry, selected.feed)} allowCapture={false} />
           </div>

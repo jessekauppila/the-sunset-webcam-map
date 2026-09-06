@@ -165,15 +165,34 @@ bin, shownAt }`. The state route passes `n = 24`.
 
 ### 4.3 Render
 
-`Tape.tsx` in `app/studio/solo/`. Thumbnails 40×22, outlined in bin colour.
-Past frames sit left of a vertical seam, at full strength; the on-glass
-frame carries the orange ring used elsewhere; projected frames sit right of
-the seam with a dashed outline. A frame that already appears earlier on the
-strip gets a thin red top edge, matching the REPEAT tag. Hover gives title,
-place and time for past frames, and draw number for projected ones. The
-strip scrolls horizontally; on load it scrolls so the seam sits at about
-two thirds of the width. Clicking a thumbnail opens the same detail as a
-row. Projected frames use the studio dials, like the queue column.
+`Tape.tsx` in `app/studio/solo/`, mounted at the top of `FeedColumn` under
+the screen heading, with a `tape ▾/▸` button in the heading that folds it
+away (remembered per browser in localStorage). **Width is time**, 3 px per
+second of glass, the way a Final Cut timeline reads:
+
+- Past blocks are fact from the draw log, each as wide as the frame stayed
+  on glass (from the next draw's time, or the current frame's `shownSince`).
+  A frame held past 1.5 dwells because nothing else was eligible reads as a
+  wide block with a small `held` mark; blocks cap at 3 dwells.
+- The frame on glass wears the orange ring; when nothing is on glass a
+  black `blank` block stands in its place.
+- A vertical seam separates fact from projection. Projected blocks are
+  dashed, one dwell wide at the studio dials, in the queue's order.
+- A crossfade is an orange X straddling the cut, as wide as the fade dial
+  (live dials on the left of the seam, studio dials on the right). Fade 0
+  draws nothing.
+- A solo2 dwell with a prelude shows the earlier frames as narrow
+  sub-blocks (one prelude step each) before the chosen frame, inside one
+  dwell. Past preludes are not logged and are not drawn.
+- A frame already seen earlier on the strip carries a thin red top edge,
+  the REPEAT tag's colour.
+- Hover names the frame, its place, the draw time and the time on glass;
+  clicking any block, past included, opens the same detail and rating card
+  as a row. The card names the capture time there and, for a past draw,
+  when it was drawn. To make that possible a tape row is the whole entry,
+  not just an image.
+- On mount and whenever the past grows, the strip scrolls so the seam sits
+  about two thirds across.
 
 The kiosk does not read the tape.
 
@@ -183,7 +202,7 @@ Two PRs, both branched from `main` after #140, #141 and #142 merge, since
 all three touch `engine.ts`, `FeedColumn.tsx` and `EntryRow.tsx`:
 
 - **PR A** — rule 3 (section 2) and staged bins (section 3). No migration.
-- **PR B** — the tape (section 4). Migration applied before merge.
+- **PR B** — the tape (section 4), PR #TBD. Migration `20260906_kiosk_draws.sql` applied before merge.
 
 After each merge: `bash scripts/pi/kiosk-doctor.sh --sync --reload` for
 PR A (the glass runs the engine); PR B is studio-only.
