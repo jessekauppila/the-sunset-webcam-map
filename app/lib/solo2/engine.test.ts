@@ -81,9 +81,16 @@ describe('rhythm', () => {
   });
   it('a valley prefers an unshown frame over a lower-scored one already shown', () => {
     const d = { ...D, valleys: 1 };
-    // Frame 3 has been shown once (never resting: no lastShownAt); rule 3 puts tally before score.
-    const entries = [sun(1, 0.95), sun(2, 0.6), sun(3, 0.58, { tally: 1 })];
+    // Frame 3 was on glass long ago (rested); rule 3 puts never-shown before it.
+    const entries = [sun(1, 0.95), sun(2, 0.6), sun(3, 0.58, { tally: 1, lastShownAt: boundaryMs(-20, 'sunrise', D.dwellS, D.offsetS) })];
     expect(next2(entries, d, S0, 1, 'sunrise')?.snapshotId).toBe(2);
+  });
+  it('a peak prefers the frame longest since shown over a better one shown more recently', () => {
+    const d = { ...D, valleys: 1 };
+    const older = sun(1, 0.6, { tally: 9, lastShownAt: boundaryMs(-20, 'sunrise', D.dwellS, D.offsetS) });
+    const newer = sun(2, 0.95, { tally: 1, lastShownAt: boundaryMs(-10, 'sunrise', D.dwellS, D.offsetS) });
+    // slot 0 is a peak
+    expect(next2([older, newer], d, S0, 0, 'sunrise')?.snapshotId).toBe(1);
   });
   it('rule 4 holds on a valley: never the frame on glass', () => {
     const d = { ...D, valleys: 1 };
