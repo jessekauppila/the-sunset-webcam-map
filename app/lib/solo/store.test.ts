@@ -132,20 +132,23 @@ describe('counts', () => {
 });
 
 describe('draw log (the tape)', () => {
-  it('listRecentDraws returns the last n draws oldest first, with numbers not strings', async () => {
+  it('listRecentDraws returns the last n draws oldest first as whole entries, with numbers not strings', async () => {
     // The query fetches newest first and the function reverses it.
-    sqlMock.mockResolvedValueOnce([
-      { slot: '101', snapshot_id: '8', shown_at: '2026-09-06T01:00:20Z', firebase_url: 'u8', title: 'B', city: 'Nuuk', country: 'Greenland', bin: 'sunset' },
-      { slot: '100', snapshot_id: '7', shown_at: '2026-09-06T01:00:00Z', firebase_url: 'u7', title: 'A', city: '', country: '', bin: null },
-    ]);
+    const row = (slot: string, id: string, shown: string) => ({
+      slot, shown_at: shown, snapshot_id: id, webcam_id: '3', bin: 'sunset', quality: '0.8', detection: '0.9', is_new: false,
+      tally: '2', entered_at: '2026-09-06T00:00:00Z', captured_at: '2026-09-06 00:30:00', first_shown_at: null, last_shown_at: shown,
+      firebase_url: `u${id}`, title: 'B', city: 'Nuuk', region: '', country: 'Greenland', lat: '64.17', lng: '-51.73',
+    });
+    sqlMock.mockResolvedValueOnce([row('101', '8', '2026-09-06T01:00:20Z'), row('100', '7', '2026-09-06T01:00:00Z')]);
     const out = await listRecentDraws('sunset', 24);
     expect(lastQuery()).toMatch(/from kiosk_draws d/);
+    expect(lastQuery()).toMatch(/join kiosk_bin_entries e/);
     expect(lastQuery()).toMatch(/order by d.slot desc/);
     expect(sqlMock.mock.calls.at(-1)!.slice(1)).toEqual(['sunset', 24]);
     expect(out.map((f) => f.snapshotId)).toEqual([7, 8]);
-    expect(out[1]).toEqual({ slot: 101, snapshotId: 8, shownAt: Date.parse('2026-09-06T01:00:20Z'),
-      imageUrl: 'u8', title: 'B', city: 'Nuuk', country: 'Greenland', bin: 'sunset' });
-    expect(out[0].bin).toBeNull();
+    expect(out[1]).toMatchObject({ slot: 101, snapshotId: 8, shownAt: Date.parse('2026-09-06T01:00:20Z'), feed: 'sunset',
+      imageUrl: 'u8', title: 'B', city: 'Nuuk', country: 'Greenland', bin: 'sunset', quality: 0.8, detection: 0.9, tally: 2, webcamId: 3 });
+    expect(out[0].capturedAt).toBe(Date.parse('2026-09-06T00:30:00Z'));
   });
   it('listRecentDraws is empty when the table is missing', async () => {
     sqlMock.mockRejectedValueOnce(new Error('relation "kiosk_draws" does not exist'));

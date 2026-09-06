@@ -297,18 +297,16 @@ export async function commitAdvance(
   return true;
 }
 
-/** One past draw on the studio's tape (stages-and-tape spec §4). */
-export interface TapeFrame {
+/**
+ * One past draw on the studio's tape (stages-and-tape spec §4): the whole
+ * entry, so a click opens the same detail and rating card as a queue row,
+ * plus when it was drawn. Bin rows are only ever marked removed, never
+ * deleted, so the join holds after a camera leaves the zone.
+ */
+export interface TapeFrame extends StoredEntry {
   slot: number;
-  snapshotId: number;
   /** ms since epoch. */
   shownAt: number;
-  imageUrl: string;
-  title: string;
-  city: string;
-  country: string;
-  /** Null once the bin row is gone; the tape then draws a neutral outline. */
-  bin: BinKind | null;
 }
 
 /**
@@ -331,22 +329,19 @@ export async function logDraw(feed: Feed, slot: number, snapshotId: number): Pro
 export async function listRecentDraws(feed: Feed, n: number): Promise<TapeFrame[]> {
   try {
     const rows = (await sql`
-      select d.slot, d.snapshot_id, d.shown_at, s.firebase_url, w.title, w.city, w.country, e.bin
+      select d.slot, d.shown_at,
+             e.snapshot_id, e.webcam_id, e.bin, e.quality, e.detection, e.is_new, e.tally,
+             e.entered_at, e.first_shown_at, e.last_shown_at,
+             s.firebase_url, s.captured_at::text as captured_at, w.title, w.city, w.region, w.country, w.lat, w.lng
       from kiosk_draws d
+      join kiosk_bin_entries e on e.feed = d.feed and e.snapshot_id = d.snapshot_id
       join webcam_snapshots s on s.id = d.snapshot_id
-      join webcams w on w.id = s.webcam_id
-      left join kiosk_bin_entries e on e.feed = d.feed and e.snapshot_id = d.snapshot_id
+      join webcams w on w.id = e.webcam_id
       where d.feed = ${feed}
       order by d.slot desc
       limit ${n}
-    `) as unknown as {
-      slot: string | number; snapshot_id: string | number; shown_at: string; firebase_url: string;
-      title: string | null; city: string | null; country: string | null; bin: BinKind | null;
-    }[];
-    return rows.reverse().map((r) => ({
-      slot: num(r.slot), snapshotId: num(r.snapshot_id), shownAt: Date.parse(r.shown_at),
-      imageUrl: r.firebase_url, title: r.title ?? '', city: r.city ?? '', country: r.country ?? '', bin: r.bin ?? null,
-    }));
+    `) as unknown as (EntryRow & { slot: string | number; shown_at: string })[];
+    return rows.reverse().map((r) => ({ ...toEntry(feed, r), slot: num(r.slot), shownAt: Date.parse(r.shown_at) }));
   } catch (error) {
     console.warn('[solo/store] draw log read failed:', error);
     return [];

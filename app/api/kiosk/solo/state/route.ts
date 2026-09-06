@@ -10,7 +10,7 @@ import { countAdmittedSince, getScreenState, getSweptZone, listActiveEntries, li
 import { isFlagEnabled, SWEEP_FORCE_DAY_RING } from '@/app/lib/runtimeFlags';
 import { sweepGeometry } from '@/app/api/cron/update-cameras/lib/sweepGeometry';
 import { TERMINATOR_DAY_SIDE_OFFSETS_DEG } from '@/app/lib/masterConfig';
-import { buildStateView, parseFeed, TAPE_PAST, toViewEntry } from '../view';
+import { buildStateView, parseFeed, TAPE_PAST, toTapeInput, toViewEntry } from '../view';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -56,6 +56,6 @@ export async function GET(request: NextRequest) {
   const geometry = sweepGeometry(forcedDayRing ? TERMINATOR_DAY_SIDE_OFFSETS_DEG : []);
   const zone = sweptZone ?? { minDeg: geometry.coverageMinDeg, maxDeg: geometry.coverageMaxDeg };
   return NextResponse.json(buildStateView({
-    feed, dials, entries: entries.map(toViewEntry), screen, nowMs, admitted, zone, version, tape,
+    feed, dials, entries: entries.map(toViewEntry), screen, nowMs, admitted, zone, version, tape: tape.map(toTapeInput),
   }));
 }

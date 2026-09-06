@@ -50,11 +50,17 @@ describe('GET /api/kiosk/solo/state', () => {
     expect(body.zone).toEqual({ minDeg: -39.75, maxDeg: 13.75 });
   });
   it('carries the last 24 draws as the tape', async () => {
-    const frame = { slot: 9, snapshotId: 4, shownAt: 1_000, imageUrl: 'u4', title: 't', city: '', country: '', bin: 'sunset' };
+    const frame = {
+      feed: 'sunrise', slot: 9, shownAt: 1_000, snapshotId: 4, webcamId: 2, bin: 'sunset', quality: 0.8, detection: 0.9, isNew: false,
+      tally: 1, enteredAt: 0, firstShownAt: null, lastShownAt: 1_000, imageUrl: 'u4', title: 't', city: '', region: '', country: '',
+      lat: 1, lng: 2, capturedAt: 0, timezone: null, sunAltitudeDeg: null,
+    };
     listRecentDraws.mockResolvedValue([frame]);
     const body = await (await get('?feed=sunrise')).json();
     expect(listRecentDraws).toHaveBeenCalledWith('sunrise', 24);
-    expect(body.tape).toEqual([frame]);
+    expect(body.tape).toHaveLength(1);
+    expect(body.tape[0]).toMatchObject({ slot: 9, shownAt: 1_000, snapshotId: 4, title: 't', stage: { kind: 'inLine', position: null } });
+    expect(body.tape[0]).not.toHaveProperty('lat');
   });
   it('rejects a missing or unknown feed', async () => {
     expect((await get('')).status).toBe(400);
