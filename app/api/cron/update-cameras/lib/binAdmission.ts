@@ -71,7 +71,7 @@ export async function enterBins(
 }
 
 /** The tape keeps a week; the studio reads the last 24 draws. */
-const DRAW_LOG_DAYS = 7;
+const DRAW_LOG_DAYS = 30;
 
 /**
  * Removal is by zone, not by absence. Every active entry is checked against

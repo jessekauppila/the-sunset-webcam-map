@@ -58,7 +58,7 @@ export async function POST(request: Request) {
     if (pick) {
       const after = afterShowing(pick, state);
       const shown = version.shown(entries, pick, dials);
-      advanced = await commitAdvance(feed, slot, pick, after.sunsetStreak, shown);
+      advanced = await commitAdvance(feed, slot, pick, after.sunsetStreak, shown, version.name);
       if (advanced) {
         for (const f of shown) {
           const stored = entries.find((e) => e.snapshotId === f.snapshotId)!;
