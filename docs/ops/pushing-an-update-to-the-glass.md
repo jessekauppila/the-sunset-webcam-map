@@ -109,7 +109,8 @@ what xrandr is actually doing.
    tabs pick it up within a minute and start advancing.
 6. Verify on the glass: `bash scripts/pi/kiosk-doctor.sh --reload` twice,
    30 s apart; the two screenshots must differ AND the frame on each panel
-   must be the "on glass" row in `/studio/solo` for that feed.
+   must be the "on glass" row in `/studio` (pick the version at the top)
+   for that feed.
 
 ### Solo → mosaic (rollback)
 
@@ -133,8 +134,8 @@ settings only, once the build that carries it is on the glass.
 3. In `/studio`: active version = `solo2`. Hold Deploy. Tabs pick it up
    within a minute. Every `solo2` dial starts at `solo`'s behaviour except
    the caption's local time, so the glass looks the same until you tune.
-4. Tune on `/studio/solo2` (valleys, screens, lead, transition, prelude,
-   time). Deploy there.
+4. Tune on `/studio` (pick the version at the top) (valleys, screens, lead,
+   transition, prelude, time). Deploy there.
 5. Back: `/studio`, active version = `solo`. Hold Deploy. The `solo2` dials
    stay where you left them for next time.
 

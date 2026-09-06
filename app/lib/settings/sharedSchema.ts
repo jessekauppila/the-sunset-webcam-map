@@ -15,7 +15,8 @@ const describePanels = (): string =>
  * activeVersion selects which mosaic to render (?v= param default).
  * panelPreset selects the physical screen dimensions for the kiosk.
  * The caption section (captionSchema.ts) is the solo kiosk's caption, one
- * set for every solo version; /studio/solo dials it, /studio hides it.
+ * set for every solo version; /studio dials it when a solo version is
+ * selected, hides it otherwise.
  */
 export const SHARED_SCHEMA: SettingsSchema = [
   {

@@ -217,8 +217,9 @@ frame itself.
 
 ### 4.5 Caption and the time
 
-**place + country** stays. A new **time** dial (enum, default `12h`) sets
-the second line's trailing item:
+**place + country** stays. A new **time** dial (enum, default `12h-there`)
+sets the second line's trailing item (the caption schema's default; the
+spec said 12h, the built default was kept because the glass runs it):
 
 | option | rendered |
 |---|---|

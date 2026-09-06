@@ -1,7 +1,8 @@
 # One studio — design
 
 **Date:** 2026-09-05
-**Status:** proposed, awaiting Jesse's review. Nothing built.
+**Status:** phase A built on feat/one-studio (PR to follow); phases B and C
+follow as stacked PRs.
 **Branch:** `docs/one-studio` (this document only).
 **Builds on:** `2026-08-30-kiosk-studio-control-and-mosaic-v2-design.md`
 (studio/live profiles, Deploy), `2026-09-04-solo-kiosk-design.md` §6.4 (the
@@ -192,7 +193,8 @@ does not redraw them:
 
 Kept as-is in code: `DeployButton`, `DeployHistory` (extended, §4),
 `useStudioSettings`, `StudioPanelFrame`, `FeedColumn`, `EntryRow`,
-`FrameLabelCard` modal, `SaveSceneButton`, `restoreSceneDials`.
+`FrameLabelCard` modal, `SaveSceneButton`, `restoreSceneDials`, `Tape.tsx`,
+`useLoopingStage.ts`.
 
 ## 3. Data flow
 
@@ -308,6 +310,10 @@ New:
   collapsible sections).
 - `app/studio/panels/MosaicPanel.tsx` — pool/gate readout + scene selector.
 - `app/studio/panels/SoloPanel.tsx` — the two `FeedColumn`s.
+- `app/studio/MosaicPreview.tsx` — the mosaic version's preview, split out of
+  `StudioClient` behind the surface lookup.
+- `app/studio/pollAge.ts` — `formatPollAge`, the header status line's "last
+  heard from the kiosk" readout.
 - `app/studio/useSoloPreview.ts` — §5.
 - `database/migrations/2026MMDD_kiosk_takes.sql` — §4.1.
 
@@ -320,7 +326,10 @@ play loop), `app/studio/solo/page.tsx` and `solo2/page.tsx` (redirects).
 Deleted: `StudioRail.tsx`, `levaConfig.ts`, `StatusStrip.tsx`,
 `stripState.ts`, `SoloStatusStrip.tsx`, `RulesBox.tsx`, `DwellBudget.tsx`,
 `railWidth.ts`, most of `PreviewPane.tsx`, `SoloStudioClient.tsx`, the
-`leva` dependency once nothing imports it.
+`leva` dependency once nothing imports it. Their tests went with them:
+`levaConfig.test.ts`, `railWidth.test.ts`, `stripState.test.ts`,
+`StatusStrip.test.tsx`, `PreviewPane.test.tsx`, `SoloRail.test.tsx`,
+`SoloStatusStrip.test.tsx`, `RulesBox.test.tsx`.
 
 ## 9. Phases
 
