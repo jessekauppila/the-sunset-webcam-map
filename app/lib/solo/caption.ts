@@ -200,3 +200,17 @@ export const FONT_STACKS: Record<CaptionFont, string> = {
   serif: 'var(--solo-font-serif), "Source Serif 4", Georgia, "Times New Roman", serif',
   mono: 'var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, monospace',
 };
+
+/**
+ * The still Windy publishes per camera (`images.current.preview`), which is
+ * what the cron stores and every solo frame is drawn from. On a 1920-wide
+ * panel at the default picture height it is blown up about 4×; the studio
+ * says so beside the picture dial rather than letting the softness read as
+ * compression.
+ */
+export const SOURCE_FRAME = { width: 400, height: 224 } as const;
+
+/** How many times larger than the source the picture is drawn: 1 is pixel-for-pixel. */
+export function drawFactor(picture: Pick<Rect, 'width'>, source: { width: number } = SOURCE_FRAME): number {
+  return picture.width / source.width;
+}

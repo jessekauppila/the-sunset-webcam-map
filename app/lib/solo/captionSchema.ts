@@ -28,9 +28,9 @@ export const CAPTION_SCHEMA: SettingsSchema = [
     description: 'Inset: the picture sits smaller on black with the caption beneath it. Overlay: the picture fills the panel and the caption floats over it.',
   },
   {
-    key: 'pictureHeight', kind: 'number', min: 60, max: 100, step: 1, default: 87,
+    key: 'pictureHeight', kind: 'number', min: 20, max: 100, step: 1, default: 87,
     label: 'picture height (%)', section: CAPTION_SECTION,
-    description: 'How tall the inset picture is, as a percent of the panel. It keeps the panel\'s shape and sits centred. The caption never rises into it: a picture too tall for the caption pushes the caption down, and past what the panel can hold, off it.',
+    description: 'How tall the inset picture is, as a percent of the panel. It keeps the panel\'s shape and sits centred. Frames arrive at 400 × 224, so the readout beneath says how far the picture is blown up; 1× is pixel-for-pixel. The caption never rises into the picture: one too tall for the caption pushes the caption down, and past what the panel can hold, off it.',
   },
   {
     key: 'pictureTop', kind: 'number', min: 0, max: 12, step: 0.5, default: 4,

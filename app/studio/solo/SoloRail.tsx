@@ -1,32 +1,50 @@
 'use client';
 
-import type { ReactNode } from 'react';
+import { Fragment, type ReactNode } from 'react';
 import { SOLO_VERSIONS, type SoloVersionSpec } from '@/app/lib/solo/versions';
 import { DwellBudget } from './DwellBudget';
 import type { Solo2Dials } from '@/app/lib/solo2/types';
+import type { SoloDials } from '@/app/lib/solo/types';
 import { SHARED_NAMESPACE } from '@/app/lib/settings/sharedSchema';
 import { CAPTION_SCHEMA, CAPTION_SECTION, withCaption } from '@/app/lib/solo/captionSchema';
+import { SOURCE_FRAME, drawFactor, pictureRect } from '@/app/lib/solo/caption';
+import { PANEL_PRESETS, type PanelSize } from '@/app/kiosk/panelPreview';
 import type { KnobDescriptor, KnobValue } from '@/app/lib/settings/schema';
 import type { StudioSettingsApi } from '../useStudioSettings';
 import { RulesBox } from './RulesBox';
 
-/** The rail's two pages: the glass + bins dials, and the caption dials. */
-export type RailTab = 'dials' | 'caption';
+/** The rail's two pages: what plays and when, and how the picture and its words are drawn. */
+export type RailTab = 'queue' | 'picture';
 const TABS: { id: RailTab; label: string; hint: string }[] = [
-  { id: 'dials', label: 'Dials', hint: 'Timing, overlays and the ordering algorithm.' },
-  { id: 'caption', label: 'Caption', hint: 'The picture\'s frame on black and the words beneath it. The preview draws them as you move.' },
+  { id: 'queue', label: 'Queue', hint: 'Timing, overlays and the ordering algorithm: what plays and when.' },
+  { id: 'picture', label: 'Picture', hint: 'The picture\'s size on black and the words beneath it. The screens above draw them as you move.' },
 ];
 
 const GROUPS = [
-  { section: 'glass', tab: 'dials', title: 'Glass · what the screen draws', color: '#f5a344',
+  { section: 'glass', tab: 'queue', title: 'Glass · what the screen draws', color: '#f5a344',
     hint: 'These change what the screens draw. They never change which frame comes next.' },
-  { section: 'bins', tab: 'dials', title: 'Bins · the ordering algorithm', color: '#4fd1c5',
+  { section: 'bins', tab: 'queue', title: 'Bins · the ordering algorithm', color: '#4fd1c5',
     hint: 'These change which frame comes next. The queue re-runs the moment one moves.' },
-  { section: CAPTION_SECTION, tab: 'caption', title: 'Caption · the picture and its words', color: '#c4a7f7',
+  { section: CAPTION_SECTION, tab: 'picture', title: 'Picture · the frame and its words', color: '#c4a7f7',
     hint: 'Sizes are glass pixels on a 1920-wide panel; grays are percent of white. Shared by every solo version, so the glass draws one caption whichever engine runs. Deploy sends them to the glass like any other dial.' },
 ] as const;
 
 const mono = 'ui-monospace, SFMono-Regular, Menlo, monospace';
+
+/**
+ * How big the picture draws on the shared panel preset, against the 400 × 224
+ * source every frame arrives at. Sits under the picture-height dial so
+ * "smaller" has a number: 1× is pixel-for-pixel.
+ */
+function PictureReadout({ dials, panel }: { dials: SoloDials; panel: PanelSize }) {
+  const r = pictureRect(dials, panel.width, panel.height);
+  return (
+    <div data-testid="picture-readout" style={{ fontFamily: mono, fontSize: 11, color: '#8b95a7', padding: '0 4px 6px' }}
+      title={`Every frame is a ${SOURCE_FRAME.width} × ${SOURCE_FRAME.height} still from Windy. This is how far the panel (${panel.width} × ${panel.height}) blows it up; the softness on glass is that, not compression.`}>
+      draws {r.width} × {r.height} · {drawFactor(r).toFixed(1)}× the {SOURCE_FRAME.width} × {SOURCE_FRAME.height} source
+    </div>
+  );
+}
 
 function Control({ knob, value, differs, onChange }: {
   knob: KnobDescriptor;
@@ -73,7 +91,7 @@ function Control({ knob, value, differs, onChange }: {
  * straight from the schema's sections, with a bold label wherever the studio
  * value differs from the glass.
  */
-export function SoloRail({ api, deploySlot, version = SOLO_VERSIONS.solo as SoloVersionSpec, tab = 'dials', onTab }: {
+export function SoloRail({ api, deploySlot, version = SOLO_VERSIONS.solo as SoloVersionSpec, tab = 'queue', onTab }: {
   api: StudioSettingsApi;
   deploySlot: ReactNode;
   version?: SoloVersionSpec;
@@ -86,6 +104,7 @@ export function SoloRail({ api, deploySlot, version = SOLO_VERSIONS.solo as Solo
   const diff = new Set(api.diffByNamespace[ns] ?? []);
   const sharedDiff = new Set(api.diffByNamespace[SHARED_NAMESPACE] ?? []);
   const dials = version.dialsFrom(withCaption(values, shared));
+  const panel = PANEL_PRESETS[String(shared.panelPreset)] ?? PANEL_PRESETS['dell-l'];
   // The caption group is the shared namespace's: one caption for every solo
   // version, whichever the glass runs. The other groups are this version's.
   const groupOf = (section: string) => section === CAPTION_SECTION
@@ -127,14 +146,17 @@ export function SoloRail({ api, deploySlot, version = SOLO_VERSIONS.solo as Solo
               </button>
             </h4>
             {grp.knobs.map((k) => (
-              <Control key={k.key} knob={k} value={grp.values[k.key]} differs={grp.diff.has(k.key)}
-                onChange={(v) => api.setKnob(grp.ns, k.key, v)} />
+              <Fragment key={k.key}>
+                <Control knob={k} value={grp.values[k.key]} differs={grp.diff.has(k.key)}
+                  onChange={(v) => api.setKnob(grp.ns, k.key, v)} />
+                {k.key === 'pictureHeight' && <PictureReadout dials={dials} panel={panel} />}
+              </Fragment>
             ))}
             {g.section === 'glass' && version.name === 'solo2' && <DwellBudget dials={dials as Solo2Dials} />}
           </section>
         );
       })}
-      {tab === 'dials' && <RulesBox dials={dials} version={version} />}
+      {tab === 'queue' && <RulesBox dials={dials} version={version} />}
     </div>
   );
 }

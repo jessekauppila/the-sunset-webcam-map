@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { captionBox, captionHeight, captionLines, displayTitle, formatTime, gray, pictureRect } from './caption';
+import { captionBox, captionHeight, captionLines, displayTitle, drawFactor, formatTime, gray, pictureRect } from './caption';
 
 // 02:42 UTC on 2026-09-05 is 7:42 pm the evening before in Mazatlán (UTC−7).
 const AT = Date.UTC(2026, 8, 5, 2, 42);
@@ -151,4 +151,14 @@ it('gray is a percent of white', () => {
   expect(gray(100)).toBe('rgb(255, 255, 255)');
   expect(gray(46)).toBe('rgb(117, 117, 117)');
   expect(gray(0)).toBe('rgb(0, 0, 0)');
+});
+
+describe('drawFactor', () => {
+  it('is the picture width over the source width: 1 at native size, ~4.2 at the default inset on a 1080 panel', () => {
+    expect(drawFactor({ width: 400 })).toBe(1);
+    const d = { captionLayout: 'inset' as const, pictureHeight: 87, pictureTop: 4 };
+    expect(drawFactor(pictureRect(d, 1920, 1080))).toBeCloseTo(4.18, 2);
+    expect(drawFactor(pictureRect({ ...d, captionLayout: 'overlay' }, 2560, 1440))).toBeCloseTo(6.4, 2);
+    expect(drawFactor({ width: 1000 }, { width: 500 })).toBe(2);
+  });
 });

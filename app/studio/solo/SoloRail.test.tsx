@@ -19,22 +19,25 @@ function api(over: Partial<StudioSettingsApi> = {}): StudioSettingsApi {
   };
 }
 
-it('the dials tab renders every glass and bins knob under its group and marks the differing one; caption knobs wait on their tab', () => {
+it('the queue tab renders every glass and bins knob under its group and marks the differing one; picture knobs wait on their tab', () => {
   render(<SoloRail api={api()} deploySlot={<span>DEPLOY</span>} />);
   expect(screen.getByText('DEPLOY')).toBeInTheDocument();
   for (const k of SOLO_SETTINGS_SCHEMA) expect(screen.getByLabelText(k.label)).toBeInTheDocument();
   for (const k of CAPTION_SCHEMA) expect(screen.queryByLabelText(k.label)).toBeNull();
   expect(screen.getByText('mix (sunsets per non-sunset)')).toHaveStyle({ fontWeight: 700 });
   expect(screen.getByText('dwell (s)')).toHaveStyle({ fontWeight: 400 });
-  expect(screen.getByRole('tab', { name: 'Dials' })).toHaveAttribute('aria-selected', 'true');
+  expect(screen.getByRole('tab', { name: 'Queue' })).toHaveAttribute('aria-selected', 'true');
+  expect(screen.queryByTestId('picture-readout')).toBeNull();
 });
 
-it('the caption tab renders every caption knob, bound to the shared namespace, and nothing else; reset clears that section', () => {
+it('the picture tab renders every caption knob, bound to the shared namespace, and nothing else; reset clears that section', () => {
   const a = api({ diffByNamespace: { shared: ['titleGray'] } });
-  render(<SoloRail api={a} deploySlot={null} tab="caption" />);
+  render(<SoloRail api={a} deploySlot={null} tab="picture" />);
   for (const k of CAPTION_SCHEMA) expect(screen.getByLabelText(k.label)).toBeInTheDocument();
   for (const k of SOLO_SETTINGS_SCHEMA) expect(screen.queryByLabelText(k.label)).toBeNull();
   expect(screen.getByText('title gray (%)')).toHaveStyle({ fontWeight: 700 });
+  // The dell preset is portrait 1080 × 1920: 87% tall is 1670 px, 939 wide at the panel's aspect, 2.3× the 400-wide source.
+  expect(screen.getByTestId('picture-readout')).toHaveTextContent('draws 939 × 1670 · 2.3× the 400 × 224 source');
   fireEvent.change(screen.getByLabelText('font'), { target: { value: 'serif' } });
   expect(a.setKnob).toHaveBeenCalledWith('shared', 'font', 'serif');
   fireEvent.change(screen.getByLabelText('title size (px)'), { target: { value: '14' } });
@@ -47,8 +50,8 @@ it('the caption tab renders every caption knob, bound to the shared namespace, a
 it('clicking a tab reports it', () => {
   const onTab = vi.fn();
   render(<SoloRail api={api()} deploySlot={null} onTab={onTab} />);
-  fireEvent.click(screen.getByRole('tab', { name: 'Caption' }));
-  expect(onTab).toHaveBeenCalledWith('caption');
+  fireEvent.click(screen.getByRole('tab', { name: 'Picture' }));
+  expect(onTab).toHaveBeenCalledWith('picture');
 });
 
 it('a range change calls setKnob with a number; a checkbox with a boolean', () => {
@@ -84,7 +87,7 @@ describe('solo2', async () => {
     expect(a.setKnob).toHaveBeenCalledWith('solo2', 'valleys', 2);
     expect(screen.getByText('prelude 4.5 s + lead 4 s + hold 11.5 s')).toBeInTheDocument();
     expect(screen.getByText(/dials solo2/)).toBeInTheDocument();
-    rerender(<SoloRail api={a} deploySlot={null} version={SOLO_VERSIONS.solo2} tab="caption" />);
+    rerender(<SoloRail api={a} deploySlot={null} version={SOLO_VERSIONS.solo2} tab="picture" />);
     for (const k of CAPTION_SCHEMA) expect(screen.getByLabelText(k.label)).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText('time'), { target: { value: '24h' } });
     expect(a.setKnob).toHaveBeenCalledWith('shared', 'timeStyle', '24h');
