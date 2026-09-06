@@ -68,6 +68,9 @@ export function FrameModal({ list, index, feed, onIndex, onClose }: {
         </div>
         <div data-testid="frame-line" style={{ fontFamily: mono, fontSize: 12, color: '#9aa3b2', marginBottom: 8 }}>
           frame {entry.snapshotId} · {entry.bin === 'sunset' ? 'sunset' : 'non-sunset'} bin · shown ×{entry.tally} · {takenLine(entry)}
+          {'shownAt' in entry && typeof entry.shownAt === 'number' && (
+            <> · drawn at {new Date(entry.shownAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</>
+          )}
         </div>
         <FrameLabelCard key={entry.snapshotId} webcam={toWebcam(entry, feed)} allowCapture={false} />
       </div>

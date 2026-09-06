@@ -7,6 +7,7 @@ import {
   markOutOfZone,
   markSeen,
   removeStale,
+  pruneDraws,
   saveSweptZone,
 } from '@/app/lib/solo/store';
 import { inFeedZone, type Zone } from '@/app/lib/solo/zone';
@@ -69,6 +70,9 @@ export async function enterBins(
   return out;
 }
 
+/** The tape keeps a week; the studio reads the last 24 draws. */
+const DRAW_LOG_DAYS = 7;
+
 /**
  * Removal is by zone, not by absence. Every active entry is checked against
  * where its camera's sun is right now; a poll that simply did not return the
@@ -100,5 +104,6 @@ export async function maintainBins(opts: {
     totals.leftZone += removed.leftZone;
     totals.expired += removed.expired;
   }
+  await pruneDraws(DRAW_LOG_DAYS);
   return totals;
 }

@@ -2,7 +2,7 @@ import { isEligible } from '@/app/lib/solo/engine';
 import { SOLO_VERSIONS, type SoloVersionSpec } from '@/app/lib/solo/versions';
 import type { Role } from '@/app/lib/solo2/types';
 import { nextBoundaryMs, slotFor } from '@/app/lib/solo/schedule';
-import type { ScreenRow, StoredEntry } from '@/app/lib/solo/store';
+import type { ScreenRow, StoredEntry, TapeFrame } from '@/app/lib/solo/store';
 import type { BinEntry, Feed, SoloDials } from '@/app/lib/solo/types';
 import type { Zone } from '@/app/lib/solo/zone';
 import { assignStages, compareStaged, type Stage } from '@/app/lib/solo/stages';
@@ -14,6 +14,8 @@ import { assignStages, compareStaged, type Stage } from '@/app/lib/solo/stages';
  */
 
 export const NEXT_COUNT = 8;
+/** Past draws on the studio's tape. */
+export const TAPE_PAST = 24;
 
 const FEEDS: Feed[] = ['sunrise', 'sunset'];
 
@@ -46,12 +48,22 @@ export function toViewEntry(e: StoredEntry): ViewEntry {
   };
 }
 
+export function toTapeInput(f: TapeFrame): ViewEntry & { slot: number; shownAt: number } {
+  return { ...toViewEntry(f), slot: f.slot, shownAt: f.shownAt };
+}
+
 export interface EntryView extends ViewEntry {
   eligible: boolean;
   /** 1-based position within its bin by score, queue membership ignored. The glass overlay prints it. */
   rank: number;
   /** Where the frame stands for this screen's next draw; the studio sections the bins by it. */
   stage: Stage;
+}
+
+/** A past draw on the tape: a full entry (so it opens the detail card) plus when it was drawn. */
+export interface TapeEntry extends EntryView {
+  slot: number;
+  shownAt: number;
 }
 
 export interface StateView {
@@ -67,6 +79,8 @@ export interface StateView {
   /** Every active entry, raw, so a client can re-project with other dials. */
   entries: ViewEntry[];
   zone: Zone;
+  /** The last draws on this screen, oldest first (stages-and-tape spec §4). Empty until the log is migrated. */
+  tape: TapeEntry[];
 }
 
 const scoreOf = (e: ViewEntry) => (e.bin === 'sunset' ? e.quality ?? -1 : e.detection);
@@ -93,6 +107,8 @@ export function buildStateView(input: {
   zone: Zone;
   /** Which engine projects the queue. Defaults to solo, so older callers are unchanged. */
   version?: SoloVersionSpec;
+  /** Past draws for the tape; the state route supplies them, other callers may omit. */
+  tape?: (ViewEntry & { slot: number; shownAt: number })[];
 }): StateView {
   const { feed, dials, entries, screen, nowMs } = input;
   const version = input.version ?? (SOLO_VERSIONS.solo as SoloVersionSpec);
@@ -153,5 +169,6 @@ export function buildStateView(input: {
     lastPull: { admitted: input.admitted },
     entries,
     zone: input.zone,
+    tape: (input.tape ?? []).map((f) => ({ ...view(f), slot: f.slot, shownAt: f.shownAt })),
   };
 }

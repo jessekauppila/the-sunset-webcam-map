@@ -9,6 +9,7 @@ const countAdmittedSince = vi.fn();
 const getLiveSettingsCached = vi.fn();
 const getProfileSettings = vi.fn();
 const getSweptZone = vi.fn();
+const listRecentDraws = vi.fn();
 vi.mock('server-only', () => ({}));
 // sweepGeometry's module pulls in the Neon client; the route only uses its pure half.
 vi.mock('@/app/lib/db', () => ({ sql: vi.fn() }));
@@ -19,6 +20,7 @@ vi.mock('@/app/lib/solo/store', () => ({
   getScreenState: (...a: unknown[]) => getScreenState(...a),
   countAdmittedSince: (...a: unknown[]) => countAdmittedSince(...a),
   getSweptZone: (...a: unknown[]) => getSweptZone(...a),
+  listRecentDraws: (...a: unknown[]) => listRecentDraws(...a),
 }));
 vi.mock('@/app/lib/settings/liveSettings', () => ({ getLiveSettingsCached: () => getLiveSettingsCached() }));
 vi.mock('@/app/lib/settings/store', () => ({ getProfileSettings: (p: string) => getProfileSettings(p) }));
@@ -34,6 +36,7 @@ beforeEach(() => {
   getScreenState.mockResolvedValue(null);
   countAdmittedSince.mockResolvedValue({ sunset: 0, nonSunset: 0 });
   getSweptZone.mockResolvedValue(null);
+  listRecentDraws.mockResolvedValue([]);
   getLiveSettingsCached.mockResolvedValue({
     namespaces: { shared: { activeVersion: 'solo', pictureHeight: 70 }, solo: { dwellS: 30, pictureHeight: 92 }, solo2: { dwellS: 9, valleys: 1 } }, revision: 1,
   });
@@ -45,6 +48,19 @@ describe('GET /api/kiosk/solo/state', () => {
     getSweptZone.mockResolvedValue({ minDeg: -39.75, maxDeg: 13.75 });
     const body = await (await get('?feed=sunrise')).json();
     expect(body.zone).toEqual({ minDeg: -39.75, maxDeg: 13.75 });
+  });
+  it('carries the last 24 draws as the tape', async () => {
+    const frame = {
+      feed: 'sunrise', slot: 9, shownAt: 1_000, snapshotId: 4, webcamId: 2, bin: 'sunset', quality: 0.8, detection: 0.9, isNew: false,
+      tally: 1, enteredAt: 0, firstShownAt: null, lastShownAt: 1_000, imageUrl: 'u4', title: 't', city: '', region: '', country: '',
+      lat: 1, lng: 2, capturedAt: 0, timezone: null, sunAltitudeDeg: null,
+    };
+    listRecentDraws.mockResolvedValue([frame]);
+    const body = await (await get('?feed=sunrise')).json();
+    expect(listRecentDraws).toHaveBeenCalledWith('sunrise', 24);
+    expect(body.tape).toHaveLength(1);
+    expect(body.tape[0]).toMatchObject({ slot: 9, shownAt: 1_000, snapshotId: 4, title: 't', stage: { kind: 'inLine', position: null } });
+    expect(body.tape[0]).not.toHaveProperty('lat');
   });
   it('rejects a missing or unknown feed', async () => {
     expect((await get('')).status).toBe(400);

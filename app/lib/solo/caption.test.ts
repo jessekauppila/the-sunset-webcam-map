@@ -155,7 +155,7 @@ it('gray is a percent of white', () => {
 describe('drawFactor', () => {
   it('is the picture width over the source width: 1 at native size, ~4.2 at the default inset on a 1080 panel', () => {
     expect(drawFactor({ width: 400 })).toBe(1);
-    const d = { captionLayout: 'inset' as const, pictureHeight: 87, pictureTop: 4 };
+    const d = { captionLayout: 'inset' as const, pictureHeight: 87 };
     expect(drawFactor(pictureRect(d, 1920, 1080))).toBeCloseTo(4.18, 2);
     expect(drawFactor(pictureRect({ ...d, captionLayout: 'overlay' }, 2560, 1440))).toBeCloseTo(6.4, 2);
     expect(drawFactor({ width: 1000 }, { width: 500 })).toBe(2);
