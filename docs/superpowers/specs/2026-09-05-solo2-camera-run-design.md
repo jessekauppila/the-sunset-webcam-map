@@ -95,10 +95,11 @@ lastShownAt) after each draw; the advance route passes their ids to
 
 ### 3.4 Stages and the view
 
-`assignStages` and `buildStateView` are unchanged: they see frames. Run
-members other than the representative get whatever stage the frame rules
-give them, and the studio folds them under their representative (§5.2),
-so the API needs no new shape.
+`assignStages` is unchanged: it sees frames. `buildStateView` then makes
+the frames a draw plays share that draw's stage (via `version.shown`, the
+first draw winning), and the on-glass camera's frames read `onGlass`, so a
+camera's older frames stand where the camera stands. The studio folds them
+under their representative (§5.2). The API needs no new shape.
 
 ## 4. The dwell (glass)
 
