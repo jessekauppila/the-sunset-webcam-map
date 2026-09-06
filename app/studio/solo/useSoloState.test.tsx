@@ -34,4 +34,11 @@ describe('useSoloState', () => {
     await waitFor(() => expect(result.current.projected).toBeDefined());
     expect(result.current.projected!.bins.sunset[0]).toMatchObject({ snapshotId: 2, eligible: false });
   });
+  it('disabled: fetches nothing and everything stays undefined', async () => {
+    const { result } = renderHook(() => useSoloState('sunset', D, undefined, false));
+    // Give any stray fetch a tick to have fired before asserting it did not.
+    await new Promise((r) => setTimeout(r, 0));
+    expect(fetch).not.toHaveBeenCalled();
+    expect(result.current).toEqual({ server: undefined, projected: undefined, error: undefined });
+  });
 });

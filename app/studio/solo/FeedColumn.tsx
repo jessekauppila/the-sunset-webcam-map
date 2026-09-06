@@ -95,7 +95,6 @@ export function FeedColumn({ feed, server, projected, liveDials, nowMs, version,
   server: StateView;
   projected: StateView;
   liveDials: SoloDials;
-  studioDials: SoloDials;
   nowMs: number;
   version?: SoloVersionSpec;
   /** The clicked frame, its screen, and the frames of its column in order, so a pop-up can step through them. */

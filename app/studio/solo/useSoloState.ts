@@ -18,9 +18,13 @@ const POLL_MS = 5_000;
  * The response does not carry the screen's sunset streak, so the projection
  * starts it at 0 and can differ from the server's own `next` by one draw.
  * FeedColumn says so when the first entries disagree.
+ *
+ * `enabled = false` skips the fetch entirely: SWR treats a `null` key as
+ * "don't fetch", so `data`/`error` both stay undefined and so does
+ * `projected`, which only builds once `data` exists.
  */
-export function useSoloState(feed: Feed, studioDials: SoloDials, version: SoloVersionSpec = SOLO_VERSIONS.solo as SoloVersionSpec) {
-  const { data, error } = useSWR<StateView>(`/api/kiosk/solo/state?feed=${feed}&version=${version.name}`, fetcher, {
+export function useSoloState(feed: Feed, studioDials: SoloDials, version: SoloVersionSpec = SOLO_VERSIONS.solo as SoloVersionSpec, enabled = true) {
+  const { data, error } = useSWR<StateView>(enabled ? `/api/kiosk/solo/state?feed=${feed}&version=${version.name}` : null, fetcher, {
     refreshInterval: POLL_MS,
   });
   const projected = useMemo(() => {
