@@ -10,7 +10,8 @@ studio by descriptor), `2026-09-05-studio-deploy-history-and-solo-preview-design
 (deploy history, Part A shipped; Part B, the solo preview on studio dials,
 specified and unbuilt).
 **Mockup:** https://claude.ai/code/artifact/6e9a0eb6-be08-4c6d-ac32-61f2d9cf1a3c shows
-the page with solo2 selected.
+the page with solo2 selected and with v4 selected; the bins panel is drawn
+from `FeedColumn` as PR #143 leaves it.
 
 ## 1. What this is
 
@@ -156,9 +157,34 @@ Each of these is deleted, not moved:
 | `PreviewPane`'s scene chrome (413 lines) | the scene selector shrinks to one select in the mosaic version panel (§7); the frame itself is `StudioPanelFrame` |
 | `MapMosaicModeToggle` on the studio page | the nav band has it |
 
-Kept as-is: `DeployButton`, `DeployHistory` (extended, §4),
-`useStudioSettings`, `StudioPanelFrame`, `EntryRow`, `FrameLabelCard` modal,
-`SaveSceneButton`, `restoreSceneDials`.
+### 2.5 What is preserved, verbatim
+
+Jesse's worry on 2026-09-05 after seeing the first mockup: "a lot of the
+stuff, particularly the bins, looks a lot different … I just don't want to
+lose all we've accomplished." The first mockup sketched the bins; it has
+since been redrawn from the real `FeedColumn`. The design moves these; it
+does not redraw them:
+
+| kept | where it lives |
+|---|---|
+| the three-bin column per screen: Sunset bin, Non-sunset bin, On glass + next up, each with its 2 px bin colour | `FeedColumn` |
+| the **next frame in N s** countdown in each screen's title, on the live dials' clock | `FeedColumn` (still on `main` and in #143; if it is missing on the deployed solo2 page that is a bug to chase separately, not a design change) |
+| stages inside each bin: IN LINE / RESTING / UNDER FLOOR with the label up the left edge, empty stages as one flat line | #143's `StageBox` |
+| "projected with studio dials; glass will draw X" when the projection and the glass disagree | `FeedColumn` |
+| `EntryRow`: 46 px thumbnail, `shown ×N` bold when shown, score line, title, place · local time, hover reason | `EntryRow` |
+| the tags: NEW, FLOOR, REPEAT, CAM n/m, PRELUDE, PEAK, VALLEY | `EntryRow` |
+| solo2 dwell groups: earlier frames stacked above the chosen one with their local times, the row as tall as its time on glass (`PX_PER_S`) | `EntryRow` |
+| the orange ring on the on-glass row | `EntryRow` |
+| click a row → `FrameLabelCard` modal with rating | `SoloStudioClient` today, `StudioClient` tomorrow |
+| the two screens composed at true panel pixels through `StudioPanelFrame`, with the `on glass now · frame N · W × H` line | `GlassPreview` |
+| the picture readout under `pictureHeight`; the Picture page with the caption dials | `SoloRail` → `Rail` |
+| colour-coded sections with `reset <section>`; bold label when a dial differs from glass | `SoloRail` → `Rail` |
+| deploy history rows with rename, `live` / `in studio` badges | `DeployHistory` |
+| scenes: selector, save, restore dials from provenance (mosaic versions) | `PreviewPane` → `MosaicPanel` |
+
+Kept as-is in code: `DeployButton`, `DeployHistory` (extended, §4),
+`useStudioSettings`, `StudioPanelFrame`, `FeedColumn`, `EntryRow`,
+`FrameLabelCard` modal, `SaveSceneButton`, `restoreSceneDials`.
 
 ## 3. Data flow
 
