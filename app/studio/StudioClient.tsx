@@ -21,6 +21,8 @@ import { surfaceFor } from './surfaces';
 import { useStudioSettings } from './useStudioSettings';
 import { useSceneWebcams, type SceneSource } from './useSceneWebcams';
 
+const mono = 'ui-monospace, SFMono-Regular, Menlo, monospace';
+
 /**
  * The one `/studio` (one-studio spec §2). There is no second studio page and
  * no per-version chrome: the header's version select names a surface, and the
@@ -47,6 +49,9 @@ export function StudioClient() {
   const panel = PANEL_PRESETS[String(shared.panelPreset)] ?? PANEL_PRESETS[DEFAULT_PANEL_PRESET];
   const [tab, setTab] = useState<RailTab>('play');
   const [sceneSource, setSceneSource] = useState<SceneSource>({ kind: 'live' });
+  // The save-take button is in the header; the field it opens is down in the
+  // takes list, so the page owns the flag between them.
+  const [saving, setSaving] = useState(false);
 
   // Before the first poll answers, `effective()` is the schema defaults, which
   // name v1 — not necessarily the version the operator is on. Rendering that
@@ -90,7 +95,30 @@ export function StudioClient() {
       height: '100vh', background: '#0b0e14', color: '#e5e7eb', overflow: 'hidden',
     }}>
       <div style={{ gridColumn: '1 / -1' }}>
-        <Header api={api} />
+        <Header
+          api={api}
+          extra={(
+            <button
+              type="button"
+              data-testid="save-take"
+              onClick={() => setSaving(true)}
+              title="Save these dials as a take without sending them to the glass"
+              style={{
+                flex: 'none',
+                background: 'transparent',
+                border: '1px solid #2a3242',
+                borderRadius: 6,
+                padding: '2px 8px',
+                fontFamily: mono,
+                fontSize: 11,
+                color: '#8b95a7',
+                cursor: 'pointer',
+              }}
+            >
+              save take
+            </button>
+          )}
+        />
       </div>
 
       {gated ? (
@@ -105,7 +133,7 @@ export function StudioClient() {
             display: 'flex', flexDirection: 'column', overflowY: 'auto',
           }}>
             <Rail api={api} surface={surface} tab={tab} onTab={setTab} runFrames={runFrames}>
-              <DeployHistory api={api} />
+              <DeployHistory api={api} saving={saving} onSavingChange={setSaving} />
             </Rail>
           </aside>
 

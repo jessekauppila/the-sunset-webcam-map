@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, within, fireEvent } from '@testing-library/react';
 import { StudioClient } from './StudioClient';
 import { SHARED_SCHEMA } from '@/app/lib/settings/sharedSchema';
 import { mergeSettings } from '@/app/lib/settings/schema';
@@ -127,7 +127,7 @@ describe('StudioClient — one page, the version select decides what it is', () 
     const { container } = render(<StudioClient />);
     expect(screen.getByLabelText('version')).toHaveValue(version);
     expect(screen.getByTestId('nav-slot')).toBeInTheDocument();
-    expect(aside(container).getByText('deploys')).toBeInTheDocument();
+    expect(aside(container).getByText('takes')).toBeInTheDocument();
   });
 
   it('waits for the studio profile instead of flashing the default version', () => {
@@ -167,5 +167,17 @@ describe('StudioClient — the page keeps no clock of its own', () => {
     } finally {
       setIntervalSpy.mockRestore();
     }
+  });
+});
+
+describe('StudioClient — save take', () => {
+  it('the header button opens the label field down in the takes list', () => {
+    // The button is in the header and the field is in the rail, so the page
+    // owns the flag between them.
+    activeVersion = 'v4';
+    const { container } = render(<StudioClient />);
+    expect(aside(container).queryByLabelText('label for the new take')).toBeNull();
+    fireEvent.click(screen.getByTestId('save-take'));
+    expect(aside(container).getByLabelText('label for the new take')).toBeInTheDocument();
   });
 });
