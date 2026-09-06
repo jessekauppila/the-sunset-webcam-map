@@ -122,27 +122,27 @@ describe('captionBox', () => {
   const pic = pictureRect({ captionLayout: 'inset', pictureHeight: 87 }, 1920, 1080); // 125, 70, 1671 × 940
   const d = { captionLayout: 'inset' as const, captionAlign: 'picture' as const, captionGap: 18 };
   it('hangs the gap below the picture\'s foot, flush with the picture', () => {
-    expect(captionBox(d, pic, 1920, 1080)).toEqual({ left: 125, maxWidth: 1671, top: 70 + 940 + 18, textAlign: 'left' });
+    expect(captionBox(d, pic, 1920)).toEqual({ left: 125, maxWidth: 1671, top: 70 + 940 + 18, textAlign: 'left' });
   });
   it('the gap is from the picture whatever its height: the caption follows the foot, never the panel edge', () => {
     for (const h of [40, 60, 80, 92]) {
       const p = pictureRect({ captionLayout: 'inset', pictureHeight: h }, 1920, 1080);
-      expect(captionBox(d, p, 1920, 1080).top).toBe(p.top + p.height + 18);
+      expect(captionBox(d, p, 1920).top).toBe(p.top + p.height + 18);
     }
     // At 92 % the picture ends at 1034 and the caption starts at 1052: it leaves the panel, and that is what the preview shows.
     const tall = pictureRect({ captionLayout: 'inset', pictureHeight: 92 }, 1920, 1080);
-    expect(captionBox(d, tall, 1920, 1080).top).toBeGreaterThan(1080 - 30);
+    expect(captionBox(d, tall, 1920).top).toBeGreaterThan(1080 - 30);
   });
   it('center spans the panel; panel sits at the glass margin', () => {
-    expect(captionBox({ ...d, captionAlign: 'center' }, pic, 1920, 1080)).toEqual({ left: 0, width: 1920, textAlign: 'center', top: 1028 });
-    expect(captionBox({ ...d, captionAlign: 'panel' }, pic, 1920, 1080)).toMatchObject({ left: 24, textAlign: 'left', top: 1028 });
+    expect(captionBox({ ...d, captionAlign: 'center' }, pic, 1920)).toEqual({ left: 0, width: 1920, textAlign: 'center', top: 1028 });
+    expect(captionBox({ ...d, captionAlign: 'panel' }, pic, 1920)).toMatchObject({ left: 24, textAlign: 'left', top: 1028 });
   });
   it('the gap is in glass pixels: everything halves on a half-size panel', () => {
     const half = pictureRect({ captionLayout: 'inset', pictureHeight: 87 }, 960, 540);
-    expect(captionBox(d, half, 960, 540).top).toBe(half.top + half.height + 9);
+    expect(captionBox(d, half, 960).top).toBe(half.top + half.height + 9);
   });
   it('overlay tucks into the picture corner whatever the dials say', () => {
-    expect(captionBox({ ...d, captionLayout: 'overlay', captionAlign: 'center' }, pic, 1920, 1080)).toEqual({ left: 24, bottom: 20, textAlign: 'left', maxWidth: 1872 });
+    expect(captionBox({ ...d, captionLayout: 'overlay', captionAlign: 'center' }, pic, 1920)).toEqual({ left: 24, bottom: 20, textAlign: 'left', maxWidth: 1872 });
   });
 });
 

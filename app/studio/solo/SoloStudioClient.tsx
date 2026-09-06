@@ -10,7 +10,8 @@ import { GlassPreview } from './GlassPreview';
 import { FeedColumn } from './FeedColumn';
 import { SoloStatusStrip } from './SoloStatusStrip';
 import { useSoloState } from './useSoloState';
-import { toWebcam } from './toWebcam';
+import { FrameModal } from './FrameModal';
+import { runOf } from '@/app/lib/solo2/run';
 import { SOLO_VERSIONS, type SoloVersionSpec } from '@/app/lib/solo/versions';
 import { mergeSettings } from '@/app/lib/settings/schema';
 import { withCaption } from '@/app/lib/solo/captionSchema';
@@ -18,7 +19,6 @@ import { SHARED_NAMESPACE } from '@/app/lib/settings/sharedSchema';
 import { PANEL_PRESETS } from '@/app/kiosk/panelPreview';
 import type { EntryView } from '@/app/api/kiosk/solo/view';
 import type { Feed } from '@/app/lib/solo/types';
-import { FrameLabelCard } from '@/app/components/Webcam/FrameLabelCard';
 
 const bg = '#0b0e14';
 const railBg = '#10141d';
@@ -45,12 +45,17 @@ export function SoloStudioClient({ version = SOLO_VERSIONS.solo as SoloVersionSp
     ? { href: '/studio/solo', label: '← solo studio', title: 'The original solo kiosk\'s studio' }
     : { href: '/studio/solo2', label: 'solo2 studio →', title: 'solo with rhythm, lead, prelude, transitions and local time' };
   const [nowMs, setNowMs] = useState(() => Date.now());
-  const [selected, setSelected] = useState<{ entry: EntryView; feed: Feed } | null>(null);
+  const [selected, setSelected] = useState<{ list: EntryView[]; index: number; feed: Feed } | null>(null);
   // Which rail page is up. Only the rail changes: the screens and the queue
   // columns stay put, so a picture dial shows its effect above the queue.
   const [tab, setTab] = useState<RailTab>('queue');
   const panelPreset = String(shared.panelPreset ?? '');
   const panel = PANEL_PRESETS[panelPreset] ?? PANEL_PRESETS['dell-l'];
+  // solo2's dwell line reads the camera on glass: the longer run of the two screens.
+  const runFrames = version.name === 'solo2'
+    ? Math.max(1, ...[sunset, sunrise].map((s) => (s.server?.current
+      ? runOf(s.server.current.entry, s.server.entries, (studioDials as { cameraRun?: boolean }).cameraRun !== false).length : 0)))
+    : 1;
 
   useEffect(() => {
     const t = setInterval(() => setNowMs(Date.now()), 1000);
@@ -73,7 +78,7 @@ export function SoloStudioClient({ version = SOLO_VERSIONS.solo as SoloVersionSp
         </Link>
       </div>
       <aside style={{ background: railBg, borderRight: `1px solid ${border}`, padding: 10, overflowY: 'auto' }}>
-        <SoloRail api={api} version={version} tab={tab} onTab={setTab} deploySlot={
+        <SoloRail api={api} version={version} tab={tab} onTab={setTab} runFrames={runFrames} deploySlot={
           <>
             <DeployButton diffCount={api.diffCount} onDeploy={api.deploy} onRevert={api.revert} />
             <DeployHistory api={api} />
@@ -86,7 +91,7 @@ export function SoloStudioClient({ version = SOLO_VERSIONS.solo as SoloVersionSp
         display: 'grid', gridTemplateColumns: '1fr 1fr', gridTemplateRows: 'clamp(220px, 36vh, 520px) auto',
         gap: 12, padding: 12, overflowY: 'auto', minWidth: 0,
       }}>
-        <GlassPreview dials={studioDials} panel={panel} screens={[
+        <GlassPreview dials={studioDials} panel={panel} version={version} screens={[
           { feed: 'sunrise', server: sunrise.server ?? null, error: sunrise.error },
           { feed: 'sunset', server: sunset.server ?? null, error: sunset.error },
         ]} />
@@ -94,28 +99,16 @@ export function SoloStudioClient({ version = SOLO_VERSIONS.solo as SoloVersionSp
           const s = feed === 'sunrise' ? sunrise : sunset;
           return s.server && s.projected ? (
             <FeedColumn key={feed} feed={feed} server={s.server} projected={s.projected} liveDials={liveDials}
-              studioDials={studioDials} nowMs={nowMs} version={version} onSelect={(entry, f) => setSelected({ entry, feed: f })} />
+              studioDials={studioDials} nowMs={nowMs} version={version}
+              onSelect={(entry, f, list) => setSelected({ list, index: Math.max(0, list.findIndex((x) => x.snapshotId === entry.snapshotId)), feed: f })} />
           ) : (
             <div key={feed} style={{ color: '#4b5568', fontFamily: mono, fontSize: 12 }}>{s.error ?? `loading ${feed}…`}</div>
           );
         })}
       </main>
       {selected && (
-        <div
-          onClick={(e) => { if (e.target === e.currentTarget) setSelected(null); }}
-          style={{ position: 'fixed', inset: 0, background: '#000a', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-        >
-          <div style={{ background: railBg, border: `1px solid ${border}`, borderRadius: 10, width: 'min(760px, 92vw)', padding: 14 }}>
-            <button type="button" onClick={() => setSelected(null)} style={{
-              float: 'right', background: 'transparent', color: '#8b95a7', border: `1px solid ${border}`,
-              borderRadius: 6, padding: '3px 8px', cursor: 'pointer',
-            }}>close</button>
-            <div style={{ fontFamily: mono, fontSize: 12, color: '#9aa3b2', marginBottom: 8 }}>
-              frame {selected.entry.snapshotId} · {selected.entry.bin === 'sunset' ? 'sunset' : 'non-sunset'} bin · shown ×{selected.entry.tally}
-            </div>
-            <FrameLabelCard webcam={toWebcam(selected.entry, selected.feed)} allowCapture={false} />
-          </div>
-        </div>
+        <FrameModal list={selected.list} index={selected.index} feed={selected.feed}
+          onIndex={(index) => setSelected({ ...selected, index })} onClose={() => setSelected(null)} />
       )}
     </div>
   );

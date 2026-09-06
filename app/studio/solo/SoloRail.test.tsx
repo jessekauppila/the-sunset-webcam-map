@@ -74,18 +74,18 @@ describe('solo2', async () => {
   const { SOLO_VERSIONS } = await import('@/app/lib/solo/versions');
   const { SOLO2_SETTINGS_SCHEMA } = await import('@/app/lib/solo2/settingsSchema');
   const api2 = () => api({
-    effective: (ns) => (ns === 'solo2' ? mergeSettings(SOLO2_SETTINGS_SCHEMA, { prelude: true, leadS: 4 }) : mergeSettings(SHARED_SCHEMA, { activeVersion: 'solo2', panelPreset: 'ktc-l' })),
+    effective: (ns) => (ns === 'solo2' ? mergeSettings(SOLO2_SETTINGS_SCHEMA, { leadS: 4 }) : mergeSettings(SHARED_SCHEMA, { activeVersion: 'solo2', panelPreset: 'ktc-l' })),
     diffByNamespace: { solo2: ['valleys'] },
   });
   it('renders every solo2 knob, selects write strings, and the budget line reads the dials', () => {
     const a = api2();
-    const { rerender } = render(<SoloRail api={a} deploySlot={null} version={SOLO_VERSIONS.solo2} />);
+    const { rerender } = render(<SoloRail api={a} deploySlot={null} version={SOLO_VERSIONS.solo2} runFrames={4} />);
     for (const k of SOLO2_SETTINGS_SCHEMA) expect(screen.getByLabelText(k.label)).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText('camera change'), { target: { value: 'crossfade' } });
     expect(a.setKnob).toHaveBeenCalledWith('solo2', 'transition', 'crossfade');
     fireEvent.change(screen.getByLabelText('valleys per peak'), { target: { value: '2' } });
     expect(a.setKnob).toHaveBeenCalledWith('solo2', 'valleys', 2);
-    expect(screen.getByText('prelude 4.5 s + lead 4 s + hold 11.5 s')).toBeInTheDocument();
+    expect(screen.getByText('4 frames × 5 s · lead 4 s')).toBeInTheDocument();
     expect(screen.getByText(/dials solo2/)).toBeInTheDocument();
     rerender(<SoloRail api={a} deploySlot={null} version={SOLO_VERSIONS.solo2} tab="picture" />);
     for (const k of CAPTION_SCHEMA) expect(screen.getByLabelText(k.label)).toBeInTheDocument();

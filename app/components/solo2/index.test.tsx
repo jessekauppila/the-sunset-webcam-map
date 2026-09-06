@@ -5,7 +5,7 @@ import { Solo2Kiosk } from './index';
 const entry = (id: number, capturedAt: number, webcamId = 7) => ({
   snapshotId: id, webcamId, bin: 'sunset' as const, quality: 0.9, detection: 0.9, isNew: false, tally: 0, enteredAt: id,
   imageUrl: `u${id}`, title: `t${id}`, city: '', region: 'R', country: 'C', eligible: true, rank: 1,
-  capturedAt, timezone: null, sunAltitudeDeg: null,
+  capturedAt, timezone: null, sunAltitudeDeg: null, stage: { kind: 'inLine' as const, position: null },
 });
 const entries = [entry(1, 100), entry(2, 200), entry(3, 300), entry(9, 250, 8)];
 const glass = { current: entry(3, 300), shownSince: null as number | null, next: null, slot: 1, boundaryMs: 0, error: null, queueLength: 1,

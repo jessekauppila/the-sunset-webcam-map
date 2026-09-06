@@ -25,4 +25,8 @@ it('solo2 with valleys states the rhythm inside rule 3; without valleys it reads
   expect(screen.getByText(/after each peak/).textContent).toMatch(/2 valleys .* alternate/);
   rerender(<RulesBox dials={d2} version={SOLO_VERSIONS.solo2} />);
   expect(screen.queryByText(/after each peak/)).toBeNull();
+  // The camera run, on by default, makes rule 3 about cameras; off, it reads like solo.
+  expect(screen.getByText(/In a bin/).textContent).toMatch(/cameras/);
+  rerender(<RulesBox dials={{ ...d2, cameraRun: false }} version={SOLO_VERSIONS.solo2} />);
+  expect(screen.getByText(/In a bin/).textContent).not.toMatch(/cameras/);
 });

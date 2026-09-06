@@ -172,7 +172,7 @@ export function captionHeight(
  */
 export function captionBox(
   d: Pick<SoloDials, 'captionLayout' | 'captionAlign' | 'captionGap'>,
-  picture: Rect, width: number, height: number,
+  picture: Rect, width: number,
 ): CaptionBox {
   const s = captionScale(width);
   if (d.captionLayout === 'overlay') return { left: 24 * s, bottom: 20 * s, textAlign: 'left', maxWidth: width - 48 * s };
