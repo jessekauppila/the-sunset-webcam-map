@@ -25,7 +25,7 @@
 
 # Phase A — collapse
 
-### Task A1: `STUDIO_SURFACES`
+### Task 1 (A1): `STUDIO_SURFACES`
 
 **Files:**
 - Create: `app/studio/surfaces.ts`
@@ -143,7 +143,7 @@ cd ~/GitHub/the-sunset-webcam-map.worktrees/feat-one-studio && test "$(git rev-p
 
 ---
 
-### Task A2: `pollAge.ts` (keep `formatPollAge`, drop the rest of `stripState`)
+### Task 2 (A2): `pollAge.ts` (keep `formatPollAge`, drop the rest of `stripState`)
 
 **Files:**
 - Create: `app/studio/pollAge.ts`, `app/studio/pollAge.test.ts`
@@ -186,7 +186,7 @@ cd ~/GitHub/the-sunset-webcam-map.worktrees/feat-one-studio && test "$(git rev-p
 
 ---
 
-### Task A3: `Rail` — one renderer for every schema
+### Task 3 (A3): `Rail` — one renderer for every schema
 
 **Files:**
 - Create: `app/studio/Rail.tsx`, `app/studio/Rail.test.tsx`
@@ -414,7 +414,7 @@ cd ~/GitHub/the-sunset-webcam-map.worktrees/feat-one-studio && test "$(git rev-p
 
 ---
 
-### Task A4: `Header` — version, panel, status line, deploy, nav toggle
+### Task 4 (A4): `Header` — version, panel, status line, deploy, nav toggle
 
 **Files:**
 - Create: `app/studio/Header.tsx`, `app/studio/Header.test.tsx`
@@ -519,7 +519,7 @@ cd ~/GitHub/the-sunset-webcam-map.worktrees/feat-one-studio && test "$(git rev-p
 
 ---
 
-### Task A5: `MosaicPreview` (the two mosaic screens, lifted from `PreviewPane`)
+### Task 5 (A5): `MosaicPreview` (the two mosaic screens, lifted from `PreviewPane`)
 
 **Files:**
 - Create: `app/studio/MosaicPreview.tsx`, `app/studio/MosaicPreview.test.tsx`
@@ -545,7 +545,7 @@ cd ~/GitHub/the-sunset-webcam-map.worktrees/feat-one-studio && test "$(git rev-p
 
 ---
 
-### Task A6: `MosaicPanel` (gate readout + scenes)
+### Task 6 (A6): `MosaicPanel` (gate readout + scenes)
 
 **Files:**
 - Create: `app/studio/panels/MosaicPanel.tsx`, `app/studio/panels/MosaicPanel.test.tsx`
@@ -570,7 +570,7 @@ cd ~/GitHub/the-sunset-webcam-map.worktrees/feat-one-studio && test "$(git rev-p
 
 ---
 
-### Task A7: `SoloPanel` + `useSoloState` `enabled`
+### Task 7 (A7): `SoloPanel` + `useSoloState` `enabled`
 
 **Files:**
 - Create: `app/studio/panels/SoloPanel.tsx`, `app/studio/panels/SoloPanel.test.tsx`
@@ -594,7 +594,7 @@ cd ~/GitHub/the-sunset-webcam-map.worktrees/feat-one-studio && test "$(git rev-p
 
 ---
 
-### Task A8: `StudioClient` rewrite, redirects, deletions, leva removal
+### Task 8 (A8): `StudioClient` rewrite, redirects, deletions, leva removal
 
 **Files:**
 - Rewrite: `app/studio/StudioClient.tsx`
@@ -688,7 +688,7 @@ cd ~/GitHub/the-sunset-webcam-map.worktrees/feat-one-studio && test "$(git rev-p
 
 ---
 
-### Task A9: docs + PR A
+### Task 9 (A9): docs + PR A
 
 **Files:**
 - Modify: `docs/superpowers/specs/2026-09-05-one-studio-design.md` — status line → `phase A built (PR …), B and C follow`; §8 file list corrected to what A8 actually did (add `MosaicPreview.tsx`, `pollAge.ts`, `Tape.tsx` under kept).
@@ -708,7 +708,7 @@ PR body: what changed (one page, what was deleted, what was kept verbatim), the 
 
 # Phase B — saved takes (branch `feat/one-studio-takes` off `feat/one-studio`)
 
-### Task B1: migration + `deploys.ts`
+### Task 10 (B1): migration + `deploys.ts`
 
 **Files:**
 - Create: `database/migrations/20260906_kiosk_takes.sql`
@@ -738,14 +738,14 @@ Run `node scripts/apply-migration.mjs database/migrations/20260906_kiosk_takes.s
 - [ ] **Step 4: Run** `npx vitest run app/lib/settings app/api/kiosk/deploys app/studio/deploySummary.test.ts` — PASS (fix `deploySummary` and `DeployHistory` type errors from the nullable field as they surface: `when(row.deployedAt ?? row.createdAt)`).
 - [ ] **Step 5: Commit** `feat(takes): kiosk_deploys rows can be saved without deploying — nullable deployed_at, created_at, saveTake` and push.
 
-### Task B2: `POST /api/kiosk/deploys`
+### Task 11 (B2): `POST /api/kiosk/deploys`
 
 **Files:** Modify `app/api/kiosk/deploys/route.ts`, its test.
 
 - [ ] Test: POST without owner → the `requireOwner` denial; POST `{label:'x'}` → 201 `{ take }` where `take.deployedAt === null`; label over 60 chars → 400 (reuse `LABEL_MAX` from the `[id]` route — export it from `parseId.ts` or a shared `labels.ts`). The route calls `getProfileSettings('studio')` then `saveTake(studio, label)`; when `saveTake` returns null respond 503 `{ error: 'take not recorded' }`.
 - [ ] Implement, run, commit `feat(takes): POST /api/kiosk/deploys saves the studio profile as a take`.
 
-### Task B3: `useStudioSettings.saveTake`
+### Task 12 (B3): `useStudioSettings.saveTake`
 
 **Files:** Modify `app/studio/useStudioSettings.ts` (+ `.test.tsx`).
 
@@ -753,7 +753,7 @@ Run `node scripts/apply-migration.mjs database/migrations/20260906_kiosk_takes.s
 - [ ] Update every `api()` test helper that builds a `StudioSettingsApi` literal (`Rail.test.tsx`, `Header.test.tsx`, `DeployHistory.test.tsx`, `StudioClient.test.tsx`, `DeployButton.test.tsx` if any) to include `saveTake: async () => null`.
 - [ ] Commit `feat(takes): useStudioSettings.saveTake`.
 
-### Task B4: Takes list + save-take button
+### Task 13 (B4): Takes list + save-take button
 
 **Files:** Modify `app/studio/DeployHistory.tsx` (+ test), `app/studio/StudioClient.tsx` (+ test), `app/studio/Header.tsx` is unchanged (the button arrives through `extra`).
 
@@ -775,7 +775,7 @@ PR body must open with: **Apply before merge:** `node scripts/apply-migration.mj
 
 # Phase C — the solo preview plays the projected queue (branch `feat/one-studio-preview` off `feat/one-studio-takes`)
 
-### Task C1: `useSoloPreview`
+### Task 14 (C1): `useSoloPreview`
 
 **Files:**
 - Create: `app/studio/solo/useSoloPreview.ts`, `app/studio/solo/useSoloPreview.test.ts`
@@ -804,7 +804,7 @@ PR body must open with: **Apply before merge:** `node scripts/apply-migration.mj
 - [ ] **Step 4: Run** — PASS.
 - [ ] **Step 5: Commit** `feat(studio): useSoloPreview — a local clock through the projected queue, entry/previous/start in one update`.
 
-### Task C2: `GlassPreview` plays for both versions
+### Task 15 (C2): `GlassPreview` plays for both versions
 
 **Files:** Modify `app/studio/solo/GlassPreview.tsx` (+ `.test.tsx`), `app/studio/StudioClient.tsx` (pass `next`).
 
