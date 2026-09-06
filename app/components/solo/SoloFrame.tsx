@@ -46,7 +46,7 @@ export function SoloFrame({ entry, previous, fadeS, dials, width, height }: {
         }}
       />
       <style>{'@keyframes solo-fade-in { from { opacity: 0 } to { opacity: 1 } }'}</style>
-      <Caption entry={entry} dials={dials} picture={picture} width={width} />
+      <Caption entry={entry} dials={dials} picture={picture} width={width} height={height} />
       {(dials.showScores || dials.showRank || dials.showTally) && (
         <div style={{
           position: 'absolute', right: 24 * scale, bottom: 20 * scale, color: '#fff',

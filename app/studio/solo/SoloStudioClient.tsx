@@ -13,6 +13,7 @@ import { useSoloState } from './useSoloState';
 import { toWebcam } from './toWebcam';
 import { SOLO_VERSIONS, type SoloVersionSpec } from '@/app/lib/solo/versions';
 import { mergeSettings } from '@/app/lib/settings/schema';
+import { withCaption } from '@/app/lib/solo/captionSchema';
 import { SHARED_NAMESPACE } from '@/app/lib/settings/sharedSchema';
 import { PANEL_PRESETS } from '@/app/kiosk/panelPreview';
 import type { EntryView } from '@/app/api/kiosk/solo/view';
@@ -32,8 +33,12 @@ const mono = 'ui-monospace, SFMono-Regular, Menlo, monospace';
  */
 export function SoloStudioClient({ version = SOLO_VERSIONS.solo as SoloVersionSpec }: { version?: SoloVersionSpec }) {
   const api = useStudioSettings();
-  const studioDials = version.dialsFrom(api.effective(version.namespace));
-  const liveDials = version.dialsFrom(mergeSettings(version.schema, api.live?.namespaces?.[version.namespace]));
+  // The version's own dials with the caption from the shared namespace: one caption for every solo version.
+  const shared = api.effective(SHARED_NAMESPACE);
+  const studioDials = version.dialsFrom(withCaption(api.effective(version.namespace), shared));
+  const liveDials = version.dialsFrom(withCaption(
+    mergeSettings(version.schema, api.live?.namespaces?.[version.namespace]), api.live?.namespaces?.[SHARED_NAMESPACE],
+  ));
   const sunrise = useSoloState('sunrise', studioDials, version);
   const sunset = useSoloState('sunset', studioDials, version);
   const other = version.name === 'solo2'
@@ -44,7 +49,7 @@ export function SoloStudioClient({ version = SOLO_VERSIONS.solo as SoloVersionSp
   // Which rail page is up. The caption page swaps the queue columns for the
   // screens drawn with the studio dials, so a caption dial shows its effect.
   const [tab, setTab] = useState<RailTab>('dials');
-  const panelPreset = String(api.effective(SHARED_NAMESPACE).panelPreset ?? '');
+  const panelPreset = String(shared.panelPreset ?? '');
   const panel = PANEL_PRESETS[panelPreset] ?? PANEL_PRESETS['dell-l'];
 
   useEffect(() => {

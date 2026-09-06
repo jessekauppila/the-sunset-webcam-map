@@ -5,6 +5,7 @@ import type { MosaicProps } from '@/app/components/mosaic/types';
 import type { EntryView } from '@/app/api/kiosk/solo/view';
 import { mergeSettings } from '@/app/lib/settings/schema';
 import { SOLO2_SETTINGS_SCHEMA, dialsFrom2 } from '@/app/lib/solo2/settingsSchema';
+import { withCaption } from '@/app/lib/solo/captionSchema';
 import { fitPlan } from '@/app/lib/solo2/plan';
 import { preludePlan } from '@/app/lib/solo2/prelude';
 import { useSoloGlass } from '@/app/components/solo/useSoloGlass';
@@ -25,7 +26,7 @@ function preload(url: string) {
  * `version=solo2`.
  */
 export function Solo2Kiosk(props: MosaicProps) {
-  const dials = dialsFrom2(mergeSettings(SOLO2_SETTINGS_SCHEMA, props.settings));
+  const dials = dialsFrom2(withCaption(mergeSettings(SOLO2_SETTINGS_SCHEMA, props.settings), props.shared));
   const glass = useSoloGlass({
     feed: props.feed,
     dials,

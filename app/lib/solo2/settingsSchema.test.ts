@@ -26,6 +26,10 @@ describe('solo2 settings schema', () => {
     // and still every solo dial
     expect(d).toMatchObject({ dwellS: 20, offsetS: 10, qualityFloor: 0.55, mix: 2 });
   });
+  it('has no caption knobs of its own: the shared namespace carries them', () => {
+    expect(SOLO2_SETTINGS_SCHEMA.some((k) => k.section === 'caption')).toBe(false);
+    expect(dialsFrom2(schemaDefaults(SOLO2_SETTINGS_SCHEMA)).pictureHeight).toBe(87);
+  });
   it('keys are unique and every enum default is one of its options', () => {
     const keys = SOLO2_SETTINGS_SCHEMA.map((k) => k.key);
     expect(new Set(keys).size).toBe(keys.length);

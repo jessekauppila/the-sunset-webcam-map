@@ -110,7 +110,7 @@ export function Solo2Frame({ entry, prelude, previous, stage, plan, dials, width
           ))}
         </div>
       </div>
-      {onMain && <Caption entry={entry} dials={dials} picture={picture} width={width} />}
+      {onMain && <Caption entry={entry} dials={dials} picture={picture} width={width} height={height} />}
       {onMain && (dials.showScores || dials.showRank || dials.showTally) && (
         <div style={{
           position: 'absolute', right: 24 * scale, bottom: 20 * scale, color: '#fff',

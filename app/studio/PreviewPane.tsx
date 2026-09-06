@@ -46,6 +46,7 @@ export function PreviewPane({
   panelPresetLabel,
   versionName,
   settings,
+  shared,
   scenes = [],
   sceneSource = { kind: 'live' },
   onSceneSourceChange,
@@ -64,6 +65,8 @@ export function PreviewPane({
   panelPresetLabel: string;
   versionName: string;
   settings?: SettingsValues;
+  /** The shared namespace's values; the solo versions draw their caption from it. */
+  shared?: SettingsValues;
   scenes?: SceneSummary[];
   sceneSource?: SceneSource;
   onSceneSourceChange?: (source: SceneSource) => void;
@@ -347,6 +350,7 @@ export function PreviewPane({
                   peerWebcams={peerOf(feed)}
                   search=""
                   settings={settings}
+                  shared={shared}
                   driveSchedule={false}
                   at={at}
                   onSelect={setSelected}

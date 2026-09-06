@@ -14,7 +14,9 @@ const solo = (key: string) => {
 /**
  * solo's dials plus the solo2 additions, in the order the rail shows them.
  * Every added dial defaults to solo's behaviour; the fade and the dissolves
- * are the exceptions decided 2026-09-05. The caption dials are solo's.
+ * are the exceptions decided 2026-09-05. The caption dials are not here:
+ * they are the shared namespace's (captionSchema.ts), one set for every
+ * solo version.
  */
 export const SOLO2_SETTINGS_SCHEMA: SettingsSchema = [
   // ---- glass ----
@@ -78,8 +80,6 @@ export const SOLO2_SETTINGS_SCHEMA: SettingsSchema = [
   },
   solo('zoneGrace'),
   solo('promoteNew'),
-  // ---- caption ---- (all solo's; the time dial included)
-  ...SOLO_SETTINGS_SCHEMA.filter((k) => k.section === 'caption'),
 ] as const;
 
 /** Typed view of a merged `solo2` values object (mergeSettings output). */

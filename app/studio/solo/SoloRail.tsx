@@ -5,6 +5,7 @@ import { SOLO_VERSIONS, type SoloVersionSpec } from '@/app/lib/solo/versions';
 import { DwellBudget } from './DwellBudget';
 import type { Solo2Dials } from '@/app/lib/solo2/types';
 import { SHARED_NAMESPACE } from '@/app/lib/settings/sharedSchema';
+import { CAPTION_SCHEMA, CAPTION_SECTION, withCaption } from '@/app/lib/solo/captionSchema';
 import type { KnobDescriptor, KnobValue } from '@/app/lib/settings/schema';
 import type { StudioSettingsApi } from '../useStudioSettings';
 import { RulesBox } from './RulesBox';
@@ -21,8 +22,8 @@ const GROUPS = [
     hint: 'These change what the screens draw. They never change which frame comes next.' },
   { section: 'bins', tab: 'dials', title: 'Bins · the ordering algorithm', color: '#4fd1c5',
     hint: 'These change which frame comes next. The queue re-runs the moment one moves.' },
-  { section: 'caption', tab: 'caption', title: 'Caption · the picture and its words', color: '#c4a7f7',
-    hint: 'Sizes are glass pixels on a 1920-wide panel; grays are percent of white. Deploy sends them to the glass like any other dial.' },
+  { section: CAPTION_SECTION, tab: 'caption', title: 'Caption · the picture and its words', color: '#c4a7f7',
+    hint: 'Sizes are glass pixels on a 1920-wide panel; grays are percent of white. Shared by every solo version, so the glass draws one caption whichever engine runs. Deploy sends them to the glass like any other dial.' },
 ] as const;
 
 const mono = 'ui-monospace, SFMono-Regular, Menlo, monospace';
@@ -83,7 +84,13 @@ export function SoloRail({ api, deploySlot, version = SOLO_VERSIONS.solo as Solo
   const values = api.effective(ns);
   const shared = api.effective(SHARED_NAMESPACE);
   const diff = new Set(api.diffByNamespace[ns] ?? []);
-  const dials = version.dialsFrom(values);
+  const sharedDiff = new Set(api.diffByNamespace[SHARED_NAMESPACE] ?? []);
+  const dials = version.dialsFrom(withCaption(values, shared));
+  // The caption group is the shared namespace's: one caption for every solo
+  // version, whichever the glass runs. The other groups are this version's.
+  const groupOf = (section: string) => section === CAPTION_SECTION
+    ? { ns: SHARED_NAMESPACE, knobs: CAPTION_SCHEMA, values: shared, diff: sharedDiff }
+    : { ns, knobs: version.schema.filter((k) => k.section === section), values, diff };
   return (
     <div style={{ fontSize: 12 }}>
       {deploySlot}
@@ -103,27 +110,30 @@ export function SoloRail({ api, deploySlot, version = SOLO_VERSIONS.solo as Solo
           </button>
         ))}
       </div>
-      {GROUPS.filter((g) => g.tab === tab).map((g) => (
-        <section key={g.section}>
-          <h4 title={g.hint} style={{
-            margin: '10px 0 6px', fontSize: 11, letterSpacing: '.06em', textTransform: 'uppercase',
-            padding: '4px 8px', borderRadius: 4, background: `${g.color}22`, color: g.color,
-            borderLeft: `3px solid ${g.color}`, display: 'flex', justifyContent: 'space-between', cursor: 'help',
-          }}>
-            <span>{g.title}</span>
-            <button type="button" onClick={() => api.resetSection(ns, g.section)}
-              title={`Put every ${g.section} dial back to its code default`}
-              style={{ background: 'transparent', border: 0, color: g.color, fontSize: 10, cursor: 'pointer' }}>
-              reset {g.section}
-            </button>
-          </h4>
-          {version.schema.filter((k) => k.section === g.section).map((k) => (
-            <Control key={k.key} knob={k} value={values[k.key]} differs={diff.has(k.key)}
-              onChange={(v) => api.setKnob(ns, k.key, v)} />
-          ))}
-          {g.section === 'glass' && version.name === 'solo2' && <DwellBudget dials={dials as Solo2Dials} />}
-        </section>
-      ))}
+      {GROUPS.filter((g) => g.tab === tab).map((g) => {
+        const grp = groupOf(g.section);
+        return (
+          <section key={g.section}>
+            <h4 title={g.hint} style={{
+              margin: '10px 0 6px', fontSize: 11, letterSpacing: '.06em', textTransform: 'uppercase',
+              padding: '4px 8px', borderRadius: 4, background: `${g.color}22`, color: g.color,
+              borderLeft: `3px solid ${g.color}`, display: 'flex', justifyContent: 'space-between', cursor: 'help',
+            }}>
+              <span>{g.title}</span>
+              <button type="button" onClick={() => api.resetSection(grp.ns, g.section)}
+                title={`Put every ${g.section} dial back to its code default`}
+                style={{ background: 'transparent', border: 0, color: g.color, fontSize: 10, cursor: 'pointer' }}>
+                reset {g.section}
+              </button>
+            </h4>
+            {grp.knobs.map((k) => (
+              <Control key={k.key} knob={k} value={grp.values[k.key]} differs={grp.diff.has(k.key)}
+                onChange={(v) => api.setKnob(grp.ns, k.key, v)} />
+            ))}
+            {g.section === 'glass' && version.name === 'solo2' && <DwellBudget dials={dials as Solo2Dials} />}
+          </section>
+        );
+      })}
       {tab === 'dials' && <RulesBox dials={dials} version={version} />}
     </div>
   );

@@ -5,6 +5,7 @@ import type { MosaicProps } from '@/app/components/mosaic/types';
 import type { EntryView } from '@/app/api/kiosk/solo/view';
 import { mergeSettings } from '@/app/lib/settings/schema';
 import { SOLO_SETTINGS_SCHEMA, dialsFrom } from '@/app/lib/solo/settingsSchema';
+import { withCaption } from '@/app/lib/solo/captionSchema';
 import { SoloFrame } from './SoloFrame';
 import { useSoloGlass } from './useSoloGlass';
 
@@ -17,7 +18,7 @@ const mono = 'ui-monospace, SFMono-Regular, Menlo, monospace';
  * /api/kiosk/solo.
  */
 export function SoloKiosk(props: MosaicProps) {
-  const dials = dialsFrom(mergeSettings(SOLO_SETTINGS_SCHEMA, props.settings));
+  const dials = dialsFrom(withCaption(mergeSettings(SOLO_SETTINGS_SCHEMA, props.settings), props.shared));
   const glass = useSoloGlass({
     feed: props.feed,
     dials,
