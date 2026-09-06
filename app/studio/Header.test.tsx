@@ -15,7 +15,7 @@ function api(over: Partial<StudioSettingsApi> = {}): StudioSettingsApi {
     effective: () => mergeSettings(SHARED_SCHEMA, { activeVersion: 'solo2', panelPreset: 'dell-l' }),
     setKnob: vi.fn(), resetSection: vi.fn(), applyNamespace: () => [],
     diffByNamespace: { shared: ['activeVersion'] }, diffCount: 3,
-    deploy: async () => {}, revert: async () => {}, deployedAtMs: null, droppedKeys: [],
+    deploy: async () => {}, revert: vi.fn(async () => {}), deployedAtMs: null, droppedKeys: [],
     deploys: [], loadDeploy: async () => [], relabelDeploy: async () => {}, lastDeployRecorded: null,
     ...over,
   };
@@ -33,6 +33,15 @@ describe('Header', () => {
     expect(a.setKnob).toHaveBeenCalledWith('shared', 'activeVersion', 'v4');
     fireEvent.change(screen.getByLabelText('panel'), { target: { value: 'dell' } });
     expect(a.setKnob).toHaveBeenCalledWith('shared', 'panelPreset', 'dell');
+  });
+  it('each panel option names its geometry, so the preview needs no size chip of its own', () => {
+    render(<Header api={api()} nowMs={NOW} />);
+    const options = Array.from(
+      (screen.getByLabelText('panel') as HTMLSelectElement).options
+    );
+    expect(options.map((o) => o.value)).toContain('dell-l');
+    expect(options.find((o) => o.value === 'dell-l')?.textContent).toBe('dell-l · 1920×1080');
+    expect(options.find((o) => o.value === 'dell')?.textContent).toBe('dell · 1080×1920');
   });
   it('the status line reads the LIVE version, not the studio one, and carries rev, differ, next pull and poll age in order', () => {
     render(<Header api={api()} nowMs={NOW} />);
@@ -52,5 +61,20 @@ describe('Header', () => {
     expect(nav).toHaveStyle({ flex: 'none' });
     expect(nav).toContainElement(screen.getByRole('button', { name: 'Studio' }));
     expect(screen.getByTestId('status-line')).toHaveStyle({ minWidth: '0px', overflow: 'hidden' });
+  });
+  it('discard is live while the dials differ and copies the glass back', () => {
+    const a = api();
+    render(<Header api={a} nowMs={NOW} />);
+    const discard = screen.getByTestId('discard-changes');
+    expect(discard).toBeEnabled();
+    fireEvent.click(discard);
+    expect(a.revert).toHaveBeenCalledTimes(1);
+  });
+  it('discard is disabled when nothing differs from the glass', () => {
+    const a = api({ diffCount: 0, diffByNamespace: {} });
+    render(<Header api={a} nowMs={NOW} />);
+    expect(screen.getByTestId('discard-changes')).toBeDisabled();
+    fireEvent.click(screen.getByTestId('discard-changes'));
+    expect(a.revert).not.toHaveBeenCalled();
   });
 });

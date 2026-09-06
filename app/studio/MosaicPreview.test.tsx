@@ -25,18 +25,23 @@ class StubResizeObserver {
 }
 global.ResizeObserver = StubResizeObserver;
 
+interface MosaicProps {
+  feed: string;
+  webcams: Array<{ webcamId: number }>;
+  peerWebcams?: Array<{ webcamId: number }>;
+  at?: string | number;
+  onSelect?: (webcam: { webcamId: number }) => void;
+}
+
 let capturedFeeds: string[] = [];
+/** The props each feed's mosaic was last rendered with. */
+let capturedProps: Record<string, MosaicProps> = {};
 
 vi.mock('@/app/components/mosaic/registry', () => ({
   resolveMosaic: () =>
-    (props: {
-      feed: string;
-      webcams: Array<{ webcamId: number }>;
-      peerWebcams?: Array<{ webcamId: number }>;
-      at?: string | number;
-      onSelect?: (webcam: { webcamId: number }) => void;
-    }) => {
+    (props: MosaicProps) => {
       capturedFeeds.push(props.feed);
+      capturedProps[props.feed] = props;
       // Stands in for the real versions' canvas hit-testing: every version
       // fires onSelect with the webcam behind the tile that was clicked.
       return (
@@ -62,9 +67,13 @@ function fakeWebcams(): WindyWebcam[] {
   return [{ webcamId: 1, title: 'sunrise cam' } as unknown as WindyWebcam];
 }
 
+const cam = (webcamId: number): WindyWebcam =>
+  ({ webcamId, title: `cam ${webcamId}` } as unknown as WindyWebcam);
+
 describe('MosaicPreview', () => {
   beforeEach(() => {
     capturedFeeds = [];
+    capturedProps = {};
     useTerminatorStore.setState({
       sunrise: fakeWebcams(),
       sunset: fakeWebcams(),
@@ -72,6 +81,45 @@ describe('MosaicPreview', () => {
       loading: false,
       error: undefined,
     });
+  });
+
+  it('hands each screen the OTHER feed as peerWebcams, so the two share one scale', () => {
+    useTerminatorStore.setState({
+      sunrise: [cam(11)],
+      sunset: [cam(22)],
+      combined: [],
+      loading: false,
+      error: undefined,
+    });
+
+    render(
+      <MosaicPreview
+        versionName="v1"
+        panel={PANEL}
+        sceneSource={{ kind: 'live' }}
+        sceneState={null}
+      />
+    );
+
+    expect(capturedProps.sunrise.webcams.map((w) => w.webcamId)).toEqual([11]);
+    expect(capturedProps.sunrise.peerWebcams?.map((w) => w.webcamId)).toEqual([22]);
+    expect(capturedProps.sunset.webcams.map((w) => w.webcamId)).toEqual([22]);
+    expect(capturedProps.sunset.peerWebcams?.map((w) => w.webcamId)).toEqual([11]);
+  });
+
+  it('passes the scene\'s moment through to the mosaic as `at`', () => {
+    render(
+      <MosaicPreview
+        versionName="v1"
+        panel={PANEL}
+        sceneSource={{ kind: 'scene', id: 7 }}
+        sceneState={{ sunrise: [cam(11)], sunset: [cam(22)] }}
+        at="2026-09-05T02:30:00.000Z"
+      />
+    );
+
+    expect(capturedProps.sunrise.at).toBe('2026-09-05T02:30:00.000Z');
+    expect(capturedProps.sunset.at).toBe('2026-09-05T02:30:00.000Z');
   });
 
   it('renders both feeds with the resolved version', () => {

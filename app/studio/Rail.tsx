@@ -6,7 +6,7 @@ import type { StudioSurface } from './surfaces';
 import { SHARED_NAMESPACE } from '@/app/lib/settings/sharedSchema';
 import { CAPTION_SCHEMA, CAPTION_SECTION, withCaption } from '@/app/lib/solo/captionSchema';
 import { SOURCE_FRAME, drawFactor, pictureRect } from '@/app/lib/solo/caption';
-import { PANEL_PRESETS, type PanelSize } from '@/app/kiosk/panelPreview';
+import { PANEL_PRESETS, DEFAULT_PANEL_PRESET, type PanelSize } from '@/app/kiosk/panelPreview';
 import type { KnobDescriptor, KnobValue, SettingsSchema, SettingsValues } from '@/app/lib/settings/schema';
 import type { SoloDials } from '@/app/lib/solo/types';
 import type { Solo2Dials } from '@/app/lib/solo2/types';
@@ -177,7 +177,7 @@ export function Rail({ api, surface, tab, onTab, runFrames = 1, children }: {
   const shared = api.effective(SHARED_NAMESPACE);
   const diff = new Set(api.diffByNamespace[ns] ?? []);
   const sharedDiff = new Set(api.diffByNamespace[SHARED_NAMESPACE] ?? []);
-  const panel = PANEL_PRESETS[String(shared.panelPreset)] ?? PANEL_PRESETS['dell-l'];
+  const panel = PANEL_PRESETS[String(shared.panelPreset)] ?? PANEL_PRESETS[DEFAULT_PANEL_PRESET];
   const soloDials = surface.solo ? surface.solo.dialsFrom(withCaption(values, shared)) : null;
   // leadS is solo2's; a version without it leads for no time at all.
   const planDials: PlanDials | null = soloDials

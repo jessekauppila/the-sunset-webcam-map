@@ -1,6 +1,6 @@
 'use client';
 
-import type { CSSProperties, ReactNode } from 'react';
+import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
 import { MOSAIC_VERSIONS, resolveMosaicName } from '@/app/components/mosaic/registry';
 import { PANEL_PRESETS } from '@/app/kiosk/panelPreview';
 import { SHARED_SCHEMA, SHARED_NAMESPACE } from '@/app/lib/settings/sharedSchema';
@@ -14,6 +14,10 @@ import type { StudioSettingsApi } from './useStudioSettings';
 const mono = 'ui-monospace, SFMono-Regular, Menlo, monospace';
 const dim = '#8b95a7';
 const red = '#e5484d';
+
+/** What discard does, said plainly: it is destructive to unsaved work. */
+const DISCARD_TITLE =
+  "Copy the glass's dials back into the studio, discarding undeployed edits";
 
 /** What a dropped key means, in the one place that now reports them. */
 const DROPPED_TITLE =
@@ -44,6 +48,23 @@ function labelStyle(deviates: boolean): CSSProperties {
 }
 
 /**
+ * The header's own second-hand. The status line counts down to the next cron
+ * pull, so it needs a clock — but it is the only thing on the mosaic surface
+ * that does, and a clock hoisted into `StudioClient` re-rendered the mosaic
+ * preview once a second, restarting its motion. Tests pin `nowMs` and get no
+ * interval at all.
+ */
+function useNow(fixed: number | undefined): number {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (fixed !== undefined) return;
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, [fixed]);
+  return fixed ?? now;
+}
+
+/**
  * The one-studio page's top row: what the glass is running, what the dials
  * say, and the two ways out (deploy, navigate).
  *
@@ -57,14 +78,16 @@ function labelStyle(deviates: boolean): CSSProperties {
  */
 export function Header({
   api,
-  nowMs,
+  nowMs: fixedNowMs,
   extra,
 }: {
   api: StudioSettingsApi;
-  nowMs: number;
+  /** Tests pin the clock; in the app the header runs its own (see `useNow`). */
+  nowMs?: number;
   /** Phase B puts the save-take button here, left of Deploy. */
   extra?: ReactNode;
 }) {
+  const nowMs = useNow(fixedNowMs);
   const shared = api.effective(SHARED_NAMESPACE);
   const sharedDiff = api.diffByNamespace[SHARED_NAMESPACE] ?? [];
 
@@ -135,9 +158,12 @@ export function Header({
           onChange={(e) => api.setKnob(SHARED_NAMESPACE, 'panelPreset', e.target.value)}
           style={selectStyle}
         >
-          {Object.keys(PANEL_PRESETS).map((name) => (
+          {/* The old mosaic preview carried a `dell-l · 1920×1080` chip; the
+              geometry lives on the option itself now, so the row that picks
+              the panel is also the row that says how big it is. */}
+          {Object.entries(PANEL_PRESETS).map(([name, size]) => (
             <option key={name} value={name}>
-              {name}
+              {`${name} · ${size.width}×${size.height}`}
             </option>
           ))}
         </select>
@@ -170,6 +196,28 @@ export function Header({
       </span>
 
       {extra !== undefined && <span style={{ flex: 'none' }}>{extra}</span>}
+
+      {/* Deploy's compact form has no revert secondary, so the way back from a
+          set of edits you don't want lives here instead of inside it. */}
+      <button
+        type="button"
+        data-testid="discard-changes"
+        title={DISCARD_TITLE}
+        disabled={api.diffCount === 0}
+        onClick={() => void api.revert()}
+        style={{
+          flex: 'none',
+          background: 'transparent',
+          border: 'none',
+          padding: 0,
+          fontFamily: mono,
+          fontSize: 11,
+          color: api.diffCount === 0 ? '#4b5568' : dim,
+          cursor: api.diffCount === 0 ? 'default' : 'pointer',
+        }}
+      >
+        ↩ discard
+      </button>
 
       <span style={{ flex: 'none' }}>
         <DeployButton

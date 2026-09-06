@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { EntryView, StateView } from '@/app/api/kiosk/solo/view';
 import type { Feed, SoloDials } from '@/app/lib/solo/types';
 import type { SoloVersionSpec } from '@/app/lib/solo/versions';
@@ -24,15 +24,28 @@ interface Selected { list: EntryView[]; index: number; feed: Feed }
  * own panel. Owns only the click-to-pop-up selection; both columns'
  * state comes from `useSoloState` upstream (server data plus the studio-dial
  * re-projection) so this component stays a pure renderer of it.
+ *
+ * The columns tick — a frame's age, the dwell left — so this panel keeps its
+ * own second-hand rather than taking one from the page above, where the same
+ * tick would also recompose the mosaic preview.
  */
-export function SoloPanel({ version, liveDials, nowMs, sunrise, sunset }: {
+export function SoloPanel({ version, liveDials, nowMs: fixedNowMs, sunrise, sunset }: {
   version: SoloVersionSpec;
   liveDials: SoloDials;
-  nowMs: number;
+  /** Tests pin the clock; in the app the panel runs its own. */
+  nowMs?: number;
   sunrise: SoloFeedState;
   sunset: SoloFeedState;
 }) {
   const [selected, setSelected] = useState<Selected | null>(null);
+  const [selfNowMs, setSelfNowMs] = useState(() => Date.now());
+  const nowMs = fixedNowMs ?? selfNowMs;
+
+  useEffect(() => {
+    if (fixedNowMs !== undefined) return;
+    const t = setInterval(() => setSelfNowMs(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, [fixedNowMs]);
 
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, minWidth: 0 }}>

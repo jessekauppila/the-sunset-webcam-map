@@ -161,6 +161,12 @@ export function MosaicPreview({
             flexDirection: 'column',
             alignItems: 'flex-end',
             gap: 6,
+            // The preview row above is clamped (`36vh`), and a full health
+            // readout plus the label card is taller than that. Scroll the card
+            // inside the row rather than letting it spill over the panel below.
+            maxHeight: '100%',
+            overflowY: 'auto',
+            boxSizing: 'border-box',
           }}
         >
           <button

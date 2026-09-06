@@ -324,8 +324,8 @@ and `app/api/kiosk/deploys/route.ts` (`saveTake`, `POST`),
 play loop), `app/studio/solo/page.tsx` and `solo2/page.tsx` (redirects).
 
 Deleted: `StudioRail.tsx`, `levaConfig.ts`, `StatusStrip.tsx`,
-`stripState.ts`, `SoloStatusStrip.tsx`, `RulesBox.tsx`, `DwellBudget.tsx`,
-`railWidth.ts`, most of `PreviewPane.tsx`, `SoloStudioClient.tsx`, the
+`stripState.ts`, `SoloStatusStrip.tsx`, `RulesBox.tsx`, `SoloRail.tsx`,
+`railWidth.ts`, `PreviewPane.tsx`, `SoloStudioClient.tsx`, the
 `leva` dependency once nothing imports it. Their tests went with them:
 `levaConfig.test.ts`, `railWidth.test.ts`, `stripState.test.ts`,
 `StatusStrip.test.tsx`, `PreviewPane.test.tsx`, `SoloRail.test.tsx`,

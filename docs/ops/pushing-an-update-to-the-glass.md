@@ -134,8 +134,8 @@ settings only, once the build that carries it is on the glass.
 3. In `/studio`: active version = `solo2`. Hold Deploy. Tabs pick it up
    within a minute. Every `solo2` dial starts at `solo`'s behaviour except
    the caption's local time, so the glass looks the same until you tune.
-4. Tune on `/studio` (pick the version at the top) (valleys, screens, lead,
-   transition, prelude, time). Deploy there.
+4. Tune on `/studio`: pick the version at the top, then dial valleys,
+   screens, lead, transition, prelude and time. Deploy there.
 5. Back: `/studio`, active version = `solo`. Hold Deploy. The `solo2` dials
    stay where you left them for next time.
 

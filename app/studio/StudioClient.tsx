@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useLoadTerminatorWebcams } from '@/app/store/useLoadTerminatorWebcams';
 import { PANEL_PRESETS, DEFAULT_PANEL_PRESET } from '@/app/kiosk/panelPreview';
 import { mergeSettings } from '@/app/lib/settings/schema';
@@ -34,23 +34,30 @@ import { useSceneWebcams, type SceneSource } from './useSceneWebcams';
  * cannot be skipped — so they are idled instead: the terminator load is
  * `paused` and the scene hook is asked for `live`, which fetches only the
  * scene list.
+ *
+ * This page keeps no clock. The header and the solo panel each run their own,
+ * because a clock here re-rendered the mosaic preview once a second: a fresh
+ * `effective()` object each tick became a fresh v4 config, a fresh
+ * composition, and a `commit()` that restarted the canvas's motion.
  */
 export function StudioClient() {
   const api = useStudioSettings();
   const shared = api.effective(SHARED_NAMESPACE);
   const surface = surfaceFor(shared.activeVersion as string | undefined);
   const panel = PANEL_PRESETS[String(shared.panelPreset)] ?? PANEL_PRESETS[DEFAULT_PANEL_PRESET];
-  const [nowMs, setNowMs] = useState(() => Date.now());
   const [tab, setTab] = useState<RailTab>('play');
   const [sceneSource, setSceneSource] = useState<SceneSource>({ kind: 'live' });
 
-  useEffect(() => {
-    const t = setInterval(() => setNowMs(Date.now()), 1000);
-    return () => clearInterval(t);
-  }, []);
+  // Before the first poll answers, `effective()` is the schema defaults, which
+  // name v1 — not necessarily the version the operator is on. Rendering that
+  // guess would flash the wrong surface and start its pool fetch for one paint,
+  // so the page waits with the header alone until the studio profile arrives.
+  const gated = api.loading && !api.studio;
 
   // Mosaic surface inputs. Both hooks always run; they idle on the solo surface.
-  useLoadTerminatorWebcams({ paused: surface.kind !== 'mosaic' || sceneSource.kind === 'scene' });
+  useLoadTerminatorWebcams({
+    paused: gated || surface.kind !== 'mosaic' || sceneSource.kind === 'scene',
+  });
   const scene = useSceneWebcams(surface.kind === 'mosaic' ? sceneSource : { kind: 'live' });
   const settings = api.effective(surface.namespace);
 
@@ -83,61 +90,69 @@ export function StudioClient() {
       height: '100vh', background: '#0b0e14', color: '#e5e7eb', overflow: 'hidden',
     }}>
       <div style={{ gridColumn: '1 / -1' }}>
-        <Header api={api} nowMs={nowMs} />
+        <Header api={api} />
       </div>
 
-      {/* A flex column, so the Rail's `minHeight: 100%` has a height to be
-          100% of: the takes list sits at the bottom when the dials are short
-          and the whole column scrolls when they are long. */}
-      <aside style={{
-        background: '#10141d', borderRight: '1px solid #1d2432', padding: 10,
-        display: 'flex', flexDirection: 'column', overflowY: 'auto',
-      }}>
-        <Rail api={api} surface={surface} tab={tab} onTab={setTab} runFrames={runFrames}>
-          <DeployHistory api={api} />
-        </Rail>
-      </aside>
+      {gated ? (
+        <main data-testid="surface-loading" style={{ gridColumn: '1 / -1' }} />
+      ) : (
+        <>
+          {/* A flex column, so the Rail's `minHeight: 100%` has a height to be
+              100% of: the takes list sits at the bottom when the dials are short
+              and the whole column scrolls when they are long. */}
+          <aside style={{
+            background: '#10141d', borderRight: '1px solid #1d2432', padding: 10,
+            display: 'flex', flexDirection: 'column', overflowY: 'auto',
+          }}>
+            <Rail api={api} surface={surface} tab={tab} onTab={setTab} runFrames={runFrames}>
+              <DeployHistory api={api} />
+            </Rail>
+          </aside>
 
-      <main
-        data-testid={`surface-${surface.kind}`}
-        style={{
-          display: 'grid', gridTemplateRows: 'clamp(220px, 36vh, 520px) auto',
-          gap: 12, padding: 12, overflowY: 'auto', minWidth: 0,
-        }}
-      >
-        {solo && studioDials && liveDials ? (
-          <>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, minHeight: 0 }}>
-              <GlassPreview dials={studioDials} panel={panel} version={solo} screens={[
-                { feed: 'sunrise', server: sunrise.server ?? null, error: sunrise.error },
-                { feed: 'sunset', server: sunset.server ?? null, error: sunset.error },
-              ]} />
-            </div>
-            <SoloPanel version={solo} liveDials={liveDials} nowMs={nowMs} sunrise={sunrise} sunset={sunset} />
-          </>
-        ) : (
-          <>
-            {/* Remounted per scene: MosaicPreview keeps the selected tile in
-                state, and a tile from the previous scene is not in this one. */}
-            <MosaicPreview
-              key={sceneSource.kind === 'scene' ? sceneSource.id : 'live'}
-              versionName={surface.name} panel={panel} settings={settings} shared={shared}
-              sceneSource={sceneSource} sceneState={scene.sceneState}
-              at={scene.sceneRepresentsAt ?? undefined}
-            />
-            <MosaicPanel
-              versionName={surface.name} settings={settings}
-              sceneSource={sceneSource} onSceneSourceChange={setSceneSource}
-              scenes={scene.scenes} sceneState={scene.sceneState} sceneNotes={scene.sceneNotes}
-              sceneProvenance={scene.sceneProvenance} sceneError={scene.error}
-              onSceneSaved={scene.refreshScenes}
-              onRestoreDials={scene.sceneProvenance
-                ? () => restoreSceneDials(api, scene.sceneProvenance!)
-                : undefined}
-            />
-          </>
-        )}
-      </main>
+          <main
+            data-testid={`surface-${surface.kind}`}
+            style={{
+              display: 'grid', gridTemplateRows: 'clamp(220px, 36vh, 520px) auto',
+              gap: 12, padding: 12, overflowY: 'auto', minWidth: 0,
+            }}
+          >
+            {/* `solo`, `studioDials` and `liveDials` are all derived from
+                `surface.solo`, so they are non-null exactly on this branch. */}
+            {surface.kind === 'solo' ? (
+              <>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, minHeight: 0 }}>
+                  <GlassPreview dials={studioDials!} panel={panel} version={solo!} screens={[
+                    { feed: 'sunrise', server: sunrise.server ?? null, error: sunrise.error },
+                    { feed: 'sunset', server: sunset.server ?? null, error: sunset.error },
+                  ]} />
+                </div>
+                <SoloPanel version={solo!} liveDials={liveDials!} sunrise={sunrise} sunset={sunset} />
+              </>
+            ) : (
+              <>
+                {/* Remounted per scene: MosaicPreview keeps the selected tile in
+                    state, and a tile from the previous scene is not in this one. */}
+                <MosaicPreview
+                  key={sceneSource.kind === 'scene' ? sceneSource.id : 'live'}
+                  versionName={surface.name} panel={panel} settings={settings} shared={shared}
+                  sceneSource={sceneSource} sceneState={scene.sceneState}
+                  at={scene.sceneRepresentsAt ?? undefined}
+                />
+                <MosaicPanel
+                  versionName={surface.name} settings={settings}
+                  sceneSource={sceneSource} onSceneSourceChange={setSceneSource}
+                  scenes={scene.scenes} sceneState={scene.sceneState} sceneNotes={scene.sceneNotes}
+                  sceneProvenance={scene.sceneProvenance} sceneError={scene.error}
+                  onSceneSaved={scene.refreshScenes}
+                  onRestoreDials={scene.sceneProvenance
+                    ? () => restoreSceneDials(api, scene.sceneProvenance!)
+                    : undefined}
+                />
+              </>
+            )}
+          </main>
+        </>
+      )}
     </div>
   );
 }
