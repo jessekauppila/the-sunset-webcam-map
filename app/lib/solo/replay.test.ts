@@ -66,6 +66,20 @@ describe('seedFromDraws and initialState', () => {
     expect(seedFromDraws(rows, [])[1].isNew).toBe(true);
     expect(seedFromDraws(rows, [])[0].isNew).toBe(false);
   });
+  it('a row shown before the log began is seeded from its own record, exactly when that record predates the window', () => {
+    const start = 10_000;
+    const exact = sun(1, 0.9, { tally: 5, firstShownAt: 1_000, lastShownAt: 8_000 });
+    const bound = sun(2, 0.9, { tally: 5, firstShownAt: 1_000, lastShownAt: 12_000 }); // shown again inside the window: only the first showing is known to predate it
+    const fresh = sun(3, 0.9, { tally: 0, firstShownAt: null, lastShownAt: null });
+    const logged = sun(4, 0.9, { tally: 5, firstShownAt: 1_000, lastShownAt: 9_000 });
+    const out = seedFromDraws([exact, bound, fresh, logged], [{ slot: 1, shownAt: 9_500, snapshotId: 4 }], start);
+    expect(out[0]).toMatchObject({ tally: 5, lastShownAt: 8_000, isNew: false });
+    expect(out[1]).toMatchObject({ tally: 5, lastShownAt: 1_000, isNew: false });
+    expect(out[2]).toMatchObject({ tally: 0, lastShownAt: null });
+    expect(out[3]).toMatchObject({ tally: 1, lastShownAt: 9_500 }); // the log wins over the row
+    // Without a window start the rows are not consulted: everything unlogged is unshown.
+    expect(seedFromDraws([exact], [])[0]).toMatchObject({ tally: 0, lastShownAt: null });
+  });
   it('the screen remembers the last frame and the trailing sunset run', () => {
     const rows = [sun(1, 0.9), non(2, 0.5)];
     const draws: DrawLike[] = [
@@ -160,7 +174,10 @@ describe('actualStrip, summarize, compare', () => {
   });
   it('compare counts shared slots that drew the same frame, and refuses another grid', () => {
     const other = { ...actual, frames: actual.frames.map((f) => (f.slot === 11 ? { ...f, snapshotId: 1 } : f)) };
-    expect(compare(actual, other)).toEqual({ slots: 4, same: 3 });
+    expect(compare(actual, other)).toEqual({ slots: 4, same: 3, inOrder: 3 });
     expect(compare(actual, { ...other, grid: { dwellS: 10, offsetS: 10 } })).toBeNull();
+    // The glass missed slot 11: every later draw sits one slot early. Slot-for-slot says 1; the order says 3 of 4 survive.
+    const shifted = { ...actual, frames: [actual.frames[0], { ...actual.frames[2], slot: 11 }, { ...actual.frames[3], slot: 12 }] };
+    expect(compare(actual, shifted)).toEqual({ slots: 3, same: 1, inOrder: 3 });
   });
 });

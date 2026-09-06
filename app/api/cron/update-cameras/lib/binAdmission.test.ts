@@ -90,7 +90,7 @@ describe('maintainBins', () => {
     expect(markOutOfZone).toHaveBeenCalledWith('sunset', [2]);
     expect(removeStale).toHaveBeenCalledWith('sunset', { grace: 2, maxAgeHours: 24 });
     expect(removeStale).toHaveBeenCalledWith('sunrise', { grace: 2, maxAgeHours: 24 });
-    expect(pruneDraws).toHaveBeenCalledWith(7); // the tape keeps a week
+    expect(pruneDraws).toHaveBeenCalledWith(30); // the tape keeps a month (replay spec §2)
     expect(out).toEqual({ leftZone: 0, expired: 0 });
   });
   it('records the zone it aged entries against, so the state route shows the same band', async () => {

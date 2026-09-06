@@ -1,6 +1,6 @@
 # Solo replay — stamped draws and a counterfactual strip
 
-Date: 2026-09-06. Status: approved in conversation, building. Follows the
+Date: 2026-09-06. Status: built (PR feat/solo-replay); the studio strip (§8) is not. Follows the
 stages-and-tape design (`2026-09-05-solo-stages-and-tape-design.md` §4) and
 the deploy history (`2026-09-05-studio-deploy-history-and-solo-preview-design.md`).
 
@@ -12,7 +12,7 @@ under other dials?":
 
 | Record | Table | State on 2026-09-06 |
 |---|---|---|
-| What we showed | `kiosk_draws` | Live since 23:51 PT tonight; one row per screen per slot; pruned at 7 days |
+| What we showed | `kiosk_draws` | Live since 23:51 PT on 09-05; one row per screen per slot; pruned at 7 days, now 30 |
 | Dials in force | `kiosk_deploys` | Every Deploy since 09-05, all namespaces |
 | What we had access to | `kiosk_bin_entries` | `entered_at` / `removed_at` on every row; removed rows are never deleted, so the pool at any past moment rebuilds from the table |
 
@@ -87,11 +87,18 @@ Two store reads, both in `app/lib/solo/store.ts`:
 or `> t`). The shown state (`tally`, `lastShownAt`, `isNew`) is not read
 from the row, because the row holds today's values; it is rebuilt:
 
-- `seedFromDraws(entries, priorDraws)`: for each prior draw, every id in
-  `shownSnapshotIds` (or the snapshot alone) gets `tally + 1`,
-  `lastShownAt = shownAt`, `isNew = false`. Prior draws are the draws
-  before the window; the CLI fetches one hour of them so rest and recency
-  start true.
+- `seedFromDraws(entries, priorDraws, windowStart)`: for each prior draw,
+  every id in `shownSnapshotIds` (or the snapshot alone) gets `tally + 1`,
+  `lastShownAt = shownAt`, `isNew = false`. Bins expire at 24 h, so every
+  draw of a frame still in the pool is within a day: the CLI fetches 24 h
+  of prior draws and the seed is exact from the log.
+- A row the log never saw drawn but whose own `firstShownAt` is before the
+  window was shown before the log began (the log is younger than the bins,
+  or was pruned). It is seeded from the row's record: exact when the row's
+  `lastShownAt` is also before the window, else a lower bound
+  (`firstShownAt`). This only matters for windows within 24 h of the log's
+  first row; the first night's window is the worst case and its
+  slot-for-slot parity is low for that reason alone.
 - `isNew` at entry: true when another entry of the same camera was active
   at this entry's `enteredAt`, which is the admission rule, then cleared by
   any showing, prior or simulated.
@@ -129,8 +136,16 @@ interface Strip { feed; version; dials: SettingsValues /* deviations */; fromMs;
 strip and the replay strip are one type. `summarize(strip)` returns draws,
 blanks, distinct frames, distinct cameras, repeats, non-sunset share, mean
 and minimum quality, a 10-bucket quality histogram, and draws per camera
-(top 8). `compare(a, b)` counts slots where both strips drew the same
-frame, only when their dwell and offset agree.
+(top 8). `compare(a, b)` reports, only when their dwell and offset agree,
+`same` (slots where both drew the same frame) and `inOrder` (the longest
+common subsequence of the two draw orders). A slot the glass missed shifts
+every later draw by one, so `same` reads low even when the order is right;
+`inOrder` survives that. Measured on 2026-09-06 at the live dials: the
+12:00 PT hour, 13 h into the log, 180 draws, 57 same slot, 152 in order;
+the 13:00 hour, 163 of 180 in order. The aggregates (frames, cameras,
+histogram) match exactly in both, so the residual is local reordering,
+most of it the pre-log seeding fallback above; a window starting a day
+after the log's first row will say whether anything else remains.
 
 ## 5. The CLI
 
@@ -156,8 +171,23 @@ npx vite-node --config vitest.config.ts scripts/solo-replay.ts \
   summaries as a table. `--json` writes `{ actual, replay, summaries }`,
   which is the future studio strip's payload.
 
-First use: tonight's sunset window at rating floor 1, 2.5 and 3, and again
-at rest 8. The numbers go in the PR.
+First use, 2026-09-06 (sunset screen; "tonight" is 23:51–00:30 PT with 28
+frames from 11 cameras; "midday" is 12:00–13:00 PT with 114 frames from
+34 cameras):
+
+| | tonight actual | floor 2.5 | floor 3 | midday actual | floor 2.5 | floor 3 |
+|---|---|---|---|---|---|---|
+| distinct frames | 28 | 19 | 15 | 114 | 85 | 59 |
+| distinct cameras | 11 | 9 | 6 | 34 | 28 | 20 |
+| mean quality | 0.47 | 0.58 | 0.63 | 0.48 | 0.60 | 0.68 |
+| min quality | 0.07 | 0.39 | 0.52 | 0.00 | 0.38 | 0.51 |
+| top camera's share | 23% | 29% | 42% | 9% | 13% | 17% |
+
+`rest` 8 changed nothing in either window: rest only binds when the cycle
+of eligible frames is shorter than the dial, and it never was. solo2 with
+the camera run gives every camera equal draws (35 cameras × 7 at midday)
+but plays each camera's newest frame, not its best, so mean quality falls
+to 0.42; with the floor at 2.5 it recovers to 0.51 with 28 cameras.
 
 ## 6. Error handling
 

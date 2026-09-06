@@ -12,13 +12,19 @@ import type { SoloVersionSpec } from './versions';
  * trusting the rows, which hold today's values.
  */
 
-/** A bin row as the replay needs it. `StoredEntry & { removedAt }` satisfies this. */
-export interface ReplayEntry extends BinEntry {
-  /** When the row left the bin, ms since epoch; null while it is still in. */
-  removedAt: number | null;
+/** An entry plus what a strip block shows of it. `StoredEntry` satisfies this. */
+export interface FrameFacts extends BinEntry {
   capturedAt?: number;
   title?: string;
   imageUrl?: string;
+}
+
+/** A bin row as the replay needs it. `StoredEntry & { removedAt }` satisfies this. */
+export interface ReplayEntry extends FrameFacts {
+  /** When the row left the bin, ms since epoch; null while it is still in. */
+  removedAt: number | null;
+  /** The row's own record of its first showing, for draws older than the log. */
+  firstShownAt?: number | null;
 }
 
 /** One logged draw, as much of it as the replay reads. `DrawRecord` satisfies this. */
@@ -80,11 +86,16 @@ export function isNewAtEntry(entry: ReplayEntry, entries: ReplayEntry[]): boolea
 }
 
 /**
- * Rebuild the shown state as it stood after `priorDraws`: tally, last
- * shown and isNew come from the draws, not from the rows. Returns copies;
- * the inputs are never mutated.
+ * Rebuild the shown state as it stood at `windowStart`, after `priorDraws`:
+ * tally, last shown and isNew come from the draws, not from the rows.
+ * A row the log never saw drawn but whose own `firstShownAt` is before the
+ * window was shown before the log began (the log is younger than the bins,
+ * or was pruned); it is seeded from the row's record, which is exact when
+ * its `lastShownAt` is also before the window and a lower bound otherwise.
+ * Bins expire at 24 h, so a 24 h lookback of draws makes the fallback moot
+ * once the log is a day old. Returns copies; the inputs are never mutated.
  */
-export function seedFromDraws<T extends ReplayEntry>(entries: T[], priorDraws: DrawLike[]): T[] {
+export function seedFromDraws<T extends ReplayEntry>(entries: T[], priorDraws: DrawLike[], windowStart = -Infinity): T[] {
   const shownAt = new Map<number, number>();
   const tally = new Map<number, number>();
   for (const d of priorDraws) {
@@ -94,13 +105,16 @@ export function seedFromDraws<T extends ReplayEntry>(entries: T[], priorDraws: D
     }
   }
   return entries.map((e) => {
-    const t = tally.get(e.snapshotId) ?? 0;
-    return {
-      ...e,
-      tally: t,
-      lastShownAt: shownAt.get(e.snapshotId) ?? null,
-      isNew: t === 0 && isNewAtEntry(e, entries),
-    };
+    const logged = shownAt.get(e.snapshotId);
+    if (logged != null) {
+      return { ...e, tally: tally.get(e.snapshotId) ?? 0, lastShownAt: logged, isNew: false };
+    }
+    const first = e.firstShownAt ?? null;
+    if (first != null && first < windowStart) {
+      const last = e.lastShownAt != null && e.lastShownAt < windowStart ? e.lastShownAt : first;
+      return { ...e, tally: Math.max(1, e.tally), lastShownAt: last, isNew: false };
+    }
+    return { ...e, tally: 0, lastShownAt: null, isNew: isNewAtEntry(e, entries) };
   });
 }
 
@@ -118,7 +132,7 @@ const blank = (slot: number, shownAt: number): StripFrame => ({
   title: '', imageUrl: '', capturedAt: null, shownSnapshotIds: [], repeat: false,
 });
 
-function frameOf(e: ReplayEntry, slot: number, shownAt: number, shownIds: number[], repeat: boolean): StripFrame {
+function frameOf(e: FrameFacts, slot: number, shownAt: number, shownIds: number[], repeat: boolean): StripFrame {
   return {
     slot, shownAt, snapshotId: e.snapshotId, webcamId: e.webcamId, bin: e.bin,
     quality: e.quality, detection: e.detection, title: e.title ?? '', imageUrl: e.imageUrl ?? '',
@@ -147,7 +161,7 @@ export interface ReplayOptions<D extends SoloDials> {
 export function replay<D extends SoloDials>(o: ReplayOptions<D>): Strip {
   const { feed, version, dials } = o;
   const grid = { dwellS: dials.dwellS, offsetS: dials.offsetS };
-  const working = seedFromDraws(o.entries, o.priorDraws);
+  const working = seedFromDraws(o.entries, o.priorDraws, o.fromMs);
   let state = initialState(o.priorDraws, o.entries);
   const seen = new Set<number>();
   const frames: StripFrame[] = [];
@@ -177,7 +191,7 @@ export function replay<D extends SoloDials>(o: ReplayOptions<D>): Strip {
 
 /** The fact strip, from the draw log, on the grid the glass was running. */
 export function actualStrip(
-  feed: Feed, draws: (DrawLike & ReplayEntry)[], grid: Grid, fromMs: number, toMs: number,
+  feed: Feed, draws: (DrawLike & FrameFacts)[], grid: Grid, fromMs: number, toMs: number,
 ): Strip {
   const seen = new Set<number>();
   const frames = draws.map((d) => {
@@ -232,12 +246,27 @@ export function summarize(strip: Strip): StripSummary {
   };
 }
 
+/** Length of the longest common subsequence of two id sequences: how much of the order survives. */
+function lcs(a: (number | null)[], b: (number | null)[]): number {
+  let prev = new Array<number>(b.length + 1).fill(0);
+  for (let i = 1; i <= a.length; i++) {
+    const cur = new Array<number>(b.length + 1).fill(0);
+    for (let j = 1; j <= b.length; j++) {
+      cur[j] = a[i - 1] === b[j - 1] ? prev[j - 1] + 1 : Math.max(prev[j], cur[j - 1]);
+    }
+    prev = cur;
+  }
+  return prev[b.length];
+}
+
 /**
- * Slot-for-slot agreement between two strips on the same grid: how many
- * slots both have, and how many of those drew the same frame. Null when the
- * grids differ, since their slots do not line up.
+ * Agreement between two strips on the same grid: `same` is slot-for-slot
+ * (a missed slot on the glass shifts everything after it, so this reads
+ * low even when the order is right); `inOrder` is the longest run of draws
+ * both strips make in the same order, which survives that shift. Null when
+ * the grids differ, since their slots do not line up.
  */
-export function compare(a: Strip, b: Strip): { slots: number; same: number } | null {
+export function compare(a: Strip, b: Strip): { slots: number; same: number; inOrder: number } | null {
   if (a.grid.dwellS !== b.grid.dwellS || a.grid.offsetS !== b.grid.offsetS) return null;
   const byB = new Map(b.frames.map((f) => [f.slot, f.snapshotId]));
   let slots = 0;
@@ -247,5 +276,5 @@ export function compare(a: Strip, b: Strip): { slots: number; same: number } | n
     slots++;
     if (byB.get(f.slot) === f.snapshotId) same++;
   }
-  return { slots, same };
+  return { slots, same, inOrder: lcs(a.frames.map((f) => f.snapshotId), b.frames.map((f) => f.snapshotId)) };
 }
