@@ -16,6 +16,11 @@ describe('preludeFor', () => {
     expect(preludeFor(f(3, 9, 250), pool, 3)).toEqual([]);
     expect(preludeFor(f(6, 7, 500), pool, 0)).toEqual([]);
   });
+  it('a frame without a capture time neither has a prelude nor joins one', () => {
+    const bare = { snapshotId: 8, webcamId: 7 };
+    expect(preludeFor(bare, [...pool, bare], 3)).toEqual([]);
+    expect(preludeFor(f(6, 7, 500), [...pool, bare], 10).map((e) => e.snapshotId)).toEqual([1, 2, 4, 5]);
+  });
 });
 
 describe('preludeFor after a moment', () => {

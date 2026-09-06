@@ -57,11 +57,18 @@ export async function POST(request: Request) {
     const pick = version.next(entries, dials, state, slot, feed);
     if (pick) {
       const after = afterShowing(pick, state);
-      advanced = await commitAdvance(feed, slot, pick, after.sunsetStreak);
+      // What the dwell shows besides the pick (solo2's prelude) is shown too:
+      // it counts and rests with the pick, so the queue moves on to another camera.
+      const previous = entries.find((e) => e.snapshotId === state.lastSnapshotId) ?? null;
+      const alsoShown = version.shownWith(pick, entries, dials, previous);
+      advanced = await commitAdvance(feed, slot, pick, after.sunsetStreak, alsoShown.map((e) => e.snapshotId));
       if (advanced) {
-        const stored = entries.find((e) => e.snapshotId === pick.snapshotId)!;
-        stored.tally += 1;
-        stored.isNew = false;
+        for (const shown of [pick, ...alsoShown]) {
+          const stored = entries.find((e) => e.snapshotId === shown.snapshotId)!;
+          stored.tally += 1;
+          stored.isNew = false;
+          stored.lastShownAt = nowMs;
+        }
         screen = { feed, currentSnapshotId: pick.snapshotId, shownSince: nowMs, slot, sunsetStreak: after.sunsetStreak };
       }
     }

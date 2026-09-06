@@ -21,6 +21,12 @@ export interface BinEntry {
   enteredAt: number;
   /** When this frame was last on glass, ms since epoch. Undefined or null = never (rule 2). */
   lastShownAt?: number | null;
+  /**
+   * When the picture was taken, ms since epoch. The store always has it; a
+   * fixture may omit it, and a frame without it never forms or joins a
+   * prelude (solo2 spec §4.4).
+   */
+  capturedAt?: number;
 }
 
 // ---- caption dials (see lib/solo/caption.ts) ----

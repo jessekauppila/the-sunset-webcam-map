@@ -68,7 +68,7 @@ describe('POST /api/kiosk/solo/advance', () => {
     expect(body.advanced).toBe(true);
     expect(body.current.entry.snapshotId).toBe(1);
     expect(body.current.entry.tally).toBe(1);
-    expect(commitAdvance).toHaveBeenCalledWith('sunrise', 50_000_000, expect.objectContaining({ snapshotId: 1 }), 1);
+    expect(commitAdvance).toHaveBeenCalledWith('sunrise', 50_000_000, expect.objectContaining({ snapshotId: 1 }), 1, []);
   });
   it('version=solo2 with valleys 1 draws the valley on an odd slot', async () => {
     getLiveSettingsCached.mockResolvedValue({ namespaces: { solo2: { valleys: 1 } }, revision: 1 });
@@ -94,5 +94,24 @@ describe('POST /api/kiosk/solo/advance', () => {
     const res = await post({ feed: 'sunrise', slot: 50_000_000 });
     expect((await res.json()).advanced).toBe(false);
     expect(commitAdvance).not.toHaveBeenCalled();
+  });
+});
+
+describe('solo2 prelude', () => {
+  it('marks the prelude frames shown with the pick, and the returned queue treats them as shown', async () => {
+    getLiveSettingsCached.mockResolvedValue({ namespaces: { solo2: { prelude: true } }, revision: 1 });
+    const cam = (id: number, q: number, at: number) => ({ ...entry(id, q), webcamId: 7, capturedAt: at });
+    listActiveEntries.mockResolvedValue([cam(1, 0.6, 100), cam(2, 0.7, 200), cam(3, 0.9, 300), { ...entry(4, 0.8), capturedAt: 250 }]);
+    const body = await (await post({ feed: 'sunrise', slot: 50_000_000, version: 'solo2' })).json();
+    expect(body.advanced).toBe(true);
+    expect(commitAdvance).toHaveBeenCalledWith('sunrise', 50_000_000, expect.objectContaining({ snapshotId: 3 }), 1, [1, 2]);
+    expect(body.current.entry.snapshotId).toBe(3);
+    expect(body.next[0].snapshotId).toBe(4);
+    expect(body.entries.filter((e: { tally: number }) => e.tally === 1).map((e: { snapshotId: number }) => e.snapshotId).sort()).toEqual([1, 2, 3]);
+  });
+  it('solo shows nothing with the pick', async () => {
+    const body = await (await post({ feed: 'sunrise', slot: 50_000_000 })).json();
+    expect(body.advanced).toBe(true);
+    expect(commitAdvance).toHaveBeenCalledWith('sunrise', 50_000_000, expect.objectContaining({ snapshotId: 1 }), 1, []);
   });
 });
