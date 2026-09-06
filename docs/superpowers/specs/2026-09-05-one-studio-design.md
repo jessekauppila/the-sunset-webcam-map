@@ -351,13 +351,29 @@ merged). Before starting phase A, diff the studio files against whatever
   follow-up tape filmstrip (solo-stages-and-tape spec §4, not started) will
   sit under each screen in the solo version panel and is not in this design.
 - `feat/solo2-prelude-groups`: check whether anything is still unmerged.
-- `feat/solo2-camera-run` (peer session 51, design stage as of 2026-09-05, not
-  built): replaces solo2's prelude dials with one `camera run` boolean,
-  removes `pictureTop` and `captionAnchor` from the caption, and changes
-  `FeedColumn`/`EntryRow` to one box per camera. Its dwell readout becomes
-  `N frames × step`; the one-line readout under `valleys per peak` (§2.4) is
-  the slot for it. Schema changes need no page change here: the rail reads
-  the schema.
+- `feat/solo2-camera-run` (peer session 51; approved and **building** as of
+  2026-09-05 evening; spec
+  `docs/superpowers/specs/2026-09-05-solo2-camera-run-design.md`). What it
+  changes that this design must take as given once it merges:
+  - solo2 dials: `prelude`, `preludeFrames`, `preludeStepS` removed, one
+    `cameraRun` boolean added; `transition`, `fadeS`, `sameCameraFadeS` keep
+    their keys with new labels. The rail reads the schema, so nothing here
+    changes.
+  - shared caption: `pictureTop` and `captionAnchor` removed, `feedPrefix`
+    added. Same: schema-driven.
+  - `FeedColumn` / `EntryRow`: one box per camera, strips labelled i/k, the
+    CAM and PRELUDE tags gone. §2.5's "kept verbatim" means *that* column,
+    not the one on `main` today.
+  - `GlassPreview` **plays** for solo2: `Solo2Frame` on a looping local
+    clock, no advance posted. That is phase C scoped to solo2. Phase C lifts
+    it into `useSoloPreview` for both solo versions rather than writing a
+    second loop.
+  - `SoloStudioClient`'s frame modal gains prev/next through its column;
+    phase A deletes `SoloStudioClient`, so the modal with prev/next moves
+    into `StudioClient` intact.
+  - `SoloVersionSpec` gains `shown()`; `commitAdvance` takes a list of ids.
+  Its dwell readout becomes `N frames × step`; the one-line readout under
+  `valleys per peak` (§2.4) is the slot for it.
 - A peer session (`a5` in the memory notes) owned `SoloStudioClient`,
   `SoloRail` and `CaptionPreview` on 2026-09-05. Message it before phase A
   deletes `SoloStudioClient`.
@@ -371,7 +387,9 @@ Then update §8's file list to match and start.
   deploy-history spec and it stands).
 - Kiosk self-reload on new build; the Pi reload runbook is unchanged.
 - Removing versions v1–v3 from the selector.
-- Any change to solo2's engine, dials, defaults or namespace.
+- Any change to solo2's engine, dials, defaults or namespace **by this
+  design**. The camera-run branch (§10) changes them on its own; this page
+  takes whatever schema is on `main` when phase A starts.
 
 ## 12. Testing
 
