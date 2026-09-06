@@ -9,6 +9,7 @@ const markSeen = vi.fn();
 const markOutOfZone = vi.fn();
 const removeStale = vi.fn();
 const saveSweptZone = vi.fn();
+const pruneDraws = vi.fn();
 vi.mock('server-only', () => ({}));
 vi.mock('@/app/lib/solo/store', () => ({
   insertEntry: (...a: unknown[]) => insertEntry(...a),
@@ -19,6 +20,7 @@ vi.mock('@/app/lib/solo/store', () => ({
   markOutOfZone: (...a: unknown[]) => markOutOfZone(...a),
   removeStale: (...a: unknown[]) => removeStale(...a),
   saveSweptZone: (...a: unknown[]) => saveSweptZone(...a),
+  pruneDraws: (...a: unknown[]) => pruneDraws(...a),
 }));
 
 import { decideBin, enterBins, maintainBins, BIN_ADMIT_DETECTION_FLOOR } from './binAdmission';
@@ -88,6 +90,7 @@ describe('maintainBins', () => {
     expect(markOutOfZone).toHaveBeenCalledWith('sunset', [2]);
     expect(removeStale).toHaveBeenCalledWith('sunset', { grace: 2, maxAgeHours: 24 });
     expect(removeStale).toHaveBeenCalledWith('sunrise', { grace: 2, maxAgeHours: 24 });
+    expect(pruneDraws).toHaveBeenCalledWith(7); // the tape keeps a week
     expect(out).toEqual({ leftZone: 0, expired: 0 });
   });
   it('records the zone it aged entries against, so the state route shows the same band', async () => {
