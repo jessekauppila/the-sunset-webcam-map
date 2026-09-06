@@ -68,7 +68,21 @@ describe('POST /api/kiosk/solo/advance', () => {
     expect(body.advanced).toBe(true);
     expect(body.current.entry.snapshotId).toBe(1);
     expect(body.current.entry.tally).toBe(1);
-    expect(commitAdvance).toHaveBeenCalledWith('sunrise', 50_000_000, expect.objectContaining({ snapshotId: 1 }), 1);
+    expect(commitAdvance).toHaveBeenCalledWith('sunrise', 50_000_000, expect.objectContaining({ snapshotId: 1 }), 1,
+      [expect.objectContaining({ snapshotId: 1 })]);
+  });
+  it('version=solo2 marks every frame of the camera run shown, and the pick is the newest', async () => {
+    // Camera 101 has frames 1 (older) and 3 (newer); camera 102 has frame 2.
+    listActiveEntries.mockResolvedValue([
+      { ...entry(1, 0.9), capturedAt: 100 }, { ...entry(2, 0.8), capturedAt: 150 }, { ...entry(3, 0.7), webcamId: 101, capturedAt: 300 },
+    ]);
+    const res = await post({ feed: 'sunrise', slot: 50_000_000, version: 'solo2' });
+    const body = await res.json();
+    expect(body.current.entry.snapshotId).toBe(3);
+    expect(commitAdvance).toHaveBeenLastCalledWith('sunrise', 50_000_000, expect.objectContaining({ snapshotId: 3 }), 1,
+      [expect.objectContaining({ snapshotId: 1 }), expect.objectContaining({ snapshotId: 3 })]);
+    const tallies = Object.fromEntries(body.entries.map((e: { snapshotId: number; tally: number }) => [e.snapshotId, e.tally]));
+    expect(tallies).toEqual({ 1: 1, 2: 0, 3: 1 });
   });
   it('version=solo2 with valleys 1 draws the valley on an odd slot', async () => {
     getLiveSettingsCached.mockResolvedValue({ namespaces: { solo2: { valleys: 1 } }, revision: 1 });

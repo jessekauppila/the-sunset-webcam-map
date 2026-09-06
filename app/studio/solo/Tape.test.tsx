@@ -74,9 +74,9 @@ it('hover text names the frame and its time; clicking any thumb, past included, 
   expect(onSelect).toHaveBeenCalledWith(expect.objectContaining({ snapshotId: 3 }));
 });
 
-it('a projected dwell with a prelude shows the earlier frames as narrow sub-blocks before the chosen one, inside one dwell', () => {
+it('a projected dwell with a camera run shows the earlier frames as narrow sub-blocks before the chosen one, inside one dwell', () => {
   const earlier = [entry(7), entry(8)];
-  render(<Tape past={[]} current={entry(3)} next={[entry(4)]} nextSequences={[{ earlier, stepS: 1.5, holdS: 17 }]}
+  render(<Tape past={[]} current={entry(3)} next={[entry(4)]} nextSequences={[{ earlier, stepS: 1.5 }]}
     pastDials={D} nextDials={D} onSelect={vi.fn()} />);
   const group = screen.getByTestId('tape-next-0-group');
   const ids = [...group.querySelectorAll('[data-testid^="tape-next-0"]')].map((n) => n.getAttribute('data-testid'));

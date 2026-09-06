@@ -27,8 +27,6 @@ export interface BinEntry {
 
 /** Overlay: today's look, text over the picture. Inset: picture on black, text beneath. */
 export type CaptionLayout = 'overlay' | 'inset';
-/** Where the caption block hangs when the layout is inset. */
-export type CaptionAnchor = 'panel-bottom' | 'under-picture';
 export type CaptionAlign = 'picture' | 'center' | 'panel';
 /** The time part of the caption (solo2 spec §4.5). */
 export type TimeStyle = 'off' | '12h' | '12h-there' | '24h' | 'sun' | '12h-sun';
@@ -49,11 +47,11 @@ export type CaptionFont = 'system' | 'geist' | 'sans' | 'serif' | 'mono';
 export interface CaptionDials {
   captionLayout: CaptionLayout;
   pictureHeight: number;
-  pictureTop: number;
-  captionAnchor: CaptionAnchor;
   captionAlign: CaptionAlign;
   captionGap: number;
   font: CaptionFont;
+  /** "Sunrise: " / "Sunset: " before the title, naming the screen. */
+  feedPrefix: boolean;
   titleClean: TitleClean;
   titleSize: number;
   titleWeight: TitleWeight;

@@ -3,7 +3,7 @@
 import { useEffect, useRef, type ReactNode } from 'react';
 import type { EntryView, TapeEntry } from '@/app/api/kiosk/solo/view';
 import type { BinKind } from '@/app/lib/solo/types';
-import type { Sequence } from './EntryRow';
+import type { Run } from './EntryRow';
 
 const COLOR: Record<BinKind, string> = { sunset: '#7ee2ac', non_sunset: '#c3cad6' };
 const REPEAT = '#8b2e2e';
@@ -78,8 +78,8 @@ export function Tape({ past, current, currentSince, next, nextSequences, pastDia
   /** When the current frame went on glass, ms; sizes the last past block. */
   currentSince?: number | null;
   next: EntryView[];
-  /** solo2: parallel to `next`, the prelude each dwell plays first. */
-  nextSequences?: (Sequence | undefined)[];
+  /** solo2: parallel to `next`, the earlier frames of the camera each dwell plays first. */
+  nextSequences?: (Run | undefined)[];
   /** The live dials: what the past and the on-glass frame were drawn with. */
   pastDials: TapeDials;
   /** The studio dials: what the projection is drawn with. */
@@ -159,7 +159,7 @@ export function Tape({ past, current, currentSince, next, nextSequences, pastDia
         <div key={`next-${i}`} data-testid={`tape-next-${i}-group`} style={{ flex: 'none', display: 'flex', gap: 1 }}>
           {seq.earlier.map((f) => (
             <Thumb key={f.snapshotId} testId={`tape-next-${i}-pre-${f.snapshotId}`} src={f.imageUrl} width={stepPx} color="#2a3242" dashed
-              title={`prelude · ${f.title} · ${secs(seq.stepS)}`} />
+              title={`run · ${f.title} · ${secs(seq.stepS)}`} />
           ))}
           <Thumb testId={`tape-next-${i}`} src={e.imageUrl} width={mainWidth} color={COLOR[e.bin]} dashed
             repeat={repeatOf(e.snapshotId)} title={title} onClick={() => onSelect(e)} />

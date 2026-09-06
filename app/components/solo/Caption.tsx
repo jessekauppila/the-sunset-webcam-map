@@ -1,7 +1,7 @@
 'use client';
 
 import type { CSSProperties } from 'react';
-import type { SoloDials } from '@/app/lib/solo/types';
+import type { Feed, SoloDials } from '@/app/lib/solo/types';
 import {
   FONT_STACKS, LINE_HEIGHT, captionBox, captionLines, captionScale, gray, type CaptionEntry, type Rect,
 } from '@/app/lib/solo/caption';
@@ -12,19 +12,21 @@ import {
  * the frame. Null when the place dial is off. Everything positional comes
  * from lib/solo/caption.ts, so this is layout only.
  */
-export function Caption({ entry, dials, picture, width, height }: {
+export function Caption({ entry, dials, picture, width, feed }: {
   entry: CaptionEntry;
   dials: SoloDials;
   /** Where the picture sits on the panel, from pictureRect. */
   picture: Rect;
   width: number;
-  /** The panel's height, so a panel-bottom caption knows where the bottom is and how far up the picture reaches. */
-  height: number;
+  /** The panel's height; unused since the caption hangs from the picture, kept so callers need not change. */
+  height?: number;
+  /** The screen this caption is for, so the prefix dial can name it. */
+  feed?: Feed;
 }) {
-  const lines = captionLines(entry, dials);
+  const lines = captionLines(entry, dials, feed);
   if (!lines) return null;
   const s = captionScale(width);
-  const box = captionBox(dials, picture, width, height, lines);
+  const box = captionBox(dials, picture, width);
   const overlay = dials.captionLayout === 'overlay';
   const inline = dials.timeLine === 'inline';
 

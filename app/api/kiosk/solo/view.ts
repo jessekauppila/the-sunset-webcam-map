@@ -126,6 +126,20 @@ export function buildStateView(input: {
   const draws = version.project(entries, dials, state, eligibleCount + NEXT_COUNT, firstSlot, feed);
   const next = draws.slice(0, NEXT_COUNT);
   const stages = assignStages({ entries, dials, state, firstSlot, feed, draws, queueDepth: NEXT_COUNT });
+  // The frames a draw plays share its stage (camera-run spec §3.4): a
+  // camera's older frames stand where the camera stands, not where the frame
+  // rules alone would put them. solo shows the pick alone, so nothing moves.
+  const shared = new Set<number>();
+  for (const draw of draws) {
+    const stage = stages.get(draw.snapshotId);
+    if (!stage) continue;
+    for (const f of version.shown(entries, draw, dials)) {
+      if (f.snapshotId === draw.snapshotId || shared.has(f.snapshotId)) continue;
+      shared.add(f.snapshotId);
+      stages.set(f.snapshotId, stage);
+    }
+  }
+  if (currentEntry) for (const f of version.shown(entries, currentEntry, dials)) stages.set(f.snapshotId, { kind: 'onGlass' });
   const view = (e: ViewEntry): EntryView => ({
     ...e,
     eligible: isEligible(e, dials),

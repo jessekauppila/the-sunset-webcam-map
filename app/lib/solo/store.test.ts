@@ -117,6 +117,15 @@ describe('screen state', () => {
       .mockRejectedValueOnce(new Error('relation "kiosk_draws" does not exist'));
     const ok = await commitAdvance('sunset', 42, { snapshotId: 7, webcamId: 3, bin: 'sunset', quality: 0.9, detection: 0.8, isNew: true, tally: 0, enteredAt: 0 }, 1);
     expect(ok).toBe(true);
+    expect(sqlMock).toHaveBeenCalledTimes(3);
+    expect(sqlMock.mock.calls[1].slice(1)).toEqual(['sunset', [7]]);
+  });
+  it('commitAdvance marks every frame of the run shown in one statement', async () => {
+    sqlMock.mockResolvedValueOnce([{ feed: 'sunset' }]).mockResolvedValueOnce([]).mockResolvedValueOnce([]);
+    const e = (id: number) => ({ snapshotId: id, webcamId: 3, bin: 'sunset' as const, quality: 0.9, detection: 0.8, isNew: true, tally: 0, enteredAt: 0 });
+    await commitAdvance('sunset', 42, e(9), 1, [e(7), e(8), e(9)]);
+    expect(sqlMock.mock.calls[1].slice(1)).toEqual(['sunset', [7, 8, 9]]);
+    expect(sqlMock.mock.calls.at(-1)!.slice(1)).toEqual(['sunset', 42, 9]); // the draw log names the drawn frame
   });
 });
 

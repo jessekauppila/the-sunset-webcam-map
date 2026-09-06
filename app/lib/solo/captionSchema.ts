@@ -1,7 +1,7 @@
 import { mergeSettings } from '@/app/lib/settings/schema';
 import type { SettingsSchema, SettingsValues } from '@/app/lib/settings/schema';
 import type {
-  CaptionAlign, CaptionAnchor, CaptionDials, CaptionFont, CaptionLayout, TimeLine, TimeStyle, TitleClean, TitleWeight,
+  CaptionAlign, CaptionDials, CaptionFont, CaptionLayout, TimeLine, TimeStyle, TitleClean, TitleWeight,
 } from './types';
 
 /** The rail section every caption knob sits in. */
@@ -30,17 +30,7 @@ export const CAPTION_SCHEMA: SettingsSchema = [
   {
     key: 'pictureHeight', kind: 'number', min: 20, max: 100, step: 1, default: 87,
     label: 'picture height (%)', section: CAPTION_SECTION,
-    description: 'How tall the inset picture is, as a percent of the panel. It keeps the panel\'s shape and sits centred. Frames arrive at 400 × 224, so the readout beneath says how far the picture is blown up; 1× is pixel-for-pixel. The caption never rises into the picture: one too tall for the caption pushes the caption down, and past what the panel can hold, off it.',
-  },
-  {
-    key: 'pictureTop', kind: 'number', min: 0, max: 12, step: 0.5, default: 4,
-    label: 'picture top margin (%)', section: CAPTION_SECTION,
-    description: 'Black above the inset picture, as a percent of the panel height.',
-  },
-  {
-    key: 'captionAnchor', kind: 'enum', options: ['panel-bottom', 'under-picture'], default: 'panel-bottom',
-    label: 'caption sits', section: CAPTION_SECTION,
-    description: 'panel-bottom: the gap above the bottom edge of the panel, but never higher than the gap below the picture. under-picture: the gap below the picture.',
+    description: 'How tall the inset picture is, as a percent of the panel. It keeps the panel\'s shape and stays locked on the panel\'s centre. Frames arrive at 400 × 224, so the readout beneath says how far the picture is blown up; 1× is pixel-for-pixel. The caption hangs the gap below the picture; set too tall, it leaves the panel, and the preview shows that.',
   },
   {
     key: 'captionAlign', kind: 'enum', options: ['picture', 'center', 'panel'], default: 'picture',
@@ -50,7 +40,12 @@ export const CAPTION_SCHEMA: SettingsSchema = [
   {
     key: 'captionGap', kind: 'number', min: 0, max: 80, step: 2, default: 18,
     label: 'gap (px)', section: CAPTION_SECTION,
-    description: 'Space between the caption and whatever it is anchored to.',
+    description: 'Space between the bottom of the picture and the caption.',
+  },
+  {
+    key: 'feedPrefix', kind: 'boolean', default: true,
+    label: 'screen name', section: CAPTION_SECTION,
+    description: 'Begin the title with the screen\'s name: "Sunrise: " on the left screen, "Sunset: " on the right.',
   },
   {
     key: 'font', kind: 'enum', options: ['system', 'geist', 'sans', 'serif', 'mono'], default: 'system',
@@ -119,11 +114,10 @@ export function captionDialsFrom(values: SettingsValues): CaptionDials {
   return {
     captionLayout: values.captionLayout as CaptionLayout,
     pictureHeight: values.pictureHeight as number,
-    pictureTop: values.pictureTop as number,
-    captionAnchor: values.captionAnchor as CaptionAnchor,
     captionAlign: values.captionAlign as CaptionAlign,
     captionGap: values.captionGap as number,
     font: values.font as CaptionFont,
+    feedPrefix: values.feedPrefix as boolean,
     titleClean: values.titleClean as TitleClean,
     titleSize: values.titleSize as number,
     titleWeight: values.titleWeight as TitleWeight,

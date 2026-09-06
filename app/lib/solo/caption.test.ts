@@ -67,6 +67,12 @@ describe('captionLines', () => {
       sub: 'Norrbotten County, Sweden · 7:42 pm there',
     });
   });
+  it('names the screen before the title when the prefix dial is on and a feed is given', () => {
+    expect(captionLines(e, { ...d, feedPrefix: true }, 'sunset')!.title).toBe('Sunset: Porjus: Northern Lights webcam');
+    expect(captionLines(e, { ...d, feedPrefix: true }, 'sunrise')!.title).toBe('Sunrise: Porjus: Northern Lights webcam');
+    expect(captionLines(e, { ...d, feedPrefix: true })!.title).toBe('Porjus: Northern Lights webcam');
+    expect(captionLines(e, { ...d, feedPrefix: false }, 'sunset')!.title).toBe('Porjus: Northern Lights webcam');
+  });
   it('spot mode puts the city on the place line', () => {
     expect(captionLines(e, { ...d, titleClean: 'spot' })).toMatchObject({ title: 'Northern Lights webcam', place: 'Porjus, Norrbotten County, Sweden' });
   });
@@ -79,15 +85,19 @@ describe('captionLines', () => {
 
 describe('pictureRect', () => {
   it('overlay fills the panel', () => {
-    expect(pictureRect({ captionLayout: 'overlay', pictureHeight: 87, pictureTop: 4 }, 1920, 1080)).toEqual({ left: 0, top: 0, width: 1920, height: 1080 });
+    expect(pictureRect({ captionLayout: 'overlay', pictureHeight: 87 }, 1920, 1080)).toEqual({ left: 0, top: 0, width: 1920, height: 1080 });
   });
-  it('inset keeps the panel aspect at the dialled height, centred, the dialled way down', () => {
-    // 87 % of 1080 = 940 tall; 16:9 → 1671 wide; (1920 − 1671) / 2 = 124 (rounded); 4 % of 1080 = 43.
-    expect(pictureRect({ captionLayout: 'inset', pictureHeight: 87, pictureTop: 4 }, 1920, 1080)).toEqual({ left: 125, top: 43, width: 1671, height: 940 });
+  it('inset keeps the panel aspect at the dialled height, locked on the centre both ways', () => {
+    // 87 % of 1080 = 940 tall; 16:9 → 1671 wide; (1920 − 1671) / 2 = 125 (rounded); (1080 − 940) / 2 = 70.
+    expect(pictureRect({ captionLayout: 'inset', pictureHeight: 87 }, 1920, 1080)).toEqual({ left: 125, top: 70, width: 1671, height: 940 });
+    // Growing the picture moves its top up and its foot down by the same amount.
+    const small = pictureRect({ captionLayout: 'inset', pictureHeight: 50 }, 1920, 1080);
+    const big = pictureRect({ captionLayout: 'inset', pictureHeight: 70 }, 1920, 1080);
+    expect(small.top + small.height / 2).toBe(540);
+    expect(big.top + big.height / 2).toBe(540);
   });
   it('scales with the panel it is drawn on', () => {
-    const r = pictureRect({ captionLayout: 'inset', pictureHeight: 50, pictureTop: 0 }, 960, 540);
-    expect(r).toEqual({ left: 240, top: 0, width: 480, height: 270 });
+    expect(pictureRect({ captionLayout: 'inset', pictureHeight: 50 }, 960, 540)).toEqual({ left: 240, top: 135, width: 480, height: 270 });
   });
 });
 
@@ -109,41 +119,30 @@ describe('captionHeight', () => {
 });
 
 describe('captionBox', () => {
-  const pic = { left: 125, top: 43, width: 1671, height: 940 }; // pictureRect at 87 % on 1920 × 1080
-  const d = {
-    captionLayout: 'inset' as const, captionAnchor: 'panel-bottom' as const, captionAlign: 'picture' as const, captionGap: 18,
-    titleSize: 21, placeSize: 17, timeSize: 12, lineGap: 0, timeLine: 'own' as const,
-  };
-  const lines = { place: 'Norrbotten County, Sweden', time: '7:42 pm there' };
-  const capH = 61.85; // captionHeight(d, lines, 1)
-  it('panel-bottom + picture: the gap above the panel edge, flush with the picture, when the picture leaves room', () => {
-    const short = pictureRect({ captionLayout: 'inset', pictureHeight: 80, pictureTop: 4 }, 1920, 1080);
-    const box = captionBox(d, short, 1920, 1080, lines);
-    expect(box).toMatchObject({ left: short.left, maxWidth: short.width, textAlign: 'left' });
-    expect(box.top).toBeCloseTo(1080 - 18 - capH);
-    expect(box.bottom).toBeUndefined();
+  const pic = pictureRect({ captionLayout: 'inset', pictureHeight: 87 }, 1920, 1080); // 125, 70, 1671 × 940
+  const d = { captionLayout: 'inset' as const, captionAlign: 'picture' as const, captionGap: 18 };
+  it('hangs the gap below the picture\'s foot, flush with the picture', () => {
+    expect(captionBox(d, pic, 1920)).toEqual({ left: 125, maxWidth: 1671, top: 70 + 940 + 18, textAlign: 'left' });
   });
-  it('a panel-bottom caption never rises into the picture: it sits no higher than the gap below the picture', () => {
-    // At 87 % the panel edge would put the caption's top at 1000.15; the picture ends at 983, so the gap wins by less than a pixel.
-    expect(captionBox(d, pic, 1920, 1080, lines)).toEqual({ left: 125, maxWidth: 1671, top: 1001, textAlign: 'left' });
-    // At 92 % (the glass on 2026-09-05) the panel edge would put it 37 px into the picture; it hangs under the picture instead.
-    const tall = pictureRect({ captionLayout: 'inset', pictureHeight: 92, pictureTop: 4 }, 1920, 1080);
-    expect(tall.top + tall.height).toBe(1037);
-    expect(captionBox(d, tall, 1920, 1080, lines)).toMatchObject({ top: 1037 + 18 });
-  });
-  it('under-picture hangs the gap below the picture', () => {
-    expect(captionBox({ ...d, captionAnchor: 'under-picture' }, pic, 1920, 1080, lines)).toMatchObject({ top: 43 + 940 + 18 });
+  it('the gap is from the picture whatever its height: the caption follows the foot, never the panel edge', () => {
+    for (const h of [40, 60, 80, 92]) {
+      const p = pictureRect({ captionLayout: 'inset', pictureHeight: h }, 1920, 1080);
+      expect(captionBox(d, p, 1920).top).toBe(p.top + p.height + 18);
+    }
+    // At 92 % the picture ends at 1034 and the caption starts at 1052: it leaves the panel, and that is what the preview shows.
+    const tall = pictureRect({ captionLayout: 'inset', pictureHeight: 92 }, 1920, 1080);
+    expect(captionBox(d, tall, 1920).top).toBeGreaterThan(1080 - 30);
   });
   it('center spans the panel; panel sits at the glass margin', () => {
-    expect(captionBox({ ...d, captionAlign: 'center' }, pic, 1920, 1080, lines)).toEqual({ left: 0, width: 1920, textAlign: 'center', top: 1001 });
-    expect(captionBox({ ...d, captionAlign: 'panel' }, pic, 1920, 1080, lines)).toMatchObject({ left: 24, textAlign: 'left' });
+    expect(captionBox({ ...d, captionAlign: 'center' }, pic, 1920)).toEqual({ left: 0, width: 1920, textAlign: 'center', top: 1028 });
+    expect(captionBox({ ...d, captionAlign: 'panel' }, pic, 1920)).toMatchObject({ left: 24, textAlign: 'left', top: 1028 });
   });
-  it('the gap and the caption are in glass pixels: everything halves on a half-size panel', () => {
-    const half = pictureRect({ captionLayout: 'inset', pictureHeight: 80, pictureTop: 4 }, 960, 540);
-    expect(captionBox(d, half, 960, 540, lines).top).toBeCloseTo((1080 - 18 - capH) / 2);
+  it('the gap is in glass pixels: everything halves on a half-size panel', () => {
+    const half = pictureRect({ captionLayout: 'inset', pictureHeight: 87 }, 960, 540);
+    expect(captionBox(d, half, 960).top).toBe(half.top + half.height + 9);
   });
   it('overlay tucks into the picture corner whatever the dials say', () => {
-    expect(captionBox({ ...d, captionLayout: 'overlay', captionAlign: 'center' }, pic, 1920, 1080, lines)).toEqual({ left: 24, bottom: 20, textAlign: 'left', maxWidth: 1872 });
+    expect(captionBox({ ...d, captionLayout: 'overlay', captionAlign: 'center' }, pic, 1920)).toEqual({ left: 24, bottom: 20, textAlign: 'left', maxWidth: 1872 });
   });
 });
 
@@ -156,7 +155,7 @@ it('gray is a percent of white', () => {
 describe('drawFactor', () => {
   it('is the picture width over the source width: 1 at native size, ~4.2 at the default inset on a 1080 panel', () => {
     expect(drawFactor({ width: 400 })).toBe(1);
-    const d = { captionLayout: 'inset' as const, pictureHeight: 87, pictureTop: 4 };
+    const d = { captionLayout: 'inset' as const, pictureHeight: 87 };
     expect(drawFactor(pictureRect(d, 1920, 1080))).toBeCloseTo(4.18, 2);
     expect(drawFactor(pictureRect({ ...d, captionLayout: 'overlay' }, 2560, 1440))).toBeCloseTo(6.4, 2);
     expect(drawFactor({ width: 1000 }, { width: 500 })).toBe(2);

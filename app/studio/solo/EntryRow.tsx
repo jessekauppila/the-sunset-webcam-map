@@ -12,16 +12,15 @@ const LIGHT = '#2a3242';
 
 /** Height is time on the solo2 studio: this many pixels per second of glass. */
 export const PX_PER_S = 4;
-/** A prelude step shorter than this many pixels would hide its thumbnail. */
+/** A frame's share shorter than this many pixels would hide its thumbnail. */
 export const MIN_FRAME_PX = 14;
 
-/** What plays before the chosen frame in one dwell, as the glass would show it. */
-export interface Sequence {
-  /** Earlier frames of the same camera, oldest first, already cut to what the dwell fits. */
+/** What one dwell plays, as the glass would show it (camera-run spec §5.2). */
+export interface Run {
+  /** The camera's earlier frames, oldest first; the row's own entry plays last. */
   earlier: EntryView[];
+  /** Each frame's even share of the dwell. */
   stepS: number;
-  /** The rest of the dwell: hold plus lead. */
-  holdS: number;
 }
 
 function Tag({ children, bg, fg, title }: { children: string; bg: string; fg: string; title: string }) {
@@ -38,54 +37,53 @@ const clock = (e: EntryView) => formatTime('12h', e.capturedAt, e.timezone, null
 /**
  * One frame, wherever it sits: a bin or the queue. The outline is always the
  * colour of the bin the frame belongs to, so the queue reads at a glance.
- * With a `sequence` the row becomes a group: the earlier frames stacked
- * above the chosen one in capture order, each its own light box with its
- * local time, all inside one bin-coloured border, so a dwell that plays
- * several pictures reads as one box. With `rowS` the row is as tall as the
- * time it gets on glass. Dimming means the frame is under its floor; a
- * repeat IS shown again, so it keeps full strength and a red tag says so.
- * The `reason` line says why the frame sits where it does.
+ * With a `run` the row becomes a camera: the earlier frames stacked above
+ * the newest one in capture order, each its own light box labelled `i/k`
+ * with its local time, all inside one bin-coloured border, so a dwell that
+ * plays several pictures reads as one box. With `rowS` the row is as tall
+ * as the time it gets on glass. Dimming means the frame will not be shown
+ * (it is below a floor); a repeat IS shown again, so it keeps full strength
+ * and a red tag says so.
  */
 export function EntryRow({
-  entry: e, feed, place, reason, onGlass = false, repeat = false, cameraIndex, role, sequence, rowS, preluded = false, onClick,
+  entry: e, feed, place, reason, onGlass = false, repeat = false, role, run, rowS, onClick,
 }: {
   entry: EntryView;
   feed: Feed;
   place: 'sunset' | 'non_sunset' | 'queue';
-  /** Why the frame sits where it does, from reasonLine. */
+  /** One line saying why the frame is where it is (reason.ts). */
   reason: string;
   onGlass?: boolean;
   repeat?: boolean;
-  cameraIndex?: { n: number; m: number };
   /** solo2: what this queued draw is inside its bar. */
   role?: Role;
-  /** solo2: the prelude this dwell plays first. */
-  sequence?: Sequence;
+  /** solo2: the camera run this dwell plays before the row's own frame. */
+  run?: Run;
   /** solo2: seconds this row stands for; its height follows. */
   rowS?: number;
-  /** solo2: an earlier queued dwell already showed this frame inside its prelude. */
-  preluded?: boolean;
   onClick: (entry: EntryView) => void;
 }) {
   const scores = scoreLine(e);
   const placeText = [[e.city, e.country].filter(Boolean).join(', '), clock(e)].filter(Boolean).join(' · ');
+  const grouped = !!run && run.earlier.length > 0;
+  const k = grouped ? run.earlier.length + 1 : 1;
   const title =
     `${e.title} · ${placeText}. Frame ${e.snapshotId}, ${feed} feed` +
     (place === 'queue' ? ', in the queue. ' : '. ') +
-    (e.bin === 'sunset' ? 'Sunset bin. ' : 'Non-sunset bin. ') +
-    `${reason}. ` +
+    (e.bin === 'sunset' ? 'Sunset bin, ordered by rating. ' : 'Non-sunset bin, ordered by sunset probability. ') +
+    (!e.eligible ? 'Below the floor dial; not eligible. ' : '') +
     (repeat ? 'Already appears earlier in the queue; this is a repeat showing. ' : '') +
-    (preluded ? 'Already shown inside an earlier queued frame\'s prelude; this is its own turn. ' : '') +
-    (sequence ? `Plays ${sequence.earlier.length} earlier frame${sequence.earlier.length === 1 ? '' : 's'} of this camera first, ${sequence.stepS} s each.` : '');
-  const grouped = !!sequence && sequence.earlier.length > 0;
+    (grouped ? `The newest of ${k} frames of this camera; the dwell plays all ${k}, oldest first, ${Number(run.stepS.toFixed(1))} s each. ` : '') +
+    `Shown ${e.tally} time${e.tally === 1 ? '' : 's'} today.`;
   const ring = onGlass ? '0 0 0 2px #f5a344' : undefined;
+  const stepPx = grouped ? Math.max(MIN_FRAME_PX, run.stepS * PX_PER_S) : undefined;
 
   const main = (
     <button type="button" onClick={() => onClick(e)} title={title} style={{
       display: 'grid', gridTemplateColumns: '46px 1fr', gap: 5, alignItems: 'center', width: '100%',
       textAlign: 'left', borderRadius: 5, padding: 3, marginBottom: grouped ? 0 : 4,
       border: grouped ? `1px solid ${LIGHT}` : `1.5px solid ${COLOR[e.bin]}`,
-      minHeight: grouped ? Math.max(0, sequence.holdS * PX_PER_S) : rowS !== undefined ? rowS * PX_PER_S : undefined,
+      minHeight: grouped ? stepPx : rowS !== undefined ? rowS * PX_PER_S : undefined,
       background: '#0e1119', fontFamily: mono, fontSize: 9.5, color: '#9aa3b2', cursor: 'pointer',
       opacity: e.stage.kind === 'underFloor' ? 0.45 : 1, boxShadow: grouped ? undefined : ring,
     }}>
@@ -95,14 +93,9 @@ export function EntryRow({
         <span style={{ color: '#c3cad6' }}>{reason}</span>
         <div style={{ color: '#6b7280' }}>{scores}</div>
         <div style={{ marginTop: 2 }}>
+          {grouped && <Tag bg="#1d2432" fg="#c3cad6" title={`The last of the ${k} frames this dwell plays`}>{`${k}/${k}`}</Tag>}
           {e.isNew && <Tag bg="#f5a344" fg="#1a1000" title="Newer frame from a camera already in the bin">NEW</Tag>}
           {repeat && <Tag bg="#8b2e2e" fg="#ffe1e1" title="Already earlier in this queue; the rest dial let it come round again">REPEAT</Tag>}
-          {cameraIndex && (
-            <Tag bg="#7ea6e2" fg="#061224" title="Same camera as another queue entry">{`CAM ${cameraIndex.n}/${cameraIndex.m}`}</Tag>
-          )}
-          {preluded && (
-            <Tag bg="#5b4b8a" fg="#efe9ff" title="An earlier queued frame already shows this picture inside its prelude; this is its own turn">PRELUDE</Tag>
-          )}
           {role === 'peak' && <Tag bg="#f5a344" fg="#1a1000" title="Beat 0 of the bar: the best remaining frame">PEAK</Tag>}
           {role === 'valley' && <Tag bg="#3a4356" fg="#e5e7eb" title="A valley: the lowest eligible frame, unshown first">VALLEY</Tag>}
         </div>
@@ -114,17 +107,17 @@ export function EntryRow({
 
   if (!grouped) return main;
 
-  const stepPx = Math.max(MIN_FRAME_PX, sequence.stepS * PX_PER_S);
   return (
-    <div role="group" aria-label={`${e.title}: ${sequence.earlier.length + 1} frames in one dwell`} style={{
+    <div role="group" aria-label={`${e.title}: ${k} frames in one dwell`} style={{
       border: `2px solid ${COLOR[e.bin]}`, borderRadius: 6, padding: 3, marginBottom: 4,
       background: '#0b0e14', boxShadow: ring, display: 'flex', flexDirection: 'column', gap: 3,
+      opacity: e.stage.kind === 'underFloor' ? 0.45 : 1,
     }}>
-      {sequence.earlier.map((f) => {
+      {run.earlier.map((f, i) => {
         const t = clock(f) ?? `${Math.max(1, Math.round((e.capturedAt - f.capturedAt) / 60_000))} min earlier`;
         return (
           <button key={f.snapshotId} type="button" onClick={() => onClick(f)}
-            title={`${f.title} · ${t}. Frame ${f.snapshotId}, shown for ${sequence.stepS} s as part of this dwell's prelude, without a caption.`}
+            title={`${f.title} · ${t}. Frame ${f.snapshotId}, ${i + 1} of ${k} in this dwell, ${Number(run.stepS.toFixed(1))} s.`}
             style={{
               display: 'flex', gap: 5, alignItems: 'center', width: '100%', boxSizing: 'border-box', height: stepPx,
               textAlign: 'left', border: `1px solid ${LIGHT}`, borderRadius: 4, padding: '0 3px',
@@ -132,7 +125,9 @@ export function EntryRow({
             }}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={f.imageUrl} alt="" style={{ height: '100%', aspectRatio: '16/9', objectFit: 'cover', borderRadius: 2, display: 'block' }} />
-            <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t}</span>
+            <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              <b style={{ color: '#c3cad6' }}>{i + 1}/{k}</b> · {t}
+            </span>
           </button>
         );
       })}

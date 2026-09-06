@@ -1,18 +1,17 @@
 'use client';
 
-import type { EntryView } from '@/app/api/kiosk/solo/view';
+import type { EntryView, ViewEntry } from '@/app/api/kiosk/solo/view';
 import { pictureRect } from '@/app/lib/solo/caption';
 import { scoreLine } from '@/app/lib/solo/scores';
+import type { Feed } from '@/app/lib/solo/types';
 import { Caption } from '@/app/components/solo/Caption';
 import type { DwellPlan, Stage } from '@/app/lib/solo2/plan';
 import type { Solo2Dials } from '@/app/lib/solo2/types';
 
 const mono = 'ui-monospace, SFMono-Regular, Menlo, monospace';
 
-export interface PreludeFrame {
-  snapshotId: number;
-  imageUrl: string;
-}
+/** A frame of the run: a view entry, with its bin rank when the caller has one. */
+export type RunFrame = ViewEntry & { rank?: number };
 
 const KEYFRAMES = `
 @keyframes solo2-fade-in { from { opacity: 0 } to { opacity: 1 } }
@@ -20,9 +19,10 @@ const KEYFRAMES = `
 `;
 
 /**
- * How this dwell arrives (spec §4.2). The same camera always dissolves, over
- * the same-camera fade; a camera change uses the transition dial and its
- * fade. Exported so the studio can say the same thing about a queued row.
+ * How this dwell arrives (rhythm spec §4.2). The same camera always
+ * dissolves, over the same-camera fade; a camera change uses the transition
+ * dial and its fade. Exported so the studio can say the same thing about a
+ * queued row.
  */
 export function arrival(
   entry: { webcamId: number }, previous: { webcamId: number } | null, d: Pick<Solo2Dials, 'transition' | 'fadeS' | 'sameCameraFadeS'>,
@@ -34,24 +34,27 @@ export function arrival(
 }
 
 /**
- * One dwell on one panel (spec §4). Layers, bottom to top: the previous
- * frame (unless the arrival is a cut), the dip's black veil, then the
- * sequence: every prelude frame and the chosen frame stacked in capture
- * order, each opaque once the clock-driven stage has reached it and
- * dissolving in over the same-camera fade. The chosen frame's overlays mount
- * only when it is on; prelude frames carry nothing, so the score on glass is
- * always the score of the picture on glass.
+ * One dwell on one panel (camera-run spec §4). Layers, bottom to top: the
+ * previous frame (unless the arrival is a cut), the dip's black veil, then
+ * the run: every frame stacked oldest first, each opaque once the
+ * clock-driven stage has reached it and dissolving in over the same-camera
+ * fade capped at its share. The caption and the score overlays follow the
+ * frame that is up, so the words and the score on glass are always those of
+ * the picture on glass.
  */
-export function Solo2Frame({ entry, prelude, previous, stage, plan, dials, width, height }: {
+export function Solo2Frame({ entry, run, previous, stage, plan, dials, width, height, feed }: {
+  /** The drawn frame: the run's last. */
   entry: EntryView;
-  /** Already cut to what the plan shows (preludePlan), oldest first. */
-  prelude: PreludeFrame[];
-  previous: EntryView | null;
+  /** What the dwell plays, oldest first, `entry` last (run.ts `runOf`). */
+  run: RunFrame[];
+  previous: ViewEntry | null;
   stage: Stage;
   plan: DwellPlan;
   dials: Solo2Dials;
   width: number;
   height: number;
+  /** The screen, for the caption's prefix dial. */
+  feed?: Feed;
 }) {
   const layer = { position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' } as const;
   // Where the picture sits (full-bleed or inset on black, per the caption
@@ -62,10 +65,11 @@ export function Solo2Frame({ entry, prelude, previous, stage, plan, dials, width
     position: 'absolute', left: picture.left, top: picture.top, width: picture.width, height: picture.height, objectFit: 'cover',
   } as const;
   const scale = Math.max(1, Math.min(width, height) / 540); // score overlay text scales with the panel
-  const onMain = stage.layer === 'main';
-  const sequence: PreludeFrame[] = [...prelude, entry];
-  const shown = onMain ? sequence.length - 1 : Math.min(stage.index, prelude.length - 1);
-  const stepFade = Math.min(Math.max(0, dials.sameCameraFadeS), plan.preludeStepS);
+  const sequence: RunFrame[] = run.length > 0 ? run : [entry];
+  const shown = Math.min(stage.index, sequence.length - 1);
+  const up = sequence[shown];
+  const rank = up.rank ?? entry.rank;
+  const stepFade = Math.min(Math.max(0, dials.sameCameraFadeS), plan.stepS);
 
   const arrive = arrival(entry, previous, dials);
   const showPrevious = arrive.kind !== 'cut' && !!previous;
@@ -77,7 +81,7 @@ export function Solo2Frame({ entry, prelude, previous, stage, plan, dials, width
   // The lead: a slow push over the last seconds, driven by the clock stage
   // so a late tab is in sync. No transition when the progress is 0, so a
   // new frame lands at scale 1 without shrinking into place.
-  const leadProgress = onMain ? stage.leadProgress : 0;
+  const leadProgress = stage.leadProgress;
   const push = 1 + (dials.leadScale - 1) * leadProgress;
   const pushStyle = {
     position: 'absolute', inset: 0,
@@ -97,7 +101,7 @@ export function Solo2Frame({ entry, prelude, previous, stage, plan, dials, width
           ...layer, background: '#000', animation: `solo2-dip ${arrive.fadeS / 2}s linear both`,
         }} />
       )}
-      {/* keyed by the chosen frame so the arrival runs once per dwell; the stage only changes opacities inside */}
+      {/* keyed by the drawn frame so the arrival runs once per dwell; the stage only changes opacities inside */}
       <div key={`stack-${entry.snapshotId}`} data-testid="stack" style={{ ...pictureLayer, animation: inAnimation }}>
         <div style={pushStyle} data-testid="push">
           {sequence.map((f, i) => (
@@ -111,16 +115,16 @@ export function Solo2Frame({ entry, prelude, previous, stage, plan, dials, width
           ))}
         </div>
       </div>
-      {onMain && <Caption entry={entry} dials={dials} picture={picture} width={width} height={height} />}
-      {onMain && (dials.showScores || dials.showRank || dials.showTally) && (
+      <Caption entry={up} dials={dials} picture={picture} width={width} height={height} feed={feed} />
+      {(dials.showScores || dials.showRank || dials.showTally) && (
         <div style={{
           position: 'absolute', right: 24 * scale, bottom: 20 * scale, color: '#fff',
           textShadow: '0 1px 4px #000', fontFamily: mono, fontSize: 16 * scale, textAlign: 'right', lineHeight: 1.4,
         }}>
-          {dials.showTally && <div>shown <b style={{ color: '#f5a344' }}>×{entry.tally}</b></div>}
-          {dials.showRank && <div>{entry.bin === 'sunset' ? 'sunset' : 'non-sunset'} bin #{entry.rank}</div>}
+          {dials.showTally && <div>shown <b style={{ color: '#f5a344' }}>×{up.tally}</b></div>}
+          {dials.showRank && <div>{up.bin === 'sunset' ? 'sunset' : 'non-sunset'} bin #{rank}</div>}
           {dials.showScores && (
-            <div>{scoreLine(entry)}</div>
+            <div>{scoreLine(up)}</div>
           )}
         </div>
       )}

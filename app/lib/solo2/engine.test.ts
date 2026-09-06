@@ -3,7 +3,7 @@ import { schemaDefaults } from '@/app/lib/settings/schema';
 import { project } from '@/app/lib/solo/engine';
 import type { BinEntry, ScreenState } from '@/app/lib/solo/types';
 import { boundaryMs } from '@/app/lib/solo/schedule';
-import { beatOf, next2, project2, roleAt } from './engine';
+import { beatOf, next2, project2, roleAt, shown2 } from './engine';
 import { SOLO2_SETTINGS_SCHEMA, dialsFrom2 } from './settingsSchema';
 import type { Solo2Dials } from './types';
 
@@ -119,5 +119,34 @@ describe('rhythm', () => {
     expect(next2(entries, d, S0, 1, 'sunrise')?.snapshotId).toBe(2);
     // slot 2 is a peak: frame 2 is on glass, 1 and 3 still rest → rest waived → best is 1.
     expect(next2(entries, d, { lastSnapshotId: 2, sunsetStreak: 1 }, 2, 'sunrise')?.snapshotId).toBe(1);
+  });
+});
+
+describe('the camera run', () => {
+  // Camera 7: frames 1 (older, 0.6), 2 (newer, 0.9). Camera 9: frame 3 (0.8). Camera 11: frame 4 (0.7).
+  const cam = (id: number, webcamId: number, q: number, capturedAt: number, extra: Partial<BinEntry> = {}) =>
+    ({ ...sun(id, q, { webcamId, ...extra }), capturedAt });
+  const entries = () => [cam(1, 7, 0.6, 100), cam(2, 7, 0.9, 200), cam(3, 9, 0.8, 150), cam(4, 11, 0.7, 120)];
+  it('a camera is one item: its newest frame is drawn, ranked by its best score', () => {
+    expect(next2(entries(), D, S0, 0, 'sunrise')?.snapshotId).toBe(2);
+    // After camera 7, camera 9 (0.8) then 11 (0.7); camera 7's older frame never gets its own turn.
+    expect(project2(entries(), { ...D, rest: 0 }, S0, 4, 0, 'sunrise').map((e) => e.snapshotId)).toEqual([2, 3, 4, 2]);
+  });
+  it('every frame of the run counts as shown, so the camera rests as one', () => {
+    const working = entries();
+    const out = project2(working, { ...D, rest: 2 }, S0, 3, 0, 'sunrise');
+    expect(out.map((e) => e.snapshotId)).toEqual([2, 3, 4]);
+    expect(working.every((e) => e.tally === 0)).toBe(true); // inputs untouched
+    expect(shown2(working, working[1], D).map((e) => e.snapshotId)).toEqual([1, 2]);
+  });
+  it('a camera shown recently is not "never shown" because a new frame arrived', () => {
+    const es = [cam(1, 7, 0.9, 100, { tally: 1, lastShownAt: boundaryMs(0, 'sunrise', D.dwellS, D.offsetS) }), cam(2, 7, 0.95, 200), cam(3, 9, 0.5, 150)];
+    // Slot 1: camera 7 rests (shown at slot 0, rest 4), camera 9 is drawn although it scores lower.
+    expect(next2(es, D, { lastSnapshotId: 1, sunsetStreak: 1 }, 1, 'sunrise')?.snapshotId).toBe(3);
+  });
+  it('with the dial off every frame is its own item, as before', () => {
+    const d = { ...D, cameraRun: false, rest: 0 };
+    expect(project2(entries(), d, S0, 4, 0, 'sunrise').map((e) => e.snapshotId)).toEqual([2, 3, 4, 1]);
+    expect(shown2(entries(), entries()[1], d).map((e) => e.snapshotId)).toEqual([2]);
   });
 });

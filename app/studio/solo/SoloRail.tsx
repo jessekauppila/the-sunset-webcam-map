@@ -91,12 +91,14 @@ function Control({ knob, value, differs, onChange }: {
  * straight from the schema's sections, with a bold label wherever the studio
  * value differs from the glass.
  */
-export function SoloRail({ api, deploySlot, version = SOLO_VERSIONS.solo as SoloVersionSpec, tab = 'queue', onTab }: {
+export function SoloRail({ api, deploySlot, version = SOLO_VERSIONS.solo as SoloVersionSpec, tab = 'queue', onTab, runFrames = 1 }: {
   api: StudioSettingsApi;
   deploySlot: ReactNode;
   version?: SoloVersionSpec;
   tab?: RailTab;
   onTab?: (tab: RailTab) => void;
+  /** solo2: how many frames the camera on glass plays, for the dwell line. */
+  runFrames?: number;
 }) {
   const ns = version.namespace;
   const values = api.effective(ns);
@@ -152,7 +154,7 @@ export function SoloRail({ api, deploySlot, version = SOLO_VERSIONS.solo as Solo
                 {k.key === 'pictureHeight' && <PictureReadout dials={dials} panel={panel} />}
               </Fragment>
             ))}
-            {g.section === 'glass' && version.name === 'solo2' && <DwellBudget dials={dials as Solo2Dials} />}
+            {g.section === 'glass' && version.name === 'solo2' && <DwellBudget dials={dials as Solo2Dials} frames={runFrames} />}
           </section>
         );
       })}

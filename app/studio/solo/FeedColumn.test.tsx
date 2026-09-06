@@ -25,7 +25,8 @@ it('draws the on-glass frame at the top of the queue and keeps queued frames out
   expect(screen.getByText(/next frame in/).textContent).toContain('5 s');
   expect(screen.getByText(/Sunset bin · 1 waiting/)).toBeInTheDocument(); // frame 4 (below floor) waits
   expect(screen.getAllByText('cam1').length).toBeGreaterThan(0);
-  expect(screen.getAllByText(/CAM 1\/\d+/).length).toBeGreaterThan(0); // frames 1 and 2 share webcam 101, so the queue indexes them
+  expect(screen.getAllByText('cam2').length).toBeGreaterThan(0); // solo: frames 1 and 2 share webcam 101 and are still two rows
+  expect(screen.queryByRole('group')).toBeNull();
 });
 
 it('each bin is three labelled stages with counts, even when a stage is empty', () => {
@@ -92,24 +93,48 @@ it('solo2 with valleys tags queued draws PEAK and VALLEY', async () => {
   expect(screen.getAllByText('PEAK').length).toBeGreaterThan(0);
 });
 
-it('solo2 with the prelude on groups a camera\'s earlier frames under the queued draw and flags their own later turns', async () => {
+it('solo2 with the camera run on shows one box per camera, in the queue and in the bins, and hands a click its column', async () => {
   const { SOLO_VERSIONS } = await import('@/app/lib/solo/versions');
   const { SOLO2_SETTINGS_SCHEMA, dialsFrom2 } = await import('@/app/lib/solo2/settingsSchema');
-  const d2 = { ...dialsFrom2(schemaDefaults(SOLO2_SETTINGS_SCHEMA)), prelude: true, preludeFrames: 3, rest: 0 };
+  const d2 = { ...dialsFrom2(schemaDefaults(SOLO2_SETTINGS_SCHEMA)), ratingFloor: 3.2 }; // quality 0.55
   const at = Date.UTC(2026, 8, 5, 2, 42);
-  const cam = (id: number, score: number, minutesBefore: number) => ({
-    ...entry(id, 'sunset', score, 7), capturedAt: at - minutesBefore * 60_000, timezone: 'America/Mazatlan',
+  const cam = (id: number, webcamId: number, score: number, minutesBefore: number) => ({
+    ...entry(id, 'sunset', score, webcamId), capturedAt: at - minutesBefore * 60_000, timezone: 'America/Mazatlan',
   });
-  // Camera 7 has three frames; the best (3) is on glass with 1 and 2 as its prelude. Camera 9 is alone.
-  const es = [cam(1, 0.6, 44), cam(2, 0.7, 28), cam(3, 0.9, 0), { ...entry(4, 'sunset', 0.8, 9), capturedAt: at, timezone: 'America/Mazatlan' }];
+  // Camera 7: frames 1, 2, 3 (3 newest, on glass). Camera 9: frames 4 and 5 (5 newest, in line). Camera 11: frame 6 alone, under the floor.
+  const es = [cam(1, 7, 0.6, 44), cam(2, 7, 0.7, 28), cam(3, 7, 0.9, 0), cam(4, 9, 0.8, 30), cam(5, 9, 0.75, 10), cam(6, 11, 0.1, 5)];
   const v = buildStateView({ feed: 'sunrise', dials: d2, entries: es,
     screen: { feed: 'sunrise', currentSnapshotId: 3, shownSince: 0, slot: 0, sunsetStreak: 1 },
     nowMs: 0, admitted: { sunset: 0, nonSunset: 0 }, zone: { minDeg: -24, maxDeg: -2 }, version: SOLO_VERSIONS.solo2 });
-  render(<FeedColumn feed="sunrise" server={v} projected={v} liveDials={d2} studioDials={d2} nowMs={0} version={SOLO_VERSIONS.solo2} onSelect={vi.fn()} />);
-  // The on-glass row is a group whose earlier frames read 6:58 pm then 7:14 pm.
+  const onSelect = vi.fn();
+  render(<FeedColumn feed="sunrise" server={v} projected={v} liveDials={d2} studioDials={d2} nowMs={0} version={SOLO_VERSIONS.solo2} onSelect={onSelect} />);
   const groups = screen.getAllByRole('group');
-  expect(groups.length).toBeGreaterThan(0);
-  expect(groups[0]).toHaveTextContent(/6:58 pm.*7:14 pm.*cam3/s);
-  // Frames 1 and 2 still get their own turn somewhere later, flagged.
-  expect(screen.getAllByText('PRELUDE').length).toBeGreaterThan(0);
+  // The on-glass box is camera 7 oldest to newest with the count on the first picture; camera 9 is a box of two.
+  expect(groups[0]).toHaveTextContent(/1\/3 · 6:58 pm.*2\/3 · 7:14 pm.*3\/3.*cam3/s);
+  expect(screen.getAllByRole('group', { name: 'cam5: 2 frames in one dwell' })[0]).toHaveTextContent(/1\/2 · 7:12 pm.*cam5/s);
+  // Frames 1 and 2 have no row of their own anywhere.
+  expect(screen.queryByText('cam1')).toBeNull();
+  expect(screen.queryByText('cam2')).toBeNull();
+  expect(screen.queryByText('PRELUDE')).toBeNull();
+  expect(screen.queryByText(/^CAM /)).toBeNull();
+  // The sunset bin counts cameras: only 11 (under floor) waits; cameras 7 and 9 are in the queue.
+  expect(screen.getByText(/Sunset bin · 1 waiting/)).toBeInTheDocument();
+  expect(screen.getByText('UNDER FLOOR · 1')).toBeInTheDocument();
+  // A click on an earlier frame reports it with its column's frames in play order.
+  fireEvent.click(screen.getAllByTitle(/1 of 2 in this dwell/)[0]);
+  expect(onSelect).toHaveBeenCalledWith(expect.objectContaining({ snapshotId: 4 }), 'sunrise',
+    expect.arrayContaining([expect.objectContaining({ snapshotId: 1 }), expect.objectContaining({ snapshotId: 4 }), expect.objectContaining({ snapshotId: 5 })]));
+});
+
+it('solo2 with the camera run off lists every frame for itself', async () => {
+  const { SOLO_VERSIONS } = await import('@/app/lib/solo/versions');
+  const { SOLO2_SETTINGS_SCHEMA, dialsFrom2 } = await import('@/app/lib/solo2/settingsSchema');
+  const d2 = { ...dialsFrom2(schemaDefaults(SOLO2_SETTINGS_SCHEMA)), cameraRun: false };
+  const es = [entry(1, 'sunset', 0.6, 7), entry(2, 'sunset', 0.9, 7)];
+  const v = buildStateView({ feed: 'sunrise', dials: d2, entries: es, screen: null,
+    nowMs: 0, admitted: { sunset: 0, nonSunset: 0 }, zone: { minDeg: -24, maxDeg: -2 }, version: SOLO_VERSIONS.solo2 });
+  render(<FeedColumn feed="sunrise" server={v} projected={v} liveDials={d2} studioDials={d2} nowMs={0} version={SOLO_VERSIONS.solo2} onSelect={vi.fn()} />);
+  expect(screen.queryByRole('group')).toBeNull();
+  expect(screen.getAllByText('cam1').length).toBeGreaterThan(0);
+  expect(screen.getAllByText('cam2').length).toBeGreaterThan(0);
 });

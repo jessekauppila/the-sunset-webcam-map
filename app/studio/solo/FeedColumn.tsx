@@ -5,10 +5,10 @@ import type { EntryView, StateView } from '@/app/api/kiosk/solo/view';
 import { nextBoundaryMs } from '@/app/lib/solo/schedule';
 import type { Feed, SoloDials } from '@/app/lib/solo/types';
 import type { SoloVersionSpec } from '@/app/lib/solo/versions';
-import { preludePlan } from '@/app/lib/solo2/prelude';
+import { cameraGroups, representative, runOf } from '@/app/lib/solo2/run';
 import type { Solo2Dials } from '@/app/lib/solo2/types';
 import type { Stage } from '@/app/lib/solo/stages';
-import { EntryRow, type Sequence } from './EntryRow';
+import { EntryRow, type Run } from './EntryRow';
 import { reasonLine } from './reason';
 import { Tape } from './Tape';
 
@@ -26,10 +26,9 @@ function Bin({ color, title, hint, children }: { color: string; title: string; h
   );
 }
 
-const STAGE_LABEL: Record<'inLine' | 'resting' | 'underFloor', string> = {
-  inLine: 'IN LINE', resting: 'RESTING', underFloor: 'UNDER FLOOR',
-};
-const STAGE_HINT: Record<'inLine' | 'resting' | 'underFloor', string> = {
+type StageKind = 'inLine' | 'resting' | 'underFloor';
+const STAGE_LABEL: Record<StageKind, string> = { inLine: 'IN LINE', resting: 'RESTING', underFloor: 'UNDER FLOOR' };
+const STAGE_HINT: Record<StageKind, string> = {
   inLine: 'Rested and above the floor, in the order the glass will draw them.',
   resting: 'Shown within the last rest draws; back in line when the count runs out.',
   underFloor: 'Below the bin\'s floor dial; never drawn until the dial or the score moves.',
@@ -40,9 +39,7 @@ const STAGE_HINT: Record<'inLine' | 'resting' | 'underFloor', string> = {
  * (stages spec §3.2). Stays as a short box when empty so the three stages
  * never shift.
  */
-function StageBox({ kind, color, count, children }: {
-  kind: 'inLine' | 'resting' | 'underFloor'; color: string; count: number; children: ReactNode;
-}) {
+function StageBox({ kind, color, count, children }: { kind: StageKind; color: string; count: number; children: ReactNode }) {
   const label = `${STAGE_LABEL[kind]} · ${count}`;
   const labelStyle = { fontSize: 8.5, fontWeight: 700, letterSpacing: '.06em', color, whiteSpace: 'nowrap', fontFamily: mono, cursor: 'help' } as const;
   const frame = { border: `1px solid ${color}`, borderRadius: 6, padding: 3, marginBottom: 5, background: '#0b0e14' } as const;
@@ -56,13 +53,16 @@ function StageBox({ kind, color, count, children }: {
   );
 }
 
-const STAGE_KINDS = ['inLine', 'resting', 'underFloor'] as const;
+const STAGE_KINDS: StageKind[] = ['inLine', 'resting', 'underFloor'];
 /** `queued` / `onGlass` never sit in a bin today; the fold keeps the partition total if that changes. */
-const byStage = (rows: EntryView[]) => ({
-  inLine: rows.filter((e) => e.stage.kind === 'inLine' || e.stage.kind === 'queued' || e.stage.kind === 'onGlass'),
-  resting: rows.filter((e) => e.stage.kind === 'resting'),
-  underFloor: rows.filter((e) => e.stage.kind === 'underFloor'),
-});
+const stageOf = (e: EntryView): StageKind =>
+  e.stage.kind === 'resting' ? 'resting' : e.stage.kind === 'underFloor' ? 'underFloor' : 'inLine';
+
+/** One row of a column: a frame, or a camera (its newest frame with the run it plays first). */
+interface Box { entry: EntryView; run?: Run }
+
+/** The frames a box stands for, in the order the dwell plays them. */
+const framesOf = (b: Box): EntryView[] => [...(b.run?.earlier ?? []), b.entry];
 
 const TAPE_OPEN_KEY = 'studio.tape.open';
 
@@ -83,10 +83,12 @@ function useTapeOpen(): [boolean, () => void] {
 
 /**
  * One feed's tape, its two bins, each as three stages (in line, resting,
- * under floor), and its queue as the STUDIO dials would order them. Every frame appears in
- * exactly one of the three columns; the on-glass frame heads the queue. The
- * screen itself is drawn above, by GlassPreview, so nothing here repeats the
- * picture.
+ * under floor), and its queue as the STUDIO dials would order them. With
+ * solo2's camera run on, a camera is one box wherever it sits (camera-run
+ * spec §5.2): its frames stacked oldest to newest, the newest last with the
+ * row's annotations, and every frame of a queued or on-glass camera leaves
+ * the bins. The screen itself is drawn above, by GlassPreview, so nothing
+ * here repeats the picture.
  */
 export function FeedColumn({ feed, server, projected, liveDials, nowMs, version, onSelect }: {
   feed: Feed;
@@ -96,40 +98,64 @@ export function FeedColumn({ feed, server, projected, liveDials, nowMs, version,
   studioDials: SoloDials;
   nowMs: number;
   version?: SoloVersionSpec;
-  onSelect: (entry: EntryView, feed: Feed) => void;
+  /** The clicked frame, its screen, and the frames of its column in order, so a pop-up can step through them. */
+  onSelect: (entry: EntryView, feed: Feed, list: EntryView[]) => void;
 }) {
   const boundary = nextBoundaryMs(nowMs, feed, liveDials.dwellS, liveDials.offsetS);
   const leftS = Math.max(0, Math.ceil((boundary - nowMs) / 1000));
   const current = server.current;
   const queue: EntryView[] = [...(current ? [current.entry] : []), ...projected.next];
-  const seen = new Set<number>();
-  const camCount = new Map<number, number>();
-  for (const e of queue) camCount.set(e.webcamId, (camCount.get(e.webcamId) ?? 0) + 1);
-  const camSeen = new Map<number, number>();
   const differs =
     !!server.next[0] && !!projected.next[0] && server.next[0].snapshotId !== projected.next[0].snapshotId;
-  const qSun = queue.filter((e) => e.bin === 'sunset').length;
-  const qNon = queue.length - qSun;
   // Roles are parallel to projected.next; the on-glass frame at index 0 has none.
   const showRoles = version?.name === 'solo2' && (liveDials as Partial<Solo2Dials>).valleys !== undefined
     && ((projected.dials as Partial<Solo2Dials>).valleys ?? 0) > 0;
   const roleOf = (i: number) => (showRoles && i > 0 ? projected.nextRoles[i - 1] : undefined);
-  // solo2: a row is as tall as its time on glass, and a dwell with a prelude
-  // is one group. The pool is every frame the studio holds (bins ∪ queue),
-  // which is every entry; the queue's predecessor is the "previous" frame so
-  // the group continues from it, as the glass does.
+  // solo2: a row is as tall as its time on glass, and a camera is one box.
   const d2 = version?.name === 'solo2' ? (projected.dials as Solo2Dials) : null;
   const rowS = d2 ? d2.dwellS : undefined;
+  const grouping = !!d2?.cameraRun;
   const all: EntryView[] = [...projected.bins.sunset, ...projected.bins.nonSunset, ...queue];
-  const seqFor = (e: EntryView, prev: EntryView | null): Sequence | undefined => {
-    if (!d2 || !d2.prelude) return undefined;
-    const { frames, plan } = preludePlan(e, all, d2, prev);
-    if (frames.length === 0) return undefined;
-    return { earlier: frames, stepS: plan.preludeStepS, holdS: plan.dwellS - frames.length * plan.preludeStepS };
+  const runFor = (frames: EntryView[]): Run | undefined =>
+    d2 && frames.length > 1 ? { earlier: frames.slice(0, -1), stepS: d2.dwellS / frames.length } : undefined;
+
+  // The queue: each draw with the run it plays.
+  const queueBoxes: Box[] = queue.map((e) => ({ entry: e, run: grouping ? runFor(runOf(e, all, true)) : undefined }));
+  // The bins: every frame for itself, or one box per camera not already in the queue.
+  const queuedCameras = new Set(queue.map((e) => e.webcamId));
+  const binBoxes: Box[] = grouping
+    ? [...cameraGroups([...projected.bins.sunset, ...projected.bins.nonSunset]).values()]
+      .filter((frames) => !queuedCameras.has(frames[0].webcamId))
+      .map((frames) => ({ entry: representative(frames), run: runFor(frames) }))
+    : [...projected.bins.sunset, ...projected.bins.nonSunset].map((e) => ({ entry: e }));
+  const binOf = (bin: 'sunset' | 'non_sunset') => binBoxes.filter((b) => b.entry.bin === bin);
+  const qSun = queue.filter((e) => e.bin === 'sunset').length;
+  const qNon = queue.length - qSun;
+  const seen = new Set<number>();
+
+  const column = (bin: 'sunset' | 'non_sunset', color: string, title: string, hint: string) => {
+    const boxes = binOf(bin);
+    const list = boxes.flatMap(framesOf);
+    return (
+      <Bin color={color} title={`${title} · ${boxes.length} waiting · ${bin === 'sunset' ? qSun : qNon} queued`} hint={hint}>
+        {STAGE_KINDS.map((kind) => {
+          const rows = boxes.filter((b) => stageOf(b.entry) === kind);
+          return (
+            <StageBox key={kind} kind={kind} color={color} count={rows.length}>
+              {rows.map((b) => (
+                <EntryRow key={b.entry.snapshotId} entry={b.entry} feed={feed} place={bin} reason={reasonLine(b.entry.stage, b.entry, nowMs)}
+                  onClick={(x) => onSelect(x, feed, list)} run={b.run} rowS={rowS} />
+              ))}
+            </StageBox>
+          );
+        })}
+      </Bin>
+    );
   };
-  const queueSeqs = queue.map((e, i) => seqFor(e, i > 0 ? queue[i - 1] : null));
+  const queueList = queueBoxes.flatMap(framesOf);
   const [tapeOpen, toggleTape] = useTapeOpen();
-  const preludedInQueue = new Set(queueSeqs.flatMap((s) => s?.earlier.map((f) => f.snapshotId) ?? []));
+  // The tape's list for the pop-up: the past, then the queue in play order.
+  const tapeList: EntryView[] = [...server.tape, ...queueList];
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8, minWidth: 0 }}>
@@ -148,39 +174,15 @@ export function FeedColumn({ feed, server, projected, liveDials, nowMs, version,
       </h3>
       {tapeOpen && (
         <Tape past={server.tape} current={current?.entry ?? null} currentSince={current?.shownSince ?? null} next={projected.next}
-          nextSequences={queueSeqs.slice(current ? 1 : 0)}
+          nextSequences={queueBoxes.slice(current ? 1 : 0).map((b) => b.run)}
           pastDials={{ dwellS: liveDials.dwellS, fadeS: liveDials.fadeS }} nextDials={{ dwellS: projected.dials.dwellS, fadeS: projected.dials.fadeS }}
-          onSelect={(e) => onSelect(e, feed)} />
+          onSelect={(e) => onSelect(e, feed, tapeList)} />
       )}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1.15fr', gap: 6 }}>
-        <Bin color="#7ee2ac" title={`Sunset bin · ${projected.bins.sunset.length} waiting · ${qSun} queued`}
-          hint="Frames the detection head calls a sunset. Three stages: in line (draw order), resting, under the rating floor.">
-          {STAGE_KINDS.map((kind) => {
-            const rows = byStage(projected.bins.sunset)[kind];
-            return (
-              <StageBox key={kind} kind={kind} color="#7ee2ac" count={rows.length}>
-                {rows.map((e) => (
-                  <EntryRow key={e.snapshotId} entry={e} feed={feed} place="sunset" reason={reasonLine(e.stage, e, nowMs)}
-                    onClick={(x) => onSelect(x, feed)} sequence={seqFor(e, null)} rowS={rowS} preluded={preludedInQueue.has(e.snapshotId)} />
-                ))}
-              </StageBox>
-            );
-          })}
-        </Bin>
-        <Bin color="#c3cad6" title={`Non-sunset bin · ${projected.bins.nonSunset.length} waiting · ${qNon} queued`}
-          hint="Frames the detection head does not call a sunset. Three stages: in line (draw order), resting, under the sunset-probability floor.">
-          {STAGE_KINDS.map((kind) => {
-            const rows = byStage(projected.bins.nonSunset)[kind];
-            return (
-              <StageBox key={kind} kind={kind} color="#c3cad6" count={rows.length}>
-                {rows.map((e) => (
-                  <EntryRow key={e.snapshotId} entry={e} feed={feed} place="non_sunset" reason={reasonLine(e.stage, e, nowMs)}
-                    onClick={(x) => onSelect(x, feed)} sequence={seqFor(e, null)} rowS={rowS} preluded={preludedInQueue.has(e.snapshotId)} />
-                ))}
-              </StageBox>
-            );
-          })}
-        </Bin>
+        {column('sunset', '#7ee2ac', 'Sunset bin',
+          `Frames the detection head calls a sunset${grouping ? ', one box per camera' : ''}. Three stages: in line (draw order), resting, under the rating floor.`)}
+        {column('non_sunset', '#c3cad6', 'Non-sunset bin',
+          `Frames the detection head does not call a sunset${grouping ? ', one box per camera' : ''}. Three stages: in line (draw order), resting, under the sunset-probability floor.`)}
         <Bin color="#4b5568" title="On glass + next up"
           hint="The play order for this screen, computed from both bins by the five rules with the STUDIO dials. Top row is on glass. Row outline = which bin it came from. A queued frame is no longer in its bin.">
           {differs && (
@@ -188,21 +190,16 @@ export function FeedColumn({ feed, server, projected, liveDials, nowMs, version,
               projected with studio dials; glass will draw {server.next[0].title}
             </div>
           )}
-          {queue.map((e, i) => {
+          {queueBoxes.map((b, i) => {
+            const e = b.entry;
             const repeat = seen.has(e.snapshotId);
             seen.add(e.snapshotId);
-            const m = camCount.get(e.webcamId) ?? 1;
-            const n = (camSeen.get(e.webcamId) ?? 0) + 1;
-            camSeen.set(e.webcamId, n);
-            // Flagged when a dwell above this one already played the frame inside its prelude.
-            const preluded = queueSeqs.slice(0, i).some((s) => s?.earlier.some((f) => f.snapshotId === e.snapshotId));
             // A repeat row is a later draw than its stored stage says, so the reason comes from its place in the queue.
             const stage: Stage = i === 0 && current ? { kind: 'onGlass' } : { kind: 'queued', position: current ? i : i + 1 };
             return (
               <EntryRow key={`${e.snapshotId}-${i}`} entry={e} feed={feed} place="queue" onGlass={i === 0 && !!current}
-                reason={reasonLine(stage, e, nowMs)}
-                repeat={repeat} cameraIndex={m > 1 ? { n, m } : undefined} role={roleOf(i)} onClick={(x) => onSelect(x, feed)}
-                sequence={queueSeqs[i]} rowS={rowS} preluded={preluded} />
+                reason={reasonLine(stage, e, nowMs)} repeat={repeat} role={roleOf(i)}
+                onClick={(x) => onSelect(x, feed, queueList)} run={b.run} rowS={rowS} />
             );
           })}
         </Bin>

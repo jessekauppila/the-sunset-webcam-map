@@ -11,6 +11,8 @@ const STATE_REFRESH_MS = 60_000;
 
 export interface SoloGlass {
   current: EntryView | null;
+  /** When the server put `current` on glass, ms since epoch; null when unknown. A dwell's clock starts here. */
+  shownSince: number | null;
   next: EntryView | null;
   slot: number;
   boundaryMs: number;
@@ -109,6 +111,7 @@ export function useSoloGlass({ feed, dials, drive, dozing, version = 'solo' }: {
   const nowMs = Date.now();
   return {
     current: view?.current?.entry ?? null,
+    shownSince: view?.current?.shownSince ?? null,
     next: view?.next[0] ?? null,
     slot: slotFor(nowMs, feed, dials.dwellS, dials.offsetS),
     boundaryMs: nowMs + msUntilBoundary(nowMs, feed, dials.dwellS, dials.offsetS),

@@ -1,63 +1,46 @@
 import type { Solo2Dials } from './types';
 
-/** The chosen frame sits still with its caption for at least this long (spec §4.1). */
-export const MIN_HOLD_S = 3;
-
-/** One dwell's timeline, in seconds, after the budget rule has been applied. */
+/** One dwell's timeline, in seconds (camera-run spec §4.1). */
 export interface DwellPlan {
   dwellS: number;
-  /** Prelude frames actually shown. 0 when the dial is off or nothing fits. */
-  preludeFrames: number;
-  preludeStepS: number;
+  /** Frames the dwell plays, at least 1. */
+  frames: number;
+  /** Each frame's even share of the dwell. */
+  stepS: number;
   leadS: number;
-  holdS: number;
-  /** True when a prelude frame or some lead was dropped to keep the hold. */
-  clamped: boolean;
 }
 
-export type PlanDials = Pick<Solo2Dials, 'dwellS' | 'prelude' | 'preludeFrames' | 'preludeStepS' | 'leadS'>;
+export type PlanDials = Pick<Solo2Dials, 'dwellS' | 'leadS'>;
 
-/**
- * Fit prelude and lead into the dwell. `available` is how many earlier frames
- * this camera actually has. Prelude frames go first (oldest first, i.e. the
- * count shrinks), then the lead, until `hold ≥ MIN_HOLD_S`.
- */
-export function fitPlan(d: PlanDials, available: number): DwellPlan {
-  const step = d.preludeStepS;
-  let frames = d.prelude ? Math.max(0, Math.min(Math.floor(d.preludeFrames), Math.floor(available))) : 0;
-  let lead = Math.max(0, d.leadS);
-  let clamped = false;
-  const hold = () => d.dwellS - frames * step - lead;
-  while (frames > 0 && hold() < MIN_HOLD_S) { frames -= 1; clamped = true; }
-  if (hold() < MIN_HOLD_S && lead > 0) {
-    lead = Math.max(0, d.dwellS - frames * step - MIN_HOLD_S);
-    clamped = true;
-  }
-  return { dwellS: d.dwellS, preludeFrames: frames, preludeStepS: step, leadS: lead, holdS: hold(), clamped };
+/** `frames` frames share the dwell evenly. The lead is capped at the dwell. */
+export function fitPlan(d: PlanDials, frames: number): DwellPlan {
+  const n = Math.max(1, Math.floor(frames));
+  return { dwellS: d.dwellS, frames: n, stepS: d.dwellS / n, leadS: Math.min(d.dwellS, Math.max(0, d.leadS)) };
 }
 
-export type Stage =
-  | { layer: 'prelude'; index: number }
-  | { layer: 'main'; leadProgress: number };
+export interface Stage {
+  /** Which frame of the run is up, 0-based. */
+  index: number;
+  /** 0 until the lead begins, 1 at the boundary. */
+  leadProgress: number;
+}
 
 /**
  * Where a dwell is at `elapsedMs` after its boundary. Pure, so a tab that
- * loads mid-dwell joins at the right step and the studio can draw the same
+ * loads mid-dwell joins at the right frame and the studio can draw the same
  * timeline.
  */
 export function stageAt(elapsedMs: number, p: DwellPlan): Stage {
   const t = Math.max(0, elapsedMs) / 1000;
-  const preludeEnd = p.preludeFrames * p.preludeStepS;
-  if (p.preludeFrames > 0 && t < preludeEnd) {
-    return { layer: 'prelude', index: Math.min(p.preludeFrames - 1, Math.floor(t / p.preludeStepS)) };
-  }
+  const index = Math.min(p.frames - 1, Math.floor(t / p.stepS));
   const leadStart = p.dwellS - p.leadS;
   const leadProgress = p.leadS > 0 ? Math.min(1, Math.max(0, (t - leadStart) / p.leadS)) : 0;
-  return { layer: 'main', leadProgress };
+  return { index, leadProgress };
 }
 
-/** The budget line the studio prints: `prelude 4.5 s + lead 4 s + hold 11.5 s`. */
+/** The line the studio prints: `4 frames × 5 s`, `1 frame · 20 s`, `· lead 4 s` when the lead is on. */
 export function describePlan(p: DwellPlan): string {
   const s = (n: number) => `${Number(n.toFixed(1))} s`;
-  return `prelude ${s(p.preludeFrames * p.preludeStepS)} + lead ${s(p.leadS)} + hold ${s(p.holdS)}${p.clamped ? ' (clamped)' : ''}`;
+  const frames = p.frames === 1 ? `1 frame · ${s(p.dwellS)}` : `${p.frames} frames × ${s(p.stepS)}`;
+  return p.leadS > 0 ? `${frames} · lead ${s(p.leadS)}` : frames;
 }

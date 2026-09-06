@@ -115,6 +115,22 @@ describe('buildStateView with a version', () => {
     // Slot 4 is a peak with every frame shown: the one longest since shown (3) comes back before the best (1).
     expect(v.next.slice(0, 4).map((e) => e.snapshotId)).toEqual([3, 1, 2, 3]);
   });
+  it('solo2 with the camera run: the frames a draw plays share its stage, and the on-glass camera\'s frames are on glass', async () => {
+    const { SOLO_VERSIONS } = await import('@/app/lib/solo/versions');
+    const { SOLO2_SETTINGS_SCHEMA, dialsFrom2 } = await import('@/app/lib/solo2/settingsSchema');
+    const d2 = { ...dialsFrom2(schemaDefaults(SOLO2_SETTINGS_SCHEMA)), rest: 0 };
+    const cam = (id: number, webcamId: number, score: number, capturedAt: number) => ({ ...stored(id, 'sunset', score), webcamId, capturedAt });
+    // Camera 7: 1 (old), 3 (new, on glass). Camera 9: 2 (old), 4 (new). Camera 11: 5 alone.
+    const entries = [cam(1, 7, 0.6, 100), cam(2, 9, 0.7, 100), { ...cam(3, 7, 0.9, 300), tally: 1, lastShownAt: 0 }, cam(4, 9, 0.8, 300), cam(5, 11, 0.5, 200)];
+    const v = buildStateView({ feed: 'sunset', dials: d2, entries, screen: { feed: 'sunset', currentSnapshotId: 3, shownSince: 0, slot: 0, sunsetStreak: 1 },
+      nowMs: 0, admitted: { sunset: 0, nonSunset: 0 }, zone: ZONE, version: SOLO_VERSIONS.solo2 });
+    const stageOf = (id: number) => [...v.bins.sunset, ...v.next, ...(v.current ? [v.current.entry] : [])].find((e) => e.snapshotId === id)!.stage;
+    expect(v.next.map((e) => e.snapshotId).slice(0, 2)).toEqual([4, 5]); // newest frames stand for their cameras
+    expect(stageOf(1)).toEqual({ kind: 'onGlass' });
+    expect(stageOf(2)).toEqual(stageOf(4));
+    expect(stageOf(2).kind).toBe('queued');
+  });
+
   it('solo reports every draw as a peak', () => {
     const v = buildStateView({ feed: 'sunset', dials: D, entries: [stored(1, 'sunset', 0.9)], screen: null, nowMs: 0,
       admitted: { sunset: 0, nonSunset: 0 }, zone: ZONE });

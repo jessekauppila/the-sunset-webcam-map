@@ -20,13 +20,12 @@ export interface Solo2Dials extends SoloDials {
   // glass
   /** Between cameras (spec §4.2). The same camera always dissolves. */
   transition: Transition;
-  /** Dissolve length between two frames of the same camera: prelude steps, and a same-camera change. 0 is a cut. */
+  /** Dissolve length between two frames of the same camera inside a run, and on a same-camera change. 0 is a cut. */
   sameCameraFadeS: number;
   leadS: number;
   leadScale: number;
-  prelude: boolean;
-  preludeFrames: number;
-  preludeStepS: number;
+  /** A camera's frames are one item in the bin; a dwell plays them oldest to newest (camera-run spec §2). */
+  cameraRun: boolean;
   // bins
   valleys: number;
   screens: Screens;

@@ -40,7 +40,7 @@ export function SoloKiosk(props: MosaicProps) {
   return (
     <div style={{ position: 'relative', width: props.width, height: props.height, background: '#000' }}>
       {current ? (
-        <SoloFrame entry={current} previous={previous} fadeS={dials.fadeS} dials={dials}
+        <SoloFrame entry={current} previous={previous} fadeS={dials.fadeS} dials={dials} feed={props.feed}
           width={props.width} height={props.height} />
       ) : null}
       {debug && (
