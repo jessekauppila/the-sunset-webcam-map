@@ -423,7 +423,7 @@ describe('compareStaged', () => {
       sun(1, 0.9, shownAt(10)),
       sun(2, 0.1),
       sun(3, 0.7), sun(4, 0.8), sun(5, 0.6),
-      sun(6, 0.5, shownAt(9)),
+      sun(6, 0.65, shownAt(9)),
     ];
     const s = stagesOf(entries, { lastSnapshotId: null, sunsetStreak: 0 }, 11, 1);
     const sorted = [...entries].sort(compareStaged(s, D)).map((e) => e.snapshotId);
