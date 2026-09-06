@@ -63,7 +63,11 @@ function PlayingScreen({ feed, server, projected, error, dials, panel, version }
   const d2 = dials as Solo2Dials;
   const run = solo2 && dwell.entry ? runOf(dwell.entry, server?.entries ?? [], d2.cameraRun) : [];
   const plan = fitPlan({ dwellS: dials.dwellS, leadS: d2.leadS ?? 0 }, Math.max(1, run.length));
-  const stage = useLoopingStage(plan, dwell.index);
+  // Keyed on the dwell start, not the index: the start changes on every step
+  // AND every restart (a server advance while sitting at index 0 still gets
+  // a fresh start), but never on a bare tick, so this is the one value that
+  // means "the dwell actually changed."
+  const stage = useLoopingStage(plan, dwell.startMs);
 
   const remainingS = Math.max(0, Math.ceil((dwell.startMs + dials.dwellS * 1000 - now) / 1000));
   const status = dwell.entry

@@ -146,6 +146,21 @@ describe('useSoloPreview', () => {
     expect(result.current.previous?.snapshotId).toBe(3);
   });
 
+  it('catches up in one jump after a long pause, instead of stepping through every dwell', () => {
+    const order = [entry(1), entry(2), entry(3), entry(4)];
+    const { result } = renderHook(() => useSoloPreview(order, DWELL));
+    act(() => {
+      // A backgrounded tab suspends the interval entirely rather than firing
+      // it late; the wall clock jumps and only the NEXT tick sees the gap.
+      vi.setSystemTime(new Date(T0 + 3.5 * DWELL * 1000));
+      vi.advanceTimersByTime(250);
+    });
+    expect(result.current.index).toBe(3);
+    expect(result.current.startMs).toBe(T0 + 3 * DWELL * 1000);
+    expect(result.current.previous?.snapshotId).toBe(order[0].snapshotId);
+    expect(result.current.entry?.snapshotId).toBe(order[3].snapshotId);
+  });
+
   it('takes a new dwell on the next tick without restarting the frame that is showing', () => {
     const order = [entry(1), entry(2), entry(3)];
     const { result, rerender } = renderHook(

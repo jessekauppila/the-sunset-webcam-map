@@ -131,3 +131,31 @@ it('restarts at the on-glass frame when the server advances', async () => {
   rerender(<GlassPreview screens={[{ feed: 'sunset', server: advanced, projected }]} dials={dials} panel={panel} />);
   expect(screen.getByText('on glass now · frame 21')).toBeInTheDocument();
 });
+
+it('restarts the run\'s stage clock when the server advances a different camera while still at index 0 (keyed on the dwell start, not the index)', async () => {
+  const { SOLO_VERSIONS } = await import('@/app/lib/solo/versions');
+  const { SOLO2_SETTINGS_SCHEMA, dialsFrom2 } = await import('@/app/lib/solo2/settingsSchema');
+  vi.useFakeTimers();
+  const d2 = { ...dialsFrom2(schemaDefaults(SOLO2_SETTINGS_SCHEMA)), dwellS: 6, sameCameraFadeS: 1 }; // 2 frames → 3 s each
+  const panel = { width: 1920, height: 1080 };
+  const camAOlder = at(5, 1, entry.capturedAt - 20 * 60_000);
+  const s2a = { current: { entry, shownSince: 0, slot: 1 }, entries: [camAOlder, entry] } as unknown as StateView;
+  const { rerender } = render(<GlassPreview version={SOLO_VERSIONS.solo2} screens={[{ feed: 'sunset', server: s2a, projected: null }]}
+    dials={d2} panel={panel} />);
+  expect(screen.getByTestId('top')).toHaveAttribute('src', 'u5'); // run's first frame at mount
+
+  await act(async () => { vi.advanceTimersByTime(4_000); }); // past the 3 s step, still inside the 6 s dwell (index 0 unchanged)
+  expect(screen.getByTestId('top')).toHaveAttribute('src', 'u7'); // stage advanced within the same dwell
+
+  // The server advances to a different camera while the preview is still
+  // sitting at index 0: the dwell restarts (index 0 → 0, unchanged) with a
+  // new startMs. If the stage clock were still keyed on the index, it would
+  // not restart and would show a frame computed from the stale clock instead
+  // of the new run's first frame.
+  const camB = at(21, 4, entry.capturedAt);
+  const camBOlder = at(20, 4, entry.capturedAt - 10 * 60_000);
+  const s2b = { current: { entry: camB, shownSince: 0, slot: 2 }, entries: [camBOlder, camB] } as unknown as StateView;
+  rerender(<GlassPreview version={SOLO_VERSIONS.solo2} screens={[{ feed: 'sunset', server: s2b, projected: null }]}
+    dials={d2} panel={panel} />);
+  expect(screen.getByTestId('top')).toHaveAttribute('src', 'u20'); // camera B's run, first frame — the stage restarted
+});

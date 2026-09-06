@@ -49,17 +49,30 @@ export function useSoloPreview(order: EntryView[], dwellS: number, tickMs = 250)
 
   useEffect(() => {
     const period = Math.max(1, dwellS * 1000);
-    const tick = () => setDwell((prev) => {
-      const now = latest.current;
-      if (now.length === 0) return prev;
-      // The order shrank under us: take its first frame rather than nothing.
-      if (prev.index >= now.length) {
-        return { entry: now[0], previous: prev.entry, startMs: Date.now(), index: 0 };
-      }
-      if (Date.now() - prev.startMs < period) return prev;
-      const next = (prev.index + 1) % now.length;
-      return { entry: now[next], previous: prev.entry, startMs: prev.startMs + period, index: next };
-    });
+    const tick = () => {
+      // Captured once per real tick, outside the updater: a functional
+      // setState update can be queued and evaluated later rather than at
+      // call time, and a fresh `Date.now()` read from inside the updater
+      // would then see whatever time the eventual evaluation happens to
+      // land on instead of when this tick actually fired.
+      const nowMs = Date.now();
+      setDwell((prev) => {
+        const now = latest.current;
+        if (now.length === 0) return prev;
+        // The order shrank under us: take its first frame rather than nothing.
+        if (prev.index >= now.length) {
+          return { entry: now[0], previous: prev.entry, startMs: nowMs, index: 0 };
+        }
+        // Jump straight to where the clock should be rather than walking one
+        // step per tick: after a long pause (backgrounded tab, sleep) a
+        // one-step-per-tick catch-up would replay every intermediate fade
+        // and restart the stage clock at each step — a flicker storm.
+        const steps = Math.floor((nowMs - prev.startMs) / period);
+        if (steps < 1) return prev;
+        const next = (prev.index + steps) % now.length;
+        return { entry: now[next], previous: prev.entry, startMs: prev.startMs + steps * period, index: next };
+      });
+    };
     const t = setInterval(tick, Math.max(1, tickMs));
     return () => clearInterval(t);
   }, [dwellS, tickMs]);
