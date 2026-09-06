@@ -1,5 +1,5 @@
 import { it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { FeedColumn } from './FeedColumn';
 import { dialsFrom, SOLO_SETTINGS_SCHEMA } from '@/app/lib/solo/settingsSchema';
 import { schemaDefaults } from '@/app/lib/settings/schema';
@@ -38,6 +38,23 @@ it('each bin is three labelled stages with counts, even when a stage is empty', 
   expect(screen.getByText('UNDER FLOOR · 0')).toBeInTheDocument();
   expect(screen.getByText('rating 1.4 < 3.2')).toBeInTheDocument();
   expect(screen.getByText(/^on glass · shown ×/)).toBeInTheDocument();
+});
+
+it('the tape sits under the heading and above the bins with the server past and the projected next, and the button folds it away', () => {
+  const v = view();
+  const past = { ...v.bins.sunset[0], snapshotId: 2, imageUrl: 'u2', title: 'cam2', slot: 1, shownAt: 0 };
+  render(<FeedColumn feed="sunset" server={{ ...v, tape: [past] }} projected={v} liveDials={D} studioDials={D} nowMs={5_000} onSelect={vi.fn()} />);
+  const tape = screen.getByTestId('tape');
+  expect(screen.getByTestId('tape-past-2-1')).toBeInTheDocument();
+  expect(screen.getByTestId('tape-current')).toBeInTheDocument();
+  expect(screen.getByTestId('tape-next-0')).toBeInTheDocument();
+  // The tape precedes the bins in document order.
+  const binHeading = screen.getByText(/Sunset bin ·/);
+  expect(tape.compareDocumentPosition(binHeading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: /tape/ }));
+  expect(screen.queryByTestId('tape')).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: /tape/ }));
+  expect(screen.getByTestId('tape')).toBeInTheDocument();
 });
 
 it('says so when the studio dials would draw a different next frame than the glass', () => {

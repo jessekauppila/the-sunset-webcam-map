@@ -1,6 +1,6 @@
 'use client';
 
-import type { ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import type { EntryView, StateView } from '@/app/api/kiosk/solo/view';
 import { nextBoundaryMs } from '@/app/lib/solo/schedule';
 import type { Feed, SoloDials } from '@/app/lib/solo/types';
@@ -10,6 +10,7 @@ import type { Solo2Dials } from '@/app/lib/solo2/types';
 import type { Stage } from '@/app/lib/solo/stages';
 import { EntryRow, type Sequence } from './EntryRow';
 import { reasonLine } from './reason';
+import { Tape } from './Tape';
 
 const mono = 'ui-monospace, SFMono-Regular, Menlo, monospace';
 const LABEL: Record<Feed, string> = { sunrise: 'Sunrise · left screen', sunset: 'Sunset · right screen' };
@@ -63,9 +64,26 @@ const byStage = (rows: EntryView[]) => ({
   underFloor: rows.filter((e) => e.stage.kind === 'underFloor'),
 });
 
+const TAPE_OPEN_KEY = 'studio.tape.open';
+
+/** The tape's open/closed state, remembered per browser so a closed tape stays closed across reloads. */
+function useTapeOpen(): [boolean, () => void] {
+  const [open, setOpen] = useState(true);
+  useEffect(() => {
+    try {
+      if (localStorage.getItem(TAPE_OPEN_KEY) === '0') setOpen(false);
+    } catch { /* storage unavailable: stay open */ }
+  }, []);
+  const toggle = () => setOpen((o) => {
+    try { localStorage.setItem(TAPE_OPEN_KEY, o ? '0' : '1'); } catch { /* ignore */ }
+    return !o;
+  });
+  return [open, toggle];
+}
+
 /**
- * One feed's two bins, each as three stages (in line, resting, under floor),
- * and its queue as the STUDIO dials would order them. Every frame appears in
+ * One feed's tape, its two bins, each as three stages (in line, resting,
+ * under floor), and its queue as the STUDIO dials would order them. Every frame appears in
  * exactly one of the three columns; the on-glass frame heads the queue. The
  * screen itself is drawn above, by GlassPreview, so nothing here repeats the
  * picture.
@@ -110,16 +128,30 @@ export function FeedColumn({ feed, server, projected, liveDials, nowMs, version,
     return { earlier: frames, stepS: plan.preludeStepS, holdS: plan.dwellS - frames.length * plan.preludeStepS };
   };
   const queueSeqs = queue.map((e, i) => seqFor(e, i > 0 ? queue[i - 1] : null));
+  const [tapeOpen, toggleTape] = useTapeOpen();
   const preludedInQueue = new Set(queueSeqs.flatMap((s) => s?.earlier.map((f) => f.snapshotId) ?? []));
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8, minWidth: 0 }}>
       <h3 style={{ margin: 0, fontSize: 13, color: '#9aa3b2', display: 'flex', justifyContent: 'space-between' }}>
         <span>{LABEL[feed]}</span>
-        <span title="Time until this screen changes, on the live dials' clock">
-          next frame in <b style={{ color: '#f5a344', fontFamily: mono }}>{leftS} s</b>
+        <span style={{ display: 'flex', gap: 10, alignItems: 'baseline' }}>
+          <button type="button" onClick={toggleTape} aria-expanded={tapeOpen}
+            title={tapeOpen ? 'Hide the tape' : 'Show the tape: past draws, on glass, projected next, width is time'}
+            style={{ background: 'none', border: '1px solid #2a3242', borderRadius: 4, color: '#9aa3b2', fontFamily: mono, fontSize: 10, padding: '1px 6px', cursor: 'pointer' }}>
+            tape {tapeOpen ? '▾' : '▸'}
+          </button>
+          <span title="Time until this screen changes, on the live dials' clock">
+            next frame in <b style={{ color: '#f5a344', fontFamily: mono }}>{leftS} s</b>
+          </span>
         </span>
       </h3>
+      {tapeOpen && (
+        <Tape past={server.tape} current={current?.entry ?? null} currentSince={current?.shownSince ?? null} next={projected.next}
+          nextSequences={queueSeqs.slice(current ? 1 : 0)}
+          pastDials={{ dwellS: liveDials.dwellS, fadeS: liveDials.fadeS }} nextDials={{ dwellS: projected.dials.dwellS, fadeS: projected.dials.fadeS }}
+          onSelect={(e) => onSelect(e, feed)} />
+      )}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1.15fr', gap: 6 }}>
         <Bin color="#7ee2ac" title={`Sunset bin · ${projected.bins.sunset.length} waiting · ${qSun} queued`}
           hint="Frames the detection head calls a sunset. Three stages: in line (draw order), resting, under the rating floor.">
