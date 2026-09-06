@@ -1,4 +1,4 @@
-import { afterShowing, choosePool, rankScore } from '@/app/lib/solo/engine';
+import { afterShowing, choosePool, compareRecency, compareWithin, rankScore } from '@/app/lib/solo/engine';
 import { boundaryMs } from '@/app/lib/solo/schedule';
 import type { BinEntry, Feed, ScreenState } from '@/app/lib/solo/types';
 import type { Role, Solo2Dials } from './types';
@@ -20,19 +20,13 @@ export function roleAt(slot: number, feed: Feed, d: Pick<Solo2Dials, 'valleys' |
   return beatOf(slot, feed, d) === 0 ? 'peak' : 'valley';
 }
 
-/** solo's rule 3 order: tally, best score, earliest, id. */
-function comparePeak(d: Solo2Dials) {
-  return (a: BinEntry, b: BinEntry): number =>
-    a.tally - b.tally ||
-    rankScore(b, d) - rankScore(a, d) ||
-    a.enteredAt - b.enteredAt ||
-    a.snapshotId - b.snapshotId;
-}
+/** solo's rule 3 order, unchanged: never shown, longest since shown, best, earliest, id. */
+const comparePeak = compareWithin;
 
-/** A valley: still unshown first, then the LOWEST score, earliest, id. */
+/** A valley: the same recency key, then the LOWEST score, earliest, id. */
 function compareValley(d: Solo2Dials) {
   return (a: BinEntry, b: BinEntry): number =>
-    a.tally - b.tally ||
+    compareRecency(a, b) ||
     rankScore(a, d) - rankScore(b, d) ||
     a.enteredAt - b.enteredAt ||
     a.snapshotId - b.snapshotId;

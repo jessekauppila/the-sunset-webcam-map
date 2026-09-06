@@ -31,16 +31,31 @@ export function isResting(e: BinEntry, d: SoloDials, slot: number, feed: Feed): 
   return slot - shownSlot <= d.rest;
 }
 
-/** Rule 3: quality for sunsets, detection for non-sunsets, plus the new-frame bonus. */
+/** Rule 3's score key: quality for sunsets, detection for non-sunsets, plus the new-frame bonus. */
 export function rankScore(e: BinEntry, d: SoloDials): number {
   const base = e.bin === 'sunset' ? (e.quality ?? 0) : e.detection;
   return base + (d.promoteNew && e.isNew ? NEW_FRAME_BONUS : 0);
 }
 
-/** Rule 3: least shown, then best, then earliest, then id. */
-function compareWithin(d: SoloDials) {
+/**
+ * Rule 3's first key: a frame never on glass before any that has been, then
+ * the one longest since shown. Tally is not consulted: with a small rest,
+ * least-shown-first looped the few newest frames while rested older ones
+ * waited (2026-09-05).
+ */
+export function compareRecency(a: BinEntry, b: BinEntry): number {
+  const sa = a.lastShownAt ?? null;
+  const sb = b.lastShownAt ?? null;
+  if (sa == null && sb == null) return 0;
+  if (sa == null) return -1;
+  if (sb == null) return 1;
+  return sa - sb;
+}
+
+/** Rule 3: never shown, then longest since shown, then best, then earliest, then id. */
+export function compareWithin(d: SoloDials) {
   return (a: BinEntry, b: BinEntry): number =>
-    a.tally - b.tally ||
+    compareRecency(a, b) ||
     rankScore(b, d) - rankScore(a, d) ||
     a.enteredAt - b.enteredAt ||
     a.snapshotId - b.snapshotId;

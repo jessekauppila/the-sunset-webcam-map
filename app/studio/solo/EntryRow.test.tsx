@@ -6,29 +6,34 @@ const e = {
   snapshotId: 7, webcamId: 3, bin: 'sunset' as const, quality: 0.91, detection: 0.88, isNew: true,
   tally: 2, enteredAt: 0, imageUrl: 'u', title: 'Pier', city: 'Lisbon', region: '', country: 'Portugal',
   eligible: true, rank: 1, capturedAt: 0, timezone: null, sunAltitudeDeg: null,
+  stage: { kind: 'inLine' as const, position: 12 },
 };
 
-it('shows tally first, scores, place, and the tags', () => {
-  render(<EntryRow entry={e} feed="sunset" place="sunset" onClick={vi.fn()} />);
-  expect(screen.getByText('shown ×2')).toHaveStyle({ fontWeight: 800 });
+it('shows the reason line, scores, place, and the tags; no rank, no bold tally', () => {
+  render(<EntryRow entry={e} feed="sunset" place="sunset" reason="draw 12 · shown ×2 · last 3 min ago" onClick={vi.fn()} />);
+  expect(screen.getByText('draw 12 · shown ×2 · last 3 min ago')).toBeInTheDocument();
+  expect(screen.queryByText(/^shown ×2$/)).toBeNull();
+  expect(screen.queryByText(/bin #/)).toBeNull();
   expect(screen.getByText(/rating 4\.6 · sunset 88%/)).toBeInTheDocument();
   expect(screen.getByText('NEW')).toBeInTheDocument();
   expect(screen.getByText(/Lisbon, Portugal/)).toBeInTheDocument();
 });
 
-it('dims an ineligible frame and tags it FLOOR; a repeat keeps full strength and is tagged REPEAT', () => {
-  render(<EntryRow entry={{ ...e, eligible: false, isNew: false }} feed="sunset" place="sunset" onClick={vi.fn()} />);
-  expect(screen.getByText('FLOOR')).toBeInTheDocument();
+it('dims an under-floor frame without a FLOOR tag; a repeat keeps full strength and is tagged REPEAT', () => {
+  render(<EntryRow entry={{ ...e, eligible: false, isNew: false, stage: { kind: 'underFloor', floor: 0.55 } }}
+    feed="sunset" place="sunset" reason="rating 2.7 < 3.2" onClick={vi.fn()} />);
+  expect(screen.queryByText('FLOOR')).toBeNull();
+  expect(screen.getByText('rating 2.7 < 3.2')).toBeInTheDocument();
   expect(screen.getByRole('button')).toHaveStyle({ opacity: '0.45' });
   cleanup();
-  render(<EntryRow entry={e} feed="sunset" place="queue" repeat onClick={vi.fn()} />);
+  render(<EntryRow entry={e} feed="sunset" place="queue" repeat reason="draw 6 · shown ×2 · last 1 min ago" onClick={vi.fn()} />);
   expect(screen.getByText('REPEAT')).toBeInTheDocument();
   expect(screen.getByRole('button')).toHaveStyle({ opacity: '1' });
 });
 
 it('non-sunset rows show only detection, and a click reports the entry', () => {
   const onClick = vi.fn();
-  render(<EntryRow entry={{ ...e, bin: 'non_sunset', quality: null }} feed="sunset" place="non_sunset" onClick={onClick} />);
+  render(<EntryRow reason="draw 3 · shown ×2 · last 1 min ago" entry={{ ...e, bin: 'non_sunset', quality: null }} feed="sunset" place="non_sunset" onClick={onClick} />);
   expect(screen.queryByText(/rating/)).toBeNull();
   expect(screen.getByText(/sunset 88%/)).toBeInTheDocument();
   fireEvent.click(screen.getByRole('button'));
@@ -44,7 +49,7 @@ it('a sequence stacks the earlier frames above the chosen one, each with its loc
     { ...e, ...tz, snapshotId: 5, imageUrl: 'u5', capturedAt: AT - 44 * 60_000 },
     { ...e, ...tz, snapshotId: 6, imageUrl: 'u6', capturedAt: AT - 28 * 60_000 },
   ];
-  render(<EntryRow entry={{ ...e, ...tz, capturedAt: AT }} feed="sunset" place="queue" onClick={onClick}
+  render(<EntryRow reason="draw 3 · shown ×2 · last 1 min ago" entry={{ ...e, ...tz, capturedAt: AT }} feed="sunset" place="queue" onClick={onClick}
     sequence={{ earlier, stepS: 1.5, holdS: 17 }} rowS={20} />);
   const group = screen.getByRole('group');
   expect(group).toHaveStyle({ border: '2px solid #7ee2ac' });
@@ -63,24 +68,24 @@ it('a sequence stacks the earlier frames above the chosen one, each with its loc
 
 it('heights are time: a prelude step, then the hold, at the shared scale, never below a legible minimum', () => {
   const earlier = [{ ...e, snapshotId: 5, imageUrl: 'u5', capturedAt: 1 }];
-  render(<EntryRow entry={{ ...e, capturedAt: 2 }} feed="sunset" place="queue" onClick={vi.fn()}
+  render(<EntryRow reason="draw 3 · shown ×2 · last 1 min ago" entry={{ ...e, capturedAt: 2 }} feed="sunset" place="queue" onClick={vi.fn()}
     sequence={{ earlier, stepS: 4, holdS: 16 }} rowS={20} />);
   const [step, main] = screen.getAllByRole('button');
   expect(step).toHaveStyle({ height: `${4 * PX_PER_S}px` });
   expect(main).toHaveStyle({ minHeight: `${16 * PX_PER_S}px` });
-  render(<EntryRow entry={{ ...e, capturedAt: 2 }} feed="sunset" place="queue" onClick={vi.fn()}
+  render(<EntryRow reason="draw 3 · shown ×2 · last 1 min ago" entry={{ ...e, capturedAt: 2 }} feed="sunset" place="queue" onClick={vi.fn()}
     sequence={{ earlier, stepS: 0.5, holdS: 19.5 }} rowS={20} />);
   expect(screen.getAllByRole('button')[2]).toHaveStyle({ height: `${MIN_FRAME_PX}px` });
 });
 
 it('without a sequence the row keeps its shape, and rowS alone sets its height as time', () => {
-  render(<EntryRow entry={e} feed="sunset" place="sunset" onClick={vi.fn()} rowS={20} />);
+  render(<EntryRow reason="draw 3 · shown ×2 · last 1 min ago" entry={e} feed="sunset" place="sunset" onClick={vi.fn()} rowS={20} />);
   const b = screen.getByRole('button');
   expect(b).toHaveStyle({ minHeight: `${20 * PX_PER_S}px`, border: '1.5px solid #7ee2ac' });
   expect(screen.queryByRole('group')).toBeNull();
 });
 
 it('flags a frame that an earlier queued dwell already showed inside its prelude', () => {
-  render(<EntryRow entry={e} feed="sunset" place="queue" preluded onClick={vi.fn()} />);
+  render(<EntryRow reason="draw 3 · shown ×2 · last 1 min ago" entry={e} feed="sunset" place="queue" preluded onClick={vi.fn()} />);
   expect(screen.getByText('PRELUDE')).toBeInTheDocument();
 });

@@ -5,6 +5,7 @@ import { nextBoundaryMs, slotFor } from '@/app/lib/solo/schedule';
 import type { ScreenRow, StoredEntry } from '@/app/lib/solo/store';
 import type { BinEntry, Feed, SoloDials } from '@/app/lib/solo/types';
 import type { Zone } from '@/app/lib/solo/zone';
+import { assignStages, compareStaged, type Stage } from '@/app/lib/solo/stages';
 
 /**
  * The response shape both solo endpoints return. Pure: no I/O here, and no
@@ -47,8 +48,10 @@ export function toViewEntry(e: StoredEntry): ViewEntry {
 
 export interface EntryView extends ViewEntry {
   eligible: boolean;
-  /** 1-based position within its bin by score, queue membership ignored. */
+  /** 1-based position within its bin by score, queue membership ignored. The glass overlay prints it. */
   rank: number;
+  /** Where the frame stands for this screen's next draw; the studio sections the bins by it. */
+  stage: Stage;
 }
 
 export interface StateView {
@@ -95,12 +98,6 @@ export function buildStateView(input: {
   const version = input.version ?? (SOLO_VERSIONS.solo as SoloVersionSpec);
   const ranks = rankMap(entries);
   const byId = new Map(entries.map((e) => [e.snapshotId, e]));
-  const view = (e: ViewEntry): EntryView => ({
-    ...e,
-    eligible: isEligible(e, dials),
-    rank: ranks.get(e.snapshotId) ?? 0,
-  });
-
   const currentEntry = screen?.currentSnapshotId != null ? byId.get(screen.currentSnapshotId) ?? null : null;
   const state = {
     lastSnapshotId: currentEntry?.snapshotId ?? null,
@@ -108,9 +105,20 @@ export function buildStateView(input: {
   };
   // The next draw happens at the next boundary, whose slot is one past now's.
   const firstSlot = slotFor(nowMs, feed, dials.dwellS, dials.offsetS) + 1;
-  const next = version.project(entries, dials, state, NEXT_COUNT, firstSlot, feed);
+  // Project past the queue so every eligible frame gets a draw position (stages spec §3.1).
+  const eligibleCount = entries.filter((e) => isEligible(e, dials)).length;
+  const draws = version.project(entries, dials, state, eligibleCount + NEXT_COUNT, firstSlot, feed);
+  const next = draws.slice(0, NEXT_COUNT);
+  const stages = assignStages({ entries, dials, state, firstSlot, feed, draws, queueDepth: NEXT_COUNT });
+  const view = (e: ViewEntry): EntryView => ({
+    ...e,
+    eligible: isEligible(e, dials),
+    rank: ranks.get(e.snapshotId) ?? 0,
+    stage: stages.get(e.snapshotId) ?? { kind: 'inLine', position: null },
+  });
   const queued = new Set([currentEntry?.snapshotId, ...next.map((e) => e.snapshotId)]);
   const remaining = entries.filter((e) => !queued.has(e.snapshotId));
+  const staged = compareStaged(stages, dials);
 
   return {
     feed,
@@ -121,8 +129,8 @@ export function buildStateView(input: {
     next: next.map((e) => view(byId.get(e.snapshotId)!)),
     nextRoles: next.map((_, i) => version.roleAt(firstSlot + i, feed, dials)),
     bins: {
-      sunset: remaining.filter((e) => e.bin === 'sunset').sort(byScore).map(view),
-      nonSunset: remaining.filter((e) => e.bin === 'non_sunset').sort(byScore).map(view),
+      sunset: remaining.filter((e) => e.bin === 'sunset').sort(staged).map(view),
+      nonSunset: remaining.filter((e) => e.bin === 'non_sunset').sort(staged).map(view),
     },
     schedule: {
       slot: slotFor(nowMs, feed, dials.dwellS, dials.offsetS),

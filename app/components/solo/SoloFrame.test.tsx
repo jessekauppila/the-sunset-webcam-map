@@ -8,7 +8,7 @@ const D = dialsFrom(schemaDefaults(SOLO_SETTINGS_SCHEMA));
 const AT = Date.UTC(2026, 8, 5, 2, 42); // 7:42 pm in Mazatlán
 const e = {
   snapshotId: 1, webcamId: 1, bin: 'sunset' as const, quality: 0.91, detection: 0.88, isNew: false, tally: 2, enteredAt: 0,
-  imageUrl: 'u1', title: 'Split › West', city: 'Split', region: 'Split-Dalmatia County', country: 'Croatia', eligible: true, rank: 3,
+  imageUrl: 'u1', title: 'Split › West', city: 'Split', region: 'Split-Dalmatia County', country: 'Croatia', eligible: true, rank: 3, stage: { kind: 'inLine' as const, position: null },
   capturedAt: AT, timezone: 'America/Mazatlan', sunAltitudeDeg: null,
 };
 

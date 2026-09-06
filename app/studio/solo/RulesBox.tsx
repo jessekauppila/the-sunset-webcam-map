@@ -21,8 +21,8 @@ export function RulesBox({ dials: d, version }: { dials: SoloDials; version?: So
   return (
     <div style={box} title="The ordering rules, in the order they apply, with the current dial values substituted.">
       <div><B>1.</B> Bin first: <B>{d.sunsetFloor}</B>+ rested sunsets → sunsets only, else <B>{d.mix}</B> sunsets per non-sunset.</div>
-      <div><B>2.</B> A shown frame rests <B>{d.rest}</B> {d.rest === 1 ? 'draw' : 'draws'}{d.rest === 0 ? ' (off)' : ''}.</div>
-      <div><B>3.</B> In a bin: least shown first, then best score{d.promoteNew ? ', new frames +0.10' : ''}{rhythm ? <>;{rhythm}</> : null}.</div>
+      <div><B>2.</B> A shown frame rests at least <B>{d.rest}</B> {d.rest === 1 ? 'draw' : 'draws'}{d.rest === 0 ? ' (off)' : ''}.</div>
+      <div><B>3.</B> In a bin: never shown first, then longest since shown, then best score{d.promoteNew ? ', new frames +0.10' : ''}{rhythm ? <>;{rhythm}</> : null}.</div>
       <div><B>4.</B> Never the same frame twice in a row.</div>
       <div><B>5.</B> Floors: sunsets rated ≥ <B>{d.ratingFloor.toFixed(1)}</B>{d.ratingFloor <= 1 ? ' (every sunset)' : ''}, non-sunsets sunset-probability ≥ <B>{formatDetection(d.detectionFloor)}</B>.</div>
     </div>

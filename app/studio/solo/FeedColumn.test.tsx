@@ -28,6 +28,18 @@ it('draws the on-glass frame at the top of the queue and keeps queued frames out
   expect(screen.getAllByText(/CAM 1\/\d+/).length).toBeGreaterThan(0); // frames 1 and 2 share webcam 101, so the queue indexes them
 });
 
+it('each bin is three labelled stages with counts, even when a stage is empty', () => {
+  const v = view();
+  render(<FeedColumn feed="sunset" server={v} projected={v} liveDials={D} studioDials={D} nowMs={5_000} onSelect={vi.fn()} />);
+  // Frame 4 (rating 1.4) is under the sunset floor; nothing rests; both bins render all three labels.
+  expect(screen.getAllByText('IN LINE · 0')).toHaveLength(2);
+  expect(screen.getAllByText('RESTING · 0')).toHaveLength(2);
+  expect(screen.getByText('UNDER FLOOR · 1')).toBeInTheDocument();
+  expect(screen.getByText('UNDER FLOOR · 0')).toBeInTheDocument();
+  expect(screen.getByText('rating 1.4 < 3.2')).toBeInTheDocument();
+  expect(screen.getByText(/^on glass · shown ×/)).toBeInTheDocument();
+});
+
 it('says so when the studio dials would draw a different next frame than the glass', () => {
   const server = view();
   const projected = view({ ...D, ratingFloor: 1, rest: 0, sunsetFloor: 0 });
