@@ -14,8 +14,8 @@ vi.mock('@/app/components/mosaic/registry', () => ({
 import { DeployHistory } from './DeployHistory';
 
 const deploys: DeployRow[] = [
-  { id: 2, label: 'opening night', namespaces: { v1: { floorPx: 140 } }, deployedAt: '2026-09-05T18:30:00.000Z' },
-  { id: 1, label: null, namespaces: {}, deployedAt: '2026-09-05T17:00:00.000Z' },
+  { id: 2, label: 'opening night', namespaces: { v1: { floorPx: 140 } }, deployedAt: '2026-09-05T18:30:00.000Z', createdAt: '2026-09-05T18:30:00.000Z' },
+  { id: 1, label: null, namespaces: {}, deployedAt: '2026-09-05T17:00:00.000Z', createdAt: '2026-09-05T17:00:00.000Z' },
 ];
 
 function api(over: Partial<StudioSettingsApi> = {}): StudioSettingsApi {

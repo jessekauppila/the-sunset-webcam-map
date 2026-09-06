@@ -16,7 +16,7 @@ vi.mock('@/app/components/mosaic/registry', () => ({
 import { summarize, profileEquals, formatValue } from './deploySummary';
 
 const row = (id: number, namespaces: Record<string, Record<string, number | boolean | string>>) =>
-  ({ id, label: null, namespaces, deployedAt: 'T' });
+  ({ id, label: null, namespaces, deployedAt: 'T', createdAt: 'T' });
 
 describe('formatValue', () => {
   it('integers plain, fractions to two places, booleans on/off, strings as-is', () => {

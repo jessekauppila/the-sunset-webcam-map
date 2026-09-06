@@ -15,7 +15,8 @@ export interface DeployRow {
   id: number;
   label: string | null;
   namespaces: Record<string, SettingsValues>;
-  deployedAt: string;
+  deployedAt: string | null;
+  createdAt: string;
 }
 
 export type DroppedDeployKey = DroppedKey & { namespace: string };
@@ -24,7 +25,8 @@ interface Row {
   id: number;
   label: string | null;
   namespaces: Record<string, SettingsValues>;
-  deployed_at: string | Date;
+  deployed_at: string | Date | null;
+  created_at: string | Date;
 }
 
 function toRow(r: Row): DeployRow {
@@ -32,7 +34,8 @@ function toRow(r: Row): DeployRow {
     id: Number(r.id),
     label: r.label,
     namespaces: r.namespaces,
-    deployedAt: new Date(r.deployed_at).toISOString(),
+    deployedAt: r.deployed_at ? new Date(r.deployed_at).toISOString() : null,
+    createdAt: new Date(r.created_at).toISOString(),
   };
 }
 
@@ -49,7 +52,7 @@ export async function recordDeploy(
     const rows = (await sql`
       INSERT INTO kiosk_deploys (label, namespaces)
       VALUES (${label ?? null}, ${JSON.stringify(live.namespaces)}::jsonb)
-      RETURNING id, label, namespaces, deployed_at
+      RETURNING id, label, namespaces, deployed_at, created_at
     `) as unknown as Row[];
     return toRow(rows[0]);
   } catch (error) {
@@ -58,10 +61,33 @@ export async function recordDeploy(
   }
 }
 
+/**
+ * Save the studio profile as a take: a kiosk_deploys row with `deployed_at`
+ * left NULL, so it lists and loads exactly like a Deploy but never claims to
+ * have reached the glass. Never throws, mirroring recordDeploy.
+ */
+export async function saveTake(
+  studio: ProfileSettings,
+  label?: string | null,
+): Promise<DeployRow | null> {
+  try {
+    const rows = (await sql`
+      INSERT INTO kiosk_deploys (label, namespaces, deployed_at)
+      VALUES (${label ?? null}, ${JSON.stringify(studio.namespaces)}::jsonb, NULL)
+      RETURNING id, label, namespaces, deployed_at, created_at
+    `) as unknown as Row[];
+    return toRow(rows[0]);
+  } catch (error) {
+    console.warn('[deploys] saveTake failed:', error);
+    return null;
+  }
+}
+
 export async function listDeploys(limit = 50): Promise<DeployRow[]> {
   try {
     const rows = (await sql`
-      SELECT id, label, namespaces, deployed_at FROM kiosk_deploys ORDER BY id DESC LIMIT ${limit}
+      SELECT id, label, namespaces, deployed_at, created_at FROM kiosk_deploys
+      ORDER BY created_at DESC, id DESC LIMIT ${limit}
     `) as unknown as Row[];
     return rows.map(toRow);
   } catch (error) {

@@ -91,7 +91,7 @@ export function DeployHistory({ api }: { api: StudioSettingsApi }) {
                   }}
                 >
                   <b style={{ color: '#f5a344' }}>#{row.id}</b>
-                  <span style={{ color: '#6b7280', marginLeft: 6 }}>{when(row.deployedAt)}</span>
+                  <span style={{ color: '#6b7280', marginLeft: 6 }}>{when(row.deployedAt ?? row.createdAt)}</span>
                   <span style={{ display: 'block', color: '#9aa3b2', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     {summarize(row, deploys[i + 1])}
                   </span>
