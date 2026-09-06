@@ -15,7 +15,7 @@ const mono = 'ui-monospace, SFMono-Regular, Menlo, monospace';
 const dim = '#8b95a7';
 const red = '#e5484d';
 
-/** Copied from StatusStrip so the two lines explain a dropped key identically. */
+/** What a dropped key means, in the one place that now reports them. */
 const DROPPED_TITLE =
   'The server stored every other value but discarded these. An ' +
   '"unknown" key means this build has no such dial, so deploy the ' +

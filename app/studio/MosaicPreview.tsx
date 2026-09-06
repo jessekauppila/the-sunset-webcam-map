@@ -20,10 +20,10 @@ const hairline = '#232a38';
 const FEEDS: Array<'sunrise' | 'sunset'> = ['sunrise', 'sunset'];
 
 /**
- * The two mosaic screens and the tile detail card, lifted out of
- * `PreviewPane` without its chrome (the view control, the scene selector row,
- * the nav slot). `PreviewPane` itself is untouched — a later task deletes it
- * once every caller has moved to this component.
+ * The two mosaic screens and the tile detail card, with none of the chrome
+ * the old `PreviewPane` wrapped them in (the view control, the scene
+ * selector row, the nav slot): the one-studio header owns the nav and the
+ * mosaic panel below owns the scenes.
  */
 export function MosaicPreview({
   versionName,
@@ -56,7 +56,7 @@ export function MosaicPreview({
   // a card describing a tile from the previous pool would otherwise sit over
   // a composition that no longer contains it — but this component doesn't
   // track scene identity itself, so callers that swap scenes should remount
-  // (as PreviewPane does, keyed on scene id) or this stays selected across
+  // (as StudioClient does, keyed on scene id) or this stays selected across
   // the swap.
   const [selected, setSelected] = useState<WindyWebcam | null>(null);
 

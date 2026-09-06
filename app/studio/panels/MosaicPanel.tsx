@@ -17,9 +17,9 @@ const hairline = '#1d2432';
 type Feed = 'sunrise' | 'sunset';
 
 /**
- * Same reasoning as PreviewPane.tsx's sceneOptionLabel: a live capture and a
- * rebuilt evening are drawn from different populations, so the dropdown must
- * say which one a saved scene is before the operator picks it.
+ * A live capture and a rebuilt evening are drawn from different populations,
+ * so the dropdown must say which one a saved scene is before the operator
+ * picks it.
  */
 function sceneOptionLabel(scene: SceneSummary): string {
   const marker = scene.source === 'live' ? 'captured' : 'rebuilt';
@@ -92,8 +92,8 @@ export function MosaicPanel({
   // A scene is selected but hasn't resolved yet (loading, 404, fetch error).
   const sceneUnresolved = sceneSource.kind === 'scene' && !sceneState;
 
-  // Cleared when the scene id changes, same as PreviewPane.tsx: a stale
-  // report must not go on describing a scene that is no longer selected.
+  // Cleared when the scene id changes: a stale report must not go on
+  // describing a scene that is no longer selected.
   const [restoreReport, setRestoreReport] = useState<RestoreReport | null>(null);
   const sceneId = sceneSource.kind === 'scene' ? sceneSource.id : null;
   useEffect(() => {

@@ -19,9 +19,9 @@ export interface SoloFeedState {
 interface Selected { list: EntryView[]; index: number; feed: Feed }
 
 /**
- * The solo studio's two feed columns and the frame pop-up, lifted out of
- * SoloStudioClient.tsx so the collapsed /studio can mount them beside a
- * mosaic panel. Owns only the click-to-pop-up selection; both columns'
+ * The solo surface's two feed columns and the frame pop-up, a panel the one
+ * /studio mounts under the screens wherever a mosaic version would put its
+ * own panel. Owns only the click-to-pop-up selection; both columns'
  * state comes from `useSoloState` upstream (server data plus the studio-dial
  * re-projection) so this component stays a pure renderer of it.
  */
