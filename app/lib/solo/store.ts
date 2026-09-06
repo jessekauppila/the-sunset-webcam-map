@@ -264,13 +264,16 @@ export async function getScreenState(feed: Feed): Promise<ScreenRow | null> {
  * Put `entry` on glass for `slot`. The state write is conditional on the slot
  * being new, which is what makes POST /advance idempotent: a second call for
  * the same slot writes nothing and returns false, and the tally is bumped
- * only after the state write succeeded.
+ * only after the state write succeeded. `alsoShownIds` are the frames the
+ * dwell plays with the pick (solo2's prelude); they are marked shown in the
+ * same statement, so a camera's group counts once and rests together.
  */
 export async function commitAdvance(
   feed: Feed,
   slot: number,
   entry: BinEntry,
   sunsetStreak: number,
+  alsoShownIds: number[] = [],
 ): Promise<boolean> {
   const rows = (await sql`
     insert into kiosk_screen_state (feed, current_snapshot_id, shown_since, slot, sunset_streak, updated_at)
@@ -285,13 +288,14 @@ export async function commitAdvance(
     returning feed
   `) as unknown as { feed: Feed }[];
   if (rows.length === 0) return false;
+  const ids = [entry.snapshotId, ...alsoShownIds.filter((id) => id !== entry.snapshotId)];
   await sql`
     update kiosk_bin_entries
     set tally = tally + 1,
         is_new = false,
         first_shown_at = coalesce(first_shown_at, now()),
         last_shown_at = now()
-    where feed = ${feed} and snapshot_id = ${entry.snapshotId}
+    where feed = ${feed} and snapshot_id = any(${ids})
   `;
   return true;
 }

@@ -215,6 +215,19 @@ cron never archived (detection below 0.20) were never pictures we hold.
 The glass preloads the prelude of the projected next frame along with the
 frame itself.
 
+**The prelude counts as shown** (added 2026-09-05). Every frame a dwell
+plays is a frame the viewer saw, so the advance route marks the prelude
+frames shown with the pick: tally +1, `last_shown_at`, in one statement
+(`commitAdvance(..., alsoShownIds)`). The descriptor's `shownWith(pick,
+entries, dials, previous)` says what those frames are (`solo` none, `solo2`
+its `preludePlan`), and `project2` marks them the same way inside the
+projection, so the studio's queue and the glass agree. The effect is the
+grouping Jesse asked for: a camera plays once, oldest frame to newest, and
+the queue moves on to another camera instead of bringing each of that
+camera's frames back for a turn of its own. Its frames come round again
+only when the rest has lapsed and they are the least shown, and then the
+newest of them plays with whatever earlier frames the budget keeps.
+
 ### 4.5 Caption and the time
 
 **place + country** stays. A new **time** dial (enum, default `12h`) sets
@@ -313,18 +326,21 @@ Additions:
 - **a dwell is one box** (added 2026-09-05): with the prelude dial on, a
   frame that will play earlier frames of its camera first becomes a group:
   the earlier frames stacked above the chosen one in capture order, each a
-  light-bordered strip (thumbnail + local time, e.g. `6:58 pm`, `7:14 pm`)
-  as tall as a prelude step, then the chosen frame with its usual
-  annotations and the time on its place line, all inside one thick
+  light-bordered strip (thumbnail, step number and local time, e.g.
+  `1/3 · 6:58 pm`, `2/3 · 7:14 pm`) as tall as a prelude step, then the
+  chosen frame tagged `3/3` with its usual annotations and the time on its
+  place line, all inside one thick
   bin-coloured border (green sunset, grey non-sunset). Queue rows continue
   from their predecessor as the glass does; bin rows show the full prelude
   a draw would get. Every frame in the group is clickable and opens its own
   detail;
 - **PRELUDE** tag (added 2026-09-05): a frame that an earlier queued dwell
   already shows inside its prelude carries the tag when it comes back for
-  its own turn, in the queue or in a bin. This makes the parked same-camera
-  dedup question visible without deciding it: the tag is how often a
-  viewer sees a picture twice;
+  its own turn, in the queue or in a bin. Since the prelude counts as shown
+  (§4.4) this is rare within the eight-deep queue; when it appears it means
+  the rest lapsed and the camera came round again. The earlier `CAM n/m`
+  tag on scattered same-camera entries was dropped the same day: with the
+  group box, same-camera frames are grouped, not indexed;
 - the panel preview's caption uses `captionLines`, so it shows the time;
 - the rules box states rule 3 with valleys and screens substituted;
 - each studio links to the other.

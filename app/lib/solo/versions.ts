@@ -2,7 +2,7 @@ import type { SettingsSchema, SettingsValues } from '@/app/lib/settings/schema';
 import { next, project } from './engine';
 import { SOLO_NAMESPACE, SOLO_SETTINGS_SCHEMA, dialsFrom } from './settingsSchema';
 import type { BinEntry, Feed, ScreenState, SoloDials } from './types';
-import { next2, project2, roleAt } from '@/app/lib/solo2/engine';
+import { next2, project2, roleAt, shownWith2 } from '@/app/lib/solo2/engine';
 import { SOLO2_NAMESPACE, SOLO2_SETTINGS_SCHEMA, dialsFrom2 } from '@/app/lib/solo2/settingsSchema';
 import type { Role, Solo2Dials } from '@/app/lib/solo2/types';
 
@@ -23,6 +23,12 @@ export interface SoloVersionSpec<D extends SoloDials = SoloDials> {
   project(entries: BinEntry[], d: D, state: ScreenState, n: number, firstSlot: number, feed: Feed): BinEntry[];
   /** What a draw at `slot` is inside the bar; solo is all peaks. */
   roleAt(slot: number, feed: Feed, d: D): Role;
+  /**
+   * The frames a dwell of `pick` also puts on glass, which the advance route
+   * marks shown with it. solo shows one frame per dwell; solo2 plays a
+   * prelude (its spec §4.4).
+   */
+  shownWith(pick: BinEntry, entries: BinEntry[], d: D, previous: BinEntry | null): BinEntry[];
 }
 
 export type SoloVersionName = 'solo' | 'solo2';
@@ -35,6 +41,7 @@ const solo: SoloVersionSpec<SoloDials> = {
   next,
   project,
   roleAt: () => 'peak',
+  shownWith: () => [],
 };
 
 const solo2: SoloVersionSpec<Solo2Dials> = {
@@ -45,6 +52,7 @@ const solo2: SoloVersionSpec<Solo2Dials> = {
   next: next2,
   project: project2,
   roleAt,
+  shownWith: shownWith2,
 };
 
 export const SOLO_VERSIONS = { solo, solo2 } as const;

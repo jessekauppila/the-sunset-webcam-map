@@ -28,6 +28,7 @@ describe('descriptors', () => {
     expect(v.project(entries, d, S0, 3, 17, 'sunset')).toEqual(project(entries, d, S0, 3));
     expect(v.roleAt(1, 'sunset', d)).toBe('peak');
     expect(v.namespace).toBe('solo');
+    expect(v.shownWith(entries[0], entries, d, null)).toEqual([]);
   });
   it('solo2 reads its own namespace and follows the beat', () => {
     const v = SOLO_VERSIONS.solo2;
@@ -35,5 +36,14 @@ describe('descriptors', () => {
     expect(v.namespace).toBe('solo2');
     expect(v.roleAt(1, 'sunrise', d)).toBe('valley');
     expect(v.project(entries, d, S0, 3, 0, 'sunrise').map((e) => e.snapshotId)).toEqual([1, 3, 2]);
+  });
+  it('solo2 shows a prelude with the pick when the dial is on: the same camera\'s earlier frames', () => {
+    const v = SOLO_VERSIONS.solo2;
+    const d = { ...v.dialsFrom(schemaDefaults(v.schema)), prelude: true };
+    const cam = (id: number, q: number, at: number) => ({ ...sun(id, q), webcamId: 7, capturedAt: at });
+    const es = [cam(1, 0.6, 100), cam(2, 0.7, 200), cam(3, 0.9, 300), { ...sun(4, 0.8), capturedAt: 250 }];
+    expect(v.shownWith(es[2], es, d, null).map((e) => e.snapshotId)).toEqual([1, 2]);
+    expect(v.shownWith(es[2], es, { ...d, prelude: false }, null)).toEqual([]);
+    expect(v.shownWith(es[3], es, d, null)).toEqual([]);
   });
 });

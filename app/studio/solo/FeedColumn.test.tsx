@@ -25,7 +25,6 @@ it('draws the on-glass frame at the top of the queue and keeps queued frames out
   expect(screen.getByText(/next frame in/).textContent).toContain('5 s');
   expect(screen.getByText(/Sunset bin · 1 waiting/)).toBeInTheDocument(); // frame 4 (below floor) waits
   expect(screen.getAllByText('cam1').length).toBeGreaterThan(0);
-  expect(screen.getAllByText(/CAM 1\/\d+/).length).toBeGreaterThan(0); // frames 1 and 2 share webcam 101, so the queue indexes them
 });
 
 it('says so when the studio dials would draw a different next frame than the glass', () => {
@@ -65,7 +64,7 @@ it('solo2 with valleys tags queued draws PEAK and VALLEY and captions the local 
   expect(screen.getByText('BCS, Mexico · 7:42 pm there')).toBeInTheDocument();
 });
 
-it('solo2 with the prelude on groups a camera\'s earlier frames under the queued draw and flags their own later turns', async () => {
+it('solo2 with the prelude on groups a camera\'s earlier frames under the queued draw, numbered, and they rest instead of coming back', async () => {
   const { SOLO_VERSIONS } = await import('@/app/lib/solo/versions');
   const { SOLO2_SETTINGS_SCHEMA, dialsFrom2 } = await import('@/app/lib/solo2/settingsSchema');
   const d2 = { ...dialsFrom2(schemaDefaults(SOLO2_SETTINGS_SCHEMA)), prelude: true, preludeFrames: 3, rest: 0 };
@@ -79,10 +78,11 @@ it('solo2 with the prelude on groups a camera\'s earlier frames under the queued
     screen: { feed: 'sunrise', currentSnapshotId: 3, shownSince: 0, slot: 0, sunsetStreak: 1 },
     nowMs: 0, admitted: { sunset: 0, nonSunset: 0 }, zone: { minDeg: -24, maxDeg: -2 }, version: SOLO_VERSIONS.solo2 });
   render(<FeedColumn feed="sunrise" server={v} projected={v} liveDials={d2} studioDials={d2} nowMs={0} version={SOLO_VERSIONS.solo2} onSelect={vi.fn()} />);
-  // The on-glass row is a group whose earlier frames read 6:58 pm then 7:14 pm.
-  const groups = screen.getAllByRole('group');
-  expect(groups.length).toBeGreaterThan(0);
-  expect(groups[0]).toHaveTextContent(/6:58 pm.*7:14 pm.*cam3/s);
-  // Frames 1 and 2 still get their own turn somewhere later, flagged.
-  expect(screen.getAllByText('PRELUDE').length).toBeGreaterThan(0);
+  // The on-glass row is a group whose steps read 1/3 · 6:58 pm, 2/3 · 7:14 pm, then cam3 tagged 3/3.
+  // (The bins draw frame 2 as a group of its own too, so pick the queue's by its chosen frame.)
+  const group = screen.getAllByRole('group').find((g) => /cam3/.test(g.textContent ?? ''));
+  expect(group).toHaveTextContent(/1\/3 · 6:58 pm.*2\/3 · 7:14 pm.*3\/3.*cam3/s);
+  // Frames 1 and 2 were shown inside the group, so the projection counts them shown: camera 9 comes next, not them.
+  expect(v.next[0].snapshotId).toBe(4);
+  expect(screen.queryByText(/CAM /)).toBeNull();
 });

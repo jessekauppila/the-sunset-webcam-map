@@ -51,10 +51,11 @@ it('a sequence stacks the earlier frames above the chosen one, each with its loc
   // earlier frames first, the chosen frame last; each is its own button
   const buttons = screen.getAllByRole('button');
   expect(buttons).toHaveLength(3);
-  expect(buttons[0]).toHaveTextContent('6:58 pm');
-  expect(buttons[1]).toHaveTextContent('7:14 pm');
+  expect(buttons[0]).toHaveTextContent('1/3 · 6:58 pm');
+  expect(buttons[1]).toHaveTextContent('2/3 · 7:14 pm');
   expect(buttons[2]).toHaveTextContent('Pier');
   expect(buttons[2]).toHaveTextContent('7:42 pm');
+  expect(buttons[2]).toHaveTextContent('3/3');
   // every frame carries a light border inside the group
   for (const b of buttons) expect(b).toHaveStyle({ border: '1px solid #2a3242' });
   fireEvent.click(buttons[0]);

@@ -45,9 +45,6 @@ export function FeedColumn({ feed, server, projected, liveDials, nowMs, version,
   const current = server.current;
   const queue: EntryView[] = [...(current ? [current.entry] : []), ...projected.next];
   const seen = new Set<number>();
-  const camCount = new Map<number, number>();
-  for (const e of queue) camCount.set(e.webcamId, (camCount.get(e.webcamId) ?? 0) + 1);
-  const camSeen = new Map<number, number>();
   const differs =
     !!server.next[0] && !!projected.next[0] && server.next[0].snapshotId !== projected.next[0].snapshotId;
   const qSun = queue.filter((e) => e.bin === 'sunset').length;
@@ -149,14 +146,11 @@ export function FeedColumn({ feed, server, projected, liveDials, nowMs, version,
           {queue.map((e, i) => {
             const repeat = seen.has(e.snapshotId);
             seen.add(e.snapshotId);
-            const m = camCount.get(e.webcamId) ?? 1;
-            const n = (camSeen.get(e.webcamId) ?? 0) + 1;
-            camSeen.set(e.webcamId, n);
             // Flagged when a dwell above this one already played the frame inside its prelude.
             const preluded = queueSeqs.slice(0, i).some((s) => s?.earlier.some((f) => f.snapshotId === e.snapshotId));
             return (
               <EntryRow key={`${e.snapshotId}-${i}`} entry={e} feed={feed} place="queue" onGlass={i === 0 && !!current}
-                repeat={repeat} cameraIndex={m > 1 ? { n, m } : undefined} role={roleOf(i)} onClick={(x) => onSelect(x, feed)}
+                repeat={repeat} role={roleOf(i)} onClick={(x) => onSelect(x, feed)}
                 sequence={queueSeqs[i]} rowS={rowS} preluded={preluded} />
             );
           })}

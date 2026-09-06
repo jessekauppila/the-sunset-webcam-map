@@ -1,6 +1,7 @@
 import { afterShowing, choosePool, rankScore } from '@/app/lib/solo/engine';
 import { boundaryMs } from '@/app/lib/solo/schedule';
 import type { BinEntry, Feed, ScreenState } from '@/app/lib/solo/types';
+import { preludePlan } from './prelude';
 import type { Role, Solo2Dials } from './types';
 
 /**
@@ -38,6 +39,18 @@ function compareValley(d: Solo2Dials) {
     a.snapshotId - b.snapshotId;
 }
 
+/**
+ * The frames a dwell of `pick` also puts on glass: its prelude (spec §4.4),
+ * continuing from `previous` when that is the same camera. They count as
+ * shown, tally and rest alike, so a camera plays once as one group and the
+ * queue moves on instead of bringing each of its frames back for a turn of
+ * its own. The glass draws exactly these (Solo2Kiosk calls preludePlan with
+ * the same inputs), so what is marked shown is what was seen.
+ */
+export function shownWith2(pick: BinEntry, entries: BinEntry[], d: Solo2Dials, previous: BinEntry | null): BinEntry[] {
+  return preludePlan(pick, entries, d, previous).frames;
+}
+
 /** The next frame for one screen drawing at `slot`, or null when nothing is eligible. */
 export function next2(
   entries: BinEntry[], d: Solo2Dials, state: ScreenState, slot: number, feed: Feed,
@@ -52,7 +65,8 @@ export function next2(
 
 /**
  * `n` draws forward from `state`, the first at `firstSlot`, each applied to
- * a private copy of the entries. Inputs are never mutated.
+ * a private copy of the entries. Each draw marks the pick AND its prelude
+ * shown, as the advance route does. Inputs are never mutated.
  */
 export function project2(
   entries: BinEntry[], d: Solo2Dials, state: ScreenState, n: number, firstSlot: number, feed: Feed,
@@ -64,9 +78,13 @@ export function project2(
     const pick = next2(working, d, s, firstSlot + i, feed);
     if (!pick) break;
     out.push({ ...pick });
-    pick.tally += 1;
-    pick.isNew = false;
-    pick.lastShownAt = boundaryMs(firstSlot + i, feed, d.dwellS, d.offsetS);
+    const previous = working.find((e) => e.snapshotId === s.lastSnapshotId) ?? null;
+    const shownAt = boundaryMs(firstSlot + i, feed, d.dwellS, d.offsetS);
+    for (const f of [pick, ...shownWith2(pick, working, d, previous)]) {
+      f.tally += 1;
+      f.isNew = false;
+      f.lastShownAt = shownAt;
+    }
     s = afterShowing(pick, s);
   }
   return out;

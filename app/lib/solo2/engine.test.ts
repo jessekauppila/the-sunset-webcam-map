@@ -3,7 +3,7 @@ import { schemaDefaults } from '@/app/lib/settings/schema';
 import { project } from '@/app/lib/solo/engine';
 import type { BinEntry, ScreenState } from '@/app/lib/solo/types';
 import { boundaryMs } from '@/app/lib/solo/schedule';
-import { beatOf, next2, project2, roleAt } from './engine';
+import { beatOf, next2, project2, roleAt, shownWith2 } from './engine';
 import { SOLO2_SETTINGS_SCHEMA, dialsFrom2 } from './settingsSchema';
 import type { Solo2Dials } from './types';
 
@@ -112,5 +112,29 @@ describe('rhythm', () => {
     expect(next2(entries, d, S0, 1, 'sunrise')?.snapshotId).toBe(2);
     // slot 2 is a peak: frame 2 is on glass, 1 and 3 still rest → rest waived → best is 1.
     expect(next2(entries, d, { lastSnapshotId: 2, sunsetStreak: 1 }, 2, 'sunrise')?.snapshotId).toBe(1);
+  });
+});
+
+describe('the prelude counts as shown (spec §4.4)', () => {
+  const cam = (id: number, q: number, at: number) => sun(id, q, { webcamId: 7, capturedAt: at });
+  const es = () => [cam(1, 0.6, 100), cam(2, 0.7, 200), cam(3, 0.9, 300), sun(4, 0.8, { capturedAt: 250 }), sun(5, 0.5, { capturedAt: 260 })];
+  const on = { ...D, prelude: true, preludeFrames: 3 };
+  it('with the prelude on, a camera plays once as a group and the queue moves on to other cameras', () => {
+    expect(labels(project2(es(), on, S0, 3, 0, 'sunrise'))).toEqual(['S3', 'S4', 'S5']);
+  });
+  it('with the prelude off, each of the camera\'s frames takes a turn of its own', () => {
+    expect(labels(project2(es(), D, S0, 3, 0, 'sunrise'))).toEqual(['S3', 'S4', 'S2']);
+  });
+  it('shownWith2 is the prelude the glass draws, continuing from a same-camera previous frame', () => {
+    const e = es();
+    expect(shownWith2(e[2], e, on, null).map((x) => x.snapshotId)).toEqual([1, 2]);
+    expect(shownWith2(e[2], e, on, e[0]).map((x) => x.snapshotId)).toEqual([2]);
+    expect(shownWith2(e[2], e, on, e[1])).toEqual([]);
+    expect(shownWith2(e[2], e, D, null)).toEqual([]);
+  });
+  it('project2 still leaves its inputs alone', () => {
+    const e = es();
+    project2(e, on, S0, 3, 0, 'sunrise');
+    expect(e.map((x) => x.tally)).toEqual([0, 0, 0, 0, 0]);
   });
 });
