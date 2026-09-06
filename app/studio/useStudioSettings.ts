@@ -48,6 +48,8 @@ export interface StudioSettingsApi {
   diffCount: number; // total across namespaces — the badge number
   deploy: (label?: string) => Promise<void>;
   revert: () => Promise<void>;
+  /** Save the current studio profile as a take (spec §4.2) — never reaches the glass. */
+  saveTake: (label?: string | null) => Promise<DeployRow | null>;
   /** Recorded deploys, newest first. [] until the first fetch lands. */
   deploys: DeployRow[];
   /** Put a recorded deploy into the studio profile (the glass is untouched). Returns the keys the current schema could not take. */
@@ -295,6 +297,24 @@ export function useStudioSettings(): StudioSettingsApi {
     [flushPending, mutate, mutateDeploys]
   );
 
+  const saveTake = useCallback(
+    async (label?: string | null): Promise<DeployRow | null> => {
+      await flushPending();
+      const res = await fetch(DEPLOYS_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ label: label ?? null }),
+      });
+      if (!res.ok) {
+        throw new Error(`save take failed: ${res.status}`);
+      }
+      const json = (await res.json()) as { take: DeployRow };
+      void mutateDeploys();
+      return json.take;
+    },
+    [flushPending, mutateDeploys]
+  );
+
   const revert = useCallback(async () => {
     cancelPending();
     const res = await fetch('/api/kiosk/settings/revert', { method: 'POST' });
@@ -360,6 +380,7 @@ export function useStudioSettings(): StudioSettingsApi {
     diffCount,
     deploy,
     revert,
+    saveTake,
     deploys: deploysData?.deploys ?? [],
     loadDeploy,
     relabelDeploy,

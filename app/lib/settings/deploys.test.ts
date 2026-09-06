@@ -27,7 +27,7 @@ vi.mock('@/app/components/mosaic/registry', () => ({
   },
 }));
 
-import { recordDeploy, listDeploys, loadDeployIntoStudio, relabelDeploy } from './deploys';
+import { recordDeploy, listDeploys, loadDeployIntoStudio, relabelDeploy, saveTake } from './deploys';
 import { sql } from '@/app/lib/db';
 
 const sqlMock = (sql as unknown as SqlTag).__sqlMock;
@@ -50,13 +50,21 @@ beforeEach(() => {
 describe('recordDeploy', () => {
   it('inserts the whole profile and returns the row', async () => {
     sqlMock.mockResolvedValueOnce([
-      { id: 7, label: null, namespaces: { v1: { floorPx: 140 } }, deployed_at: '2026-09-05T18:30:00.000Z' },
+      {
+        id: 7, label: null, namespaces: { v1: { floorPx: 140 } },
+        deployed_at: '2026-09-05T18:30:00.000Z', created_at: '2026-09-05T18:30:00.000Z',
+      },
     ]);
     const row = await recordDeploy({ namespaces: { v1: { floorPx: 140 } }, revision: 3 }, null);
     expect(row).toEqual({
-      id: 7, label: null, namespaces: { v1: { floorPx: 140 } }, deployedAt: '2026-09-05T18:30:00.000Z',
+      id: 7, label: null, namespaces: { v1: { floorPx: 140 } },
+      deployedAt: '2026-09-05T18:30:00.000Z', createdAt: '2026-09-05T18:30:00.000Z',
     });
-    expect(text(sqlMock.mock.calls[0])).toContain('INSERT INTO kiosk_deploys');
+    const queryText = text(sqlMock.mock.calls[0]);
+    // Column list only, not the whole query: RETURNING always mentions deployed_at,
+    // so this proves the INSERT itself never sets it (the column defaults to now()).
+    expect(queryText).toMatch(/INSERT INTO kiosk_deploys \(label, namespaces\)/);
+    expect(queryText).not.toMatch(/INSERT INTO kiosk_deploys \(label, namespaces, deployed_at\)/);
     expect(sqlMock.mock.calls[0][2]).toBe(JSON.stringify({ v1: { floorPx: 140 } }));
   });
   it('returns null instead of throwing when the table is missing', async () => {
@@ -65,15 +73,42 @@ describe('recordDeploy', () => {
   });
 });
 
+describe('saveTake', () => {
+  it('inserts with deployed_at NULL and returns a row with deployedAt null', async () => {
+    sqlMock.mockResolvedValueOnce([
+      {
+        id: 9, label: 'draft', namespaces: { v1: { floorPx: 140 } },
+        deployed_at: null, created_at: '2026-09-06T10:00:00.000Z',
+      },
+    ]);
+    const row = await saveTake({ namespaces: { v1: { floorPx: 140 } }, revision: 2 }, 'draft');
+    expect(row).toEqual({
+      id: 9, label: 'draft', namespaces: { v1: { floorPx: 140 } },
+      deployedAt: null, createdAt: '2026-09-06T10:00:00.000Z',
+    });
+    const queryText = text(sqlMock.mock.calls[0]);
+    // Proves saveTake's INSERT actually names deployed_at and sets it to NULL,
+    // not just that it inserts into kiosk_deploys (recordDeploy does too).
+    expect(queryText).toMatch(/INSERT INTO kiosk_deploys \(label, namespaces, deployed_at\)/);
+    expect(queryText).toMatch(/VALUES \([^)]*::jsonb, NULL\)/);
+    expect(sqlMock.mock.calls[0][1]).toBe('draft');
+    expect(sqlMock.mock.calls[0][2]).toBe(JSON.stringify({ v1: { floorPx: 140 } }));
+  });
+  it('returns null instead of throwing when the insert fails', async () => {
+    sqlMock.mockRejectedValueOnce(new Error('relation "kiosk_deploys" does not exist'));
+    expect(await saveTake({ namespaces: {}, revision: 1 })).toBeNull();
+  });
+});
+
 describe('listDeploys', () => {
   it('maps rows newest first and defaults the limit to 50', async () => {
     sqlMock.mockResolvedValueOnce([
-      { id: 2, label: 'b', namespaces: {}, deployed_at: '2026-09-05T18:30:00.000Z' },
-      { id: 1, label: null, namespaces: {}, deployed_at: '2026-09-05T17:00:00.000Z' },
+      { id: 2, label: 'b', namespaces: {}, deployed_at: '2026-09-05T18:30:00.000Z', created_at: '2026-09-05T18:30:00.000Z' },
+      { id: 1, label: null, namespaces: {}, deployed_at: '2026-09-05T17:00:00.000Z', created_at: '2026-09-05T17:00:00.000Z' },
     ]);
     const rows = await listDeploys();
     expect(rows.map((r) => r.id)).toEqual([2, 1]);
-    expect(text(sqlMock.mock.calls[0])).toContain('ORDER BY id DESC');
+    expect(text(sqlMock.mock.calls[0])).toContain('ORDER BY created_at DESC, id DESC');
     expect(sqlMock.mock.calls[0][1]).toBe(50);
   });
   it('returns [] when the read fails', async () => {

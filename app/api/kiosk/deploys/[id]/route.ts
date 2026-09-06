@@ -2,11 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireOwner } from '@/app/lib/owner';
 import { relabelDeploy } from '@/app/lib/settings/deploys';
 import { parseDeployId } from '../parseId';
+import { parseLabel } from '../labels';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
-
-const LABEL_MAX = 60;
 
 /** Rename a deploy. `{ label: null }` clears it. */
 export async function PATCH(
@@ -25,18 +24,11 @@ export async function PATCH(
   } catch {
     return NextResponse.json({ error: 'invalid JSON' }, { status: 400 });
   }
-  const raw = body?.label;
-  if (raw !== null && typeof raw !== 'string') {
-    return NextResponse.json({ error: 'label must be a string or null' }, { status: 400 });
+  const parsed = parseLabel(body?.label);
+  if ('error' in parsed) {
+    return NextResponse.json({ error: parsed.error }, { status: 400 });
   }
-  if (typeof raw === 'string' && raw.length > LABEL_MAX) {
-    return NextResponse.json(
-      { error: `label must be at most ${LABEL_MAX} characters` },
-      { status: 400 },
-    );
-  }
-  const label = typeof raw === 'string' && raw.trim() ? raw.trim() : null;
-  const found = await relabelDeploy(id, label);
+  const found = await relabelDeploy(id, parsed.label);
   if (!found) return NextResponse.json({ error: 'no such deploy' }, { status: 404 });
   return NextResponse.json({ ok: true });
 }

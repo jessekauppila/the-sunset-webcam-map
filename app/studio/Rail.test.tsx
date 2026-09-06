@@ -18,7 +18,7 @@ function api(over: Partial<StudioSettingsApi> = {}): StudioSettingsApi {
       : mergeSettings(MOSAIC_SETTINGS_SCHEMAS[ns], {}),
     setKnob: vi.fn(), resetSection: vi.fn(), applyNamespace: () => [],
     diffByNamespace: {}, diffCount: 0,
-    deploy: async () => {}, revert: async () => {}, deployedAtMs: null, droppedKeys: [],
+    deploy: async () => {}, revert: async () => {}, saveTake: async () => null, deployedAtMs: null, droppedKeys: [],
     deploys: [], loadDeploy: async () => [], relabelDeploy: async () => {}, lastDeployRecorded: null,
     ...over,
   };
