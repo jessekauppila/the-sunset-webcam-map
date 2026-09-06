@@ -15,7 +15,7 @@ function api(over: Partial<StudioSettingsApi> = {}): StudioSettingsApi {
     effective: () => mergeSettings(SHARED_SCHEMA, { activeVersion: 'solo2', panelPreset: 'dell-l' }),
     setKnob: vi.fn(), resetSection: vi.fn(), applyNamespace: () => [],
     diffByNamespace: { shared: ['activeVersion'] }, diffCount: 3,
-    deploy: async () => {}, revert: vi.fn(async () => {}), deployedAtMs: null, droppedKeys: [],
+    deploy: async () => {}, revert: vi.fn(async () => {}), saveTake: async () => null, deployedAtMs: null, droppedKeys: [],
     deploys: [], loadDeploy: async () => [], relabelDeploy: async () => {}, lastDeployRecorded: null,
     ...over,
   };

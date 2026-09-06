@@ -3,6 +3,7 @@ import { renderHook, act } from '@testing-library/react';
 import { SWRConfig } from 'swr';
 import type { ReactNode } from 'react';
 import { useStudioSettings } from './useStudioSettings';
+import type { DeployRow } from '@/app/lib/settings/deploys';
 
 // v1's floorPx default is 100 (COMPOSITION_TILE_FLOOR_PX) — see
 // app/components/mosaic/v1/config.ts.
@@ -655,5 +656,89 @@ describe('useStudioSettings.applyNamespace — restoring a saved dial set', () =
     const call = fetchMock.mock.calls.find(([u]) => u === '/api/kiosk/deploys/7');
     expect((call?.[1] as RequestInit).method).toBe('PATCH');
     expect(JSON.parse(String((call?.[1] as RequestInit).body))).toEqual({ label: 'opening night' });
+  });
+
+  it('saveTake flushes a pending debounced PATCH, then POSTs to /api/kiosk/deploys and refetches the list', async () => {
+    const getResponse = settingsResponse({}, {});
+    const take = { id: 9, label: 'take one', namespaces: { v1: { floorPx: 200 } }, deployedAt: null, createdAt: 'T' };
+    fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+      if (!init || (!init.method && url === '/api/kiosk/settings')) {
+        return { ok: true, json: async () => getResponse };
+      }
+      if (url === '/api/kiosk/deploys' && (!init.method || init.method === 'GET')) {
+        return { ok: true, json: async () => ({ deploys: [] }) };
+      }
+      if (init.method === 'PATCH' && url === '/api/kiosk/settings') {
+        return { ok: true, json: async () => ({ revision: 2 }) };
+      }
+      if (init.method === 'POST' && url === '/api/kiosk/deploys') {
+        return { ok: true, json: async () => ({ take }) };
+      }
+      return { ok: true, json: async () => ({}) };
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { result } = renderHook(() => useStudioSettings(), { wrapper });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+
+    act(() => {
+      result.current.setKnob('v1', 'floorPx', 200);
+    });
+
+    // Call saveTake immediately — no timer advance — so the debounce window
+    // has not fired yet and the edit is still only in the optimistic overlay.
+    let saved: DeployRow | null = null;
+    await act(async () => {
+      saved = await result.current.saveTake('take one');
+    });
+
+    expect(saved).toEqual(take);
+
+    const relevantCalls = fetchMock.mock.calls.filter(
+      (c) =>
+        c[1]?.method === 'PATCH' ||
+        (c[1]?.method === 'POST' && c[0] === '/api/kiosk/deploys')
+    );
+    expect(relevantCalls.length).toBe(2);
+    expect(relevantCalls[0][1]?.method).toBe('PATCH');
+    expect(relevantCalls[1][0]).toBe('/api/kiosk/deploys');
+    expect(relevantCalls[1][1]?.method).toBe('POST');
+    const postBody = JSON.parse(relevantCalls[1][1].body as string);
+    expect(postBody).toEqual({ label: 'take one' });
+
+    // The deploys list is refetched after saving a take.
+    const deploysGetCalls = fetchMock.mock.calls.filter(
+      (c) => c[0] === '/api/kiosk/deploys' && (!c[1] || !c[1].method)
+    );
+    expect(deploysGetCalls.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('saveTake throws when the deploys route responds non-ok', async () => {
+    fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+      if (!init || (!init.method && url === '/api/kiosk/settings')) {
+        return { ok: true, json: async () => settingsResponse({}, {}) };
+      }
+      if (url === '/api/kiosk/deploys' && (!init.method || init.method === 'GET')) {
+        return { ok: true, json: async () => ({ deploys: [] }) };
+      }
+      if (init.method === 'POST' && url === '/api/kiosk/deploys') {
+        return { ok: false, status: 500, json: async () => ({ error: 'boom' }) };
+      }
+      return { ok: true, json: async () => ({}) };
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { result } = renderHook(() => useStudioSettings(), { wrapper });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+
+    await expect(
+      act(async () => {
+        await result.current.saveTake();
+      })
+    ).rejects.toThrow();
   });
 });
