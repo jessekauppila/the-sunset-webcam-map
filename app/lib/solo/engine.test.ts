@@ -122,9 +122,15 @@ describe('rule 2: rest', () => {
 });
 
 describe('rule 3: within a bin', () => {
-  it('least shown first', () => {
-    expect(nx([sun(1, 0.9, { tally: 1 }), sun(2, 0.6)])?.snapshotId).toBe(2);
-    expect(nx([non(1, 0.5, { tally: 2 }), non(2, 0.4, { tally: 1 })])?.snapshotId).toBe(2);
+  it('never shown first, whatever the tally says', () => {
+    // Frame 1 is better and has a lower tally, but it has been on glass; frame 2 never has.
+    expect(nx([sun(1, 0.9, { tally: 1, lastShownAt: boundaryMs(-9, FEED, D.dwellS, D.offsetS) }), sun(2, 0.6)])?.snapshotId).toBe(2);
+    expect(nx([non(1, 0.5, { tally: 2, lastShownAt: boundaryMs(-9, FEED, D.dwellS, D.offsetS) }), non(2, 0.4)])?.snapshotId).toBe(2);
+  });
+  it('among shown frames, longest since shown first, even when its tally is higher', () => {
+    const older = sun(1, 0.6, { tally: 13, lastShownAt: boundaryMs(-20, FEED, D.dwellS, D.offsetS) });
+    const newer = sun(2, 0.9, { tally: 1, lastShownAt: boundaryMs(-10, FEED, D.dwellS, D.offsetS) });
+    expect(nx([older, newer])?.snapshotId).toBe(1);
   });
   it('then sunsets by quality, non-sunsets by detection', () => {
     expect(nx([sun(1, 0.7), sun(2, 0.9)])?.snapshotId).toBe(2);
@@ -140,6 +146,17 @@ describe('rule 3: within a bin', () => {
   });
   it('remaining ties break by earlier enteredAt', () => {
     expect(nx([sun(1, 0.9, { enteredAt: 9 }), sun(2, 0.9, { enteredAt: 3 })])?.snapshotId).toBe(2);
+  });
+  it('the 2026-09-05 sunset screen: five new frames and twenty-one old ones each get a turn before any repeat', () => {
+    // Old frames were on glass at slots -30..-10, tallies 7–13; new ones never. Rest 4 would loop the new five under the old rule.
+    const old = Array.from({ length: 21 }, (_, i) =>
+      sun(i + 1, 0.55 + i * 0.01, { tally: 7 + (i % 7), lastShownAt: boundaryMs(-30 + i, FEED, D.dwellS, D.offsetS) }));
+    const fresh = Array.from({ length: 5 }, (_, i) => sun(100 + i, 0.6 + i * 0.03, { enteredAt: 1000 + i }));
+    const out = project([...old, ...fresh], D, S0, 26, 0, FEED).map((e) => e.snapshotId);
+    expect(new Set(out).size).toBe(26);
+    expect(out.slice(0, 5).every((id) => id >= 100)).toBe(true);
+    // Old frames come back in the order they were last on glass.
+    expect(out.slice(5)).toEqual(old.map((e) => e.snapshotId));
   });
 });
 
