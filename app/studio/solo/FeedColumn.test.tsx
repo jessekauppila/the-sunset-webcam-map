@@ -5,7 +5,7 @@ import { dialsFrom, SOLO_SETTINGS_SCHEMA } from '@/app/lib/solo/settingsSchema';
 import { schemaDefaults } from '@/app/lib/settings/schema';
 import { buildStateView, type ViewEntry } from '@/app/api/kiosk/solo/view';
 
-const D = dialsFrom(schemaDefaults(SOLO_SETTINGS_SCHEMA));
+const D = { ...dialsFrom(schemaDefaults(SOLO_SETTINGS_SCHEMA)), ratingFloor: 3.2 }; // quality 0.55: frame 4 (0.1) is below it
 const entry = (id: number, bin: 'sunset' | 'non_sunset', score: number, webcamId = 100 + id): ViewEntry => ({
   snapshotId: id, webcamId, bin, quality: bin === 'sunset' ? score : null, detection: bin === 'sunset' ? 0.9 : score,
   isNew: false, tally: 0, enteredAt: id, imageUrl: `u${id}`, title: `cam${id}`, city: '', region: '', country: '',
@@ -30,7 +30,7 @@ it('draws the on-glass frame at the top of the queue and keeps queued frames out
 
 it('says so when the studio dials would draw a different next frame than the glass', () => {
   const server = view();
-  const projected = view({ ...D, qualityFloor: 0.05, rest: 0, sunsetFloor: 0 });
+  const projected = view({ ...D, ratingFloor: 1, rest: 0, sunsetFloor: 0 });
   // With frame 4 admitted and shown frames sinking, the projection's first draw
   // differs from the server's only if the two first entries disagree; assert on
   // the message when they do, and on its absence when they do not, so the test

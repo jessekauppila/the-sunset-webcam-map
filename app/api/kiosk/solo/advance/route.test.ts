@@ -88,6 +88,8 @@ describe('POST /api/kiosk/solo/advance', () => {
     expect(commitAdvance).not.toHaveBeenCalled();
   });
   it('reports advanced:false when nothing is eligible', async () => {
+    // The default rating floor (1) admits every sunset; a floor of 3 puts a 0.1 (rating 1.4) below it.
+    getLiveSettingsCached.mockResolvedValue({ namespaces: { solo: { ratingFloor: 3 } }, revision: 1 });
     listActiveEntries.mockResolvedValue([entry(1, 0.1)]);
     const res = await post({ feed: 'sunrise', slot: 50_000_000 });
     expect((await res.json()).advanced).toBe(false);

@@ -37,7 +37,7 @@ export const SOLO_SETTINGS_SCHEMA: SettingsSchema = [
   {
     key: 'showScores', kind: 'boolean', default: false,
     label: 'scores', section: 'glass',
-    description: 'Show q (quality 0–1) and d (detection probability 0–1) on glass.',
+    description: 'Show the rating (1–5) and the sunset probability on glass.',
   },
   {
     key: 'showRank', kind: 'boolean', default: false,
@@ -51,14 +51,14 @@ export const SOLO_SETTINGS_SCHEMA: SettingsSchema = [
   },
   // ---- bins ----
   {
-    key: 'qualityFloor', kind: 'number', min: 0, max: 1, step: 0.05, default: 0.55,
-    label: 'quality floor (sunsets)', section: 'bins',
-    description: 'A sunset-bin frame needs at least this quality to be eligible.',
+    key: 'ratingFloor', kind: 'number', min: 1, max: 5, step: 0.1, default: 1,
+    label: 'rating floor (sunsets)', section: 'bins',
+    description: 'A sunset-bin frame needs at least this rating (1–5) to be eligible. 1 shows every sunset: a poor sunset is still a sunset.',
   },
   {
     key: 'detectionFloor', kind: 'number', min: 0, max: 1, step: 0.05, default: 0.3,
-    label: 'detection floor (non-sunsets)', section: 'bins',
-    description: 'A non-sunset frame needs at least this detection probability to be eligible. Raise it to shrink that bin.',
+    label: 'sunset-probability floor (non-sunsets)', section: 'bins',
+    description: 'A non-sunset frame needs at least this probability of being a sunset (0–1) to be eligible. Raise it to shrink that bin.',
   },
   {
     key: 'sunsetFloor', kind: 'number', min: 0, max: 12, step: 1, default: 6,
@@ -96,7 +96,7 @@ export const SOLO_SETTINGS_SCHEMA: SettingsSchema = [
  */
 export function dialsFrom(values: SettingsValues): SoloDials {
   return {
-    qualityFloor: values.qualityFloor as number,
+    ratingFloor: values.ratingFloor as number,
     detectionFloor: values.detectionFloor as number,
     sunsetFloor: values.sunsetFloor as number,
     mix: values.mix as number,

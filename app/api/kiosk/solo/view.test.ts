@@ -3,7 +3,7 @@ import { buildStateView, parseFeed, toViewEntry, type ViewEntry } from './view';
 import { dialsFrom, SOLO_SETTINGS_SCHEMA } from '@/app/lib/solo/settingsSchema';
 import { schemaDefaults } from '@/app/lib/settings/schema';
 
-const D = dialsFrom(schemaDefaults(SOLO_SETTINGS_SCHEMA));
+const D = { ...dialsFrom(schemaDefaults(SOLO_SETTINGS_SCHEMA)), ratingFloor: 3.2 }; // quality 0.55: a 0.1 sunset is below it
 const ZONE = { minDeg: -24, maxDeg: -2 };
 const stored = (id: number, bin: 'sunset' | 'non_sunset', score: number, tally = 0): ViewEntry => ({
   snapshotId: id, webcamId: 100 + id, bin,

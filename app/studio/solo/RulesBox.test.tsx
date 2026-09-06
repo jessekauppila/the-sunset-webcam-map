@@ -12,7 +12,8 @@ it('states the five rules with the dial values in force', () => {
   expect(screen.getByText(/rests/).textContent).toContain('2');
   expect(screen.getByText(/least shown first/)).toBeInTheDocument();
   expect(screen.getByText(/Never the same frame twice/)).toBeInTheDocument();
-  expect(screen.getByText(/Floors/).textContent).toContain('0.55');
+  expect(screen.getByText(/Floors/).textContent).toContain('1.0 (every sunset)');
+  expect(screen.getByText(/Floors/).textContent).toContain('30%');
   expect(screen.queryByText(/minus/)).toBeNull();
 });
 

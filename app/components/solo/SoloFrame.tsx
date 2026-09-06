@@ -3,6 +3,7 @@
 import type { EntryView } from '@/app/api/kiosk/solo/view';
 import type { SoloDials } from '@/app/lib/solo/types';
 import { pictureRect } from '@/app/lib/solo/caption';
+import { scoreLine } from '@/app/lib/solo/scores';
 import { Caption } from './Caption';
 
 const mono = 'ui-monospace, SFMono-Regular, Menlo, monospace';
@@ -55,7 +56,7 @@ export function SoloFrame({ entry, previous, fadeS, dials, width, height }: {
           {dials.showTally && <div>shown <b style={{ color: '#f5a344' }}>×{entry.tally}</b></div>}
           {dials.showRank && <div>{entry.bin === 'sunset' ? 'sunset' : 'non-sunset'} bin #{entry.rank}</div>}
           {dials.showScores && (
-            <div>{entry.bin === 'sunset' ? `q ${(entry.quality ?? 0).toFixed(2)} · ` : ''}d {entry.detection.toFixed(2)}</div>
+            <div>{scoreLine(entry)}</div>
           )}
         </div>
       )}

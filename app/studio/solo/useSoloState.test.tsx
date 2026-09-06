@@ -4,7 +4,7 @@ import { useSoloState } from './useSoloState';
 import { dialsFrom, SOLO_SETTINGS_SCHEMA } from '@/app/lib/solo/settingsSchema';
 import { schemaDefaults } from '@/app/lib/settings/schema';
 
-const D = dialsFrom(schemaDefaults(SOLO_SETTINGS_SCHEMA));
+const D = { ...dialsFrom(schemaDefaults(SOLO_SETTINGS_SCHEMA)), ratingFloor: 3.2 }; // quality 0.55: frame 2 (0.5) is below it
 const entry = (id: number, q: number) => ({
   snapshotId: id, webcamId: 100 + id, bin: 'sunset', quality: q, detection: 0.9, isNew: false,
   tally: 0, enteredAt: id, imageUrl: `u${id}`, title: `t${id}`, city: '', region: '', country: '',
@@ -23,8 +23,8 @@ afterEach(() => {
 });
 
 describe('useSoloState', () => {
-  it('re-projects with the studio dials: a lower quality floor admits frame 2', async () => {
-    const dials = { ...D, qualityFloor: 0.4 };
+  it('re-projects with the studio dials: a lower rating floor admits frame 2', async () => {
+    const dials = { ...D, ratingFloor: 2.6 }; // quality 0.4
     const { result } = renderHook(() => useSoloState('sunset', dials));
     await waitFor(() => expect(result.current.projected).toBeDefined());
     expect(result.current.projected!.next.map((e) => e.snapshotId).slice(0, 2)).toEqual([1, 2]);

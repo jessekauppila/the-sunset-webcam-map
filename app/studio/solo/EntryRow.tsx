@@ -3,6 +3,7 @@
 import type { EntryView } from '@/app/api/kiosk/solo/view';
 import type { Feed } from '@/app/lib/solo/types';
 import { formatTime } from '@/app/lib/solo/caption';
+import { scoreLine } from '@/app/lib/solo/scores';
 import type { Role } from '@/app/lib/solo2/types';
 
 const COLOR = { sunset: '#7ee2ac', non_sunset: '#c3cad6' } as const;
@@ -64,14 +65,12 @@ export function EntryRow({
   preluded?: boolean;
   onClick: (entry: EntryView) => void;
 }) {
-  const scores = e.bin === 'sunset'
-    ? `q ${(e.quality ?? 0).toFixed(2)} d ${e.detection.toFixed(2)}`
-    : `d ${e.detection.toFixed(2)}`;
+  const scores = scoreLine(e);
   const placeText = [[e.city, e.country].filter(Boolean).join(', '), clock(e)].filter(Boolean).join(' · ');
   const title =
     `${e.title} · ${placeText}. Frame ${e.snapshotId}, ${feed} feed` +
     (place === 'queue' ? ', in the queue. ' : '. ') +
-    (e.bin === 'sunset' ? 'Sunset bin, ordered by quality. ' : 'Non-sunset bin, ordered by detection. ') +
+    (e.bin === 'sunset' ? 'Sunset bin, ordered by rating. ' : 'Non-sunset bin, ordered by sunset probability. ') +
     (!e.eligible ? 'Below the floor dial; not eligible. ' : '') +
     (repeat ? 'Already appears earlier in the queue; this is a repeat showing. ' : '') +
     (preluded ? 'Already shown inside an earlier queued frame\'s prelude; this is its own turn. ' : '') +

@@ -21,7 +21,7 @@ it('by default: the picture inset on black, the tidied title, the place, and the
   expect(screen.getByTestId('caption-place')).toHaveTextContent('Split-Dalmatia County, Croatia');
   expect(screen.getByTestId('caption-time')).toHaveTextContent('7:42 pm there');
   expect(screen.queryByText(/shown/)).toBeNull();
-  expect(screen.queryByText(/q 0\.91/)).toBeNull();
+  expect(screen.queryByText(/rating 4\.6/)).toBeNull();
 });
 
 it('caption sizes are glass pixels: the dialled px on a 1920 panel, and the grays are percent of white', () => {
@@ -59,7 +59,7 @@ it('draws scores, rank, and tally when dialled on; hides the caption when the pl
   render(<SoloFrame entry={e} previous={null} fadeS={0}
     dials={{ ...D, showPlace: false, showScores: true, showRank: true, showTally: true }} width={1920} height={1080} />);
   expect(screen.queryByTestId('caption')).toBeNull();
-  expect(screen.getByText(/q 0\.91 · d 0\.88/)).toBeInTheDocument();
+  expect(screen.getByText(/rating 4\.6 · sunset 88%/)).toBeInTheDocument();
   expect(screen.getByText(/sunset bin #3/)).toBeInTheDocument();
   expect(screen.getByText(/×2/)).toBeInTheDocument();
 });

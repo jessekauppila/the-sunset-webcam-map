@@ -73,7 +73,8 @@ export interface CaptionDials {
  */
 export interface SoloDials extends CaptionDials {
   // bins group — change which frame comes next
-  qualityFloor: number;
+  /** 1–5, on the rubric's scale; 1 lets every sunset through. Compared to quality via scores.qualityOf. */
+  ratingFloor: number;
   detectionFloor: number;
   sunsetFloor: number;
   mix: number;

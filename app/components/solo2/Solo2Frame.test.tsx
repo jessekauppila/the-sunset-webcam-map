@@ -23,7 +23,7 @@ it('main stage: the chosen frame inset on black with place and local time, no sc
   expect(screen.getByText('Pier')).toBeInTheDocument();
   expect(screen.getByText('Baja California Sur, Mexico')).toBeInTheDocument();
   expect(screen.getByTestId('caption-time')).toHaveTextContent('7:42 pm there');
-  expect(screen.queryByText(/q 0\.91/)).toBeNull();
+  expect(screen.queryByText(/rating 4\.6/)).toBeNull();
 });
 
 it('prelude stage: an earlier frame with no caption and no scores', () => {

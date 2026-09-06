@@ -2,6 +2,7 @@
 
 import type { EntryView } from '@/app/api/kiosk/solo/view';
 import { pictureRect } from '@/app/lib/solo/caption';
+import { scoreLine } from '@/app/lib/solo/scores';
 import { Caption } from '@/app/components/solo/Caption';
 import type { DwellPlan, Stage } from '@/app/lib/solo2/plan';
 import type { Solo2Dials } from '@/app/lib/solo2/types';
@@ -119,7 +120,7 @@ export function Solo2Frame({ entry, prelude, previous, stage, plan, dials, width
           {dials.showTally && <div>shown <b style={{ color: '#f5a344' }}>×{entry.tally}</b></div>}
           {dials.showRank && <div>{entry.bin === 'sunset' ? 'sunset' : 'non-sunset'} bin #{entry.rank}</div>}
           {dials.showScores && (
-            <div>{entry.bin === 'sunset' ? `q ${(entry.quality ?? 0).toFixed(2)} · ` : ''}d {entry.detection.toFixed(2)}</div>
+            <div>{scoreLine(entry)}</div>
           )}
         </div>
       )}

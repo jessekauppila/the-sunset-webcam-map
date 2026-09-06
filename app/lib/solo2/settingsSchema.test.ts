@@ -24,7 +24,7 @@ describe('solo2 settings schema', () => {
     // Decided 2026-09-05: a camera change dips through black, the same camera dissolves.
     expect(d).toMatchObject({ transition: 'dip', fadeS: 1.5, sameCameraFadeS: 1.5 });
     // and still every solo dial
-    expect(d).toMatchObject({ dwellS: 20, offsetS: 10, qualityFloor: 0.55, mix: 2 });
+    expect(d).toMatchObject({ dwellS: 20, offsetS: 10, ratingFloor: 1, mix: 2 });
   });
   it('has no caption knobs of its own: the shared namespace carries them', () => {
     expect(SOLO2_SETTINGS_SCHEMA.some((k) => k.section === 'caption')).toBe(false);
