@@ -9,7 +9,7 @@ const D = dialsFrom2(schemaDefaults(SOLO2_SETTINGS_SCHEMA));
 const AT = Date.UTC(2026, 8, 5, 2, 42); // 7:42 pm in Mazatlán
 const e = {
   snapshotId: 3, webcamId: 1, bin: 'sunset' as const, quality: 0.91, detection: 0.88, isNew: false, tally: 2, enteredAt: 0,
-  imageUrl: 'u3', title: 'Pier', city: 'Cabo', region: 'Baja California Sur', country: 'Mexico', eligible: true, rank: 3,
+  imageUrl: 'u3', title: 'Pier', city: 'Cabo', region: 'Baja California Sur', country: 'Mexico', eligible: true, rank: 3, stage: { kind: 'inLine' as const, position: null },
   capturedAt: AT, timezone: 'America/Mazatlan', sunAltitudeDeg: 1.2,
 };
 const prelude = [{ snapshotId: 1, imageUrl: 'u1' }, { snapshotId: 2, imageUrl: 'u2' }];

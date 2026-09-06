@@ -35,15 +35,31 @@ describe('toViewEntry', () => {
 });
 
 describe('buildStateView', () => {
-  it('queued frames are absent from the bins; bins keep the remainder ranked by score', () => {
+  it('queued frames are absent from the bins; every entry carries a stage', () => {
     const entries = [stored(1, 'sunset', 0.9), stored(2, 'sunset', 0.8), stored(3, 'non_sunset', 0.5), stored(4, 'sunset', 0.1)];
     const v = buildStateView({ feed: 'sunset', dials: D, entries, screen: null, nowMs: 0, admitted: { sunset: 0, nonSunset: 0 }, zone: ZONE });
     expect(v.current).toBeNull();
     // Three eligible frames project eight draws: the cycle repeats, which is
     // exactly what the glass will do, so the queue shows it.
     expect(v.next.map((e) => e.snapshotId)).toEqual([1, 2, 3, 1, 2, 3, 1, 2]);
+    expect(v.next[0].stage).toEqual({ kind: 'queued', position: 1 });
     expect(v.bins.sunset.map((e) => e.snapshotId)).toEqual([4]);
     expect(v.bins.sunset[0].eligible).toBe(false);
+    expect(v.bins.sunset[0].stage).toEqual({ kind: 'underFloor', floor: expect.closeTo(0.55, 5) });
+  });
+  it('bins are ordered by stage: in line by draw position, then resting, then under floor', () => {
+    // Twelve never-shown sunsets: 8 queue, the rest are in line at draws 9+. Frame 20 is on glass, frame 30 under floor.
+    const many = Array.from({ length: 12 }, (_, i) => stored(i + 1, 'sunset', 0.9 - i * 0.01));
+    const onGlass = { ...stored(20, 'sunset', 0.95, 1), lastShownAt: 70_000 }; // on glass since slot 3 (dwell 20, offset 10)
+    const low = stored(30, 'sunset', 0.1);
+    const v = buildStateView({ feed: 'sunset', dials: D, entries: [low, onGlass, ...many],
+      screen: { feed: 'sunset', currentSnapshotId: 20, shownSince: 70_000, slot: 3, sunsetStreak: 1 },
+      nowMs: 75_000, admitted: { sunset: 0, nonSunset: 0 }, zone: ZONE });
+    const kinds = v.bins.sunset.map((e) => e.stage.kind);
+    expect(kinds.slice(0, 4)).toEqual(['inLine', 'inLine', 'inLine', 'inLine']);
+    expect(v.bins.sunset.slice(0, 4).map((e) => (e.stage as { position: number | null }).position)).toEqual([9, 10, 11, 12]);
+    expect(kinds[kinds.length - 1]).toBe('underFloor');
+    expect(v.current?.entry.stage).toEqual({ kind: 'onGlass' });
   });
   it('current comes from the screen row and is excluded from next', () => {
     const entries = [stored(1, 'sunset', 0.9, 1), stored(2, 'sunset', 0.8)];
@@ -82,7 +98,8 @@ describe('buildStateView with a version', () => {
     const v = buildStateView({ feed: 'sunrise', dials, entries, screen: null, nowMs: 0,
       admitted: { sunset: 0, nonSunset: 0 }, zone: ZONE, version: v2 });
     expect(v.nextRoles.slice(0, 4)).toEqual(['valley', 'peak', 'valley', 'peak']);
-    expect(v.next.slice(0, 4).map((e) => e.snapshotId)).toEqual([3, 1, 2, 1]);
+    // Slot 4 is a peak with every frame shown: the one longest since shown (3) comes back before the best (1).
+    expect(v.next.slice(0, 4).map((e) => e.snapshotId)).toEqual([3, 1, 2, 3]);
   });
   it('solo reports every draw as a peak', () => {
     const v = buildStateView({ feed: 'sunset', dials: D, entries: [stored(1, 'sunset', 0.9)], screen: null, nowMs: 0,
