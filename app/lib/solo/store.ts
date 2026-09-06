@@ -293,7 +293,75 @@ export async function commitAdvance(
         last_shown_at = now()
     where feed = ${feed} and snapshot_id = ${entry.snapshotId}
   `;
+  await logDraw(feed, slot, entry.snapshotId);
   return true;
+}
+
+/** One past draw on the studio's tape (stages-and-tape spec §4). */
+export interface TapeFrame {
+  slot: number;
+  snapshotId: number;
+  /** ms since epoch. */
+  shownAt: number;
+  imageUrl: string;
+  title: string;
+  city: string;
+  country: string;
+  /** Null once the bin row is gone; the tape then draws a neutral outline. */
+  bin: BinKind | null;
+}
+
+/**
+ * Record a draw for the tape. Best-effort: an unmigrated table must not stop
+ * the glass advancing. Idempotent on (feed, slot), like the state write.
+ */
+export async function logDraw(feed: Feed, slot: number, snapshotId: number): Promise<void> {
+  try {
+    await sql`
+      insert into kiosk_draws (feed, slot, snapshot_id, shown_at)
+      values (${feed}, ${slot}, ${snapshotId}, now())
+      on conflict (feed, slot) do nothing
+    `;
+  } catch (error) {
+    console.warn('[solo/store] draw log failed:', error);
+  }
+}
+
+/** The last `n` draws for a screen, oldest first. Empty when the table is missing. */
+export async function listRecentDraws(feed: Feed, n: number): Promise<TapeFrame[]> {
+  try {
+    const rows = (await sql`
+      select d.slot, d.snapshot_id, d.shown_at, s.firebase_url, w.title, w.city, w.country, e.bin
+      from kiosk_draws d
+      join webcam_snapshots s on s.id = d.snapshot_id
+      join webcams w on w.id = s.webcam_id
+      left join kiosk_bin_entries e on e.feed = d.feed and e.snapshot_id = d.snapshot_id
+      where d.feed = ${feed}
+      order by d.slot desc
+      limit ${n}
+    `) as unknown as {
+      slot: string | number; snapshot_id: string | number; shown_at: string; firebase_url: string;
+      title: string | null; city: string | null; country: string | null; bin: BinKind | null;
+    }[];
+    return rows.reverse().map((r) => ({
+      slot: num(r.slot), snapshotId: num(r.snapshot_id), shownAt: Date.parse(r.shown_at),
+      imageUrl: r.firebase_url, title: r.title ?? '', city: r.city ?? '', country: r.country ?? '', bin: r.bin ?? null,
+    }));
+  } catch (error) {
+    console.warn('[solo/store] draw log read failed:', error);
+    return [];
+  }
+}
+
+/** Drop draws older than `olderThanDays`. Best-effort; the cron calls it every tick. */
+export async function pruneDraws(olderThanDays: number): Promise<void> {
+  try {
+    await sql`
+      delete from kiosk_draws where shown_at < now() - make_interval(days => ${olderThanDays})
+    `;
+  } catch (error) {
+    console.warn('[solo/store] draw log prune failed:', error);
+  }
 }
 
 export async function countAdmittedSince(

@@ -16,7 +16,7 @@ vi.mock('@/app/lib/db', async () => {
 import { sql } from '@/app/lib/db';
 import {
   listActiveEntries, insertEntry, removeStale, getScreenState, commitAdvance,
-  countAdmittedSince, getBinDigestSummary, saveSweptZone, getSweptZone,
+  countAdmittedSince, getBinDigestSummary, saveSweptZone, getSweptZone, logDraw, listRecentDraws, pruneDraws,
 } from './store';
 
 const sqlMock = (sql as unknown as SqlTag).__sqlMock;
@@ -100,13 +100,23 @@ describe('screen state', () => {
     expect(ok).toBe(false);
     expect(sqlMock).toHaveBeenCalledTimes(1);
   });
-  it('commitAdvance bumps the tally after a successful state write', async () => {
-    sqlMock.mockResolvedValueOnce([{ feed: 'sunset' }]).mockResolvedValueOnce([]);
+  it('commitAdvance bumps the tally after a successful state write, then logs the draw', async () => {
+    sqlMock.mockResolvedValueOnce([{ feed: 'sunset' }]).mockResolvedValueOnce([]).mockResolvedValueOnce([]);
     const ok = await commitAdvance('sunset', 42, { snapshotId: 7, webcamId: 3, bin: 'sunset', quality: 0.9, detection: 0.8, isNew: true, tally: 0, enteredAt: 0 }, 1);
     expect(ok).toBe(true);
-    expect(sqlMock).toHaveBeenCalledTimes(2);
-    expect(lastQuery()).toMatch(/tally = tally \+ 1/);
-    expect(lastQuery()).toMatch(/is_new = false/);
+    expect(sqlMock).toHaveBeenCalledTimes(3);
+    const tally = (sqlMock.mock.calls[1][0] as TemplateStringsArray).join('?');
+    expect(tally).toMatch(/tally = tally \+ 1/);
+    expect(tally).toMatch(/is_new = false/);
+    expect(lastQuery()).toMatch(/insert into kiosk_draws/);
+    expect(lastQuery()).toMatch(/on conflict \(feed, slot\) do nothing/);
+    expect(sqlMock.mock.calls.at(-1)!.slice(1)).toEqual(['sunset', 42, 7]);
+  });
+  it('a failed draw log does not fail the advance', async () => {
+    sqlMock.mockResolvedValueOnce([{ feed: 'sunset' }]).mockResolvedValueOnce([])
+      .mockRejectedValueOnce(new Error('relation "kiosk_draws" does not exist'));
+    const ok = await commitAdvance('sunset', 42, { snapshotId: 7, webcamId: 3, bin: 'sunset', quality: 0.9, detection: 0.8, isNew: true, tally: 0, enteredAt: 0 }, 1);
+    expect(ok).toBe(true);
   });
 });
 
@@ -118,5 +128,39 @@ describe('counts', () => {
   it('getBinDigestSummary swallows its own failure', async () => {
     sqlMock.mockRejectedValueOnce(new Error('relation does not exist'));
     expect(await getBinDigestSummary()).toBeNull();
+  });
+});
+
+describe('draw log (the tape)', () => {
+  it('listRecentDraws returns the last n draws oldest first, with numbers not strings', async () => {
+    // The query fetches newest first and the function reverses it.
+    sqlMock.mockResolvedValueOnce([
+      { slot: '101', snapshot_id: '8', shown_at: '2026-09-06T01:00:20Z', firebase_url: 'u8', title: 'B', city: 'Nuuk', country: 'Greenland', bin: 'sunset' },
+      { slot: '100', snapshot_id: '7', shown_at: '2026-09-06T01:00:00Z', firebase_url: 'u7', title: 'A', city: '', country: '', bin: null },
+    ]);
+    const out = await listRecentDraws('sunset', 24);
+    expect(lastQuery()).toMatch(/from kiosk_draws d/);
+    expect(lastQuery()).toMatch(/order by d.slot desc/);
+    expect(sqlMock.mock.calls.at(-1)!.slice(1)).toEqual(['sunset', 24]);
+    expect(out.map((f) => f.snapshotId)).toEqual([7, 8]);
+    expect(out[1]).toEqual({ slot: 101, snapshotId: 8, shownAt: Date.parse('2026-09-06T01:00:20Z'),
+      imageUrl: 'u8', title: 'B', city: 'Nuuk', country: 'Greenland', bin: 'sunset' });
+    expect(out[0].bin).toBeNull();
+  });
+  it('listRecentDraws is empty when the table is missing', async () => {
+    sqlMock.mockRejectedValueOnce(new Error('relation "kiosk_draws" does not exist'));
+    expect(await listRecentDraws('sunrise', 24)).toEqual([]);
+  });
+  it('pruneDraws deletes by age and swallows its own failure', async () => {
+    sqlMock.mockResolvedValueOnce([]);
+    await pruneDraws(7);
+    expect(lastQuery()).toMatch(/delete from kiosk_draws/);
+    expect(sqlMock.mock.calls.at(-1)!.slice(1)).toEqual([7]);
+    sqlMock.mockRejectedValueOnce(new Error('nope'));
+    await expect(pruneDraws(7)).resolves.toBeUndefined();
+  });
+  it('logDraw swallows its own failure', async () => {
+    sqlMock.mockRejectedValueOnce(new Error('nope'));
+    await expect(logDraw('sunset', 1, 2)).resolves.toBeUndefined();
   });
 });
