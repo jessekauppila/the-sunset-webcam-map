@@ -311,7 +311,11 @@ merged). Before starting phase A, diff the studio files against whatever
 - `feat/solo-stages-tape` (PR #143 open): `FeedColumn`, `EntryRow`, bins
   sectioned in line / resting / under floor. Phase A keeps `FeedColumn` and
   must take #143's version of it, so **merge #143 first** or build A on top
-  of it.
+  of it. #143 also rewrites `RulesBox`; this design deletes it, so the
+  rule wording ("never shown first, then longest since shown", "rests at
+  least N draws") must live in the bins dial descriptions instead. The
+  follow-up tape filmstrip (solo-stages-and-tape spec §4, not started) will
+  sit under each screen in the solo version panel and is not in this design.
 - `feat/solo2-prelude-groups`: check whether anything is still unmerged.
 - `feat/solo2-camera-run` (peer session 51, design stage as of 2026-09-05, not
   built): replaces solo2's prelude dials with one `camera run` boolean,
