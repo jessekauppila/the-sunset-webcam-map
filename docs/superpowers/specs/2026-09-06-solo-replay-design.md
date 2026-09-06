@@ -60,8 +60,13 @@ for bin and scores.
 has; the advance route passes `version.name`.
 
 Retention: `DRAW_LOG_DAYS` goes from 7 to 30, so the run up to and through
-the show (2026-09-12) survives. Volume at a 20 s dwell is about 8.6 k rows a
-day per screen, half a million rows a month, which is small.
+the show (2026-09-12) survives, and the replay can be pointed at any night
+of it. A 20 s dwell allows at most 4.3 k rows a day per screen; measured on
+2026-09-06 it was about 2.4 k per screen, because a slot the glass never
+advanced through logs nothing. Both screens together that is roughly 4.8 k
+rows a day, so 30 days is about 145 k rows and under 30 MB with indexes,
+against about 6 MB at 7 days. Rows arrive and leave at the same rate in
+steady state, so the per-tick prune does no more work than before.
 
 ## 3. Reading the records
 

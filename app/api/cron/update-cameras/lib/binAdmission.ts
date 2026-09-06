@@ -70,7 +70,13 @@ export async function enterBins(
   return out;
 }
 
-/** The tape keeps a week; the studio reads the last 24 draws. */
+/**
+ * The draw log keeps a month: the studio's tape reads only the last 24
+ * draws, but the replay (replay spec §2) reads windows, and 30 days covers
+ * the run through the show. Measured 2026-09-06: about 4.8 k rows a day
+ * across both screens, so a month is roughly 145 k rows and under 30 MB
+ * with indexes. Steady state, so the per-tick prune volume is unchanged.
+ */
 const DRAW_LOG_DAYS = 30;
 
 /**
