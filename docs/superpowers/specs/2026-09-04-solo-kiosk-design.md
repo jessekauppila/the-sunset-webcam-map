@@ -92,17 +92,19 @@ force.
    on each non-sunset draw. If one bin has no such frames, draw from the
    other. A floor of 0 means sunsets whenever any sunset is ready. To never
    show non-sunsets, set the detection floor to 1.
-2. **A shown frame rests.** For **rest** draws (0–12, default 4) after it
-   was on glass, a frame is not a candidate in either bin. Rest is counted in
+2. **A shown frame rests.** For at least **rest** draws (0–12, default 4)
+   after it was on glass, a frame is not a candidate in either bin. Rest is counted in
    slots of the current dwell from `last_shown_at`; a frame never shown is
    never resting. If every eligible frame is resting, rest is waived for
    that draw and rule 4 alone applies.
-3. **Within a bin, least shown first, then best.** Lower tally first; then
-   sunset bin by quality, non-sunset bin by detection probability. **Promote
-   new frames** (boolean, default on) adds +0.10 to a frame that arrived
-   while an older frame from the same camera was already in the bin; the
-   flag clears the first time it is shown. Remaining ties break by earlier
-   `entered_at`, then snapshot id.
+3. **Within a bin, never shown first, then longest since shown, then best.**
+   A frame that has never been on glass comes before any that has; among
+   shown frames, the earlier `last_shown_at` first; then sunset bin by
+   quality, non-sunset bin by detection probability. Tally does not order.
+   **Promote new frames** (boolean, default on) adds +0.10 to a frame that
+   arrived while an older frame from the same camera was already in the
+   bin; the flag clears the first time it is shown. Remaining ties break by
+   earlier `entered_at`, then snapshot id.
 4. **Never the same frame twice in a row on one screen.** If it is the only
    eligible frame, it repeats.
 5. **Floors.** Sunset bin: rating ≥ **rating floor** (1–5 on the rubric's scale, default 1: every sunset is eligible, because a poor sunset is still a sunset; the stored quality 0–1 is 1 + 4·q on that scale).
@@ -127,6 +129,11 @@ being tally minus a **sunset repeat allowance** (0–3). It made each bin's
 airtime proportional to its size, which starved the sunsets whenever the
 non-sunset bin was several times larger. The allowance dial is gone; stored
 values are ignored.
+
+History: until 2026-09-05 (evening) rule 3 was "least shown first, then
+best". With rest 4 the five newest frames (tallies 1–5) formed a closed
+loop while 21 rested older frames (tallies 7–13) waited; every admission
+restarted the loop. See `2026-09-05-solo-stages-and-tape-design.md` §1–2.
 
 The engine is a **pure function**:
 `next(entries, dials, screenState, slot, feed) → entry | null` and
