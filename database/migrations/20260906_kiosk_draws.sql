@@ -1,9 +1,13 @@
 -- Solo kiosk: one row per draw per screen, the record behind the studio's
 -- tape (stages-and-tape spec §4). Written by store.commitAdvance right after
 -- the screen-state upsert succeeds, best-effort; read by GET
--- /api/kiosk/solo/state for the last 24 draws; pruned by
--- binAdmission.maintainBins after 7 days. About 8.6k rows a day per screen
--- at a 20 s dwell.
+-- /api/kiosk/solo/state for the last 24 draws, and in windows by the replay
+-- (2026-09-06-solo-replay-design.md); pruned by binAdmission.maintainBins
+-- after 30 days. A 20 s dwell allows at most 4.3k rows a day per screen, and
+-- measured on 2026-09-06 about 2.4k land, since a slot the glass never
+-- advanced through logs nothing. Both screens over 30 days is roughly 145k
+-- rows, under 30 MB with indexes. (Until 2026-09-06 this read "8.6k rows a
+-- day per screen", which was the two-screen total mislabelled.)
 --
 -- Forward-only, idempotent. The writer and the reader both degrade to
 -- nothing when the table is missing, so the glass never depends on it, but

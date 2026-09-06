@@ -2,6 +2,7 @@ import 'server-only';
 import tzLookup from 'tz-lookup';
 import { sql } from '@/app/lib/db';
 import type { BinEntry, BinKind, Feed } from './types';
+import type { SoloVersionName } from './versions';
 import { sunAltitudeDeg } from './zone';
 
 /**
@@ -276,6 +277,7 @@ export async function commitAdvance(
   entry: BinEntry,
   sunsetStreak: number,
   shown: BinEntry[] = [entry],
+  version: SoloVersionName = 'solo',
 ): Promise<boolean> {
   const rows = (await sql`
     insert into kiosk_screen_state (feed, current_snapshot_id, shown_since, slot, sunset_streak, updated_at)
@@ -298,7 +300,7 @@ export async function commitAdvance(
         last_shown_at = now()
     where feed = ${feed} and snapshot_id = any(${shown.map((e) => e.snapshotId)}::bigint[])
   `;
-  await logDraw(feed, slot, entry.snapshotId);
+  await logDraw(feed, slot, entry, version, shown);
   return true;
 }
 
@@ -315,14 +317,21 @@ export interface TapeFrame extends StoredEntry {
 }
 
 /**
- * Record a draw for the tape. Best-effort: an unmigrated table must not stop
- * the glass advancing. Idempotent on (feed, slot), like the state write.
+ * Record a draw for the tape, stamped with what drew it (replay spec §2):
+ * the version, the newest deploy (the live profile only changes on Deploy,
+ * so that is the profile in force), the entry as the engine saw it, and
+ * every frame the dwell played. Best-effort: an unmigrated table or column
+ * must not stop the glass advancing. Idempotent on (feed, slot), like the
+ * state write.
  */
-export async function logDraw(feed: Feed, slot: number, snapshotId: number): Promise<void> {
+export async function logDraw(
+  feed: Feed, slot: number, entry: BinEntry, version: SoloVersionName, shown: BinEntry[],
+): Promise<void> {
   try {
     await sql`
-      insert into kiosk_draws (feed, slot, snapshot_id, shown_at)
-      values (${feed}, ${slot}, ${snapshotId}, now())
+      insert into kiosk_draws (feed, slot, snapshot_id, shown_at, version, deploy_id, bin, quality, detection, shown_snapshot_ids)
+      select ${feed}, ${slot}, ${entry.snapshotId}, now(), ${version}, (select max(id) from kiosk_deploys),
+             ${entry.bin}, ${entry.quality}, ${entry.detection}, ${shown.map((e) => e.snapshotId)}::bigint[]
       on conflict (feed, slot) do nothing
     `;
   } catch (error) {
@@ -351,6 +360,82 @@ export async function listRecentDraws(feed: Feed, n: number): Promise<TapeFrame[
     console.warn('[solo/store] draw log read failed:', error);
     return [];
   }
+}
+
+/** A logged draw with its stamp, for the replay (spec §3). Unstamped rows read as "unknown". */
+export interface DrawRecord extends TapeFrame {
+  version: SoloVersionName | null;
+  deployId: number | null;
+  /** Every frame the dwell played; the drawn frame alone when the row predates the stamp. */
+  shownSnapshotIds: number[];
+}
+
+/** A bin row as the replay needs it: the entry plus when it left the bin, if it has. */
+export interface ReplayEntry extends StoredEntry {
+  /** ms since epoch; null while the row is still in the bin. */
+  removedAt: number | null;
+}
+
+type DrawRow = EntryRow & {
+  slot: string | number; shown_at: string; version: string | null; deploy_id: string | number | null;
+  shown_snapshot_ids: (string | number)[] | null;
+};
+
+/**
+ * The draws on one screen between two moments, oldest first. Bin and scores
+ * come from the stamp when present, else from the bin-entry join; the
+ * webcam comes from the snapshot so a draw older than the bin history still
+ * resolves. Empty when the table is missing.
+ */
+export async function listDrawsBetween(feed: Feed, fromMs: number, toMs: number): Promise<DrawRecord[]> {
+  try {
+    const rows = (await sql`
+      select d.slot, d.shown_at, d.snapshot_id, d.version, d.deploy_id, d.shown_snapshot_ids,
+             coalesce(e.webcam_id, s.webcam_id) as webcam_id,
+             coalesce(d.bin, e.bin) as bin, coalesce(d.quality, e.quality) as quality, coalesce(d.detection, e.detection) as detection,
+             coalesce(e.is_new, false) as is_new, coalesce(e.tally, 0) as tally,
+             coalesce(e.entered_at, d.shown_at) as entered_at, e.first_shown_at, e.last_shown_at,
+             s.firebase_url, s.captured_at::text as captured_at, w.title, w.city, w.region, w.country, w.lat, w.lng
+      from kiosk_draws d
+      left join kiosk_bin_entries e on e.feed = d.feed and e.snapshot_id = d.snapshot_id
+      join webcam_snapshots s on s.id = d.snapshot_id
+      join webcams w on w.id = coalesce(e.webcam_id, s.webcam_id)
+      where d.feed = ${feed} and d.shown_at >= ${new Date(fromMs).toISOString()} and d.shown_at <= ${new Date(toMs).toISOString()}
+      order by d.slot asc
+    `) as unknown as DrawRow[];
+    return rows.map((r) => ({
+      ...toEntry(feed, r),
+      slot: num(r.slot),
+      shownAt: Date.parse(r.shown_at),
+      version: r.version === 'solo' || r.version === 'solo2' ? r.version : null,
+      deployId: r.deploy_id == null ? null : num(r.deploy_id),
+      shownSnapshotIds: r.shown_snapshot_ids?.length ? r.shown_snapshot_ids.map(num) : [num(r.snapshot_id)],
+    }));
+  } catch (error) {
+    console.warn('[solo/store] draw window read failed:', error);
+    return [];
+  }
+}
+
+/**
+ * Every bin row that was in the bin at any moment between `fromMs` and
+ * `toMs`, removed or not. Scores are the admission-time values the row
+ * holds, which is what the engine saw. Shown state on the row is today's
+ * and is rebuilt by the replay from the draw log.
+ */
+export async function listEntriesOverlapping(feed: Feed, fromMs: number, toMs: number): Promise<ReplayEntry[]> {
+  const rows = (await sql`
+    select e.snapshot_id, e.webcam_id, e.bin, e.quality, e.detection, e.is_new, e.tally,
+           e.entered_at, e.first_shown_at, e.last_shown_at, e.removed_at,
+           s.firebase_url, s.captured_at::text as captured_at, w.title, w.city, w.region, w.country, w.lat, w.lng
+    from kiosk_bin_entries e
+    join webcam_snapshots s on s.id = e.snapshot_id
+    join webcams w on w.id = e.webcam_id
+    where e.feed = ${feed} and e.entered_at <= ${new Date(toMs).toISOString()}
+      and (e.removed_at is null or e.removed_at >= ${new Date(fromMs).toISOString()})
+    order by e.entered_at asc
+  `) as unknown as (EntryRow & { removed_at: string | null })[];
+  return rows.map((r) => ({ ...toEntry(feed, r), removedAt: ms(r.removed_at) }));
 }
 
 /** Drop draws older than `olderThanDays`. Best-effort; the cron calls it every tick. */

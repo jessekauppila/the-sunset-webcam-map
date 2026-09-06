@@ -17,6 +17,7 @@ import { sql } from '@/app/lib/db';
 import {
   listActiveEntries, insertEntry, removeStale, getScreenState, commitAdvance,
   countAdmittedSince, getBinDigestSummary, saveSweptZone, getSweptZone, logDraw, listRecentDraws, pruneDraws,
+  listDrawsBetween, listEntriesOverlapping,
 } from './store';
 
 const sqlMock = (sql as unknown as SqlTag).__sqlMock;
@@ -110,7 +111,9 @@ describe('screen state', () => {
     expect(tally).toMatch(/is_new = false/);
     expect(lastQuery()).toMatch(/insert into kiosk_draws/);
     expect(lastQuery()).toMatch(/on conflict \(feed, slot\) do nothing/);
-    expect(sqlMock.mock.calls.at(-1)!.slice(1)).toEqual(['sunset', 42, 7]);
+    // The stamp (replay spec §2): version, the newest deploy, the entry as the engine saw it, the frames played.
+    expect(lastQuery()).toMatch(/\(select max\(id\) from kiosk_deploys\)/);
+    expect(sqlMock.mock.calls.at(-1)!.slice(1)).toEqual(['sunset', 42, 7, 'solo', 'sunset', 0.9, 0.8, [7]]);
   });
   it('a failed draw log does not fail the advance', async () => {
     sqlMock.mockResolvedValueOnce([{ feed: 'sunset' }]).mockResolvedValueOnce([])
@@ -123,9 +126,10 @@ describe('screen state', () => {
   it('commitAdvance marks every frame of the run shown in one statement', async () => {
     sqlMock.mockResolvedValueOnce([{ feed: 'sunset' }]).mockResolvedValueOnce([]).mockResolvedValueOnce([]);
     const e = (id: number) => ({ snapshotId: id, webcamId: 3, bin: 'sunset' as const, quality: 0.9, detection: 0.8, isNew: true, tally: 0, enteredAt: 0 });
-    await commitAdvance('sunset', 42, e(9), 1, [e(7), e(8), e(9)]);
+    await commitAdvance('sunset', 42, e(9), 1, [e(7), e(8), e(9)], 'solo2');
     expect(sqlMock.mock.calls[1].slice(1)).toEqual(['sunset', [7, 8, 9]]);
-    expect(sqlMock.mock.calls.at(-1)!.slice(1)).toEqual(['sunset', 42, 9]); // the draw log names the drawn frame
+    // The draw log names the drawn frame and stamps every frame the dwell played.
+    expect(sqlMock.mock.calls.at(-1)!.slice(1)).toEqual(['sunset', 42, 9, 'solo2', 'sunset', 0.9, 0.8, [7, 8, 9]]);
   });
 });
 
@@ -173,6 +177,52 @@ describe('draw log (the tape)', () => {
   });
   it('logDraw swallows its own failure', async () => {
     sqlMock.mockRejectedValueOnce(new Error('nope'));
-    await expect(logDraw('sunset', 1, 2)).resolves.toBeUndefined();
+    const e = { snapshotId: 2, webcamId: 3, bin: 'sunset' as const, quality: 0.9, detection: 0.8, isNew: true, tally: 0, enteredAt: 0 };
+    await expect(logDraw('sunset', 1, e, 'solo', [e])).resolves.toBeUndefined();
+  });
+});
+
+describe('replay reads (replay spec §3)', () => {
+  const row = (slot: string, id: string, shown: string, stamp: Record<string, unknown> = {}) => ({
+    slot, shown_at: shown, snapshot_id: id, webcam_id: '3', bin: 'sunset', quality: '0.8', detection: '0.9', is_new: false,
+    tally: '2', entered_at: '2026-09-06T00:00:00Z', captured_at: '2026-09-06 00:30:00', first_shown_at: null, last_shown_at: shown,
+    firebase_url: `u${id}`, title: 'B', city: 'Nuuk', region: '', country: 'Greenland', lat: '64.17', lng: '-51.73',
+    version: null, deploy_id: null, shown_snapshot_ids: null, ...stamp,
+  });
+  it('listDrawsBetween returns the window oldest first with the stamp, numbers not strings', async () => {
+    sqlMock.mockResolvedValueOnce([
+      row('100', '7', '2026-09-06T01:00:00Z'),
+      row('101', '8', '2026-09-06T01:00:20Z', { version: 'solo2', deploy_id: '4', shown_snapshot_ids: ['6', '8'] }),
+    ]);
+    const from = Date.parse('2026-09-06T00:00:00Z');
+    const to = Date.parse('2026-09-06T02:00:00Z');
+    const out = await listDrawsBetween('sunset', from, to);
+    expect(lastQuery()).toMatch(/from kiosk_draws d/);
+    expect(lastQuery()).toMatch(/left join kiosk_bin_entries e/);
+    expect(lastQuery()).toMatch(/coalesce\(d.bin, e.bin\)/);
+    expect(lastQuery()).toMatch(/order by d.slot asc/);
+    expect(sqlMock.mock.calls.at(-1)!.slice(1)).toEqual(['sunset', new Date(from).toISOString(), new Date(to).toISOString()]);
+    expect(out.map((f) => f.snapshotId)).toEqual([7, 8]);
+    // An unstamped row: the frames played default to the drawn frame alone.
+    expect(out[0]).toMatchObject({ slot: 100, version: null, deployId: null, shownSnapshotIds: [7], bin: 'sunset', quality: 0.8 });
+    expect(out[1]).toMatchObject({ slot: 101, version: 'solo2', deployId: 4, shownSnapshotIds: [6, 8], shownAt: Date.parse('2026-09-06T01:00:20Z') });
+  });
+  it('listDrawsBetween is empty when the table is missing', async () => {
+    sqlMock.mockRejectedValueOnce(new Error('relation "kiosk_draws" does not exist'));
+    expect(await listDrawsBetween('sunset', 0, 1)).toEqual([]);
+  });
+  it('listEntriesOverlapping bounds both ends and carries removedAt', async () => {
+    sqlMock.mockResolvedValueOnce([
+      { ...row('0', '7', '2026-09-06T01:00:00Z'), removed_at: null },
+      { ...row('0', '8', '2026-09-06T01:00:20Z'), removed_at: '2026-09-06T01:30:00Z' },
+    ]);
+    const from = Date.parse('2026-09-06T00:00:00Z');
+    const to = Date.parse('2026-09-06T02:00:00Z');
+    const out = await listEntriesOverlapping('sunset', from, to);
+    expect(lastQuery()).toMatch(/e.entered_at <= /);
+    expect(lastQuery()).toMatch(/e.removed_at is null or e.removed_at >= /);
+    expect(sqlMock.mock.calls.at(-1)!.slice(1)).toEqual(['sunset', new Date(to).toISOString(), new Date(from).toISOString()]);
+    expect(out[0]).toMatchObject({ snapshotId: 7, removedAt: null, quality: 0.8, webcamId: 3 });
+    expect(out[1].removedAt).toBe(Date.parse('2026-09-06T01:30:00Z'));
   });
 });
