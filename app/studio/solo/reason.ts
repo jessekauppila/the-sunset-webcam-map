@@ -1,5 +1,5 @@
 import type { Stage } from '@/app/lib/solo/stages';
-import { formatDetection, formatRating } from '@/app/lib/solo/scores';
+import { formatDetection, formatRating, ratingOf } from '@/app/lib/solo/scores';
 import type { BinKind } from '@/app/lib/solo/types';
 
 interface Reasoned {
@@ -32,7 +32,13 @@ export function reasonLine(stage: Stage, e: Reasoned, nowMs: number): string {
       return `back in ${stage.drawsLeft} ${stage.drawsLeft === 1 ? 'draw' : 'draws'} · shown ×${e.tally}`;
     case 'underFloor':
       return e.bin === 'sunset'
-        ? `rating ${formatRating(e.quality ?? 0)} < ${formatRating(stage.floor)}`
-        : `sunset ${formatDetection(e.detection)} < ${formatDetection(stage.floor)}`;
+        ? `rating ${miss(formatRating(e.quality ?? 0), formatRating(stage.floor), () => [ratingOf(e.quality ?? 0).toFixed(2), ratingOf(stage.floor).toFixed(2)])}`
+        : `sunset ${miss(formatDetection(e.detection), formatDetection(stage.floor), () => [`${(e.detection * 100).toFixed(1)}%`, `${(stage.floor * 100).toFixed(1)}%`])}`;
   }
+}
+
+/** "x < y"; when both round to the same text, one more decimal so the miss is visible. */
+function miss(value: string, floor: string, finer: () => [string, string]): string {
+  const [v, f] = value === floor ? finer() : [value, floor];
+  return `${v} < ${f}`;
 }

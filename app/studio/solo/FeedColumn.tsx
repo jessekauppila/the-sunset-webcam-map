@@ -42,15 +42,14 @@ const STAGE_HINT: Record<'inLine' | 'resting' | 'underFloor', string> = {
 function StageBox({ kind, color, count, children }: {
   kind: 'inLine' | 'resting' | 'underFloor'; color: string; count: number; children: ReactNode;
 }) {
+  const label = `${STAGE_LABEL[kind]} · ${count}`;
+  const labelStyle = { fontSize: 8.5, fontWeight: 700, letterSpacing: '.06em', color, whiteSpace: 'nowrap', fontFamily: mono, cursor: 'help' } as const;
+  const frame = { border: `1px solid ${color}`, borderRadius: 6, padding: 3, marginBottom: 5, background: '#0b0e14' } as const;
+  // An empty stage is one flat line, so the label does not stretch the box to its own length.
+  if (count === 0) return <div title={STAGE_HINT[kind]} style={{ ...frame, ...labelStyle, paddingLeft: 6 }}>{label}</div>;
   return (
-    <div title={STAGE_HINT[kind]} style={{
-      display: 'grid', gridTemplateColumns: '14px 1fr', gap: 4, border: `1px solid ${color}`, borderRadius: 6,
-      padding: 3, marginBottom: 5, minHeight: 22, background: '#0b0e14',
-    }}>
-      <div style={{
-        writingMode: 'vertical-rl', transform: 'rotate(180deg)', fontSize: 8.5, fontWeight: 700,
-        letterSpacing: '.06em', color, whiteSpace: 'nowrap', textAlign: 'center', fontFamily: mono, cursor: 'help',
-      }}>{`${STAGE_LABEL[kind]} · ${count}`}</div>
+    <div title={STAGE_HINT[kind]} style={{ ...frame, display: 'grid', gridTemplateColumns: '14px 1fr', gap: 4 }}>
+      <div style={{ ...labelStyle, writingMode: 'vertical-rl', transform: 'rotate(180deg)', textAlign: 'center' }}>{label}</div>
       <div style={{ minWidth: 0 }}>{children}</div>
     </div>
   );

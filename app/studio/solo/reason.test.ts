@@ -22,3 +22,7 @@ it('under floor names the miss on the bin\'s own scale', () => {
   expect(reasonLine({ kind: 'underFloor', floor: 0.55 }, base, NOW)).toBe('rating 2.7 < 3.2');
   expect(reasonLine({ kind: 'underFloor', floor: 0.3 }, { ...base, bin: 'non_sunset', quality: null }, NOW)).toBe('sunset 21% < 30%');
 });
+it('a miss that rounds to the floor shows one more decimal', () => {
+  expect(reasonLine({ kind: 'underFloor', floor: 0.55 }, { ...base, quality: 0.548 }, NOW)).toBe('rating 3.19 < 3.20');
+  expect(reasonLine({ kind: 'underFloor', floor: 0.3 }, { ...base, bin: 'non_sunset', quality: null, detection: 0.298 }, NOW)).toBe('sunset 29.8% < 30.0%');
+});
