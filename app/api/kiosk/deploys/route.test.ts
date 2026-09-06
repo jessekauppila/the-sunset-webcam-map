@@ -23,6 +23,12 @@ const req = (body: unknown) =>
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(body),
   });
+const rawReq = (raw: string) =>
+  new NextRequest('http://test/api/kiosk/deploys', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: raw,
+  });
 
 describe('GET /api/kiosk/deploys', () => {
   beforeEach(() => {
@@ -80,5 +86,47 @@ describe('POST /api/kiosk/deploys', () => {
     const res = await POST(req({ label: 'x' }));
     expect(res.status).toBe(503);
     expect(await res.json()).toEqual({ error: 'take not recorded' });
+  });
+  it('a missing label key saves a take with a null label', async () => {
+    saveTakeMock.mockResolvedValueOnce({
+      id: 1,
+      label: null,
+      namespaces: {},
+      deployedAt: null,
+      createdAt: 'T',
+    });
+    const res = await POST(req({}));
+    expect(res.status).toBe(201);
+    expect(saveTakeMock).toHaveBeenCalledWith({ namespaces: {}, revision: 1 }, null);
+  });
+  it('an explicit null label saves a take with a null label', async () => {
+    saveTakeMock.mockResolvedValueOnce({
+      id: 1,
+      label: null,
+      namespaces: {},
+      deployedAt: null,
+      createdAt: 'T',
+    });
+    const res = await POST(req({ label: null }));
+    expect(res.status).toBe(201);
+    expect(saveTakeMock).toHaveBeenCalledWith({ namespaces: {}, revision: 1 }, null);
+  });
+  it('400 on invalid JSON', async () => {
+    const res = await POST(rawReq('not json'));
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: 'invalid JSON' });
+    expect(saveTakeMock).not.toHaveBeenCalled();
+  });
+  it('a label of exactly 60 chars is accepted', async () => {
+    saveTakeMock.mockResolvedValueOnce({
+      id: 1,
+      label: 'x'.repeat(60),
+      namespaces: {},
+      deployedAt: null,
+      createdAt: 'T',
+    });
+    const res = await POST(req({ label: 'x'.repeat(60) }));
+    expect(res.status).toBe(201);
+    expect(saveTakeMock).toHaveBeenCalledWith({ namespaces: {}, revision: 1 }, 'x'.repeat(60));
   });
 });
