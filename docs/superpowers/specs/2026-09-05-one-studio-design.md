@@ -62,9 +62,8 @@ One route, `/studio`. `OwnerGate` as today. The old routes redirect there
 
 ```
 ┌───────────────────────────────────────────────────────────────────────────┐
-│ STUDIO   version [solo2 ▾]  panel [dell-l ▾]     glass solo · rev 41 ·    │
-│                                                 3 differ · next pull 4:12 │
-│                                             [save take] [▲ deploy · 3]   │
+│ STUDIO  version [solo2 ▾]  panel [dell-l ▾]   glass solo · rev 41 · 3 differ │
+│                          · next pull 4:12  [save take] [▲ deploy 3] │ Globe Studio My Cameras │
 ├────────────────┬──────────────────────────────────────────────────────────┤
 │ RAIL           │  PREVIEW  (sunrise screen | sunset screen)               │
 │ [Play][Picture]│  studio dials, the version's own frame, playing          │
@@ -91,7 +90,17 @@ of the rail into the header, because they decide what the rest of the page
 is. The version select's label is bold when studio and glass disagree, the
 same "differs from glass" affordance the rail uses.
 
-Right: one status line and the two buttons.
+Right, in this order: the status line, **save take**, **deploy**, then a
+divider and the **nav toggle** (`MapMosaicModeToggle`: Globe · Studio · My
+Cameras) in the far-right corner, where it is on the homepage band. The
+toggle is the only way off the page, so it stays.
+
+The header is one flex row. The three controls on the right are `flex: none`
+and the status line is the only member that can shrink (`min-width: 0`,
+ellipsis on its tail), so the toggle and Deploy never overlap or wrap. A
+divider between Deploy and the toggle keeps a hold-to-fire press from
+landing on a navigation button. A test asserts the header renders all
+three controls at 1024 px wide without overflow.
 
 - Status line, in this order, nothing else:
   `glass <version> · rev <n> · <k> differ | dials match glass · next pull <m:ss> · polled <age>`.
@@ -155,7 +164,6 @@ Each of these is deleted, not moved:
 | `FeedColumn`'s "on glass" mini caption | the preview above it is the glass; the column shows only the queue |
 | mosaic `StatusStrip` (159 lines + `stripState.ts`) and `SoloStatusStrip` | replaced by the header status line, §2.1 |
 | `PreviewPane`'s scene chrome (413 lines) | the scene selector shrinks to one select in the mosaic version panel (§7); the frame itself is `StudioPanelFrame` |
-| `MapMosaicModeToggle` on the studio page | the nav band has it |
 
 ### 2.5 What is preserved, verbatim
 
