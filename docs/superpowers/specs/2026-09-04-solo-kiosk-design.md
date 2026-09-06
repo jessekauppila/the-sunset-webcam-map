@@ -105,7 +105,7 @@ force.
    `entered_at`, then snapshot id.
 4. **Never the same frame twice in a row on one screen.** If it is the only
    eligible frame, it repeats.
-5. **Floors.** Sunset bin: quality ≥ **quality floor** (0–1, default 0.55).
+5. **Floors.** Sunset bin: rating ≥ **rating floor** (1–5 on the rubric's scale, default 1: every sunset is eligible, because a poor sunset is still a sunset; the stored quality 0–1 is 1 + 4·q on that scale).
    Non-sunset bin: detection probability ≥ **detection floor** (0–1, default
    0.30). Frames below a floor stay in the table, render dimmed with a FLOOR
    tag, and are not eligible.

@@ -63,7 +63,7 @@ export const SOLO2_SETTINGS_SCHEMA: SettingsSchema = [
   solo('showRank'),
   solo('showTally'),
   // ---- bins ----
-  solo('qualityFloor'),
+  solo('ratingFloor'),
   solo('detectionFloor'),
   solo('sunsetFloor'),
   solo('mix'),

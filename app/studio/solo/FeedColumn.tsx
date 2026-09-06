@@ -6,6 +6,7 @@ import { nextBoundaryMs } from '@/app/lib/solo/schedule';
 import type { Feed, SoloDials } from '@/app/lib/solo/types';
 import type { SoloVersionSpec } from '@/app/lib/solo/versions';
 import { captionLines } from '@/app/lib/solo/caption';
+import { scoreLine } from '@/app/lib/solo/scores';
 import { preludePlan } from '@/app/lib/solo2/prelude';
 import type { Solo2Dials } from '@/app/lib/solo2/types';
 import { EntryRow, type Sequence } from './EntryRow';
@@ -87,10 +88,7 @@ export function FeedColumn({ feed, server, projected, liveDials, nowMs, version,
         {liveDials.showTally && <div>shown <b style={{ color: '#f5a344' }}>×{current.entry.tally}</b></div>}
         {liveDials.showRank && <div>{current.entry.bin === 'sunset' ? 'sunset' : 'non-sunset'} bin #{current.entry.rank}</div>}
         {liveDials.showScores && (
-          <div>
-            {current.entry.bin === 'sunset' ? `q ${(current.entry.quality ?? 0).toFixed(2)} · ` : ''}
-            d {current.entry.detection.toFixed(2)}
-          </div>
+          <div>{scoreLine(current.entry)}</div>
         )}
       </div>
       <div style={{
@@ -128,14 +126,14 @@ export function FeedColumn({ feed, server, projected, liveDials, nowMs, version,
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1.15fr', gap: 6 }}>
         <Bin color="#7ee2ac" title={`Sunset bin · ${projected.bins.sunset.length} waiting · ${qSun} queued`}
-          hint="Frames the detection head calls a sunset, ordered by quality. Shown frames sink below unshown ones. Dimmed rows are below the quality floor.">
+          hint="Frames the detection head calls a sunset, ordered by rating (1–5). Shown frames sink below unshown ones. Dimmed rows are below the rating floor.">
           {projected.bins.sunset.map((e) => (
             <EntryRow key={e.snapshotId} entry={e} feed={feed} place="sunset" onClick={(x) => onSelect(x, feed)}
               sequence={seqFor(e, null)} rowS={rowS} preluded={preludedInQueue.has(e.snapshotId)} />
           ))}
         </Bin>
         <Bin color="#c3cad6" title={`Non-sunset bin · ${projected.bins.nonSunset.length} waiting · ${qNon} queued`}
-          hint="Frames the detection head does not call a sunset, ordered by detection probability so 'almost a sunset' is on top. Dimmed rows are below the detection floor.">
+          hint="Frames the detection head does not call a sunset, ordered by sunset probability so 'almost a sunset' is on top. Dimmed rows are below the sunset-probability floor.">
           {projected.bins.nonSunset.map((e) => (
             <EntryRow key={e.snapshotId} entry={e} feed={feed} place="non_sunset" onClick={(x) => onSelect(x, feed)}
               sequence={seqFor(e, null)} rowS={rowS} preluded={preludedInQueue.has(e.snapshotId)} />

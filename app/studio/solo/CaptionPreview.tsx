@@ -10,8 +10,9 @@ const mono = 'ui-monospace, SFMono-Regular, Menlo, monospace';
 /**
  * The caption tab's main area: each screen's frame on glass right now, drawn
  * by the same component the glass uses, with the studio dials instead of the
- * live ones. What you see is what Deploy will send. Panels keep the shared
- * panel preset's aspect and fill the width they are given.
+ * live ones. What you see is what Deploy will send. The two screens sit side
+ * by side, one per column of the studio's main area, each keeping the shared
+ * panel preset's aspect at the width its column gives it.
  */
 export function CaptionPreview({ screens, dials, panel }: {
   screens: { feed: Feed; server: StateView | null; error?: string | null }[];
@@ -35,11 +36,11 @@ export function CaptionPreview({ screens, dials, panel }: {
   const h = Math.round(w * panel.height / panel.width);
 
   return (
-    <div style={{ gridColumn: '1 / -1', display: 'flex', flexDirection: 'column', gap: 14 }}>
+    <>
       {screens.map(({ feed, server, error }) => {
         const current = server?.current?.entry ?? null;
         return (
-          <section key={feed}>
+          <section key={feed} style={{ minWidth: 0 }}>
             <div style={{ fontFamily: mono, fontSize: 11, color: '#8b95a7', padding: '0 0 6px', display: 'flex', gap: 10 }}>
               <span style={{ color: '#e5e7eb' }}>{feed}</span>
               <span>{current ? `on glass now · frame ${current.snapshotId}` : error ?? 'nothing on glass'}</span>
@@ -58,10 +59,10 @@ export function CaptionPreview({ screens, dials, panel }: {
           </section>
         );
       })}
-      <p style={{ margin: 0, fontSize: 12, color: '#8b95a7', maxWidth: '64ch' }}>
+      <p style={{ gridColumn: '1 / -1', margin: 0, fontSize: 12, color: '#8b95a7', maxWidth: '64ch' }}>
         Drawn with the studio dials by the same code as the glass. Move a caption dial on the left and it changes here;
         Deploy sends it to the screens.
       </p>
-    </div>
+    </>
   );
 }

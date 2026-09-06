@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 import type { SoloDials } from '@/app/lib/solo/types';
 import type { SoloVersionSpec } from '@/app/lib/solo/versions';
 import type { Solo2Dials } from '@/app/lib/solo2/types';
+import { formatDetection } from '@/app/lib/solo/scores';
 
 const box = {
   fontSize: 11.5, color: '#9aa3b2', border: '1px dashed #2a3242', borderRadius: 6,
@@ -23,7 +24,7 @@ export function RulesBox({ dials: d, version }: { dials: SoloDials; version?: So
       <div><B>2.</B> A shown frame rests <B>{d.rest}</B> {d.rest === 1 ? 'draw' : 'draws'}{d.rest === 0 ? ' (off)' : ''}.</div>
       <div><B>3.</B> In a bin: least shown first, then best score{d.promoteNew ? ', new frames +0.10' : ''}{rhythm ? <>;{rhythm}</> : null}.</div>
       <div><B>4.</B> Never the same frame twice in a row.</div>
-      <div><B>5.</B> Floors: sunsets q ≥ <B>{d.qualityFloor.toFixed(2)}</B>, non-sunsets d ≥ <B>{d.detectionFloor.toFixed(2)}</B>.</div>
+      <div><B>5.</B> Floors: sunsets rated ≥ <B>{d.ratingFloor.toFixed(1)}</B>{d.ratingFloor <= 1 ? ' (every sunset)' : ''}, non-sunsets sunset-probability ≥ <B>{formatDetection(d.detectionFloor)}</B>.</div>
     </div>
   );
 }

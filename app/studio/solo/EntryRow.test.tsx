@@ -11,8 +11,7 @@ const e = {
 it('shows tally first, scores, place, and the tags', () => {
   render(<EntryRow entry={e} feed="sunset" place="sunset" onClick={vi.fn()} />);
   expect(screen.getByText('shown ×2')).toHaveStyle({ fontWeight: 800 });
-  expect(screen.getByText(/q 0\.91/)).toBeInTheDocument();
-  expect(screen.getByText(/d 0\.88/)).toBeInTheDocument();
+  expect(screen.getByText(/rating 4\.6 · sunset 88%/)).toBeInTheDocument();
   expect(screen.getByText('NEW')).toBeInTheDocument();
   expect(screen.getByText(/Lisbon, Portugal/)).toBeInTheDocument();
 });
@@ -30,7 +29,8 @@ it('dims an ineligible frame and tags it FLOOR; a repeat keeps full strength and
 it('non-sunset rows show only detection, and a click reports the entry', () => {
   const onClick = vi.fn();
   render(<EntryRow entry={{ ...e, bin: 'non_sunset', quality: null }} feed="sunset" place="non_sunset" onClick={onClick} />);
-  expect(screen.queryByText(/q /)).toBeNull();
+  expect(screen.queryByText(/rating/)).toBeNull();
+  expect(screen.getByText(/sunset 88%/)).toBeInTheDocument();
   fireEvent.click(screen.getByRole('button'));
   expect(onClick).toHaveBeenCalledWith(expect.objectContaining({ snapshotId: 7 }));
 });

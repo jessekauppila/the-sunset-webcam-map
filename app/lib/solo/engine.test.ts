@@ -7,7 +7,7 @@ import { schemaDefaults } from '@/app/lib/settings/schema';
 
 const D: SoloDials = {
   ...dialsFrom(schemaDefaults(SOLO_SETTINGS_SCHEMA)),
-  qualityFloor: 0.55, detectionFloor: 0.3, sunsetFloor: 6, mix: 2,
+  ratingFloor: 3.2, detectionFloor: 0.3, sunsetFloor: 6, mix: 2, // 3.2 on the 1–5 scale is quality 0.55
   rest: 4, promoteNew: true, zoneGrace: 2,
   dwellS: 20, offsetS: 10, fadeS: 0,
   showPlace: true, showScores: false, showRank: false, showTally: false,
@@ -153,9 +153,10 @@ describe('rule 4: never twice in a row', () => {
 });
 
 describe('rule 5: floors', () => {
-  it('a sunset below qualityFloor is ineligible; a non-sunset below detectionFloor is ineligible', () => {
-    expect(isEligible(sun(1, 0.5), D)).toBe(false);
-    expect(isEligible(sun(1, 0.55), D)).toBe(true);
+  it('a sunset rated below the rating floor is ineligible; a non-sunset below detectionFloor is ineligible', () => {
+    expect(isEligible(sun(1, 0.5), D)).toBe(false); // rating 3.0
+    expect(isEligible(sun(1, 0.6), D)).toBe(true); // rating 3.4
+    expect(isEligible(sun(1, 0.0), { ...D, ratingFloor: 1 })).toBe(true); // the default: every sunset
     expect(isEligible(non(1, 0.29), D)).toBe(false);
     expect(isEligible(non(1, 0.3), D)).toBe(true);
   });

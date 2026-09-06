@@ -1,5 +1,6 @@
 import { boundaryMs, slotFor } from './schedule';
 import type { BinEntry, Feed, ScreenState, SoloDials } from './types';
+import { qualityOf } from './scores';
 
 /**
  * The solo kiosk's ordering rules, spec §4, as a pure function. No clock, no
@@ -13,10 +14,10 @@ import type { BinEntry, Feed, ScreenState, SoloDials } from './types';
 /** Rule 3: a frame that arrived while its camera was already in the bin. */
 export const NEW_FRAME_BONUS = 0.1;
 
-/** Rule 5. */
+/** Rule 5. The rating floor is dialled on the 1–5 scale; quality is stored 0–1. */
 export function isEligible(e: BinEntry, d: SoloDials): boolean {
   return e.bin === 'sunset'
-    ? (e.quality ?? -1) >= d.qualityFloor
+    ? (e.quality ?? -1) >= qualityOf(d.ratingFloor)
     : e.detection >= d.detectionFloor;
 }
 

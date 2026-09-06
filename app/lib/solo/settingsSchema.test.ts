@@ -11,7 +11,7 @@ describe('SOLO_SETTINGS_SCHEMA', () => {
   it('defaults match the spec', () => {
     const d = dialsFrom(schemaDefaults(SOLO_SETTINGS_SCHEMA));
     expect(d).toEqual({
-      qualityFloor: 0.55, detectionFloor: 0.3, sunsetFloor: 6, mix: 2,
+      ratingFloor: 1, detectionFloor: 0.3, sunsetFloor: 6, mix: 2,
       rest: 4, promoteNew: true, zoneGrace: 2,
       dwellS: 20, offsetS: 10, fadeS: 0,
       showPlace: true, showScores: false, showRank: false, showTally: false,
