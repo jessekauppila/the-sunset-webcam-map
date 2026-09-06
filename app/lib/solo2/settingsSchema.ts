@@ -13,8 +13,9 @@ const solo = (key: string) => {
 
 /**
  * solo's dials plus the solo2 additions, in the order the rail shows them.
- * Every added dial defaults to solo's behaviour; the fade and the dissolves
- * are the exceptions decided 2026-09-05. The caption dials are not here:
+ * Every added dial defaults to solo's behaviour; the exceptions are the
+ * fade and the dissolves (decided 2026-09-05) and the camera run (on, the
+ * camera-run spec §4.3). The caption dials are not here:
  * they are the shared namespace's (captionSchema.ts), one set for every
  * solo version.
  */
@@ -23,15 +24,20 @@ export const SOLO2_SETTINGS_SCHEMA: SettingsSchema = [
   solo('dwellS'),
   solo('offsetS'),
   {
+    key: 'cameraRun', kind: 'boolean', default: true,
+    label: 'camera run', section: 'glass',
+    description: 'A camera\'s frames are one item in the bin. A dwell plays them oldest to newest, each for an even share of the dwell, dissolving from one to the next. Off: every frame is its own item, as solo does.',
+  },
+  {
     key: 'transition', kind: 'enum', options: ['cut', 'crossfade', 'dip'], default: 'dip',
     label: 'camera change', section: 'glass',
-    description: 'How a frame gives way to one from a different camera. Cut is instant; crossfade dissolves over the fade time; dip goes through black in the same time.',
+    description: 'How the screen goes from one camera to another. cut: the new picture simply replaces the old. crossfade: the old picture fades out while the new one fades in on top of it. dip: the old picture fades to black, then the new one fades up from black.',
   },
-  { ...(solo('fadeS') as NumberKnob), default: 1.5, description: 'How long a camera change takes: the whole dissolve, or the dip down plus up. Ignored by cut.' },
+  { ...(solo('fadeS') as NumberKnob), default: 1.5, label: 'camera change (s)', description: 'How long a crossfade takes, or a dip (down plus up). Ignored by cut.' },
   {
     key: 'sameCameraFadeS', kind: 'number', min: 0, max: 5, step: 0.5, default: 1.5,
-    label: 'same-camera fade (s)', section: 'glass',
-    description: 'Dissolve between two frames of the same camera: each prelude step, and a change to a later frame of the camera on glass. Never through black. 0 is a cut.',
+    label: 'same camera (s)', section: 'glass',
+    description: 'How long one frame of a camera takes to dissolve into the next inside the run, and on a change to a later frame of the camera on glass. Never through black. 0 is a cut.',
   },
   {
     key: 'leadS', kind: 'number', min: 0, max: 10, step: 0.5, default: 0,
@@ -42,21 +48,6 @@ export const SOLO2_SETTINGS_SCHEMA: SettingsSchema = [
     key: 'leadScale', kind: 'number', min: 1, max: 1.1, step: 0.01, default: 1.03,
     label: 'lead scale', section: 'glass',
     description: 'How far the push goes by the moment of the change. 1.03 is barely felt; 1.10 is a visible zoom.',
-  },
-  {
-    key: 'prelude', kind: 'boolean', default: false,
-    label: 'prelude', section: 'glass',
-    description: 'Before the chosen frame, show the same camera\'s earlier frames in order, so the sun visibly drops into the picture.',
-  },
-  {
-    key: 'preludeFrames', kind: 'number', min: 1, max: 6, step: 1, default: 3,
-    label: 'prelude frames', section: 'glass',
-    description: 'At most this many earlier frames. Fewer if the camera has fewer, or if the dwell cannot fit them.',
-  },
-  {
-    key: 'preludeStepS', kind: 'number', min: 0.5, max: 5, step: 0.5, default: 1.5,
-    label: 'prelude step (s)', section: 'glass',
-    description: 'How long each prelude frame is held. Frames dissolve into the next over the same-camera fade, capped at this step.',
   },
   solo('showPlace'),
   solo('showScores'),
@@ -90,9 +81,7 @@ export function dialsFrom2(values: SettingsValues): Solo2Dials {
     sameCameraFadeS: values.sameCameraFadeS as number,
     leadS: values.leadS as number,
     leadScale: values.leadScale as number,
-    prelude: values.prelude as boolean,
-    preludeFrames: values.preludeFrames as number,
-    preludeStepS: values.preludeStepS as number,
+    cameraRun: values.cameraRun as boolean,
     valleys: values.valleys as number,
     screens: values.screens as Screens,
   };

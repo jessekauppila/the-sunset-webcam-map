@@ -5,9 +5,8 @@ import { mergeSettings, schemaDefaults } from '@/app/lib/settings/schema';
 describe('CAPTION_SCHEMA', () => {
   it('defaults are the 2026-09-05 mockup', () => {
     expect(captionDialsFrom(schemaDefaults(CAPTION_SCHEMA))).toEqual({
-      captionLayout: 'inset', pictureHeight: 87, pictureTop: 4,
-      captionAnchor: 'panel-bottom', captionAlign: 'picture', captionGap: 18,
-      font: 'system', titleClean: 'compass',
+      captionLayout: 'inset', pictureHeight: 87, captionAlign: 'picture', captionGap: 18,
+      font: 'system', feedPrefix: true, titleClean: 'compass',
       titleSize: 21, titleWeight: '300', titleGray: 71,
       placeSize: 17, placeGray: 57, lineGap: 0,
       timeStyle: '12h-there', timeLine: 'own', timeSize: 12, timeGray: 46,

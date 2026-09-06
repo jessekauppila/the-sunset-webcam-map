@@ -1,12 +1,13 @@
 import { afterShowing, choosePool, compareRecency, compareWithin, rankScore } from '@/app/lib/solo/engine';
 import { boundaryMs } from '@/app/lib/solo/schedule';
 import type { BinEntry, Feed, ScreenState } from '@/app/lib/solo/types';
+import { poolEntries, runOf, type RunEntry } from './run';
 import type { Role, Solo2Dials } from './types';
 
 /**
- * solo's rules with rule 3 on a beat (spec §3). Pure: no clock, no I/O.
- * Draws from solo's choosePool rather than copying it; solo's engine is not
- * touched.
+ * solo's rules with rule 3 on a beat (rhythm spec §3) and the camera as the
+ * unit (camera-run spec §3). Pure: no clock, no I/O. Draws from solo's
+ * choosePool rather than copying it; solo's engine is not touched.
  */
 
 /** period = valleys + 1; the sunset screen's phase is half a bar when the screens alternate. */
@@ -32,35 +33,48 @@ function compareValley(d: Solo2Dials) {
     a.snapshotId - b.snapshotId;
 }
 
-/** The next frame for one screen drawing at `slot`, or null when nothing is eligible. */
-export function next2(
-  entries: BinEntry[], d: Solo2Dials, state: ScreenState, slot: number, feed: Feed,
-): BinEntry | null {
-  // Rules 5, 4, 2 and 1 are solo's.
-  const pool = choosePool(entries, d, state, slot, feed);
+/**
+ * The next frame for one screen drawing at `slot`, or null when nothing is
+ * eligible. With the camera run on, the rules see one entry per camera
+ * (run.ts `representative`) and the pick is that camera's newest frame.
+ */
+export function next2<T extends RunEntry>(
+  entries: T[], d: Solo2Dials, state: ScreenState, slot: number, feed: Feed,
+): T | null {
+  // Rules 5, 4, 2 and 1 are solo's, over cameras when the dial says so.
+  const pool = choosePool(poolEntries(entries, d.cameraRun), d, state, slot, feed);
   if (pool.length === 0) return null;
   // Rule 3, on the beat.
   const cmp = roleAt(slot, feed, d) === 'peak' ? comparePeak(d) : compareValley(d);
-  return [...pool].sort(cmp)[0];
+  const pick = [...pool].sort(cmp)[0];
+  return entries.find((e) => e.snapshotId === pick.snapshotId) ?? null;
+}
+
+/** The frames a draw of `pick` puts on glass (camera-run spec §3.3). */
+export function shown2<T extends RunEntry>(entries: T[], pick: T, d: Solo2Dials): T[] {
+  return runOf(pick, entries, d.cameraRun);
 }
 
 /**
  * `n` draws forward from `state`, the first at `firstSlot`, each applied to
- * a private copy of the entries. Inputs are never mutated.
+ * a private copy of the entries: every frame the draw plays is marked
+ * shown. Inputs are never mutated.
  */
-export function project2(
-  entries: BinEntry[], d: Solo2Dials, state: ScreenState, n: number, firstSlot: number, feed: Feed,
-): BinEntry[] {
+export function project2<T extends RunEntry>(
+  entries: T[], d: Solo2Dials, state: ScreenState, n: number, firstSlot: number, feed: Feed,
+): T[] {
   const working = entries.map((e) => ({ ...e }));
   let s = state;
-  const out: BinEntry[] = [];
+  const out: T[] = [];
   for (let i = 0; i < n; i++) {
     const pick = next2(working, d, s, firstSlot + i, feed);
     if (!pick) break;
     out.push({ ...pick });
-    pick.tally += 1;
-    pick.isNew = false;
-    pick.lastShownAt = boundaryMs(firstSlot + i, feed, d.dwellS, d.offsetS);
+    for (const f of shown2(working, pick, d)) {
+      f.tally += 1;
+      f.isNew = false;
+      f.lastShownAt = boundaryMs(firstSlot + i, feed, d.dwellS, d.offsetS);
+    }
     s = afterShowing(pick, s);
   }
   return out;

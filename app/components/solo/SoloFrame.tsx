@@ -1,7 +1,7 @@
 'use client';
 
 import type { EntryView } from '@/app/api/kiosk/solo/view';
-import type { SoloDials } from '@/app/lib/solo/types';
+import type { Feed, SoloDials } from '@/app/lib/solo/types';
 import { pictureRect } from '@/app/lib/solo/caption';
 import { scoreLine } from '@/app/lib/solo/scores';
 import { Caption } from './Caption';
@@ -15,13 +15,15 @@ const mono = 'ui-monospace, SFMono-Regular, Menlo, monospace';
  * instead of cutting; at zero the top layer is simply there. Overlays are
  * what the live dials say and nothing else.
  */
-export function SoloFrame({ entry, previous, fadeS, dials, width, height }: {
+export function SoloFrame({ entry, previous, fadeS, dials, width, height, feed }: {
   entry: EntryView;
   previous: EntryView | null;
   fadeS: number;
   dials: SoloDials;
   width: number;
   height: number;
+  /** The screen, for the caption's prefix dial. */
+  feed?: Feed;
 }) {
   const picture = pictureRect(dials, width, height);
   const layer = {
@@ -47,7 +49,7 @@ export function SoloFrame({ entry, previous, fadeS, dials, width, height }: {
         }}
       />
       <style>{'@keyframes solo-fade-in { from { opacity: 0 } to { opacity: 1 } }'}</style>
-      <Caption entry={entry} dials={dials} picture={picture} width={width} height={height} />
+      <Caption entry={entry} dials={dials} picture={picture} width={width} height={height} feed={feed} />
       {(dials.showScores || dials.showRank || dials.showTally) && (
         <div style={{
           position: 'absolute', right: 24 * scale, bottom: 20 * scale, color: '#fff',

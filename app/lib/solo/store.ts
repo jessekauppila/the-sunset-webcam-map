@@ -266,11 +266,16 @@ export async function getScreenState(feed: Feed): Promise<ScreenRow | null> {
  * the same slot writes nothing and returns false, and the tally is bumped
  * only after the state write succeeded.
  */
+/**
+ * Move the screen to `entry` for `slot`, once per slot, and mark `shown`
+ * (the frames the dwell plays; `entry` alone for solo) as on glass.
+ */
 export async function commitAdvance(
   feed: Feed,
   slot: number,
   entry: BinEntry,
   sunsetStreak: number,
+  shown: BinEntry[] = [entry],
 ): Promise<boolean> {
   const rows = (await sql`
     insert into kiosk_screen_state (feed, current_snapshot_id, shown_since, slot, sunset_streak, updated_at)
@@ -291,7 +296,7 @@ export async function commitAdvance(
         is_new = false,
         first_shown_at = coalesce(first_shown_at, now()),
         last_shown_at = now()
-    where feed = ${feed} and snapshot_id = ${entry.snapshotId}
+    where feed = ${feed} and snapshot_id = any(${shown.map((e) => e.snapshotId)}::bigint[])
   `;
   return true;
 }

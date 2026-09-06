@@ -107,6 +107,13 @@ describe('screen state', () => {
     expect(sqlMock).toHaveBeenCalledTimes(2);
     expect(lastQuery()).toMatch(/tally = tally \+ 1/);
     expect(lastQuery()).toMatch(/is_new = false/);
+    expect(sqlMock.mock.calls.at(-1)!.slice(1)).toEqual(['sunset', [7]]);
+  });
+  it('commitAdvance marks every frame of the run shown in one statement', async () => {
+    sqlMock.mockResolvedValueOnce([{ feed: 'sunset' }]).mockResolvedValueOnce([]);
+    const e = (id: number) => ({ snapshotId: id, webcamId: 3, bin: 'sunset' as const, quality: 0.9, detection: 0.8, isNew: true, tally: 0, enteredAt: 0 });
+    await commitAdvance('sunset', 42, e(9), 1, [e(7), e(8), e(9)]);
+    expect(sqlMock.mock.calls.at(-1)!.slice(1)).toEqual(['sunset', [7, 8, 9]]);
   });
 });
 

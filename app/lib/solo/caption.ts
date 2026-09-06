@@ -1,4 +1,4 @@
-import type { SoloDials, TimeStyle, TitleClean, CaptionFont } from './types';
+import type { Feed, SoloDials, TimeStyle, TitleClean, CaptionFont } from './types';
 
 /**
  * The caption under (or over) a solo frame: what it says and where it sits.
@@ -90,15 +90,23 @@ export interface CaptionLines {
   sub: string;
 }
 
-/** What the glass writes for a frame. Null when the place dial is off. */
+/** The screen's name before the title when the prefix dial is on. */
+export const FEED_PREFIX: Record<Feed, string> = { sunrise: 'Sunrise: ', sunset: 'Sunset: ' };
+
+/**
+ * What the glass writes for a frame. Null when the place dial is off. `feed`
+ * is the screen the caption is for; with the prefix dial on, the title
+ * begins with its name (camera-run spec §6.2).
+ */
 export function captionLines(
-  e: CaptionEntry, d: Pick<SoloDials, 'showPlace' | 'timeStyle' | 'titleClean'>,
+  e: CaptionEntry, d: Pick<SoloDials, 'showPlace' | 'timeStyle' | 'titleClean' | 'feedPrefix'>, feed?: Feed,
 ): CaptionLines | null {
   if (!d.showPlace) return null;
   const t = displayTitle(e.title, d.titleClean);
+  const prefix = d.feedPrefix && feed ? FEED_PREFIX[feed] : '';
   const place = [t.city, e.region, e.country].filter(Boolean).join(', ');
   const time = formatTime(d.timeStyle, e.capturedAt, e.timezone, e.sunAltitudeDeg) ?? '';
-  return { title: t.title, place, time, sub: [place, time].filter(Boolean).join(' · ') };
+  return { title: prefix + t.title, place, time, sub: [place, time].filter(Boolean).join(' · ') };
 }
 
 export interface Rect { left: number; top: number; width: number; height: number }
@@ -110,15 +118,16 @@ export const captionScale = (panelWidth: number) => panelWidth / GLASS_WIDTH;
 /**
  * Where the picture sits on a panel of `width` × `height` CSS pixels. Overlay
  * fills the panel; inset keeps the panel's aspect at `pictureHeight` percent
- * of its height, centred, `pictureTop` percent down from the top edge.
+ * of its height, locked on the panel's centre both ways (camera-run spec
+ * §6.1), so the height dial grows it about its middle.
  */
 export function pictureRect(
-  d: Pick<SoloDials, 'captionLayout' | 'pictureHeight' | 'pictureTop'>, width: number, height: number,
+  d: Pick<SoloDials, 'captionLayout' | 'pictureHeight'>, width: number, height: number,
 ): Rect {
   if (d.captionLayout === 'overlay') return { left: 0, top: 0, width, height };
   const h = Math.round(height * d.pictureHeight / 100);
   const w = Math.round(h * (width / height));
-  return { left: Math.round((width - w) / 2), top: Math.round(height * d.pictureTop / 100), width: w, height: h };
+  return { left: Math.round((width - w) / 2), top: Math.round((height - h) / 2), width: w, height: h };
 }
 
 export interface CaptionBox {
@@ -153,27 +162,21 @@ export function captionHeight(
 }
 
 /**
- * Where the caption block sits, given the picture and the panel. Under-picture
- * hangs it `captionGap` below the picture. Panel-bottom keeps it that far
- * above the panel's bottom edge, but never higher than under-picture would
- * put it: a picture too tall for the caption pushes the caption down rather
- * than the caption rising into the picture (the glass on 2026-09-05, at
- * pictureHeight 92, drew the caption 37 px over the picture's foot). When the
- * panel cannot hold both, the caption leaves the panel, which the studio
+ * Where the caption block sits, given the picture and the panel. Inset hangs
+ * it `captionGap` below the picture's foot, always (camera-run spec §6.1):
+ * the gap is measured from the picture, whatever its height, so dragging
+ * the height dial moves the caption with the picture and nothing else. When
+ * the panel cannot hold both, the caption leaves the panel, which the studio
  * preview shows for what it is: a picture dial set too tall. Overlay ignores
  * all of this and tucks the caption inside the picture.
  */
 export function captionBox(
-  d: Pick<SoloDials, 'captionLayout' | 'captionAnchor' | 'captionAlign' | 'captionGap' | 'titleSize' | 'placeSize' | 'timeSize' | 'lineGap' | 'timeLine'>,
-  picture: Rect, width: number, height: number, lines: Pick<CaptionLines, 'place' | 'time'>,
+  d: Pick<SoloDials, 'captionLayout' | 'captionAlign' | 'captionGap'>,
+  picture: Rect, width: number, height: number,
 ): CaptionBox {
   const s = captionScale(width);
   if (d.captionLayout === 'overlay') return { left: 24 * s, bottom: 20 * s, textAlign: 'left', maxWidth: width - 48 * s };
-  const gap = d.captionGap * s;
-  const underPicture = picture.top + picture.height + gap;
-  const top = d.captionAnchor === 'under-picture'
-    ? underPicture
-    : Math.max(height - gap - captionHeight(d, lines, s), underPicture);
+  const top = picture.top + picture.height + d.captionGap * s;
   switch (d.captionAlign) {
     case 'center': return { left: 0, width, textAlign: 'center', top };
     case 'panel': return { left: 24 * s, maxWidth: width - 48 * s, textAlign: 'left', top };

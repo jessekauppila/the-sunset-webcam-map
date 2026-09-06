@@ -57,11 +57,15 @@ export async function POST(request: Request) {
     const pick = version.next(entries, dials, state, slot, feed);
     if (pick) {
       const after = afterShowing(pick, state);
-      advanced = await commitAdvance(feed, slot, pick, after.sunsetStreak);
+      const shown = version.shown(entries, pick, dials);
+      advanced = await commitAdvance(feed, slot, pick, after.sunsetStreak, shown);
       if (advanced) {
-        const stored = entries.find((e) => e.snapshotId === pick.snapshotId)!;
-        stored.tally += 1;
-        stored.isNew = false;
+        for (const f of shown) {
+          const stored = entries.find((e) => e.snapshotId === f.snapshotId)!;
+          stored.tally += 1;
+          stored.isNew = false;
+          stored.lastShownAt = nowMs;
+        }
         screen = { feed, currentSnapshotId: pick.snapshotId, shownSince: nowMs, slot, sunsetStreak: after.sunsetStreak };
       }
     }
