@@ -55,6 +55,8 @@ export function DeployHistory({ api, saving, onSavingChange }: {
   const [draft, setDraft] = useState('');
   const [saveNote, setSaveNote] = useState<string | null>(null);
   const saveNoteTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const inFlight = useRef(false);
+  const [busy, setBusy] = useState(false);
 
   useEffect(() => () => {
     if (saveNoteTimer.current !== null) clearTimeout(saveNoteTimer.current);
@@ -96,6 +98,9 @@ export function DeployHistory({ api, saving, onSavingChange }: {
    * reason to save — but the duplicate is named so it is visible.
    */
   const save = async () => {
+    if (inFlight.current) return;
+    inFlight.current = true;
+    setBusy(true);
     const label = draft.trim().slice(0, LABEL_MAX) || null;
     const newest = deploys[0];
     const duplicateOf = newest && profileEquals(newest.namespaces, studio?.namespaces) ? newest.id : null;
@@ -109,6 +114,9 @@ export function DeployHistory({ api, saving, onSavingChange }: {
     } catch {
       onSavingChange(false);
       flash('take not recorded');
+    } finally {
+      inFlight.current = false;
+      setBusy(false);
     }
   };
 
@@ -133,6 +141,7 @@ export function DeployHistory({ api, saving, onSavingChange }: {
           autoFocus
           value={draft}
           maxLength={LABEL_MAX}
+          disabled={busy}
           placeholder="label this take…"
           aria-label="label for the new take"
           onChange={(e) => setDraft(e.target.value)}
@@ -160,7 +169,7 @@ export function DeployHistory({ api, saving, onSavingChange }: {
                 <button
                   type="button"
                   onClick={() => void load(row)}
-                  aria-label={`load deploy #${row.id} into the studio`}
+                  aria-label={`load take #${row.id} into the studio`}
                   title="Load into the studio (undeployed studio edits are discarded)"
                   style={{
                     background: 'transparent', border: 0, padding: 0, color: '#e5e7eb', fontFamily: mono,
@@ -186,7 +195,7 @@ export function DeployHistory({ api, saving, onSavingChange }: {
                   autoFocus
                   value={editing.draft}
                   maxLength={LABEL_MAX}
-                  aria-label={`label for deploy #${row.id}`}
+                  aria-label={`label for take #${row.id}`}
                   onChange={(e) => setEditing({ id: row.id, draft: e.target.value })}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') void saveLabel();
@@ -201,7 +210,7 @@ export function DeployHistory({ api, saving, onSavingChange }: {
                 <button
                   type="button"
                   onClick={() => setEditing({ id: row.id, draft: row.label ?? '' })}
-                  aria-label={`label deploy #${row.id}`}
+                  aria-label={`label take #${row.id}`}
                   title="Click to rename"
                   style={{
                     background: 'transparent', border: 0, padding: 0, color: row.label ? '#c3cad6' : '#4b5568',

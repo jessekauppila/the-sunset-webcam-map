@@ -80,7 +80,7 @@ describe('DeployHistory', () => {
   it('clicking a row loads it into the studio and reports a partial fit', async () => {
     const loadDeploy = vi.fn(async () => [{ namespace: 'v1', key: 'ghost', reason: 'unknown' as const }]);
     list({ loadDeploy, deploys: [{ ...deploys[0], namespaces: { v1: { floorPx: 140, ghost: 1 } } }] });
-    await act(async () => { fireEvent.click(screen.getByRole('button', { name: /load deploy #2/i })); });
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: /load take #2/i })); });
     expect(loadDeploy).toHaveBeenCalledWith(2);
     expect(screen.getByText('loaded, 1 of 2 keys fit the current schema')).toBeInTheDocument();
   });
@@ -88,19 +88,19 @@ describe('DeployHistory', () => {
   it('a 404 on load reads as gone', async () => {
     const loadDeploy = vi.fn(async () => { throw new Error('load deploy failed: 404'); });
     list({ loadDeploy });
-    await act(async () => { fireEvent.click(screen.getByRole('button', { name: /load deploy #1/i })); });
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: /load take #1/i })); });
     expect(screen.getByText('gone')).toBeInTheDocument();
   });
 
   it('the label is edited inline: Enter saves, Escape cancels', async () => {
     const relabelDeploy = vi.fn(async () => {});
     list({ relabelDeploy });
-    fireEvent.click(screen.getByRole('button', { name: /label deploy #1/i }));
+    fireEvent.click(screen.getByRole('button', { name: /label take #1/i }));
     const input = screen.getByRole('textbox');
     fireEvent.change(input, { target: { value: 'before the show' } });
     await act(async () => { fireEvent.keyDown(input, { key: 'Enter' }); });
     expect(relabelDeploy).toHaveBeenCalledWith(1, 'before the show');
-    fireEvent.click(screen.getByRole('button', { name: /label deploy #2/i }));
+    fireEvent.click(screen.getByRole('button', { name: /label take #2/i }));
     fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Escape' });
     expect(screen.queryByRole('textbox')).toBeNull();
     expect(relabelDeploy).toHaveBeenCalledTimes(1);
@@ -183,5 +183,18 @@ describe('DeployHistory — saving a take', () => {
     await act(async () => { fireEvent.keyDown(screen.getByLabelText('label for the new take'), { key: 'Enter' }); });
     expect(screen.getByText('take not recorded')).toBeInTheDocument();
     expect(onSavingChange).toHaveBeenCalledWith(false);
+  });
+
+  it('ignores a repeated Enter while a save is in flight, so auto-repeat cannot post twice', async () => {
+    let resolveSave: (row: DeployRow) => void = () => {};
+    const saveTake = vi.fn(() => new Promise<DeployRow>((resolve) => { resolveSave = resolve; }));
+    const { onSavingChange } = list({ saveTake }, true);
+    const input = screen.getByLabelText('label for the new take');
+    fireEvent.keyDown(input, { key: 'Enter' });
+    fireEvent.keyDown(input, { key: 'Enter' });
+    await act(async () => { resolveSave(deploys[0]); });
+    expect(saveTake).toHaveBeenCalledTimes(1);
+    expect(onSavingChange).toHaveBeenCalledWith(false);
+    expect(onSavingChange).toHaveBeenCalledTimes(1);
   });
 });

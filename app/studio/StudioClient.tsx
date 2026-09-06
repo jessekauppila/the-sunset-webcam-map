@@ -102,6 +102,7 @@ export function StudioClient() {
               type="button"
               data-testid="save-take"
               onClick={() => setSaving(true)}
+              disabled={gated}
               title="Save these dials as a take without sending them to the glass"
               style={{
                 flex: 'none',
