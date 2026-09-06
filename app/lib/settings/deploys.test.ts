@@ -60,7 +60,11 @@ describe('recordDeploy', () => {
       id: 7, label: null, namespaces: { v1: { floorPx: 140 } },
       deployedAt: '2026-09-05T18:30:00.000Z', createdAt: '2026-09-05T18:30:00.000Z',
     });
-    expect(text(sqlMock.mock.calls[0])).toContain('INSERT INTO kiosk_deploys');
+    const queryText = text(sqlMock.mock.calls[0]);
+    // Column list only, not the whole query: RETURNING always mentions deployed_at,
+    // so this proves the INSERT itself never sets it (the column defaults to now()).
+    expect(queryText).toMatch(/INSERT INTO kiosk_deploys \(label, namespaces\)/);
+    expect(queryText).not.toMatch(/INSERT INTO kiosk_deploys \(label, namespaces, deployed_at\)/);
     expect(sqlMock.mock.calls[0][2]).toBe(JSON.stringify({ v1: { floorPx: 140 } }));
   });
   it('returns null instead of throwing when the table is missing', async () => {
@@ -82,7 +86,11 @@ describe('saveTake', () => {
       id: 9, label: 'draft', namespaces: { v1: { floorPx: 140 } },
       deployedAt: null, createdAt: '2026-09-06T10:00:00.000Z',
     });
-    expect(text(sqlMock.mock.calls[0])).toContain('INSERT INTO kiosk_deploys');
+    const queryText = text(sqlMock.mock.calls[0]);
+    // Proves saveTake's INSERT actually names deployed_at and sets it to NULL,
+    // not just that it inserts into kiosk_deploys (recordDeploy does too).
+    expect(queryText).toMatch(/INSERT INTO kiosk_deploys \(label, namespaces, deployed_at\)/);
+    expect(queryText).toMatch(/VALUES \([^)]*::jsonb, NULL\)/);
     expect(sqlMock.mock.calls[0][1]).toBe('draft');
     expect(sqlMock.mock.calls[0][2]).toBe(JSON.stringify({ v1: { floorPx: 140 } }));
   });
