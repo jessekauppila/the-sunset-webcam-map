@@ -5,8 +5,6 @@ import type { EntryView, StateView } from '@/app/api/kiosk/solo/view';
 import { nextBoundaryMs } from '@/app/lib/solo/schedule';
 import type { Feed, SoloDials } from '@/app/lib/solo/types';
 import type { SoloVersionSpec } from '@/app/lib/solo/versions';
-import { captionLines } from '@/app/lib/solo/caption';
-import { scoreLine } from '@/app/lib/solo/scores';
 import { preludePlan } from '@/app/lib/solo2/prelude';
 import type { Solo2Dials } from '@/app/lib/solo2/types';
 import { EntryRow, type Sequence } from './EntryRow';
@@ -26,9 +24,10 @@ function Bin({ color, title, hint, children }: { color: string; title: string; h
 }
 
 /**
- * One feed: the panel as the glass draws it (live dials), then the two bins
- * and the queue as the STUDIO dials would order them. Every frame appears in
- * exactly one of the three columns; the on-glass frame heads the queue.
+ * One feed's two bins and its queue as the STUDIO dials would order them.
+ * Every frame appears in exactly one of the three columns; the on-glass
+ * frame heads the queue. The screen itself is drawn above, by GlassPreview,
+ * so nothing here repeats the picture.
  */
 export function FeedColumn({ feed, server, projected, liveDials, nowMs, version, onSelect }: {
   feed: Feed;
@@ -71,32 +70,6 @@ export function FeedColumn({ feed, server, projected, liveDials, nowMs, version,
   };
   const queueSeqs = queue.map((e, i) => seqFor(e, i > 0 ? queue[i - 1] : null));
   const preludedInQueue = new Set(queueSeqs.flatMap((s) => s?.earlier.map((f) => f.snapshotId) ?? []));
-  const cap = current && captionLines(current.entry, liveDials);
-
-  const caption = current && (
-    <>
-      {cap && (
-        <div style={{ position: 'absolute', left: 12, bottom: 10, color: '#fff', textShadow: '0 1px 3px #000', fontSize: 14 }}>
-          {cap.title}
-          <small style={{ display: 'block', fontSize: 11, opacity: 0.8 }}>{cap.sub}</small>
-        </div>
-      )}
-      <div style={{
-        position: 'absolute', right: 12, bottom: 10, color: '#fff', textShadow: '0 1px 3px #000',
-        fontFamily: mono, fontSize: 12, textAlign: 'right',
-      }}>
-        {liveDials.showTally && <div>shown <b style={{ color: '#f5a344' }}>×{current.entry.tally}</b></div>}
-        {liveDials.showRank && <div>{current.entry.bin === 'sunset' ? 'sunset' : 'non-sunset'} bin #{current.entry.rank}</div>}
-        {liveDials.showScores && (
-          <div>{scoreLine(current.entry)}</div>
-        )}
-      </div>
-      <div style={{
-        position: 'absolute', left: 0, bottom: 0, height: 3, background: '#f5a344',
-        width: `${(leftS / liveDials.dwellS) * 100}%`,
-      }} />
-    </>
-  );
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8, minWidth: 0 }}>
@@ -106,24 +79,6 @@ export function FeedColumn({ feed, server, projected, liveDials, nowMs, version,
           next frame in <b style={{ color: '#f5a344', fontFamily: mono }}>{leftS} s</b>
         </span>
       </h3>
-      <div
-        title={current
-          ? 'What this screen is drawing right now, with the on-glass overlays as deployed'
-          : 'Nothing on glass yet: the solo renderer is not live, or no frame is eligible'}
-        onClick={() => current && onSelect(current.entry, feed)}
-        style={{
-          position: 'relative', aspectRatio: '16 / 9', background: '#000', border: '1px solid #2a3242',
-          borderRadius: 6, overflow: 'hidden', cursor: current ? 'pointer' : 'default',
-        }}
-      >
-        {current ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={current.entry.imageUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
-        ) : (
-          <div style={{ color: '#4b5568', fontFamily: mono, fontSize: 12, padding: 12 }}>nothing on glass yet</div>
-        )}
-        {caption}
-      </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1.15fr', gap: 6 }}>
         <Bin color="#7ee2ac" title={`Sunset bin · ${projected.bins.sunset.length} waiting · ${qSun} queued`}
           hint="Frames the detection head calls a sunset, ordered by rating (1–5). Shown frames sink below unshown ones. Dimmed rows are below the rating floor.">

@@ -41,15 +41,14 @@ it('says so when the studio dials would draw a different next frame than the gla
   else expect(screen.queryByText(/projected with studio dials/)).toBeNull();
 });
 
-it('with nothing on glass the panel says so and the queue starts at the projection', () => {
+it('with nothing on glass the queue starts at the projection', () => {
   const v = buildStateView({ feed: 'sunrise', dials: D, entries: [entry(9, 'sunset', 0.9)], screen: null, nowMs: 0,
     admitted: { sunset: 0, nonSunset: 0 }, zone: { minDeg: -24, maxDeg: -2 } });
   render(<FeedColumn feed="sunrise" server={v} projected={v} liveDials={D} studioDials={D} nowMs={0} onSelect={vi.fn()} />);
-  expect(screen.getByText('nothing on glass yet')).toBeInTheDocument();
   expect(screen.getAllByText('cam9').length).toBeGreaterThan(0);
 });
 
-it('solo2 with valleys tags queued draws PEAK and VALLEY and captions the local time', async () => {
+it('solo2 with valleys tags queued draws PEAK and VALLEY', async () => {
   const { SOLO_VERSIONS } = await import('@/app/lib/solo/versions');
   const { SOLO2_SETTINGS_SCHEMA, dialsFrom2 } = await import('@/app/lib/solo2/settingsSchema');
   const d2 = { ...dialsFrom2(schemaDefaults(SOLO2_SETTINGS_SCHEMA)), valleys: 1 };
@@ -62,7 +61,6 @@ it('solo2 with valleys tags queued draws PEAK and VALLEY and captions the local 
   render(<FeedColumn feed="sunrise" server={v} projected={v} liveDials={d2} studioDials={d2} nowMs={0} version={SOLO_VERSIONS.solo2} onSelect={vi.fn()} />);
   expect(screen.getAllByText('VALLEY').length).toBeGreaterThan(0);
   expect(screen.getAllByText('PEAK').length).toBeGreaterThan(0);
-  expect(screen.getByText('BCS, Mexico · 7:42 pm there')).toBeInTheDocument();
 });
 
 it('solo2 with the prelude on groups a camera\'s earlier frames under the queued draw and flags their own later turns', async () => {

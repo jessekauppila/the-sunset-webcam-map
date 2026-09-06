@@ -6,7 +6,7 @@ import { useStudioSettings } from '../useStudioSettings';
 import { DeployButton } from '../DeployButton';
 import { DeployHistory } from '../DeployHistory';
 import { SoloRail, type RailTab } from './SoloRail';
-import { CaptionPreview } from './CaptionPreview';
+import { GlassPreview } from './GlassPreview';
 import { FeedColumn } from './FeedColumn';
 import { SoloStatusStrip } from './SoloStatusStrip';
 import { useSoloState } from './useSoloState';
@@ -46,9 +46,9 @@ export function SoloStudioClient({ version = SOLO_VERSIONS.solo as SoloVersionSp
     : { href: '/studio/solo2', label: 'solo2 studio →', title: 'solo with rhythm, lead, prelude, transitions and local time' };
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [selected, setSelected] = useState<{ entry: EntryView; feed: Feed } | null>(null);
-  // Which rail page is up. The caption page swaps the queue columns for the
-  // screens drawn with the studio dials, so a caption dial shows its effect.
-  const [tab, setTab] = useState<RailTab>('dials');
+  // Which rail page is up. Only the rail changes: the screens and the queue
+  // columns stay put, so a picture dial shows its effect above the queue.
+  const [tab, setTab] = useState<RailTab>('queue');
   const panelPreset = String(shared.panelPreset ?? '');
   const panel = PANEL_PRESETS[panelPreset] ?? PANEL_PRESETS['dell-l'];
 
@@ -80,14 +80,17 @@ export function SoloStudioClient({ version = SOLO_VERSIONS.solo as SoloVersionSp
           </>
         } />
       </aside>
-      <main style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, padding: 12, overflowY: 'auto', minWidth: 0 }}>
-        {tab === 'caption' && (
-          <CaptionPreview dials={studioDials} panel={panel} screens={[
-            { feed: 'sunrise', server: sunrise.server ?? null, error: sunrise.error },
-            { feed: 'sunset', server: sunset.server ?? null, error: sunset.error },
-          ]} />
-        )}
-        {tab === 'dials' && (['sunrise', 'sunset'] as const).map((feed) => {
+      <main style={{
+        // Row 1: the two screens, composed at glass size and scaled to fit above
+        // the fold. Row 2: each screen's bins and queue.
+        display: 'grid', gridTemplateColumns: '1fr 1fr', gridTemplateRows: 'clamp(220px, 36vh, 520px) auto',
+        gap: 12, padding: 12, overflowY: 'auto', minWidth: 0,
+      }}>
+        <GlassPreview dials={studioDials} panel={panel} screens={[
+          { feed: 'sunrise', server: sunrise.server ?? null, error: sunrise.error },
+          { feed: 'sunset', server: sunset.server ?? null, error: sunset.error },
+        ]} />
+        {(['sunrise', 'sunset'] as const).map((feed) => {
           const s = feed === 'sunrise' ? sunrise : sunset;
           return s.server && s.projected ? (
             <FeedColumn key={feed} feed={feed} server={s.server} projected={s.projected} liveDials={liveDials}
