@@ -58,6 +58,12 @@ export interface MosaicProps {
   at?: string | number;
   /** Merged-or-deviation knob values for THIS version's namespace (server profile). */
   settings?: Record<string, number | boolean | string>;
+  /**
+   * The SHARED namespace's values (merged or deviations), for the dials that
+   * are not a version's own: the solo versions draw their caption from it.
+   * Mosaic versions ignore it.
+   */
+  shared?: Record<string, number | boolean | string>;
 }
 
 export type MosaicComponent = (props: MosaicProps) => React.ReactNode;

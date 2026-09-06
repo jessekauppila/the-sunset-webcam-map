@@ -34,7 +34,9 @@ beforeEach(() => {
   getScreenState.mockResolvedValue(null);
   countAdmittedSince.mockResolvedValue({ sunset: 0, nonSunset: 0 });
   getSweptZone.mockResolvedValue(null);
-  getLiveSettingsCached.mockResolvedValue({ namespaces: { solo: { dwellS: 30 }, solo2: { dwellS: 9, valleys: 1 } }, revision: 1 });
+  getLiveSettingsCached.mockResolvedValue({
+    namespaces: { shared: { activeVersion: 'solo', pictureHeight: 70 }, solo: { dwellS: 30, pictureHeight: 92 }, solo2: { dwellS: 9, valleys: 1 } }, revision: 1,
+  });
   getProfileSettings.mockResolvedValue({ namespaces: { solo: { dwellS: 7 } }, revision: 1 });
 });
 
@@ -56,6 +58,12 @@ describe('GET /api/kiosk/solo/state', () => {
     expect(body.dials.dwellS).toBe(9);
     expect(body.dials.valleys).toBe(1);
     expect(body.nextRoles).toEqual([]);
+  });
+  it('the caption comes from the shared namespace for either version; a caption key left in a version row is ignored', async () => {
+    expect((await (await get('?feed=sunset')).json()).dials.pictureHeight).toBe(70);
+    expect((await (await get('?feed=sunset&version=solo2')).json()).dials.pictureHeight).toBe(70);
+    getProfileSettings.mockResolvedValue({ namespaces: { solo: { pictureHeight: 92 } }, revision: 1 });
+    expect((await (await get('?feed=sunset&profile=studio')).json()).dials.pictureHeight).toBe(87);
   });
   it('live profile by default, no owner check; guaranteed-rings zone until the cron has recorded one', async () => {
     const res = await get('?feed=sunset');

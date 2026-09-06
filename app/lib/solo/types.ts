@@ -39,26 +39,14 @@ export type TitleClean = 'raw' | 'comma' | 'dot' | 'compass' | 'spot';
 export type TitleWeight = '300' | '400' | '500' | '600';
 export type CaptionFont = 'system' | 'geist' | 'sans' | 'serif' | 'mono';
 
-/** Every dial in the `solo` namespace, typed. Built by settingsSchema.dialsFrom. */
-export interface SoloDials {
-  // bins group — change which frame comes next
-  qualityFloor: number;
-  detectionFloor: number;
-  sunsetFloor: number;
-  mix: number;
-  rest: number;
-  promoteNew: boolean;
-  zoneGrace: number;
-  // glass group — change what the screen draws
-  dwellS: number;
-  offsetS: number;
-  fadeS: number;
-  showPlace: boolean;
-  showScores: boolean;
-  showRank: boolean;
-  showTally: boolean;
-  // caption group — the picture's frame and the words beneath it.
-  // Sizes are glass pixels on a 1920-wide panel; grays are percent of white.
+/**
+ * The caption group — the picture's frame and the words beneath it. These
+ * dials live in the SHARED settings namespace (captionSchema.ts), one set
+ * for every solo version, and are laid over a version's own values by
+ * `withCaption`. Sizes are glass pixels on a 1920-wide panel; grays are
+ * percent of white.
+ */
+export interface CaptionDials {
   captionLayout: CaptionLayout;
   pictureHeight: number;
   pictureTop: number;
@@ -77,6 +65,29 @@ export interface SoloDials {
   timeLine: TimeLine;
   timeSize: number;
   timeGray: number;
+}
+
+/**
+ * Every dial a solo surface draws with: the `solo` namespace's own two
+ * groups plus the shared caption. Built by settingsSchema.dialsFrom.
+ */
+export interface SoloDials extends CaptionDials {
+  // bins group — change which frame comes next
+  qualityFloor: number;
+  detectionFloor: number;
+  sunsetFloor: number;
+  mix: number;
+  rest: number;
+  promoteNew: boolean;
+  zoneGrace: number;
+  // glass group — change what the screen draws
+  dwellS: number;
+  offsetS: number;
+  fadeS: number;
+  showPlace: boolean;
+  showScores: boolean;
+  showRank: boolean;
+  showTally: boolean;
 }
 
 /** What one screen remembers between draws (rules 2 and 4). */

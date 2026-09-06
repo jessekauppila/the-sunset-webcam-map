@@ -3,6 +3,8 @@ import { requireOwner } from '@/app/lib/owner';
 import { getLiveSettingsCached } from '@/app/lib/settings/liveSettings';
 import { getProfileSettings } from '@/app/lib/settings/store';
 import { mergeSettings } from '@/app/lib/settings/schema';
+import { SHARED_NAMESPACE } from '@/app/lib/settings/sharedSchema';
+import { withCaption } from '@/app/lib/solo/captionSchema';
 import { resolveSoloVersion } from '@/app/lib/solo/versions';
 import { countAdmittedSince, getScreenState, getSweptZone, listActiveEntries } from '@/app/lib/solo/store';
 import { isFlagEnabled, SWEEP_FORCE_DAY_RING } from '@/app/lib/runtimeFlags';
@@ -34,7 +36,10 @@ export async function GET(request: NextRequest) {
     if (denied) return denied;
   }
   const profile = studio ? await getProfileSettings('studio') : await getLiveSettingsCached();
-  const dials = version.dialsFrom(mergeSettings(version.schema, profile?.namespaces[version.namespace]));
+  // The version's own dials with the caption from the shared namespace: one caption for every solo version.
+  const dials = version.dialsFrom(withCaption(
+    mergeSettings(version.schema, profile?.namespaces[version.namespace]), profile?.namespaces[SHARED_NAMESPACE],
+  ));
 
   const nowMs = Date.now();
   const [entries, screen, admitted, sweptZone, forcedDayRing] = await Promise.all([

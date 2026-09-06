@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { captionBox, captionLines, displayTitle, formatTime, gray, pictureRect } from './caption';
+import { captionBox, captionHeight, captionLines, displayTitle, formatTime, gray, pictureRect } from './caption';
 
 // 02:42 UTC on 2026-09-05 is 7:42 pm the evening before in Mazatlán (UTC−7).
 const AT = Date.UTC(2026, 8, 5, 2, 42);
@@ -91,24 +91,59 @@ describe('pictureRect', () => {
   });
 });
 
+describe('captionHeight', () => {
+  const d = { titleSize: 21, placeSize: 17, timeSize: 12, lineGap: 0, timeLine: 'own' as const };
+  const lines = { place: 'Norrbotten County, Sweden', time: '7:42 pm there' };
+  it('adds the lines that will exist at the glass line heights, plus the gaps between them, at scale', () => {
+    // title 21 × 1.15 + place 17 × 1.3 + time 12 × 1.3
+    expect(captionHeight(d, lines, 1)).toBeCloseTo(61.85);
+    expect(captionHeight(d, { place: '', time: '' }, 1)).toBeCloseTo(21 * 1.15);
+    expect(captionHeight(d, { place: '', time: '7:42 pm' }, 1)).toBeCloseTo(21 * 1.15 + 12 * 1.3);
+    expect(captionHeight({ ...d, lineGap: 4 }, lines, 1)).toBeCloseTo(61.85 + 8);
+    expect(captionHeight(d, lines, 0.5)).toBeCloseTo(61.85 / 2);
+  });
+  it('an inline time shares the place line, and makes one when there is no place', () => {
+    expect(captionHeight({ ...d, timeLine: 'inline' }, lines, 1)).toBeCloseTo(21 * 1.15 + 17 * 1.3);
+    expect(captionHeight({ ...d, timeLine: 'inline' }, { place: '', time: '7:42 pm' }, 1)).toBeCloseTo(21 * 1.15 + 17 * 1.3);
+  });
+});
+
 describe('captionBox', () => {
-  const pic = { left: 125, top: 43, width: 1671, height: 940 };
-  const d = { captionLayout: 'inset' as const, captionAnchor: 'panel-bottom' as const, captionAlign: 'picture' as const, captionGap: 18 };
-  it('panel-bottom + picture: the gap above the panel edge, flush with the picture', () => {
-    expect(captionBox(d, pic, 1920)).toEqual({ left: 125, maxWidth: 1671, bottom: 18, textAlign: 'left' });
+  const pic = { left: 125, top: 43, width: 1671, height: 940 }; // pictureRect at 87 % on 1920 × 1080
+  const d = {
+    captionLayout: 'inset' as const, captionAnchor: 'panel-bottom' as const, captionAlign: 'picture' as const, captionGap: 18,
+    titleSize: 21, placeSize: 17, timeSize: 12, lineGap: 0, timeLine: 'own' as const,
+  };
+  const lines = { place: 'Norrbotten County, Sweden', time: '7:42 pm there' };
+  const capH = 61.85; // captionHeight(d, lines, 1)
+  it('panel-bottom + picture: the gap above the panel edge, flush with the picture, when the picture leaves room', () => {
+    const short = pictureRect({ captionLayout: 'inset', pictureHeight: 80, pictureTop: 4 }, 1920, 1080);
+    const box = captionBox(d, short, 1920, 1080, lines);
+    expect(box).toMatchObject({ left: short.left, maxWidth: short.width, textAlign: 'left' });
+    expect(box.top).toBeCloseTo(1080 - 18 - capH);
+    expect(box.bottom).toBeUndefined();
+  });
+  it('a panel-bottom caption never rises into the picture: it sits no higher than the gap below the picture', () => {
+    // At 87 % the panel edge would put the caption's top at 1000.15; the picture ends at 983, so the gap wins by less than a pixel.
+    expect(captionBox(d, pic, 1920, 1080, lines)).toEqual({ left: 125, maxWidth: 1671, top: 1001, textAlign: 'left' });
+    // At 92 % (the glass on 2026-09-05) the panel edge would put it 37 px into the picture; it hangs under the picture instead.
+    const tall = pictureRect({ captionLayout: 'inset', pictureHeight: 92, pictureTop: 4 }, 1920, 1080);
+    expect(tall.top + tall.height).toBe(1037);
+    expect(captionBox(d, tall, 1920, 1080, lines)).toMatchObject({ top: 1037 + 18 });
   });
   it('under-picture hangs the gap below the picture', () => {
-    expect(captionBox({ ...d, captionAnchor: 'under-picture' }, pic, 1920)).toMatchObject({ top: 43 + 940 + 18 });
+    expect(captionBox({ ...d, captionAnchor: 'under-picture' }, pic, 1920, 1080, lines)).toMatchObject({ top: 43 + 940 + 18 });
   });
   it('center spans the panel; panel sits at the glass margin', () => {
-    expect(captionBox({ ...d, captionAlign: 'center' }, pic, 1920)).toEqual({ left: 0, width: 1920, textAlign: 'center', bottom: 18 });
-    expect(captionBox({ ...d, captionAlign: 'panel' }, pic, 1920)).toMatchObject({ left: 24, textAlign: 'left' });
+    expect(captionBox({ ...d, captionAlign: 'center' }, pic, 1920, 1080, lines)).toEqual({ left: 0, width: 1920, textAlign: 'center', top: 1001 });
+    expect(captionBox({ ...d, captionAlign: 'panel' }, pic, 1920, 1080, lines)).toMatchObject({ left: 24, textAlign: 'left' });
   });
-  it('the gap is in glass pixels: half on a half-width panel', () => {
-    expect(captionBox(d, pictureRect({ captionLayout: 'inset', pictureHeight: 87, pictureTop: 4 }, 960, 540), 960)).toMatchObject({ bottom: 9 });
+  it('the gap and the caption are in glass pixels: everything halves on a half-size panel', () => {
+    const half = pictureRect({ captionLayout: 'inset', pictureHeight: 80, pictureTop: 4 }, 960, 540);
+    expect(captionBox(d, half, 960, 540, lines).top).toBeCloseTo((1080 - 18 - capH) / 2);
   });
   it('overlay tucks into the picture corner whatever the dials say', () => {
-    expect(captionBox({ ...d, captionLayout: 'overlay', captionAlign: 'center' }, pic, 1920)).toEqual({ left: 24, bottom: 20, textAlign: 'left', maxWidth: 1872 });
+    expect(captionBox({ ...d, captionLayout: 'overlay', captionAlign: 'center' }, pic, 1920, 1080, lines)).toEqual({ left: 24, bottom: 20, textAlign: 'left', maxWidth: 1872 });
   });
 });
 

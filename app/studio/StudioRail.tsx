@@ -3,6 +3,7 @@
 import { useMemo, type ReactNode } from 'react';
 import { LevaPanel, useCreateStore, useControls, folder, button } from 'leva';
 import { SHARED_NAMESPACE, SHARED_SCHEMA } from '@/app/lib/settings/sharedSchema';
+import { CAPTION_SECTION } from '@/app/lib/solo/captionSchema';
 import { MOSAIC_SETTINGS_SCHEMAS } from '@/app/components/mosaic/registry';
 import { buildFolderSpecs, type LevaFolderSpec } from './levaConfig';
 import type { KnobValue, SettingsSchema } from '@/app/lib/settings/schema';
@@ -94,10 +95,11 @@ export function StudioRail({
   const versionOptions = activeVersionKnob?.kind === 'enum' ? activeVersionKnob.options : [];
   const activeVersion = (sharedValues.activeVersion as string) ?? versionOptions[0] ?? 'v1';
 
-  // The top <select> owns activeVersion — everything else in SHARED_SCHEMA
-  // (currently just panelPreset, both in section 'glass') is dial-controlled.
+  // The top <select> owns activeVersion — everything else in SHARED_SCHEMA's
+  // glass section (currently just panelPreset) is dial-controlled here. The
+  // shared caption section is the solo kiosk's and is dialled on /studio/solo.
   const sharedSchema = useMemo(
-    () => SHARED_SCHEMA.filter((k) => k.key !== 'activeVersion'),
+    () => SHARED_SCHEMA.filter((k) => k.key !== 'activeVersion' && k.section !== CAPTION_SECTION),
     []
   );
   const versionSchema: SettingsSchema = MOSAIC_SETTINGS_SCHEMAS[activeVersion] ?? [];

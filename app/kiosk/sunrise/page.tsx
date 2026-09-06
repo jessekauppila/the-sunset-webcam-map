@@ -60,6 +60,7 @@ function SunriseKioskContent() {
         dozing={dozing}
         search={queryString}
         settings={liveSettings?.namespaces[versionName]}
+        shared={liveSettings?.namespaces.shared}
       />
       <KioskDozeOverlay dozing={dozing} />
     </>

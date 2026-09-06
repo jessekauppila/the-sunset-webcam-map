@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { SOLO_SETTINGS_SCHEMA, SOLO_NAMESPACE, dialsFrom } from './settingsSchema';
+import { withCaption } from './captionSchema';
 import { schemaDefaults, mergeSettings } from '@/app/lib/settings/schema';
 
 describe('SOLO_SETTINGS_SCHEMA', () => {
@@ -14,7 +15,7 @@ describe('SOLO_SETTINGS_SCHEMA', () => {
       rest: 4, promoteNew: true, zoneGrace: 2,
       dwellS: 20, offsetS: 10, fadeS: 0,
       showPlace: true, showScores: false, showRank: false, showTally: false,
-      // the caption as dialled in on 2026-09-05
+      // the caption as dialled in on 2026-09-05, at its defaults because no shared values were laid over
       captionLayout: 'inset', pictureHeight: 87, pictureTop: 4,
       captionAnchor: 'panel-bottom', captionAlign: 'picture', captionGap: 18,
       font: 'system', titleClean: 'compass',
@@ -24,10 +25,18 @@ describe('SOLO_SETTINGS_SCHEMA', () => {
     });
   });
 
-  it('every knob sits in the glass, bins or caption section', () => {
+  it('every knob sits in the glass or bins section; the caption section is the shared namespace\'s', () => {
     for (const knob of SOLO_SETTINGS_SCHEMA) {
-      expect(['glass', 'bins', 'caption']).toContain(knob.section);
+      expect(['glass', 'bins']).toContain(knob.section);
     }
+  });
+
+  it('a caption key stored in the solo namespace (before 2026-09-05) is dropped; the shared namespace supplies it', () => {
+    expect(SOLO_SETTINGS_SCHEMA.find((k) => k.key === 'pictureHeight')).toBeUndefined();
+    const own = mergeSettings(SOLO_SETTINGS_SCHEMA, { pictureHeight: 92, dwellS: 5 });
+    expect('pictureHeight' in own).toBe(false);
+    expect(dialsFrom(own).pictureHeight).toBe(87);
+    expect(dialsFrom(withCaption(own, { pictureHeight: 70, activeVersion: 'solo' }))).toMatchObject({ pictureHeight: 70, dwellS: 5, captionGap: 18 });
   });
 
   it('keys are unique and every enum default is one of its options', () => {
@@ -42,8 +51,8 @@ describe('SOLO_SETTINGS_SCHEMA', () => {
     }
   });
 
-  it('dialsFrom reads merged deviations', () => {
-    const merged = mergeSettings(SOLO_SETTINGS_SCHEMA, { rest: 7, dwellS: 5, titleGray: 90, font: 'serif' });
+  it('dialsFrom reads merged deviations, the caption from the shared values laid over them', () => {
+    const merged = withCaption(mergeSettings(SOLO_SETTINGS_SCHEMA, { rest: 7, dwellS: 5 }), { titleGray: 90, font: 'serif' });
     const d = dialsFrom(merged);
     expect(d.rest).toBe(7);
     expect(d.dwellS).toBe(5);

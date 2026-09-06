@@ -237,6 +237,7 @@ export function StudioClient() {
           panelPresetLabel={panelPresetLabel}
           versionName={versionName}
           settings={previewSettings}
+          shared={sharedSettings}
           scenes={scenes}
           sceneSource={sceneSource}
           onSceneSourceChange={setSceneSource}

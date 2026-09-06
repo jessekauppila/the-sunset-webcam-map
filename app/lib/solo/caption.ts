@@ -132,25 +132,52 @@ export interface CaptionBox {
   textAlign: 'left' | 'center';
 }
 
+/** Line heights the caption draws with, as multiples of each line's font size. Caption.tsx uses these. */
+export const LINE_HEIGHT = { title: 1.15, place: 1.3, time: 1.3 } as const;
+
 /**
- * Where the caption block sits, given the picture. Under-picture hangs it
- * `captionGap` below the picture; panel-bottom keeps it that far above the
- * panel's bottom edge. Overlay ignores both and tucks it inside the picture.
+ * How tall the caption block will be, in CSS pixels at scale `s`: the lines
+ * that will exist (the title always; the place line when there is a place or
+ * an inline time; the time on its own line unless inline) at the line heights
+ * Caption draws with, plus the line gap between them.
+ */
+export function captionHeight(
+  d: Pick<SoloDials, 'titleSize' | 'placeSize' | 'timeSize' | 'lineGap' | 'timeLine'>,
+  lines: Pick<CaptionLines, 'place' | 'time'>, s: number,
+): number {
+  const inline = d.timeLine === 'inline';
+  const heights = [d.titleSize * LINE_HEIGHT.title];
+  if (lines.place || (inline && lines.time)) heights.push(d.placeSize * LINE_HEIGHT.place);
+  if (!inline && lines.time) heights.push(d.timeSize * LINE_HEIGHT.time);
+  return (heights.reduce((a, b) => a + b, 0) + d.lineGap * (heights.length - 1)) * s;
+}
+
+/**
+ * Where the caption block sits, given the picture and the panel. Under-picture
+ * hangs it `captionGap` below the picture. Panel-bottom keeps it that far
+ * above the panel's bottom edge, but never higher than under-picture would
+ * put it: a picture too tall for the caption pushes the caption down rather
+ * than the caption rising into the picture (the glass on 2026-09-05, at
+ * pictureHeight 92, drew the caption 37 px over the picture's foot). When the
+ * panel cannot hold both, the caption leaves the panel, which the studio
+ * preview shows for what it is: a picture dial set too tall. Overlay ignores
+ * all of this and tucks the caption inside the picture.
  */
 export function captionBox(
-  d: Pick<SoloDials, 'captionLayout' | 'captionAnchor' | 'captionAlign' | 'captionGap'>,
-  picture: Rect, width: number,
+  d: Pick<SoloDials, 'captionLayout' | 'captionAnchor' | 'captionAlign' | 'captionGap' | 'titleSize' | 'placeSize' | 'timeSize' | 'lineGap' | 'timeLine'>,
+  picture: Rect, width: number, height: number, lines: Pick<CaptionLines, 'place' | 'time'>,
 ): CaptionBox {
   const s = captionScale(width);
   if (d.captionLayout === 'overlay') return { left: 24 * s, bottom: 20 * s, textAlign: 'left', maxWidth: width - 48 * s };
   const gap = d.captionGap * s;
-  const vertical = d.captionAnchor === 'under-picture'
-    ? { top: picture.top + picture.height + gap }
-    : { bottom: gap };
+  const underPicture = picture.top + picture.height + gap;
+  const top = d.captionAnchor === 'under-picture'
+    ? underPicture
+    : Math.max(height - gap - captionHeight(d, lines, s), underPicture);
   switch (d.captionAlign) {
-    case 'center': return { left: 0, width, textAlign: 'center', ...vertical };
-    case 'panel': return { left: 24 * s, maxWidth: width - 48 * s, textAlign: 'left', ...vertical };
-    default: return { left: picture.left, maxWidth: picture.width, textAlign: 'left', ...vertical };
+    case 'center': return { left: 0, width, textAlign: 'center', top };
+    case 'panel': return { left: 24 * s, maxWidth: width - 48 * s, textAlign: 'left', top };
+    default: return { left: picture.left, maxWidth: picture.width, textAlign: 'left', top };
   }
 }
 

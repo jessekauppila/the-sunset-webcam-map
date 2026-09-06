@@ -29,15 +29,16 @@ it('caption sizes are glass pixels: the dialled px on a 1920 panel, and the gray
   expect(screen.getByTestId('caption-title')).toHaveStyle({ fontSize: '21px', fontWeight: '300', color: 'rgb(181, 181, 181)' });
   expect(screen.getByTestId('caption-place')).toHaveStyle({ fontSize: '17px', color: 'rgb(145, 145, 145)' });
   expect(screen.getByTestId('caption-time')).toHaveStyle({ fontSize: '12px', color: 'rgb(117, 117, 117)' });
-  // flush with the picture's left edge, the gap above the panel's bottom edge
-  expect(screen.getByTestId('caption')).toHaveStyle({ left: '125px', bottom: '18px', maxWidth: '1671px' });
+  // flush with the picture's left edge; the panel edge would put its top at 1000.15, the gap under the picture (983) says 1001
+  expect(screen.getByTestId('caption')).toHaveStyle({ left: '125px', top: '1001px', maxWidth: '1671px' });
 });
 
 it('on a half-size panel everything halves', () => {
   render(<SoloFrame entry={e} previous={null} fadeS={0} dials={D} width={960} height={540} />);
   expect(screen.getByRole('presentation')).toHaveStyle({ width: '836px', height: '470px' });
   expect(screen.getByTestId('caption-title')).toHaveStyle({ fontSize: '10.5px' });
-  expect(screen.getByTestId('caption')).toHaveStyle({ bottom: '9px' });
+  // the picture rect rounds: 470 tall from 22 down ends at 492, plus the 9 px gap; the panel edge would say 500.075
+  expect(screen.getByTestId('caption')).toHaveStyle({ top: '501px' });
 });
 
 it('overlay layout: the picture fills the panel and the caption floats over it with a shadow', () => {
@@ -70,4 +71,11 @@ it('keeps the previous frame underneath, in the same picture box, and sets the f
   expect(imgs.map((i) => i.getAttribute('src'))).toEqual(['u0', 'u1']);
   expect(imgs[0]).toHaveStyle({ left: '125px', width: '1671px' });
   expect(imgs[1]).toHaveStyle({ transition: 'opacity 3s ease' });
+});
+
+it('a panel-bottom caption never rises into the picture: at 92 % it hangs the gap under the picture instead', () => {
+  render(<SoloFrame entry={e} previous={null} fadeS={0} dials={{ ...D, pictureHeight: 92 }} width={1920} height={1080} />);
+  // 92 % of 1080 = 994 tall, 4 % down = 43: the picture ends at 1037; the caption starts 18 below it.
+  expect(screen.getByRole('presentation')).toHaveStyle({ top: '43px', height: '994px' });
+  expect(screen.getByTestId('caption')).toHaveStyle({ top: '1055px' });
 });

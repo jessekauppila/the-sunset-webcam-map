@@ -3,7 +3,7 @@
 import type { CSSProperties } from 'react';
 import type { SoloDials } from '@/app/lib/solo/types';
 import {
-  FONT_STACKS, captionBox, captionLines, captionScale, gray, type CaptionEntry, type Rect,
+  FONT_STACKS, LINE_HEIGHT, captionBox, captionLines, captionScale, gray, type CaptionEntry, type Rect,
 } from '@/app/lib/solo/caption';
 
 /**
@@ -12,17 +12,19 @@ import {
  * the frame. Null when the place dial is off. Everything positional comes
  * from lib/solo/caption.ts, so this is layout only.
  */
-export function Caption({ entry, dials, picture, width }: {
+export function Caption({ entry, dials, picture, width, height }: {
   entry: CaptionEntry;
   dials: SoloDials;
   /** Where the picture sits on the panel, from pictureRect. */
   picture: Rect;
   width: number;
+  /** The panel's height, so a panel-bottom caption knows where the bottom is and how far up the picture reaches. */
+  height: number;
 }) {
   const lines = captionLines(entry, dials);
   if (!lines) return null;
   const s = captionScale(width);
-  const box = captionBox(dials, picture, width);
+  const box = captionBox(dials, picture, width, height, lines);
   const overlay = dials.captionLayout === 'overlay';
   const inline = dials.timeLine === 'inline';
 
@@ -42,18 +44,18 @@ export function Caption({ entry, dials, picture, width }: {
   return (
     <div data-testid="caption" style={block}>
       <div data-testid="caption-title" style={{
-        ...line, fontSize: dials.titleSize * s, fontWeight: Number(dials.titleWeight), color: gray(dials.titleGray), lineHeight: 1.15,
+        ...line, fontSize: dials.titleSize * s, fontWeight: Number(dials.titleWeight), color: gray(dials.titleGray), lineHeight: LINE_HEIGHT.title,
       }}>
         {lines.title}
       </div>
       {(lines.place || (inline && time)) && (
-        <div data-testid="caption-place" style={{ ...line, fontSize: dials.placeSize * s, color: gray(dials.placeGray), lineHeight: 1.3 }}>
+        <div data-testid="caption-place" style={{ ...line, fontSize: dials.placeSize * s, color: gray(dials.placeGray), lineHeight: LINE_HEIGHT.place }}>
           {lines.place}
           {inline && time && lines.place ? <span style={{ color: gray(dials.timeGray) }}> · </span> : null}
           {inline ? time : null}
         </div>
       )}
-      {!inline && time && <div style={{ ...line, lineHeight: 1.3 }}>{time}</div>}
+      {!inline && time && <div style={{ ...line, lineHeight: LINE_HEIGHT.time }}>{time}</div>}
     </div>
   );
 }
