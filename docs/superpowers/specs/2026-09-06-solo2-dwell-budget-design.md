@@ -239,7 +239,33 @@ being conditional on what was read. The existing write already has that
 shape, `where kiosk_screen_state.slot is distinct from excluded.slot`, so it
 should survive, but "should survive" is what the test is for.
 
-### 5.1 `dwellMs` joins the version spec
+### 5.1 The server publishes the end as an instant; no client computes a length
+
+Recommended by the replay session on 2026-09-06 and adopted. It is the
+decision that makes the rest of §5 small.
+
+**The server owns *when this dwell ends*. The client owns *how far along we
+are*.** `StateView` already carries `current.shownSince`; one field beside
+it, the instant this dwell ends, is the entire interface change.
+
+The argument is that a dwell end has stopped being a function of the clock
+and a dial and become a function of engine state, namely `n` after the caps.
+Only the server knows `n` at draw time. Any client that recomputes the end
+has to re-run enough of the engine to know `n`, which is duplicated logic
+that drifts, and it drifts silently because the output stays plausible.
+
+Every render site keeps interpolating locally for smoothness. It just
+interpolates toward a supplied instant instead of deriving one. The tape's
+`Playhead` swaps its `dwellS` prop for an `endsAtMs`, which is a smaller
+change than a version branch would have been.
+
+**This is what collapses §6.2.** A client rendering toward an instant does
+not care which version produced it, so twelve version branches at render
+sites become zero, and the only branch left is the one place on the server
+that computes the instant. That is why this belongs inside §5 rather than as
+tidying afterwards.
+
+### 5.2 `dwellMs` joins the version spec
 
 **The dwell's length must be a pure function of the entries, the dials and
 the pick, exported from the engine, not computed inside the renderer.**
@@ -327,7 +353,7 @@ suggest. Every draw that still reaches the floor is a sunset:
 Use these figures rather than the uncapped ones. The 21.7% measures a world
 without the caps, and the caps are part of the same design.
 
-### 5.2 The screens stop being staggered
+### 5.3 The screens stop being staggered
 
 `offsetS` is currently a standing stagger on a shared grid. With variable
 dwells it becomes a starting phase only, and the two screens will drift into
@@ -420,10 +446,22 @@ Eleven non-test files read `slotFor`, `boundaryMs`, `nextBoundaryMs` or
 | `app/studio/solo/FeedColumn.tsx` | the studio's "next in N s" countdown |
 | `app/lib/solo/replay.ts` | start and end slots, evaluation moment, `lastShownAt` write |
 
-`FeedColumn.tsx` is the one most easily missed and it is a surface Jesse
-reads: a countdown derived from a grid that no longer exists would show a
-confident wrong number rather than break. **`solo` keeps the grid**, so each
-of these needs a version branch rather than a wholesale replacement.
+Plus a twelfth that reads `dwellS` directly rather than the grid, found by
+the replay session on 2026-09-06 and verified here:
+`app/studio/solo/Tape.tsx`'s `Playhead` uses `dwellS` twice, as the CSS
+`animationDuration` and as the denominator of `elapsedS / dwellS`. Under a
+budget it sweeps at the wrong rate and reaches the seam early, by exactly the
+factor `n` exceeds `n*`. The tape's past blocks are fine: they measure from
+the next draw's `shownAt`, which is §5.2's measured-not-computed rule already
+doing its job.
+
+`FeedColumn.tsx` and the `Playhead` are the two that matter most, because
+both are surfaces Jesse reads and both would show a confident wrong number
+rather than break.
+
+An earlier draft of this section said each of these sites needs a
+`solo`-versus-`solo2` branch. **That is wrong, and §5.1 is why.** A client
+handed an end instant does not need to know which version produced it.
 
 An alternative Jesse raised: rest a camera until it has a new frame, rather
 than for N draws. That is a genuine behaviour change and a reasonable one now
@@ -482,8 +520,12 @@ does today.
 2. **The residual place-line reflow** in §7, if it survives #153.
 3. **The walking window** (§4.3) is deferred.
 
-Settled since drafting: the screen stagger (§5.2). Jesse accepted the drift
-on 2026-09-06.
+4. **Authorisation.** Jesse approved the design in conversation and asked for
+   this write-up. He has not said to build it. Nothing here is started.
+
+Settled since drafting: the screen stagger (§5.3), which Jesse accepted on
+2026-09-06; and where the dwell length is computed, which §5.1 answers with
+the server publishing an end instant and no client deriving one.
 
 ## 10. Build order
 
@@ -493,9 +535,10 @@ on 2026-09-06.
    `project2` all move to the stored draw number in this step. Safe on its
    own, because a stored number and a clock-derived comparison still agree
    while slots remain clock-derived.
-2. `dwellMs` on the version spec, then the server-owned dwell end (§5, §5.1),
-   and with it every consumer in §6.2 including the replay and the studio
-   countdown.
+2. The server-published end instant (§5.1) and `dwellMs` on the version spec
+   (§5.2), and with them every consumer in §6.2 including the replay, the
+   studio countdown and the tape's playhead. §5.1 first: once the end is
+   published, the render sites stop needing to know anything about versions.
 3. The budget rule and the per-bin caps (§3, §4), including the studio
    readout of `n*`.
 
@@ -504,12 +547,14 @@ The reasoning is §6.1: reversing them makes rest compare a counter against a
 clock-derived number, which rests the wrong frames quietly. Step 2 spans
 lanes, so the replay half belongs in the same PR rather than a follow-up.
 
-## 11. Where this file lives
+## 11. Provenance
 
-Drafted in the `feat-one-studio` worktree, which was pruned on 2026-09-06
-once its branch merged. The surviving copy is
-`~/Documents/Claude Sessions/topics/2026-09-06-solo2-dwell-budget-design.md`.
-**It is not in the repo.** It belongs at
-`docs/superpowers/specs/2026-09-06-solo2-dwell-budget-design.md` as the first
-commit on the build's own worktree, created from the main checkout with
-`scripts/wt.sh new feat/solo2-dwell-budget`.
+Drafted 2026-09-06 in the `feat-one-studio` worktree, which was pruned once
+its branch merged; the spec was untracked and survived only because it had
+been parked outside the repo. It is now a commit on
+`feat/solo2-dwell-budget` (PR #154), which is the only copy that matters.
+
+Reviewed across four rounds by the solo-replay session before any code was
+written. It supplied the measurements in §5.2 and §4.1, corrected two claims
+of mine, contributed §6.1 and §5.1, and found the twelfth grid consumer. Its
+corrections are marked where they land rather than collected here.
