@@ -64,6 +64,22 @@ it('on a half-size panel everything halves', () => {
   expect(screen.getByTestId('caption')).toHaveStyle({ top: '514px' });
 });
 
+it('with a fade dial the outgoing caption dissolves away rather than sitting under the new words', () => {
+  const prev = { ...e, snapshotId: 9, imageUrl: 'u0', title: 'Old pier' };
+  // A picture needs no fade-out: the arriving frame is opaque and covers it.
+  // A caption is transparent between its letters, so words left at full
+  // opacity stay legible under the new ones for the whole dwell. The two
+  // halves share one timing function, which makes them complementary at every
+  // instant (PR #160's lesson, from the other direction).
+  const { rerender } = render(<SoloFrame entry={e} previous={prev} fadeS={2} dials={D} width={1920} height={1080} />);
+  expect(screen.getByTestId('caption-prev')).toHaveStyle({ animation: 'solo-fade-out 2s ease both' });
+  expect(screen.getByTestId('caption-layer')).toHaveStyle({ animation: 'solo-fade-in 2s ease' });
+
+  // At a cut there is nothing to dissolve and no outgoing caption at all.
+  rerender(<SoloFrame entry={e} previous={prev} fadeS={0} dials={D} width={1920} height={1080} />);
+  expect(screen.queryByTestId('caption-prev')).toBeNull();
+});
+
 it('overlay layout: the picture fills the panel and the caption floats over it with a shadow', () => {
   render(<SoloFrame entry={e} previous={null} fadeS={0} dials={{ ...D, captionLayout: 'overlay' }} width={1920} height={1080} />);
   expect(screen.getByRole('presentation')).toHaveStyle({ left: '0px', top: '0px', width: '1920px', height: '1080px' });

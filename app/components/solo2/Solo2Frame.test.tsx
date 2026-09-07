@@ -141,6 +141,35 @@ it('the caption arrives on the picture’s transition: the same animation, and t
   expect(screen.queryByTestId('caption-prev')).toBeNull();
 });
 
+it('the outgoing caption dissolves away, so a veil-less change never leaves two readings stacked', () => {
+  // Words are not a picture: an arriving picture is opaque and covers the one
+  // under it, an arriving caption is transparent between its letters. Left at
+  // full opacity the old title, place and clock stay legible under the new
+  // ones for the whole dwell. Only the dip's veil ever hid them, so every
+  // change without a veil — a crossfade, a same-camera arrival, or a dip whose
+  // veil colour is null — showed both at once (reported 2026-09-07).
+  const prev = { ...e, snapshotId: 0, webcamId: 99, imageUrl: 'u0', title: 'Old pier' };
+  const one = { index: 0, leadProgress: 0 };
+  const { rerender } = render(<Solo2Frame entry={e} run={[e]} previous={prev} stage={one} plan={plan}
+    dials={{ ...D, transition: 'crossfade', fadeS: 2 }} width={1920} height={1080} />);
+  // It leaves on exactly the ramp the new caption arrives on, held at the end.
+  expect(screen.getByTestId('caption-prev')).toHaveStyle({ animation: `solo2-fade-out 2s ${E} both` });
+
+  // A dip: the words leave while the veil closes, over the veil's own half.
+  rerender(<Solo2Frame entry={e} run={[e]} previous={prev} stage={one} plan={plan}
+    dials={{ ...D, transition: 'dip', fadeS: 2 }} width={1920} height={1080} />);
+  expect(screen.getByTestId('caption-prev')).toHaveStyle({ animation: `solo2-fade-out 1s ${E} both` });
+  expect(screen.getByTestId('caption-prev').style.animation.split(' ').slice(1, 2))
+    .toEqual(screen.getByTestId('dip').style.animation.split(' ').slice(1, 2));
+
+  // A sunrise set to `none` has no veil, so its dip becomes a crossfade — the
+  // case #172 opened up, and the one that must not strand the old words.
+  rerender(<Solo2Frame entry={e} run={[e]} previous={prev} stage={one} plan={plan} feed="sunrise"
+    dials={{ ...D, transition: 'dip', fadeS: 2, veilStyle: 'none' }} width={1920} height={1080} />);
+  expect(screen.queryByTestId('dip')).toBeNull();
+  expect(screen.getByTestId('caption-prev')).toHaveStyle({ animation: `solo2-fade-out 2s ${E} both` });
+});
+
 it('on a dip the veil covers the outgoing caption, and the new words fade in after it', () => {
   const prev = { ...e, snapshotId: 0, webcamId: 99, imageUrl: 'u0' };
   render(<Solo2Frame entry={e} run={[e]} previous={prev} stage={{ index: 0, leadProgress: 0 }} plan={plan}

@@ -52,11 +52,17 @@ export function SoloFrame({ entry, previous, fadeS, dials, width, height, feed }
           transition: `opacity ${fadeS}s ease`,
         }}
       />
-      <style>{'@keyframes solo-fade-in { from { opacity: 0 } to { opacity: 1 } }'}</style>
+      <style>{'@keyframes solo-fade-in { from { opacity: 0 } to { opacity: 1 } }\n@keyframes solo-fade-out { from { opacity: 1 } to { opacity: 0 } }'}</style>
       {previous && fadeS > 0 && (
-        // The words being left behind, under the arriving caption. Only while
-        // the dial fades: at a cut they would sit under identical text.
-        <div key={`caption-prev-${previous.snapshotId}`} data-testid="caption-prev" style={captionLayer}>
+        // The words being left behind. They have to dissolve, not merely be
+        // covered: the arriving picture is opaque, but a caption is
+        // transparent between its letters, so words left at full opacity stay
+        // legible under the new ones for the whole dwell. Both halves name the
+        // same timing function, which makes their opacities sum to 1 at every
+        // instant — the mismatch PR #160 fixed, avoided here by construction.
+        // Only while the dial fades: at a cut they would sit under identical text.
+        <div key={`caption-prev-${previous.snapshotId}`} data-testid="caption-prev"
+          style={{ ...captionLayer, animation: `solo-fade-out ${fadeS}s ease both` }}>
           <Caption entry={previous} dials={dials} picture={picture} width={width} height={height} feed={feed} />
         </div>
       )}
