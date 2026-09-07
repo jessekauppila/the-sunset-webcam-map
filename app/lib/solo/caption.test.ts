@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { captionBox, captionHeight, captionLines, displayTitle, drawFactor, formatTime, gray, pictureRect, splitTime } from './caption';
+import { captionBox, captionHeight, captionLines, displayTitle, drawFactor, formatTime, gray, lineGaps, pictureRect, splitTime } from './caption';
 
 // 02:42 UTC on 2026-09-05 is 7:42 pm the evening before in Mazatlán (UTC−7).
 const AT = Date.UTC(2026, 8, 5, 2, 42);
@@ -138,8 +138,16 @@ describe('splitTime', () => {
   });
 });
 
+describe('lineGaps', () => {
+  it('the time carries the line gap plus its own, so it can sit apart from the two lines above it', () => {
+    expect(lineGaps({ lineGap: 0, timeGap: 0 })).toEqual({ place: 0, time: 0 });
+    expect(lineGaps({ lineGap: 4, timeGap: 0 })).toEqual({ place: 4, time: 4 });
+    expect(lineGaps({ lineGap: 4, timeGap: 12 })).toEqual({ place: 4, time: 16 });
+  });
+});
+
 describe('captionHeight', () => {
-  const d = { titleSize: 21, placeSize: 17, timeSize: 12, lineGap: 0, timeLine: 'own' as const };
+  const d = { titleSize: 21, placeSize: 17, timeSize: 12, lineGap: 0, timeGap: 0, timeLine: 'own' as const };
   const lines = { place: 'Norrbotten County, Sweden', time: '7:42 pm there' };
   it('adds the lines that will exist at the glass line heights, plus the gaps between them, at scale', () => {
     // title 21 × 1.15 + place 17 × 1.3 + time 12 × 1.3
@@ -149,9 +157,19 @@ describe('captionHeight', () => {
     expect(captionHeight({ ...d, lineGap: 4 }, lines, 1)).toBeCloseTo(61.85 + 8);
     expect(captionHeight(d, lines, 0.5)).toBeCloseTo(61.85 / 2);
   });
+  it('the time gap pushes the time line down and the block grows by exactly that much', () => {
+    expect(captionHeight({ ...d, timeGap: 10 }, lines, 1)).toBeCloseTo(61.85 + 10);
+    expect(captionHeight({ ...d, lineGap: 4, timeGap: 10 }, lines, 1)).toBeCloseTo(61.85 + 8 + 10);
+    // with no place line the time is still the line that carries the extra gap
+    expect(captionHeight({ ...d, timeGap: 10 }, { place: '', time: '7:42 pm' }, 1)).toBeCloseTo(21 * 1.15 + 12 * 1.3 + 10);
+    expect(captionHeight({ ...d, timeGap: 10 }, lines, 0.5)).toBeCloseTo((61.85 + 10) / 2);
+  });
   it('an inline time shares the place line, and makes one when there is no place', () => {
     expect(captionHeight({ ...d, timeLine: 'inline' }, lines, 1)).toBeCloseTo(21 * 1.15 + 17 * 1.3);
     expect(captionHeight({ ...d, timeLine: 'inline' }, { place: '', time: '7:42 pm' }, 1)).toBeCloseTo(21 * 1.15 + 17 * 1.3);
+  });
+  it('an inline time ignores the time gap: there is no time line to push down', () => {
+    expect(captionHeight({ ...d, timeLine: 'inline', timeGap: 30 }, lines, 1)).toBeCloseTo(21 * 1.15 + 17 * 1.3);
   });
 });
 

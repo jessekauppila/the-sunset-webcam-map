@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { CAPTION_SCHEMA, CAPTION_SECTION, captionDialsFrom, withCaption } from './captionSchema';
+import {
+  CAPTION_SCHEMA, CAPTION_SECTION, captionDialsFrom, linkedCaptionGroup, linkedCaptionValues, withCaption,
+} from './captionSchema';
 import { mergeSettings, schemaDefaults } from '@/app/lib/settings/schema';
 
 describe('CAPTION_SCHEMA', () => {
@@ -9,7 +11,7 @@ describe('CAPTION_SCHEMA', () => {
       font: 'system', feedPrefix: true, titleClean: 'compass',
       titleSize: 21, titleWeight: '300', titleGray: 71,
       placeSize: 17, placeGray: 57, lineGap: 0,
-      timeStyle: '12h-there', timeLine: 'own', timeSize: 12, timeGray: 46,
+      timeStyle: '12h-there', timeLine: 'own', timeGap: 0, timeSize: 12, timeGray: 46,
     });
   });
 
@@ -24,6 +26,54 @@ describe('CAPTION_SCHEMA', () => {
         expect(k.default, k.key).toBeLessThanOrEqual(k.max);
       }
     }
+  });
+});
+
+describe('the gray dials', () => {
+  it('every gray reaches 0, so any caption line can be taken all the way to black', () => {
+    for (const key of ['titleGray', 'placeGray', 'timeGray']) {
+      const knob = CAPTION_SCHEMA.find((k) => k.key === key);
+      expect(knob?.kind, key).toBe('number');
+      expect(knob && knob.kind === 'number' && knob.min, key).toBe(0);
+    }
+  });
+});
+
+describe('linkedCaptionValues', () => {
+  const sizes = { titleSize: 21, placeSize: 17, timeSize: 12 };
+  const grays = { titleGray: 71, placeGray: 57, timeGray: 46 };
+
+  it('names the group a caption key belongs to, and nothing for the rest', () => {
+    expect(linkedCaptionGroup('placeSize')).toBe('size');
+    expect(linkedCaptionGroup('timeGray')).toBe('gray');
+    expect(linkedCaptionGroup('lineGap')).toBe(null);
+    expect(linkedCaptionGroup('captionGap')).toBe(null);
+  });
+
+  it('sizes scale by the ratio the dragged one moved, so the hierarchy holds', () => {
+    // 21 → 42 is 2×: 17 → 34 and 12 → 24.
+    expect(linkedCaptionValues('size', 'titleSize', 42, sizes)).toEqual({ placeSize: 34, timeSize: 24 });
+    // dragging a smaller line scales the bigger ones the same way: 12 → 6 is a half.
+    expect(linkedCaptionValues('size', 'timeSize', 6, sizes)).toEqual({ titleSize: 11, placeSize: 9 });
+  });
+
+  it('grays shift by the points the dragged one moved, so the contrast steps hold', () => {
+    expect(linkedCaptionValues('gray', 'titleGray', 81, grays)).toEqual({ placeGray: 67, timeGray: 56 });
+    expect(linkedCaptionValues('gray', 'placeGray', 47, grays)).toEqual({ titleGray: 61, timeGray: 36 });
+  });
+
+  it('a sibling that reaches the end of its own slider stops there while the others carry on', () => {
+    // title 71 → 0 is −71 points; place floors at 0 and so does time.
+    expect(linkedCaptionValues('gray', 'titleGray', 0, grays)).toEqual({ placeGray: 0, timeGray: 0 });
+    // time tops out at 90 while place still has room.
+    expect(linkedCaptionValues('gray', 'titleGray', 100, grays)).toEqual({ placeGray: 86, timeGray: 75 });
+    // sizes floor at their own minimums: title 10, place 8.
+    expect(linkedCaptionValues('size', 'timeSize', 8, sizes)).toEqual({ titleSize: 14, placeSize: 11 });
+  });
+
+  it('says nothing when the dial did not move, or when the value it moved from is missing', () => {
+    expect(linkedCaptionValues('size', 'titleSize', 21, sizes)).toEqual({});
+    expect(linkedCaptionValues('gray', 'titleGray', 80, {})).toEqual({});
   });
 });
 

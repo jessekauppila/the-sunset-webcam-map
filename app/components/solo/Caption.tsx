@@ -3,7 +3,7 @@
 import type { CSSProperties } from 'react';
 import type { Feed, SoloDials } from '@/app/lib/solo/types';
 import {
-  FONT_STACKS, LINE_HEIGHT, captionBox, captionLines, captionScale, formatTime, gray, splitTime,
+  FONT_STACKS, LINE_HEIGHT, captionBox, captionLines, captionScale, formatTime, gray, lineGaps, splitTime,
   type CaptionEntry, type Rect,
 } from '@/app/lib/solo/caption';
 
@@ -45,10 +45,13 @@ export function Caption({ entry, dials, picture, width, feed, step }: {
   const box = captionBox(dials, picture, width);
   const overlay = dials.captionLayout === 'overlay';
   const inline = dials.timeLine === 'inline';
+  // Margins, not a flex gap: the time line can be pushed further down than
+  // the place line is, and captionHeight adds up the same two numbers.
+  const gaps = lineGaps(dials);
 
   const block: CSSProperties = {
     position: 'absolute', left: box.left, top: box.top, bottom: box.bottom, width: box.width, maxWidth: box.maxWidth,
-    textAlign: box.textAlign, display: 'flex', flexDirection: 'column', gap: dials.lineGap * s,
+    textAlign: box.textAlign, display: 'flex', flexDirection: 'column',
     fontFamily: FONT_STACKS[dials.font], whiteSpace: 'nowrap',
     textShadow: overlay ? '0 1px 4px #000' : undefined,
   };
@@ -102,13 +105,17 @@ export function Caption({ entry, dials, picture, width, feed, step }: {
           {lines.title}
         </div>
         {(lines.place || (inline && time)) && (
-          <div data-testid="caption-place" style={{ ...line, fontSize: dials.placeSize * s, color: gray(dials.placeGray), lineHeight: LINE_HEIGHT.place }}>
+          <div data-testid="caption-place" style={{ ...line, marginTop: gaps.place * s, fontSize: dials.placeSize * s, color: gray(dials.placeGray), lineHeight: LINE_HEIGHT.place }}>
             {lines.place}
             {inline && time && lines.place ? <span style={{ color: gray(dials.timeGray) }}> · </span> : null}
             {inline ? time : null}
           </div>
         )}
-        {!inline && time && <div style={{ ...line, lineHeight: LINE_HEIGHT.time }}>{time}</div>}
+        {!inline && time && (
+          <div data-testid="caption-time-line" style={{ ...line, marginTop: gaps.time * s, lineHeight: LINE_HEIGHT.time }}>
+            {time}
+          </div>
+        )}
       </div>
     </>
   );
