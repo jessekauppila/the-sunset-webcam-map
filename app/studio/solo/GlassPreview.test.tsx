@@ -1,4 +1,5 @@
 import { it, expect, beforeAll, vi, afterEach } from 'vitest';
+import { ARRIVAL_EASES } from '@/app/lib/solo2/veil';
 import { render, screen, act } from '@testing-library/react';
 import { GlassPreview } from './GlassPreview';
 import { dialsFrom, SOLO_SETTINGS_SCHEMA } from '@/app/lib/solo/settingsSchema';
@@ -64,7 +65,8 @@ it('solo2 plays the on-glass camera\'s run on the studio dials, looping on a loc
   const s2 = { ...server, entries } as unknown as StateView;
   render(<GlassPreview version={SOLO_VERSIONS.solo2} screens={[{ feed: 'sunset', server: s2, projected: null }]} dials={d2} panel={{ width: 1920, height: 1080 }} />);
   expect(screen.getByTestId('top')).toHaveAttribute('src', 'u5');
-  expect(screen.getByTestId('seq-1')).toHaveStyle({ opacity: '0', transition: 'opacity 1s linear' });
+  expect(screen.getByTestId('seq-1'))
+    .toHaveStyle({ opacity: '0', transition: `opacity 1s ${ARRIVAL_EASES.gentle}` });
   await act(async () => { vi.advanceTimersByTime(3_600); }); // 1.5 s arrival + 2.1 s: the second frame is up
   expect(screen.getByTestId('top')).toHaveAttribute('src', 'u6');
   await act(async () => { vi.advanceTimersByTime(2_000); });

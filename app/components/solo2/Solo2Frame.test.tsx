@@ -1,9 +1,13 @@
-import { it, expect } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { describe, it, expect } from 'vitest';
+import { cleanup, render, screen } from '@testing-library/react';
 import { Solo2Frame } from './Solo2Frame';
 import { dialsFrom2, SOLO2_SETTINGS_SCHEMA } from '@/app/lib/solo2/settingsSchema';
 import { schemaDefaults } from '@/app/lib/settings/schema';
 import { fitPlan } from '@/app/lib/solo2/plan';
+import { ARRIVAL_EASES, VEIL_TINTS, easingIsSymmetric } from '@/app/lib/solo2/veil';
+
+/** The curve the default dials put on every layer of a dissolve. */
+const E = ARRIVAL_EASES.gentle;
 
 const D = dialsFrom2(schemaDefaults(SOLO2_SETTINGS_SCHEMA));
 const AT = Date.UTC(2026, 8, 5, 2, 42); // 7:42 pm in Mazatlán
@@ -49,16 +53,16 @@ it('the run is stacked: frames up to the stage are opaque, later ones transparen
   const layers = () => screen.getAllByTestId(/^seq-/).map((l) => [l.getAttribute('data-testid'), l.style.opacity, l.style.transition]);
   expect(layers()).toEqual([
     ['seq-0', '1', 'none'],
-    ['seq-1', '1', 'opacity 1s linear'],
-    ['seq-2', '0', 'opacity 1s linear'],
+    ['seq-1', '1', `opacity 1s ${E}`],
+    ['seq-2', '0', `opacity 1s ${E}`],
   ]);
   const short = fitPlan({ ...D, dwellS: 3, minStepS: 1 }, 3); // 1 s a frame
   rerender(<Solo2Frame entry={e} run={run} previous={null} stage={last} plan={short}
     dials={{ ...D, sameCameraFadeS: 5 }} width={1920} height={1080} />);
   expect(layers()).toEqual([
     ['seq-0', '1', 'none'],
-    ['seq-1', '1', 'opacity 0.5s linear'], // half of the 1 s step, so the frame is still for the other half
-    ['seq-2', '1', 'opacity 0.5s linear'],
+    ['seq-1', '1', `opacity 0.5s ${E}`], // half of the 1 s step, so the frame is still for the other half
+    ['seq-2', '1', `opacity 0.5s ${E}`],
   ]);
   expect(screen.getByTestId('top')).toHaveAttribute('src', 'u3');
   rerender(<Solo2Frame entry={e} run={run} previous={null} stage={last} plan={plan}
@@ -91,10 +95,10 @@ it('cut shows no previous layer; crossfade keeps it and animates the top; dip ad
   expect(screen.getAllByRole('presentation').map((i) => i.getAttribute('src'))).toEqual(['u3']);
   rerender(<Solo2Frame entry={e} run={[e]} previous={prev} stage={one} plan={plan} dials={{ ...D, transition: 'crossfade', fadeS: 2 }} width={100} height={50} />);
   expect(screen.getAllByRole('presentation').map((i) => i.getAttribute('src'))).toEqual(['u0', 'u3']);
-  expect(screen.getByTestId('stack')).toHaveStyle({ animation: 'solo2-fade-in 2s linear both' });
+  expect(screen.getByTestId('stack')).toHaveStyle({ animation: `solo2-fade-in 2s ${E} both` });
   expect(screen.queryByTestId('dip')).toBeNull();
   rerender(<Solo2Frame entry={e} run={[e]} previous={prev} stage={one} plan={plan} dials={{ ...D, transition: 'dip', fadeS: 2 }} width={100} height={50} />);
-  expect(screen.getByTestId('dip')).toHaveStyle({ animation: 'solo2-dip 1s linear both' });
+  expect(screen.getByTestId('dip')).toHaveStyle({ animation: `solo2-dip 1s ${E} both` });
 });
 
 it('a change to the same camera dissolves over the same-camera fade, never through black', () => {
@@ -103,13 +107,13 @@ it('a change to the same camera dissolves over the same-camera fade, never throu
     dials={{ ...D, transition: 'dip', fadeS: 4, sameCameraFadeS: 1 }} width={100} height={50} />);
   expect(screen.getAllByRole('presentation').map((i) => i.getAttribute('src'))).toEqual(['u0', 'u3']);
   expect(screen.queryByTestId('dip')).toBeNull();
-  expect(screen.getByTestId('stack')).toHaveStyle({ animation: 'solo2-fade-in 1s linear both' });
+  expect(screen.getByTestId('stack')).toHaveStyle({ animation: `solo2-fade-in 1s ${E} both` });
 });
 
 it('the defaults dip through black between cameras', () => {
   const prev = { ...e, snapshotId: 0, webcamId: 99, imageUrl: 'u0' };
   render(<Solo2Frame entry={e} run={[e]} previous={prev} stage={{ index: 0, leadProgress: 0 }} plan={plan} dials={D} width={100} height={50} />);
-  expect(screen.getByTestId('dip')).toHaveStyle({ animation: 'solo2-dip 0.75s linear both' });
+  expect(screen.getByTestId('dip')).toHaveStyle({ animation: `solo2-dip 0.75s ${E} both` });
 });
 
 it('the lead pushes the frame in by progress and lands the next frame still', () => {
@@ -126,7 +130,7 @@ it('the caption arrives on the picture’s transition: the same animation, and t
   const one = { index: 0, leadProgress: 0 };
   const { rerender } = render(<Solo2Frame entry={e} run={[e]} previous={prev} stage={one} plan={plan}
     dials={{ ...D, transition: 'crossfade', fadeS: 2 }} width={1920} height={1080} />);
-  expect(screen.getByTestId('caption-layer')).toHaveStyle({ animation: 'solo2-fade-in 2s linear both' });
+  expect(screen.getByTestId('caption-layer')).toHaveStyle({ animation: `solo2-fade-in 2s ${E} both` });
   expect(screen.getByTestId('caption-layer').style.animation).toBe(screen.getByTestId('stack').style.animation);
   expect(screen.getByText('Old pier')).toBeInTheDocument(); // the words being left behind
 
@@ -147,20 +151,100 @@ it('on a dip the veil covers the outgoing caption, and the new words fade in aft
   // Painted in this order, so the veil hides the old words rather than sitting behind them.
   expect(out.compareDocumentPosition(veil) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   expect(veil.compareDocumentPosition(arriving) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-  expect(arriving).toHaveStyle({ animation: 'solo2-fade-in 1s linear 1s both' });
+  expect(arriving).toHaveStyle({ animation: `solo2-fade-in 1s ${E} 1s both` });
 });
 
 it('a dip goes down and comes up on the same ramp: the veil and the arriving picture share duration and timing function', () => {
   const prev = { ...e, snapshotId: 0, webcamId: 99, imageUrl: 'u0' };
   render(<Solo2Frame entry={e} run={[e]} previous={prev} stage={{ index: 0, leadProgress: 0 }} plan={plan}
     dials={{ ...D, transition: 'dip', fadeS: 2 }} width={100} height={50} />);
-  // An eased up-ramp against a linear down-ramp is what made the new picture
-  // read as arriving three times faster than the old one left.
-  const [, downDuration, downEasing] = screen.getByTestId('dip').style.animation.split(' ');
-  const [, upDuration, upEasing] = screen.getByTestId('stack').style.animation.split(' ');
-  expect(upDuration).toBe(downDuration);
-  expect(upEasing).toBe(downEasing);
-  expect(upEasing).toBe('linear');
+  // An up-ramp of a different shape from the down-ramp is what made the new
+  // picture read as arriving three times faster than the old one left. The
+  // curve is a dial now, so what must hold is that the two halves share it AND
+  // that it is symmetric — an asymmetric curve runs a different shape backwards
+  // even when both halves name it.
+  const parse = (css: string) => {
+    const m = css.match(/^(\S+) (\S+) (.*?)( \d[\d.]*s)? both$/);
+    return m && { duration: m[2], easing: m[3] };
+  };
+  const down = parse(screen.getByTestId('dip').style.animation);
+  const up = parse(screen.getByTestId('stack').style.animation);
+  expect(down).toBeTruthy();
+  expect(up && up.duration).toBe(down && down.duration);
+  expect(up && up.easing).toBe(down && down.easing);
+  expect(easingIsSymmetric(String(up && up.easing))).toBe(true);
+});
+
+describe('what the change dips through', () => {
+  const prev = { ...e, snapshotId: 0, webcamId: 99, imageUrl: 'u0' };
+  const dip = (extra: Partial<typeof D>, feed: 'sunrise' | 'sunset' = 'sunrise') => {
+    render(<Solo2Frame entry={e} run={[e]} previous={prev} stage={{ index: 0, leadProgress: 0 }} plan={plan}
+      dials={{ ...D, transition: 'dip', fadeS: 2, ...extra }} width={100} height={50} feed={feed} />);
+  };
+
+  it('black, the default, is what both screens have always done', () => {
+    dip({});
+    expect(screen.getByTestId('dip')).toHaveStyle({ background: '#000000' });
+  });
+
+  it('light dips the sunrise through its tint and leaves the sunset ending in black', () => {
+    dip({ veilStyle: 'light', veilTint: 'dawn' });
+    expect(screen.getByTestId('dip')).toHaveStyle({ background: VEIL_TINTS.dawn });
+    cleanup();
+    dip({ veilStyle: 'light', veilTint: 'dawn' }, 'sunset');
+    expect(screen.getByTestId('dip')).toHaveStyle({ background: '#000000' });
+  });
+
+  it('crossfade takes the veil off the sunrise screen entirely; the sunset screen still dips', () => {
+    dip({ veilStyle: 'crossfade' });
+    expect(screen.queryByTestId('dip')).toBeNull();
+    // Not a cut: the outgoing picture stays, and the new one dissolves over the WHOLE fade.
+    expect(screen.getByTestId('prev')).toBeInTheDocument();
+    expect(screen.getByTestId('stack')).toHaveStyle({ animation: `solo2-fade-in 2s ${E} both` });
+    cleanup();
+    dip({ veilStyle: 'crossfade' }, 'sunset');
+    expect(screen.getByTestId('dip')).toHaveStyle({ background: '#000000' });
+  });
+
+  it('burn moves the picture toward the veil, each screen toward its own end', () => {
+    dip({ veilStyle: 'burn', burnLift: 1.6 });
+    expect(screen.getByTestId('dip')).toHaveStyle({ background: '#ffffff' });
+    expect(screen.getByTestId('prev').style.animation).toBe(`solo2-burn-out 1s ${E} both`);
+    expect(screen.getByTestId('stack').style.animation)
+      .toBe(`solo2-fade-in 1s ${E} 1s both, solo2-burn-in 1s ${E} 1s both`);
+    // Carried as a custom property, never baked into the keyframes: two screens
+    // share one document, and a `<style>` rule is global.
+    expect(screen.getByTestId('prev').style.getPropertyValue('--solo2-lift')).toBe('1.6');
+    cleanup();
+    dip({ veilStyle: 'burn', burnLift: 1.6 }, 'sunset');
+    expect(screen.getByTestId('dip')).toHaveStyle({ background: '#000000' });
+    expect(screen.getByTestId('stack').style.getPropertyValue('--solo2-lift')).toBe('0');
+  });
+
+  it('no burn animation at all when the lift asks for nothing', () => {
+    dip({ veilStyle: 'burn', burnLift: 1 });
+    expect(screen.getByTestId('prev').style.animation).toBe('');
+    expect(screen.getByTestId('stack').style.animation).toBe(`solo2-fade-in 1s ${E} 1s both`);
+  });
+
+  it('the veil stays inside the picture unless it is told to flood the panel', () => {
+    dip({ veilStyle: 'light', veilCovers: 'panel' });
+    expect(screen.getByTestId('dip')).toHaveStyle({ width: '100%', height: '100%' });
+    cleanup();
+    // Inside the picture: the veil takes the picture box, the same one the stack sits in.
+    dip({ veilStyle: 'light' });
+    const veil = screen.getByTestId('dip').style;
+    const stack = screen.getByTestId('stack').style;
+    expect(veil.width).toBe(stack.width);
+    expect(veil.left).toBe(stack.left);
+    expect(veil.width).not.toBe('100%');
+  });
+
+  it('the ease dial reaches the steps inside a run, not just the change between cameras', () => {
+    render(<Solo2Frame entry={e} run={run} previous={null} stage={{ index: 1, leadProgress: 0 }} plan={plan}
+      dials={{ ...D, sameCameraFadeS: 1, arrivalEase: 'soft' }} width={100} height={50} feed="sunrise" />);
+    expect(screen.getByTestId('seq-1')).toHaveStyle({ transition: `opacity 1s ${ARRIVAL_EASES.soft}` });
+  });
 });
 
 it('inside a run only the clock moves, and inside the clock only the part that changed: the two readings crossfade over the same seconds', () => {

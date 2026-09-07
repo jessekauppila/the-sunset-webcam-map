@@ -1,4 +1,9 @@
 import { describe, it, expect, vi } from 'vitest';
+import { ARRIVAL_SECTION } from './Rail';
+
+/** solo2's dials split across two rail pages; the tests assert each page shows only its own. */
+const ARRIVAL_KNOBS = SOLO2_SETTINGS_SCHEMA.filter((k) => k.section === ARRIVAL_SECTION);
+const PLAY_KNOBS = SOLO2_SETTINGS_SCHEMA.filter((k) => k.section !== ARRIVAL_SECTION);
 import { render, screen, fireEvent } from '@testing-library/react';
 import { Rail } from './Rail';
 import { STUDIO_SURFACES } from './surfaces';
@@ -29,13 +34,31 @@ describe('Rail, solo kind', () => {
   it('play page: every glass and bins knob under its group, bold when it differs; caption knobs wait on the picture tab', () => {
     const a = api({ diffByNamespace: { solo2: ['valleys'] } });
     render(<Rail api={a} surface={STUDIO_SURFACES.solo2} tab="play" onTab={noop}><span>TAKES</span></Rail>);
-    for (const k of SOLO2_SETTINGS_SCHEMA) expect(screen.getByLabelText(k.label)).toBeInTheDocument();
+    for (const k of PLAY_KNOBS) expect(screen.getByLabelText(k.label)).toBeInTheDocument();
     for (const k of CAPTION_SCHEMA) expect(screen.queryByLabelText(k.label)).toBeNull();
+    for (const k of ARRIVAL_KNOBS) expect(screen.queryByLabelText(k.label)).toBeNull();
     expect(screen.getByText('valleys per peak')).toHaveStyle({ fontWeight: 700 });
     expect(screen.getByText('dwell (s)')).toHaveStyle({ fontWeight: 400 });
     expect(screen.getByRole('tab', { name: 'Play' })).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByText('TAKES')).toBeInTheDocument();
     expect(screen.queryByText(/glass .* · dials/)).toBeNull();
+  });
+  it('change page: the arrival dials, and only those; reset clears that section', () => {
+    const a = api({ diffByNamespace: { solo2: ['veilStyle'] } });
+    render(<Rail api={a} surface={STUDIO_SURFACES.solo2} tab="change" onTab={noop} />);
+    for (const k of ARRIVAL_KNOBS) expect(screen.getByLabelText(k.label)).toBeInTheDocument();
+    for (const k of PLAY_KNOBS) expect(screen.queryByLabelText(k.label)).toBeNull();
+    expect(screen.getByText('the change')).toHaveStyle({ fontWeight: 700 });
+    expect(screen.getByRole('tab', { name: /Change/ })).toHaveAttribute('aria-selected', 'true');
+    fireEvent.click(screen.getByText('reset arrival'));
+    expect(a.resetSection).toHaveBeenCalledWith('solo2', 'arrival');
+  });
+  it('a version with no arrival dials has no Change tab, and asking for that page falls back to Play', () => {
+    // solo has no camera change to shape, so the tab would be an empty rail.
+    render(<Rail api={api()} surface={STUDIO_SURFACES.solo} tab="change" onTab={noop} />);
+    expect(screen.queryByRole('tab', { name: /Change/ })).toBeNull();
+    expect(screen.getByRole('tab', { name: 'Play' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByLabelText('dwell (s)')).toBeInTheDocument();
   });
   it('picture page: every caption knob bound to the shared namespace, with the readout; reset clears that section', () => {
     const a = api({ diffByNamespace: { shared: ['titleGray'] } });
@@ -112,7 +135,7 @@ describe('Rail, solo kind', () => {
   });
   it('every play-page knob label carries a hint glyph whose title is its schema description', () => {
     const { container } = render(<Rail api={api()} surface={STUDIO_SURFACES.solo2} tab="play" onTab={noop} />);
-    for (const k of SOLO2_SETTINGS_SCHEMA) {
+    for (const k of PLAY_KNOBS) {
       // The glyph is a sibling of the <label>, not a child of it: nesting it
       // inside the label would make getByLabelText(k.label) see "label?" and
       // stop matching (see the Hint doc comment in Rail.tsx).

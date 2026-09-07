@@ -6,6 +6,7 @@ import { scoreLine } from '@/app/lib/solo/scores';
 import type { Feed } from '@/app/lib/solo/types';
 import { Caption } from '@/app/components/solo/Caption';
 import { stepFadeS, type DwellPlan, type Stage } from '@/app/lib/solo2/plan';
+import { arrivalLook } from '@/app/lib/solo2/veil';
 import type { Solo2Dials } from '@/app/lib/solo2/types';
 
 const mono = 'ui-monospace, SFMono-Regular, Menlo, monospace';
@@ -13,9 +14,17 @@ const mono = 'ui-monospace, SFMono-Regular, Menlo, monospace';
 /** A frame of the run: a view entry, with its bin rank when the caller has one. */
 export type RunFrame = ViewEntry & { rank?: number };
 
+/**
+ * The lift rides on a custom property rather than being baked into the
+ * keyframes, because two screens render two Solo2Frames on one studio page
+ * and a `<style>` rule is global: keyframes carrying an interpolated number
+ * would have the second screen's burn silently overwrite the first's.
+ */
 const KEYFRAMES = `
 @keyframes solo2-fade-in { from { opacity: 0 } to { opacity: 1 } }
 @keyframes solo2-dip { from { opacity: 0 } to { opacity: 1 } }
+@keyframes solo2-burn-out { from { filter: brightness(1) } to { filter: brightness(var(--solo2-lift, 1)) } }
+@keyframes solo2-burn-in { from { filter: brightness(var(--solo2-lift, 1)) } to { filter: brightness(1) } }
 `;
 
 /**
@@ -87,17 +96,37 @@ export function Solo2Frame({ entry, run, previous, stage, plan, dials, width, he
   const dwellId = dwellKey ?? entry.snapshotId;
   const stepFade = stepFadeS(dials.sameCameraFadeS, plan);
 
-  const arrive = arrival(entry, previous, dials);
+  // What this screen's change dips through (veil.ts). `veilStyle` only bites
+  // on a dip: it is the dial that says what a SUNRISE does instead of ending
+  // in black, and a screen set to crossfade or cut is already not ending in
+  // black. A null veil turns this screen's dip into a crossfade — that is the
+  // asymmetry the whole dial exists for, one screen crossfading while the
+  // other still dips.
+  const look = arrivalLook(feed ?? 'sunset', dials);
+  const dipped = arrival(entry, previous, dials);
+  const arrive = dipped.kind === 'dip' && look.veilColor === null
+    ? { kind: 'crossfade' as const, fadeS: dipped.fadeS }
+    : dipped;
   const showPrevious = arrive.kind !== 'cut' && !!previous;
-  // Linear, like the veil under it and like the in-run step above it. An
-  // eased ramp is not the same ramp run backwards: `ease` puts the picture at
-  // 80% brightness halfway through and spends the rest of the fade crawling
-  // the last 20%, so against a linear fade to black the picture reads as
-  // arriving in a third of the time it leaves in. Every dissolve here is linear.
+  // ONE timing function for every layer of the change. A dissolve is two
+  // animations, one leaving and one arriving, and they stay matched only
+  // while they are the same shape run in opposite directions — an eased
+  // arrival against a linear departure lands in a third of the time it left
+  // in (PR #160). Every curve `arrivalEase` offers is symmetric, so this
+  // single value can go on all of them.
+  const ease = look.ease;
   const inAnimation =
-    arrive.kind === 'crossfade' ? `solo2-fade-in ${arrive.fadeS}s linear both`
-    : arrive.kind === 'dip' ? `solo2-fade-in ${arrive.fadeS / 2}s linear ${arrive.fadeS / 2}s both`
+    arrive.kind === 'crossfade' ? `solo2-fade-in ${arrive.fadeS}s ${ease} both`
+    : arrive.kind === 'dip' ? `solo2-fade-in ${arrive.fadeS / 2}s ${ease} ${arrive.fadeS / 2}s both`
     : undefined;
+  // The picture moves toward the veil rather than merely being covered by it:
+  // up into white on a sunrise, down into black on a sunset. That is what
+  // separates an exposure from a dip through a coloured card. Only on a dip,
+  // and only when the lift asks for something.
+  const burning = arrive.kind === 'dip' && look.lift !== 1;
+  const burnOut = burning ? `solo2-burn-out ${arrive.fadeS / 2}s ${ease} both` : undefined;
+  const burnIn = burning ? `solo2-burn-in ${arrive.fadeS / 2}s ${ease} ${arrive.fadeS / 2}s both` : undefined;
+  const liftVar = burning ? ({ '--solo2-lift': String(look.lift) } as React.CSSProperties) : undefined;
 
   // The lead: a slow push over the last seconds, driven by the clock stage
   // so a late tab is in sync. No transition when the progress is 0, so a
@@ -115,7 +144,8 @@ export function Solo2Frame({ entry, run, previous, stage, plan, dials, width, he
       <style>{KEYFRAMES}</style>
       {showPrevious && (
         // eslint-disable-next-line @next/next/no-img-element
-        <img key={`prev-${previous.snapshotId}`} src={previous.imageUrl} alt="" role="presentation" style={pictureLayer} />
+        <img key={`prev-${previous.snapshotId}`} src={previous.imageUrl} alt="" role="presentation" data-testid="prev"
+          style={{ ...pictureLayer, ...liftVar, animation: burnOut }} />
       )}
       {showPrevious && (
         // The words being left behind, under the veil and under the arriving
@@ -124,18 +154,24 @@ export function Solo2Frame({ entry, run, previous, stage, plan, dials, width, he
           <Caption entry={previous} dials={dials} picture={picture} width={width} height={height} feed={feed} />
         </div>
       )}
-      {arrive.kind === 'dip' && showPrevious && (
+      {arrive.kind === 'dip' && showPrevious && look.veilColor && (
         <div key={`dip-${dwellId}`} data-testid="dip" style={{
-          ...layer, background: '#000', animation: `solo2-dip ${arrive.fadeS / 2}s linear both`,
+          ...(look.covers === 'panel' ? layer : pictureLayer),
+          background: look.veilColor, animation: `solo2-dip ${arrive.fadeS / 2}s ${ease} both`,
         }} />
       )}
       {/* keyed by the drawn frame so the arrival runs once per dwell; the stage only changes opacities inside */}
-      <div key={`stack-${dwellId}`} data-testid="stack" style={{ ...pictureLayer, animation: inAnimation }}>
+      <div key={`stack-${dwellId}`} data-testid="stack" style={{
+        ...pictureLayer, ...liftVar,
+        animation: [inAnimation, burnIn].filter(Boolean).join(', ') || undefined,
+      }}>
         <div style={pushStyle} data-testid="push">
           {sequence.map((f, i) => (
             <div key={f.snapshotId} data-testid={`seq-${i}`} style={{
               ...layer, opacity: i <= shown ? 1 : 0,
-              transition: i > 0 && stepFade > 0 ? `opacity ${stepFade}s linear` : 'none',
+              // The same curve as the camera change: a step inside a run is a
+              // dissolve too, and Jesse asked for both to stop snapping.
+              transition: i > 0 && stepFade > 0 ? `opacity ${stepFade}s ${ease}` : 'none',
             }}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={f.imageUrl} alt="" role="presentation" data-testid={i === shown ? 'top' : undefined} style={layer} />

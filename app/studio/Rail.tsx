@@ -16,13 +16,26 @@ import type { Solo2Dials } from '@/app/lib/solo2/types';
 import type { PlanDials } from '@/app/lib/solo2/plan';
 import { DwellBudget } from './solo/DwellBudget';
 
-/** The rail's two pages: what plays and when, and how the picture and its words are drawn. */
-export type RailTab = 'play' | 'picture';
+/**
+ * The rail's pages: what plays and when, how one picture gives way to the
+ * next, and how the picture and its words are drawn. `change` appears only
+ * for a version whose schema has arrival dials, which today is solo2 alone.
+ */
+export type RailTab = 'play' | 'change' | 'picture';
+
+/** The section a version's arrival dials live in; its presence is what shows the Change tab. */
+export const ARRIVAL_SECTION = 'arrival';
 
 const TABS: { id: RailTab; label: string; hint: string }[] = [
   { id: 'play', label: 'Play', hint: 'Timing, overlays and the ordering algorithm: what plays and when.' },
+  { id: 'change', label: 'Change', hint: 'How one picture gives way to the next: what a camera change dips through, and how the dissolves start and stop.' },
   { id: 'picture', label: 'Picture', hint: 'The picture\'s size on black and the words beneath it. The screens above draw them as you move.' },
 ];
+
+const ARRIVAL_GROUP = {
+  title: 'Change · one picture giving way to the next', color: '#8fb8ff',
+  hint: 'The sunset screen ends in black under every style. These dials are about what a SUNRISE does instead — and how gently every dissolve starts and stops.',
+};
 
 /**
  * A solo version's two coloured groups. Every solo schema sorts its knobs
@@ -292,11 +305,16 @@ export function Rail({ api, surface, tab, onTab, runFrames = 1, children }: {
       sameCameraFadeS: (soloDials as Partial<Solo2Dials>).sameCameraFadeS,
     }
     : null;
-  const page: RailTab = surface.hasPicturePage ? tab : 'play';
+  const hasChangePage = surface.schema.some((k) => k.section === ARRIVAL_SECTION);
+  const tabs = TABS.filter((t) => (t.id === 'picture' ? surface.hasPicturePage : t.id === 'change' ? hasChangePage : true));
+  // A tab the current version does not have falls back to Play rather than
+  // rendering an empty rail: the studio keeps one tab across a version switch.
+  const page: RailTab = tabs.some((t) => t.id === tab) ? tab : 'play';
   // A solo schema is expected to sort into glass and bins, but a knob in any
   // other section has to land somewhere: a plain grey group after the two,
   // rather than nowhere at all.
-  const soloExtras = sectionsOf(surface.schema).filter((s) => !(s in SOLO_GROUPS));
+  // Arrival has its own page, so it must not also fall through to Play's grey catch-all group.
+  const soloExtras = sectionsOf(surface.schema).filter((s) => !(s in SOLO_GROUPS) && s !== ARRIVAL_SECTION);
   // Which collapsible groups are open. Unvisited sections fall back to
   // "the first one", so the rail opens the same way it always did.
   const [opened, setOpened] = useState<Record<string, boolean>>({});
@@ -332,9 +350,9 @@ export function Rail({ api, surface, tab, onTab, runFrames = 1, children }: {
 
   return (
     <div style={{ fontSize: 12, display: 'flex', flexDirection: 'column', minHeight: '100%' }}>
-      {surface.hasPicturePage && (
+      {tabs.length > 1 && (
         <div role="tablist" aria-label="Rail pages" style={{ display: 'flex', gap: 4, margin: '0 0 6px' }}>
-          {TABS.map((t) => (
+          {tabs.map((t) => (
             <button key={t.id} type="button" role="tab" aria-selected={page === t.id} title={t.hint}
               onClick={() => onTab(t.id)} style={{
                 flex: 1, padding: '5px 0', fontSize: 11, letterSpacing: '.06em', textTransform: 'uppercase', cursor: 'pointer',
@@ -372,6 +390,13 @@ export function Rail({ api, surface, tab, onTab, runFrames = 1, children }: {
           </details>
         );
       })}
+      {page === 'change' && (
+        <section>
+          <GroupHeader {...ARRIVAL_GROUP} section={ARRIVAL_SECTION}
+            onReset={() => api.resetSection(ns, ARRIVAL_SECTION)} />
+          {surface.schema.filter((k) => k.section === ARRIVAL_SECTION).map((k) => knob(k, { ns, values, diff }))}
+        </section>
+      )}
       {page === 'picture' && (
         <section>
           <GroupHeader {...CAPTION_GROUP} section={CAPTION_SECTION}
