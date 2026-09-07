@@ -162,3 +162,17 @@ it('with no past and nothing on glass it renders a blank, the seam, and the proj
   expect(screen.getByTestId('tape-next-0')).toBeInTheDocument();
   expect(screen.getByText(/no draws logged yet/)).toBeInTheDocument();
 });
+
+it('a projected dwell shows the frames the cap cut as dim stubs before the run, taking no time of the dwell', () => {
+  const earlier = [entry(7), entry(8)];
+  const skipped = [entry(5), entry(6)];
+  render(<Tape past={[]} current={entry(3)} next={[entry(4)]} nextSequences={[{ earlier, skipped, stepS: 5 }]}
+    pastDials={D} nextDials={D} onSelect={vi.fn()} />);
+  const group = screen.getByTestId('tape-next-0-group');
+  const ids = [...group.querySelectorAll('[data-testid^="tape-next-0"]')].map((n) => n.getAttribute('data-testid'));
+  expect(ids).toEqual(['tape-next-0-cut-5', 'tape-next-0-cut-6', 'tape-next-0-pre-7', 'tape-next-0-pre-8', 'tape-next-0']);
+  expect(screen.getByTestId('tape-next-0-cut-5')).toHaveStyle({ opacity: '0.35' });
+  expect(screen.getByTestId('tape-next-0-cut-5').getAttribute('title')).toMatch(/not played/);
+  // The run's own frames still add up to the dwell: 2 × 5 s + the chosen one's 10 s.
+  expect(screen.getByTestId('tape-next-0')).toHaveStyle({ width: `${20 * PX_PER_S - 2 * 5 * PX_PER_S}px` });
+});

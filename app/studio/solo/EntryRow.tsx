@@ -23,7 +23,15 @@ export const MIN_FRAME_PX = 14;
 export interface Run {
   /** The camera's earlier frames, oldest first; the row's own entry plays last. */
   earlier: EntryView[];
-  /** Each frame's even share of the dwell. */
+  /**
+   * The camera's frames older still, which the most-frames cap leaves out
+   * (run.ts `runOf`): oldest first. Drawn dim, so the operator can see what
+   * a higher cap would add — and click them to look.
+   */
+  skipped?: EntryView[];
+  /** The dial that set the cap, for the cut rows' hover text: `most frames, sunset · 8`. */
+  capLabel?: string;
+  /** Each frame's share of the dwell, after the budget rule (plan.ts `fitPlan`). */
   stepS: number;
 }
 
@@ -45,9 +53,12 @@ const clock = (e: EntryView) => formatTime('12h', e.capturedAt, e.timezone, null
  * the newest one in capture order, each its own light box labelled `i/k`
  * with its local time, all inside one bin-coloured border, so a dwell that
  * plays several pictures reads as one box. With `rowS` the row is as tall
- * as the time it gets on glass. Dimming means the frame will not be shown
- * (it is below a floor); a repeat IS shown again, so it keeps full strength
- * and a red tag says so.
+ * as the time it gets on glass. Frames of the camera that the most-frames
+ * cap cuts sit above the run, dimmer still, with a CUT tag: the glass never
+ * plays them, but a click still opens one, which is how an operator decides
+ * whether the cap is too low. Dimming means the frame will not be shown
+ * (it is below a floor, or over the cap); a repeat IS shown again, so it
+ * keeps full strength and a red tag says so.
  */
 export function EntryRow({
   entry: e, feed, place, reason, onGlass = false, repeat = false, role, run, rowS, onClick,
@@ -69,7 +80,8 @@ export function EntryRow({
 }) {
   const scores = scoreLine(e);
   const placeText = [[e.city, e.country].filter(Boolean).join(', '), clock(e)].filter(Boolean).join(' · ');
-  const grouped = !!run && run.earlier.length > 0;
+  const skipped = run?.skipped ?? [];
+  const grouped = !!run && (run.earlier.length > 0 || skipped.length > 0);
   const k = grouped ? run.earlier.length + 1 : 1;
   const title =
     `${e.title} · ${placeText}. Frame ${e.snapshotId}, ${feed} feed` +
@@ -78,6 +90,7 @@ export function EntryRow({
     (!e.eligible ? 'Below the floor dial; not eligible. ' : '') +
     (repeat ? 'Already appears earlier in the queue; this is a repeat showing. ' : '') +
     (grouped ? `The newest of ${k} frames of this camera; the dwell plays all ${k}, oldest first, ${Number(run.stepS.toFixed(1))} s each. ` : '') +
+    (skipped.length > 0 ? `${skipped.length} older frame${skipped.length === 1 ? '' : 's'} over the most-frames cap; the glass skips them. ` : '') +
     `Shown ${e.tally} time${e.tally === 1 ? '' : 's'} today.`;
   const ring = onGlass ? '0 0 0 2px #f5a344' : undefined;
   const stepPx = grouped ? Math.max(MIN_FRAME_PX, run.stepS * PX_PER_S) : undefined;
@@ -112,11 +125,29 @@ export function EntryRow({
   if (!grouped) return main;
 
   return (
-    <div role="group" aria-label={`${e.title}: ${k} frames in one dwell`} style={{
+    <div role="group" aria-label={`${e.title}: ${k} frame${k === 1 ? '' : 's'} in one dwell${skipped.length > 0 ? `, ${skipped.length} cut` : ''}`} style={{
       border: `2px solid ${COLOR[e.bin]}`, borderRadius: 6, padding: 3, marginBottom: 4,
       background: '#0b0e14', boxShadow: ring, display: 'flex', flexDirection: 'column', gap: 3,
       opacity: e.stage.kind === 'underFloor' ? 0.45 : 1,
     }}>
+      {skipped.map((f) => {
+        const t = clock(f) ?? `${Math.max(1, Math.round((e.capturedAt - f.capturedAt) / 60_000))} min earlier`;
+        return (
+          <button key={f.snapshotId} type="button" onClick={() => onClick(f)}
+            title={`${f.title} · ${t}. Frame ${f.snapshotId}, not played: over the ${run.capLabel ?? 'most-frames cap'}. Raise the dial to add it to the run.`}
+            style={{
+              display: 'flex', gap: 5, alignItems: 'center', width: '100%', boxSizing: 'border-box', height: MIN_FRAME_PX,
+              textAlign: 'left', border: `1px dashed ${LIGHT}`, borderRadius: 4, padding: '0 3px', opacity: 0.35,
+              background: '#0e1119', fontFamily: mono, fontSize: 9, color: '#9aa3b2', cursor: 'pointer',
+            }}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={f.imageUrl} alt="" style={{ height: '100%', aspectRatio: '16/9', objectFit: 'cover', borderRadius: 2, display: 'block' }} />
+            <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              <b style={{ color: '#c3cad6' }}>CUT</b> · {t}
+            </span>
+          </button>
+        );
+      })}
       {run.earlier.map((f, i) => {
         const t = clock(f) ?? `${Math.max(1, Math.round((e.capturedAt - f.capturedAt) / 60_000))} min earlier`;
         return (

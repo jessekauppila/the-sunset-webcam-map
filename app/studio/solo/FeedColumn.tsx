@@ -4,7 +4,9 @@ import { useEffect, useState, type ReactNode } from 'react';
 import type { EntryView, StateView } from '@/app/api/kiosk/solo/view';
 import type { Feed, SoloDials } from '@/app/lib/solo/types';
 import type { SoloVersionSpec } from '@/app/lib/solo/versions';
-import { cameraGroups, representative, runOf } from '@/app/lib/solo2/run';
+import { cameraGroups, capFor, representative, runOf } from '@/app/lib/solo2/run';
+import { fitPlan } from '@/app/lib/solo2/plan';
+import { SOLO2_SETTINGS_SCHEMA } from '@/app/lib/solo2/settingsSchema';
 import type { Solo2Dials } from '@/app/lib/solo2/types';
 import type { Stage } from '@/app/lib/solo/stages';
 import { EntryRow, type Run } from './EntryRow';
@@ -60,8 +62,12 @@ const stageOf = (e: EntryView): StageKind =>
 /** One row of a column: a frame, or a camera (its newest frame with the run it plays first). */
 interface Box { entry: EntryView; run?: Run }
 
-/** The frames a box stands for, in the order the dwell plays them. */
-const framesOf = (b: Box): EntryView[] => [...(b.run?.earlier ?? []), b.entry];
+/** The frames a box stands for, in capture order: the cut ones first, then the run as the dwell plays it. */
+const framesOf = (b: Box): EntryView[] => [...(b.run?.skipped ?? []), ...(b.run?.earlier ?? []), b.entry];
+
+const capDial = (bin: 'sunset' | 'non_sunset') => bin === 'sunset' ? 'runFramesSunset' : 'runFramesOther';
+const capLabelOf = (bin: 'sunset' | 'non_sunset', cap: number) =>
+  `${SOLO2_SETTINGS_SCHEMA.find((k) => k.key === capDial(bin))?.label ?? 'most frames'} · ${cap}`;
 
 const TAPE_OPEN_KEY = 'studio.tape.open';
 
@@ -118,29 +124,62 @@ export function FeedColumn({ feed, server, projected, liveDials, nowMs, version,
   const rowS = d2 ? d2.dwellS : undefined;
   const grouping = !!d2?.cameraRun;
   const all: EntryView[] = [...projected.bins.sunset, ...projected.bins.nonSunset, ...queue];
-  const runFor = (frames: EntryView[]): Run | undefined =>
-    d2 && frames.length > 1 ? { earlier: frames.slice(0, -1), stepS: d2.dwellS / frames.length } : undefined;
+  /**
+   * The run a dwell of `e` plays, as the glass plays it: the same cap and the
+   * same budget rule as solo2/index.tsx, so a box is as tall as its time on
+   * glass — and the frames the cap cuts, so the box also shows what a higher
+   * cap would add. Before this the studio stacked every frame of the camera
+   * and divided the dwell by all of them; the glass was playing the newest 8.
+   */
+  const runFor = (e: EntryView): Run | undefined => {
+    if (!d2) return undefined;
+    const cap = capFor(e, d2);
+    const played = runOf(e, all, true, cap);
+    const playedIds = new Set(played.map((f) => f.snapshotId));
+    const skipped = runOf(e, all, true).filter((f) => !playedIds.has(f.snapshotId));
+    if (played.length <= 1 && skipped.length === 0) return undefined;
+    return { earlier: played.slice(0, -1), skipped, capLabel: capLabelOf(e.bin, cap), stepS: fitPlan(d2, played.length).stepS };
+  };
 
   // The queue: each draw with the run it plays.
-  const queueBoxes: Box[] = queue.map((e) => ({ entry: e, run: grouping ? runFor(runOf(e, all, true)) : undefined }));
+  const queueBoxes: Box[] = queue.map((e) => ({ entry: e, run: grouping ? runFor(e) : undefined }));
   // The bins: every frame for itself, or one box per camera not already in the queue.
   const queuedCameras = new Set(queue.map((e) => e.webcamId));
   const binBoxes: Box[] = grouping
     ? [...cameraGroups([...projected.bins.sunset, ...projected.bins.nonSunset]).values()]
       .filter((frames) => !queuedCameras.has(frames[0].webcamId))
-      .map((frames) => ({ entry: representative(frames), run: runFor(frames) }))
+      .map((frames) => {
+        // The bin's box is the camera's representative; its run is what a dwell of it would play.
+        const entry = representative(frames);
+        return { entry, run: runFor(entry) };
+      })
     : [...projected.bins.sunset, ...projected.bins.nonSunset].map((e) => ({ entry: e }));
   const binOf = (bin: 'sunset' | 'non_sunset') => binBoxes.filter((b) => b.entry.bin === bin);
   const qSun = queue.filter((e) => e.bin === 'sunset').length;
   const qNon = queue.length - qSun;
   const seen = new Set<number>();
 
+  // How many distinct items of a bin the queue holds: cameras with the run on, frames with it off.
+  const queuedOf = (bin: 'sunset' | 'non_sunset') =>
+    new Set(queue.filter((e) => e.bin === bin).map((e) => (grouping ? e.webcamId : e.snapshotId))).size;
+
   const column = (bin: 'sunset' | 'non_sunset', color: string, title: string, hint: string) => {
     const boxes = binOf(bin);
     const list = boxes.flatMap(framesOf);
+    const queuedHere = queuedOf(bin);
+    const unit = grouping ? 'camera' : 'frame';
+    // A bin the queue has emptied says so in one line. Three `· 0` stages under
+    // a heading that already says `6 queued` read as a broken view (2026-09-06).
+    const emptied = boxes.length === 0 && queuedHere > 0;
     return (
       <Bin color={color} title={`${title} · ${boxes.length} waiting · ${bin === 'sunset' ? qSun : qNon} queued`} hint={hint}>
-        {STAGE_KINDS.map((kind) => {
+        {emptied && (
+          <div data-testid={`bin-emptied-${bin}`} title="Every item of this bin is in the queue on the right, so nothing waits here. A queued item leaves its bin."
+            style={{ fontSize: 10, color, fontFamily: mono, padding: '4px 2px', cursor: 'help' }}>
+            {queuedHere === 1 ? `its one ${unit} is in the queue` : `all ${queuedHere} ${unit}s are in the queue`}
+          </div>
+        )}
+        {!emptied && STAGE_KINDS.map((kind) => {
           const rows = boxes.filter((b) => stageOf(b.entry) === kind);
           return (
             <StageBox key={kind} kind={kind} color={color} count={rows.length}>
