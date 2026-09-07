@@ -188,12 +188,16 @@ for a feed:
 
 - If `ai_binary_is_sunset` → upload, insert the archive row with
   `intake_reason = 'kiosk_bin'`, enter the **sunset bin**.
-- Else if `ai_binary_score ≥ 0.20` → same, enter the **non-sunset bin**.
-- Else → discard as today.
+- Else if it has an `ai_binary_score` → same, enter the **non-sunset bin**.
+- Else (never scored) → discard as today.
 
-The cron floors are **fixed and generous**. The studio dials only narrow from
-there, so the cron never chases a dial and a dial change is visible within
-one poll instead of one cron tick. A frame already persisted for another
+  Until 2026-09-07 the second rule held a fixed 0.20 floor. It came out
+  because the studio dial could only narrow from it: lowering the dial past
+  0.20 changed nothing while the sunrise bin sat on two frames.
+
+The cron holds no probability floor. The studio dial is the one gate, so
+the cron never chases a dial and a dial change is visible within one poll
+instead of one cron tick, widening the bin as readily as narrowing it. A frame already persisted for another
 reason (disagreement, high rated, trickle) is entered without a second
 upload. The `intake_reason` CHECK constraint gains `'kiosk_bin'`.
 
@@ -355,7 +359,7 @@ Phases 1–4 are wanted before the freeze on 2026-09-10.
   non-sunsets; rule 4 with a single eligible frame; promotion flag clears on
   first showing; tier ties broken by tally then `entered_at`.
 - Admission: a frame the detection head calls a sunset enters the sunset bin
-  regardless of quality; a frame below 0.20 detection is not persisted for
+  regardless of quality; every scored non-sunset in the zone is persisted for
   the bin; a frame already persisted for disagreement is entered without a
   second upload; a second frame from a camera already in the bin is `is_new`.
 - Removal: absence from a poll does not touch the entry; out-of-zone
