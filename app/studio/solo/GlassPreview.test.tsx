@@ -171,7 +171,9 @@ it('a run restarts by rebuilding its stack, never by fading back down to an earl
   const { SOLO_VERSIONS } = await import('@/app/lib/solo/versions');
   const { SOLO2_SETTINGS_SCHEMA, dialsFrom2 } = await import('@/app/lib/solo2/settingsSchema');
   vi.useFakeTimers();
-  const d2 = { ...dialsFrom2(schemaDefaults(SOLO2_SETTINGS_SCHEMA)), dwellS: 6, sameCameraFadeS: 1 }; // 3 frames → 2 s each
+  // minStepS 2 keeps the 6 s dwell divided evenly by 3 rather than stretched,
+  // so this test is about the stack and not about the budget.
+  const d2 = { ...dialsFrom2(schemaDefaults(SOLO2_SETTINGS_SCHEMA)), dwellS: 6, minStepS: 2, sameCameraFadeS: 1 }; // 3 frames → 2 s each
   const older = (id: number, capturedAt: number) => ({ ...entry, snapshotId: id, imageUrl: `u${id}`, capturedAt });
   const entries = [older(5, entry.capturedAt - 20 * 60_000), older(6, entry.capturedAt - 10 * 60_000), entry];
   const s2 = { ...server, entries } as unknown as StateView;
