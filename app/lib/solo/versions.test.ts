@@ -29,6 +29,24 @@ describe('descriptors', () => {
     expect(v.roleAt(1, 'sunset', d)).toBe('peak');
     expect(v.namespace).toBe('solo');
   });
+  it('every version answers dwellMs purely, from the same three arguments as shown', () => {
+    // The point of the interface (dwell-budget spec §5.2): nothing outside the
+    // engine works a dwell's length out for itself. Today both versions return
+    // the dial; step 3 changes solo2's function alone and every surface that
+    // renders toward a dwell end follows without knowing about versions.
+    for (const v of Object.values(SOLO_VERSIONS)) {
+      const d = v.dialsFrom(schemaDefaults(v.schema));
+      expect(v.dwellMs(entries, entries[0], d)).toBe(d.dwellS * 1000);
+      // Pure: same answer for a different pick, and no mutation of the input.
+      expect(v.dwellMs(entries, entries[2], d)).toBe(d.dwellS * 1000);
+      expect(entries.map((e) => e.tally)).toEqual([0, 0, 0]);
+    }
+  });
+  it('dwellMs follows the dial, not a hard-coded 20 s', () => {
+    const v = SOLO_VERSIONS.solo;
+    const d = { ...v.dialsFrom(schemaDefaults(v.schema)), dwellS: 47 };
+    expect(v.dwellMs(entries, entries[0], d)).toBe(47_000);
+  });
   it('solo2 reads its own namespace and follows the beat', () => {
     const v = SOLO_VERSIONS.solo2;
     const d = { ...v.dialsFrom(schemaDefaults(v.schema)), valleys: 1 };

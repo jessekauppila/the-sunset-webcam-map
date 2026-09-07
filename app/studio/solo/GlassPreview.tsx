@@ -9,7 +9,7 @@ import type { Feed, SoloDials } from '@/app/lib/solo/types';
 import { SOLO_VERSIONS, type SoloVersionSpec } from '@/app/lib/solo/versions';
 import type { Solo2Dials } from '@/app/lib/solo2/types';
 import { fitPlan } from '@/app/lib/solo2/plan';
-import { runOf } from '@/app/lib/solo2/run';
+import { capFor, runOf } from '@/app/lib/solo2/run';
 import { useLoopingStage } from './useLoopingStage';
 import { useSoloPreview } from './useSoloPreview';
 
@@ -61,8 +61,15 @@ function PlayingScreen({ feed, server, projected, error, dials, panel, version }
   // Hooks run on both versions; only solo2 reads the stage.
   const solo2 = version.name === 'solo2';
   const d2 = dials as Solo2Dials;
-  const run = solo2 && dwell.entry ? runOf(dwell.entry, server?.entries ?? [], d2.cameraRun) : [];
-  const plan = fitPlan({ dwellS: dials.dwellS, leadS: d2.leadS ?? 0 }, Math.max(1, run.length));
+  // The same capped run and the same budget rule the glass uses, so the
+  // preview steps at the rate the glass will (dwell-budget spec §3, §4).
+  const run = solo2 && dwell.entry
+    ? runOf(dwell.entry, server?.entries ?? [], d2.cameraRun, capFor(dwell.entry, d2))
+    : [];
+  const plan = fitPlan(
+    { dwellS: dials.dwellS, leadS: d2.leadS ?? 0, minStepS: d2.minStepS ?? dials.dwellS },
+    Math.max(1, run.length),
+  );
   // Keyed on the dwell start, not the index: the start changes on every step
   // AND every restart (a server advance while sitting at index 0 still gets
   // a fresh start), but never on a bare tick, so this is the one value that
@@ -87,7 +94,7 @@ function PlayingScreen({ feed, server, projected, error, dials, panel, version }
         {dwell.entry ? (
           <StudioPanelFrame panel={panel}>
             {solo2 ? (
-              <Solo2Frame entry={dwell.entry} run={run} previous={dwell.previous} stage={stage} plan={plan} dials={d2}
+              <Solo2Frame entry={dwell.entry} run={run} previous={dwell.previous} stage={stage} plan={plan} dials={d2} dwellKey={dwell.startMs}
                 width={panel.width} height={panel.height} feed={feed} />
             ) : (
               // No key: SoloFrame's fade is a mount animation on an <img> keyed

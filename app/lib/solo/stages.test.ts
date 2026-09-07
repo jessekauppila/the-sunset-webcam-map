@@ -1,13 +1,19 @@
 import { describe, it, expect } from 'vitest';
 import { assignStages, compareStaged, floorFor, STAGE_ORDER } from './stages';
 import { project } from './engine';
-import { boundaryMs } from './schedule';
 import { dialsFrom, SOLO_SETTINGS_SCHEMA } from './settingsSchema';
 import { schemaDefaults } from '@/app/lib/settings/schema';
 import type { BinEntry, Feed, ScreenState, SoloDials } from './types';
 
 const D: SoloDials = { ...dialsFrom(schemaDefaults(SOLO_SETTINGS_SCHEMA)), ratingFloor: 3.2, rest: 4 }; // quality 0.55
 const FEED: Feed = 'sunrise';
+/**
+ * A plausible wall-clock stamp for a draw, for fixtures that need one. The
+ * grid this used to come from is gone (dwell-budget spec §5): a slot is an
+ * ordinal now, so nothing derives a time from one in production either.
+ */
+const atMs = (slot: number) => slot * D.dwellS * 1000;
+
 const sun = (id: number, q: number, extra: Partial<BinEntry> = {}): BinEntry => ({
   snapshotId: id, webcamId: 1000 + id, bin: 'sunset', quality: q, detection: 0.9,
   isNew: false, tally: 0, enteredAt: id, lastShownAt: null, ...extra });
@@ -15,7 +21,7 @@ const non = (id: number, det: number, extra: Partial<BinEntry> = {}): BinEntry =
   snapshotId: id, webcamId: 2000 + id, bin: 'non_sunset', quality: null, detection: det,
   isNew: false, tally: 0, enteredAt: id, lastShownAt: null, ...extra });
 const shownAt = (slot: number) => ({
-  tally: 1, lastShownAt: boundaryMs(slot, FEED, D.dwellS, D.offsetS), lastShownSlot: slot,
+  tally: 1, lastShownAt: atMs(slot), lastShownSlot: slot,
 });
 
 function stagesOf(entries: BinEntry[], state: ScreenState, firstSlot: number, queueDepth = 2) {

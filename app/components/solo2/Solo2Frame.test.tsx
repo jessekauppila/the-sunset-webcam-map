@@ -18,7 +18,7 @@ const run = [
   { ...e, snapshotId: 2, imageUrl: 'u2', title: 'Pier mid', quality: 0.7, tally: 1, capturedAt: AT - 10 * 60_000, rank: undefined },
   e,
 ];
-const plan = fitPlan({ ...D, leadS: 4 }, 3); // 20 s / 3 = 6.67 s a frame
+const plan = fitPlan({ ...D, leadS: 4 }, 3); // 20 s / 3 = 6.67 s a frame, above the 4 s floor
 const last = { index: 2, leadProgress: 0 };
 
 it('the last frame: inset on black, centred, with place and local time, no scores by default', () => {
@@ -52,7 +52,7 @@ it('the run is stacked: frames up to the stage are opaque, later ones transparen
     ['seq-1', '1', 'opacity 1s linear'],
     ['seq-2', '0', 'opacity 1s linear'],
   ]);
-  const short = fitPlan({ ...D, dwellS: 3 }, 3); // 1 s a frame
+  const short = fitPlan({ ...D, dwellS: 3, minStepS: 1 }, 3); // 1 s a frame
   rerender(<Solo2Frame entry={e} run={run} previous={null} stage={last} plan={short}
     dials={{ ...D, sameCameraFadeS: 5 }} width={1920} height={1080} />);
   expect(layers()).toEqual([

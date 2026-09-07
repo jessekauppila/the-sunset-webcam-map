@@ -7,7 +7,7 @@ import { mergeSettings } from '@/app/lib/settings/schema';
 import { SOLO2_SETTINGS_SCHEMA, dialsFrom2 } from '@/app/lib/solo2/settingsSchema';
 import { withCaption } from '@/app/lib/solo/captionSchema';
 import { fitPlan } from '@/app/lib/solo2/plan';
-import { runOf } from '@/app/lib/solo2/run';
+import { capFor, runOf } from '@/app/lib/solo2/run';
 import { useSoloGlass } from '@/app/components/solo/useSoloGlass';
 import { Solo2Frame } from './Solo2Frame';
 import { useStage } from './useStage';
@@ -43,13 +43,15 @@ export function Solo2Kiosk(props: MosaicProps) {
   const dials = dialsFrom2(withCaption(mergeSettings(SOLO2_SETTINGS_SCHEMA, props.settings), props.shared));
   const glass = useSoloGlass({
     feed: props.feed,
-    dials,
     drive: props.driveSchedule !== false,
     dozing: props.dozing === true,
     version: 'solo2',
   });
   const current = glass.current;
-  const startFor = () => glass.shownSince ?? glass.boundaryMs - dials.dwellS * 1000;
+  // The server stamps shown-since; without one, treat the dwell as starting
+  // now rather than working backwards from an end and a dial, which a budget
+  // makes wrong (spec §5.1).
+  const startFor = () => glass.shownSince ?? Date.now();
   const [dwell, setDwell] = useState<Dwell>(() => ({ entry: current, previous: null, startMs: startFor() }));
   // Derived during render, so the new dwell and its previous frame commit together.
   if ((current?.snapshotId ?? null) !== (dwell.entry?.snapshotId ?? null)) {
@@ -57,7 +59,9 @@ export function Solo2Kiosk(props: MosaicProps) {
   }
   const previous = dwell.previous;
 
-  const run = current ? runOf(current, glass.entries, dials.cameraRun) : [];
+  // The same capped run the server used to size this dwell (spec §4), so the
+  // step rate on glass and the published end can never disagree.
+  const run = current ? runOf(current, glass.entries, dials.cameraRun, capFor(current, dials)) : [];
   const plan = fitPlan(dials, run.length);
   const stage = useStage(plan, dwell.startMs);
 
@@ -66,7 +70,7 @@ export function Solo2Kiosk(props: MosaicProps) {
   const nextId = nextEntry?.snapshotId ?? null;
   useEffect(() => {
     if (!nextEntry) return;
-    for (const f of runOf(nextEntry, glass.entries, dials.cameraRun)) preload(f.imageUrl);
+    for (const f of runOf(nextEntry, glass.entries, dials.cameraRun, capFor(nextEntry, dials))) preload(f.imageUrl);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nextId, dials.cameraRun]);
 
@@ -75,7 +79,7 @@ export function Solo2Kiosk(props: MosaicProps) {
   return (
     <div style={{ position: 'relative', width: props.width, height: props.height, background: '#000' }}>
       {current ? (
-        <Solo2Frame entry={current} run={run} previous={previous} stage={stage} plan={plan} dials={dials}
+        <Solo2Frame entry={current} run={run} previous={previous} stage={stage} plan={plan} dials={dials} dwellKey={dwell.startMs}
           width={props.width} height={props.height} feed={props.feed} />
       ) : null}
       {debug && (

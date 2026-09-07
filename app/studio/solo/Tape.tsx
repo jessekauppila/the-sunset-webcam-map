@@ -80,8 +80,13 @@ function Fade({ testId, seconds }: { testId: string; seconds: number }) {
  * during render disagrees between the server and the client and React reports
  * that as a hydration mismatch.
  */
-function Playhead({ sinceMs, dwellS, nowMs }: { sinceMs: number | null; dwellS: number; nowMs: number | null }) {
-  if (sinceMs == null || nowMs == null || dwellS <= 0) return null;
+function Playhead({ sinceMs, endsAtMs, nowMs }: { sinceMs: number | null; endsAtMs: number | null; nowMs: number | null }) {
+  if (sinceMs == null || endsAtMs == null || nowMs == null) return null;
+  // The length comes from the server's published end, never from the dwell
+  // dial: a dwell is a budget its frames share, so the dial is only its
+  // nominal value and a run of eight stretches past it.
+  const dwellS = (endsAtMs - sinceMs) / 1000;
+  if (dwellS <= 0) return null;
   const elapsedS = Math.max(0, (nowMs - sinceMs) / 1000);
   const pct = Math.min(100, (elapsedS / dwellS) * 100);
   return (
@@ -108,11 +113,18 @@ function Playhead({ sinceMs, dwellS, nowMs }: { sinceMs: number | null; dwellS: 
  * sideways; on mount and whenever the past grows, the seam is brought to
  * about two thirds across.
  */
-export function Tape({ past, current, currentSince, next, nextSequences, pastDials, nextDials, onSelect }: {
+export function Tape({ past, current, currentSince, currentEndsAt, next, nextSequences, pastDials, nextDials, onSelect }: {
   past: TapeEntry[];
   current: EntryView | null;
   /** When the current frame went on glass, ms; sizes the last past block. */
   currentSince?: number | null;
+  /**
+   * When the current dwell ends, ms since epoch, as published by the server
+   * (StateView.current.endsAtMs). The playhead's travel and the last past
+   * block's width both come from this rather than from the dwell dial, which
+   * is only a budget's nominal value once frames share it.
+   */
+  currentEndsAt?: number | null;
   next: EntryView[];
   /** solo2: parallel to `next`, the earlier frames of the camera each dwell plays first. */
   nextSequences?: (Run | undefined)[];
@@ -143,6 +155,17 @@ export function Tape({ past, current, currentSince, next, nextSequences, pastDia
     return r;
   };
   const dwellPx = (d: TapeDials) => Math.max(MIN_BLOCK_PX, d.dwellS * PX_PER_S);
+  /**
+   * The on-glass block is as wide as this dwell actually lasts, from the
+   * server's published end, so a run of eight reads wider than a single
+   * frame. Falls back to the nominal dial only when the end is unpublished.
+   */
+  const currentPx = () => {
+    const ms = currentEndsAt != null && currentSince != null ? currentEndsAt - currentSince : null;
+    return ms != null && ms > 0
+      ? Math.max(MIN_BLOCK_PX, (ms / 1000) * PX_PER_S)
+      : dwellPx(pastDials);
+  };
 
   const blocks: ReactNode[] = [];
   let fades = 0;
@@ -152,15 +175,24 @@ export function Tape({ past, current, currentSince, next, nextSequences, pastDia
   };
 
   past.forEach((f, i) => {
-    const endMs = i + 1 < past.length ? past[i + 1].shownAt : currentSince ?? f.shownAt + pastDials.dwellS * 1000;
-    const onGlassS = Math.max(0, (endMs - f.shownAt) / 1000);
+    // Measured, never computed: the next draw's time, else the current
+    // frame's start. A dwell is a budget its frames share, so f.shownAt plus
+    // the dial would be wrong for any run past the floor's threshold, by up
+    // to 2.4x on runs already in the log. With nothing after it to measure
+    // against, the block falls back to one nominal dwell for width alone.
+    const endMs = i + 1 < past.length ? past[i + 1].shownAt : currentSince ?? null;
+    const measured = endMs != null;
+    const onGlassS = measured ? Math.max(0, (endMs - f.shownAt) / 1000) : pastDials.dwellS;
     const dwells = pastDials.dwellS > 0 ? onGlassS / pastDials.dwellS : 1;
-    const held = dwells > HELD_AFTER;
+    // Only a measured block can be known to have been held; an unmeasured one
+    // is drawn at its nominal length and must not claim anything about it.
+    const held = measured && dwells > HELD_AFTER;
     const width = Math.max(MIN_BLOCK_PX, Math.min(dwells, MAX_DWELLS) * pastDials.dwellS * PX_PER_S);
     blocks.push(
       <Thumb key={`${f.snapshotId}-${f.slot}`} testId={`tape-past-${f.snapshotId}-${f.slot}`} src={f.imageUrl} width={width}
         color={COLOR[f.bin]} repeat={repeatOf(f.snapshotId)} onClick={() => onSelect(f)}
-        title={`${f.title}${place(f) ? ` · ${place(f)}` : ''} · draw at ${clock(f.shownAt)} · on glass ${secs(Math.round(onGlassS))}`
+        title={`${f.title}${place(f) ? ` · ${place(f)}` : ''} · draw at ${clock(f.shownAt)} · on glass `
+          + (measured ? secs(Math.round(onGlassS)) : 'unknown, nothing followed it')
           + (held ? ' · held: nothing else was eligible' : '')}>
         {held && <span data-testid="tape-held" style={{ position: 'absolute', right: 2, bottom: 0, fontFamily: mono, fontSize: 8, color: '#f5a344' }}>held</span>}
       </Thumb>,
@@ -170,10 +202,10 @@ export function Tape({ past, current, currentSince, next, nextSequences, pastDia
 
   if (current) {
     blocks.push(
-      <Thumb key="current" testId="tape-current" src={current.imageUrl} width={dwellPx(pastDials)} color={COLOR[current.bin]} ring
+      <Thumb key="current" testId="tape-current" src={current.imageUrl} width={currentPx()} color={COLOR[current.bin]} ring
         repeat={repeatOf(current.snapshotId)} onClick={() => onSelect(current)}
         title={`on glass${currentSince ? ` since ${clock(currentSince)}` : ''} · ${current.title}${place(current) ? ` · ${place(current)}` : ''}`}>
-        <Playhead sinceMs={currentSince ?? null} dwellS={pastDials.dwellS} nowMs={nowMs} />
+        <Playhead sinceMs={currentSince ?? null} endsAtMs={currentEndsAt ?? null} nowMs={nowMs} />
       </Thumb>,
     );
   } else {

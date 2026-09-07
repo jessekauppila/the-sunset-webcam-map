@@ -3,7 +3,7 @@ import { renderHook, act } from '@testing-library/react';
 import { useLoopingStage } from './useLoopingStage';
 import { fitPlan } from '@/app/lib/solo2/plan';
 
-const plan = fitPlan({ dwellS: 6, leadS: 0 }, 3); // 2 s a frame
+const plan = fitPlan({ dwellS: 6, leadS: 0, minStepS: 1 }, 3); // 2 s a frame, above the floor so the budget divides
 const NOW = 100_000;
 
 beforeEach(() => {
@@ -13,15 +13,13 @@ beforeEach(() => {
 afterEach(() => vi.useRealTimers());
 
 describe('useLoopingStage', () => {
-  it('starts at the first frame, walks the run, and wraps at the dwell', () => {
+  it('walks the run of the dwell it is given', () => {
     const { result } = renderHook(() => useLoopingStage(plan, NOW));
     expect(result.current.index).toBe(0);
     act(() => { vi.advanceTimersByTime(2_000); });
     expect(result.current.index).toBe(1);
     act(() => { vi.advanceTimersByTime(2_000); });
     expect(result.current.index).toBe(2);
-    act(() => { vi.advanceTimersByTime(2_000); });
-    expect(result.current.index).toBe(0); // round again
   });
 
   it('restarts when the dwell start changes', () => {
@@ -33,24 +31,25 @@ describe('useLoopingStage', () => {
     expect(result.current.index).toBe(0);
   });
 
-  // The bug: the preview's dwell walker ticks at 250 ms, so it notices a
-  // boundary up to a tick late and back-dates `startMs` to the exact boundary.
-  // A stage clock that started at mount instead of at that start ran a tick
-  // behind the dwell, so it wrapped to frame 0 while the dwell was still on
-  // its last frame — the run flashed an earlier picture just before the
-  // camera changed, and the last frame was short by the same amount.
-  it('is phase-locked to the dwell: a dwell that began a tick ago is already a tick in', () => {
+  it('is phase-locked to the dwell: one that began a tick ago is already a tick in', () => {
     const { result } = renderHook(() => useLoopingStage(plan, NOW - 2_500));
     expect(result.current.index).toBe(1); // 2.5 s in, not 0
   });
 
-  it('never wraps early: the last frame holds right up to the dwell it belongs to', () => {
-    // The dwell began 250 ms before this clock was mounted, the lag the
-    // walker's tick can introduce.
-    const { result } = renderHook(() => useLoopingStage(plan, NOW - 250));
-    act(() => { vi.advanceTimersByTime(5_450); }); // 5.7 s into a 6 s dwell
-    expect(result.current.index).toBe(2); // still the last frame
-    act(() => { vi.advanceTimersByTime(300); }); // 6.0 s in: the wrap, on the dwell's clock
-    expect(result.current.index).toBe(0);
+  // The reported bug. `useSoloPreview` owns when a dwell ends and ticks at
+  // 250 ms, so for up to a tick past the dwell it is still on the old one. A
+  // stage that wrapped on its own clock reset the run to frame 0 inside a
+  // stack that had not been rebuilt, and the frames above dissolved away to
+  // reveal the oldest picture — the run "fading up to an earlier image".
+  // Holding the last frame leaves the restart to the walker, in the one
+  // commit that also brings the new dwell.
+  it('holds the last frame past the dwell instead of wrapping itself', () => {
+    const { result } = renderHook(() => useLoopingStage(plan, NOW - 6_100));
+    expect(result.current.index).toBe(2);
+  });
+
+  it('still holds it far past the dwell, however late the walker is', () => {
+    const { result } = renderHook(() => useLoopingStage(plan, NOW - 60_000));
+    expect(result.current.index).toBe(2);
   });
 });

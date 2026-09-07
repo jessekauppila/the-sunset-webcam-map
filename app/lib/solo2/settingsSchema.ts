@@ -40,6 +40,21 @@ export const SOLO2_SETTINGS_SCHEMA: SettingsSchema = [
     description: 'How long one frame of a camera takes to dissolve into the next inside the run, and on a change to a later frame of the camera on glass. Never through black. 0 is a cut.',
   },
   {
+    key: 'minStepS', kind: 'number', min: 1, max: 20, step: 0.5, default: 4,
+    label: 'shortest frame (s)', section: 'glass',
+    description: 'The floor under a run\u2019s frames. A dwell is a budget its frames share: with few enough frames they simply divide it and the dwell stays the dwell. Once the share would fall below this, frames hold here instead and the dwell stretches. At a 20 s dwell that threshold is 5 frames.',
+  },
+  {
+    key: 'runFramesSunset', kind: 'number', min: 1, max: 20, step: 1, default: 8,
+    label: 'most frames, sunset', section: 'glass',
+    description: 'The longest a sunset timelapse may run. Above the threshold each extra frame adds the shortest-frame time to the dwell, so this dial sets the longest dwell the glass can ever show: 8 frames at a 4 s floor is 32 s.',
+  },
+  {
+    key: 'runFramesOther', kind: 'number', min: 1, max: 20, step: 1, default: 3,
+    label: 'most frames, non-sunset', section: 'glass',
+    description: 'The same cap for non-sunsets, deliberately lower. At or below the threshold this buys PICTURES, not time: the dwell stays the dwell however many frames play, so a non-sunset can never hold the screen longer than a single still does. Above the threshold it starts stretching like a sunset.',
+  },
+  {
     key: 'leadS', kind: 'number', min: 0, max: 10, step: 0.5, default: 0,
     label: 'lead (s)', section: 'glass',
     description: 'For this long before each change, the frame on glass slowly pushes in. Stillness means now; motion means change is coming. 0 is off.',
@@ -82,6 +97,9 @@ export function dialsFrom2(values: SettingsValues): Solo2Dials {
     leadS: values.leadS as number,
     leadScale: values.leadScale as number,
     cameraRun: values.cameraRun as boolean,
+    minStepS: values.minStepS as number,
+    runFramesSunset: values.runFramesSunset as number,
+    runFramesOther: values.runFramesOther as number,
     valleys: values.valleys as number,
     screens: values.screens as Screens,
   };

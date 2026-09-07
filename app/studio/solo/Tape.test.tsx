@@ -18,7 +18,7 @@ const past = [drawn(1, 10, 0), drawn(2, 11, 20_000, 'non_sunset'), drawn(1, 12, 
 const since = 60_000;
 
 it('lays out past, current, seam, and projected in order, outlined by bin', () => {
-  render(<Tape past={past} current={entry(3)} currentSince={since} next={[entry(4, 'non_sunset'), entry(1)]}
+  render(<Tape past={past} current={entry(3)} currentSince={since} currentEndsAt={since + 20_000} next={[entry(4, 'non_sunset'), entry(1)]}
     pastDials={D} nextDials={D} onSelect={vi.fn()} />);
   const strip = screen.getByTestId('tape');
   const ids = [...strip.querySelectorAll('[data-testid^="tape-"]')].map((n) => n.getAttribute('data-testid'));
@@ -33,7 +33,7 @@ it('lays out past, current, seam, and projected in order, outlined by bin', () =
 it('the playhead sits where the dwell has got to, and rides one CSS animation rather than a tick', () => {
   vi.useFakeTimers();
   vi.setSystemTime(since + 5_000); // 5 s into a 20 s dwell
-  render(<Tape past={past} current={entry(3)} currentSince={since} next={[entry(4)]}
+  render(<Tape past={past} current={entry(3)} currentSince={since} currentEndsAt={since + 20_000} next={[entry(4)]}
     pastDials={D} nextDials={D} onSelect={vi.fn()} />);
   const head = screen.getByTestId('tape-playhead');
   // Static position is correct on its own, so reduced motion still reads true.
@@ -43,14 +43,35 @@ it('the playhead sits where the dwell has got to, and rides one CSS animation ra
   vi.useRealTimers();
 });
 
+it('the playhead takes its length from the published end, not the dwell dial', () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(since + 8_000);
+  // A run of eight stretches this dwell to 32 s while the dial still reads 20.
+  render(<Tape past={past} current={entry(3)} currentSince={since} currentEndsAt={since + 32_000} next={[entry(4)]}
+    pastDials={D} nextDials={D} onSelect={vi.fn()} />);
+  const head = screen.getByTestId('tape-playhead');
+  expect(head).toHaveStyle({ animationDuration: '32s', animationDelay: '-8s' });
+  expect(head).toHaveStyle({ left: '25%' }); // 8 of 32, not 8 of 20
+  // The block is as wide as the dwell really lasts, so the seam still arrives with the cut.
+  expect(screen.getByTestId('tape-current')).toHaveStyle({ width: `${32 * PX_PER_S}px` });
+  vi.useRealTimers();
+});
+
+it('no playhead without a published end, and the block falls back to the nominal dial', () => {
+  render(<Tape past={past} current={entry(3)} currentSince={since} next={[entry(4)]}
+    pastDials={D} nextDials={D} onSelect={vi.fn()} />);
+  expect(screen.queryByTestId('tape-playhead')).toBeNull();
+  expect(screen.getByTestId('tape-current')).toHaveStyle({ width: `${20 * PX_PER_S}px` });
+});
+
 it('a frame held past its dwell parks the playhead at the right edge, and no playhead without a start time', () => {
   vi.useFakeTimers();
   vi.setSystemTime(since + 50_000); // 50 s into a 20 s dwell: held
-  const { unmount } = render(<Tape past={past} current={entry(3)} currentSince={since} next={[entry(4)]}
+  const { unmount } = render(<Tape past={past} current={entry(3)} currentSince={since} currentEndsAt={since + 20_000} next={[entry(4)]}
     pastDials={D} nextDials={D} onSelect={vi.fn()} />);
   expect(screen.getByTestId('tape-playhead')).toHaveStyle({ left: '100%' });
   unmount();
-  render(<Tape past={past} current={entry(3)} currentSince={null} next={[entry(4)]}
+  render(<Tape past={past} current={entry(3)} currentSince={null} currentEndsAt={null} next={[entry(4)]}
     pastDials={D} nextDials={D} onSelect={vi.fn()} />);
   expect(screen.queryByTestId('tape-playhead')).toBeNull();
   vi.useRealTimers();
