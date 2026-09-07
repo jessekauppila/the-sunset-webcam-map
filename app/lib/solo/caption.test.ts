@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { captionBox, captionHeight, captionLines, displayTitle, drawFactor, formatTime, gray, pictureRect } from './caption';
+import { captionBox, captionHeight, captionLines, displayTitle, drawFactor, formatTime, gray, pictureRect, splitTime } from './caption';
 
 // 02:42 UTC on 2026-09-05 is 7:42 pm the evening before in Mazatlán (UTC−7).
 const AT = Date.UTC(2026, 8, 5, 2, 42);
@@ -85,19 +85,56 @@ describe('captionLines', () => {
 
 describe('pictureRect', () => {
   it('overlay fills the panel', () => {
-    expect(pictureRect({ captionLayout: 'overlay', pictureHeight: 87 }, 1920, 1080)).toEqual({ left: 0, top: 0, width: 1920, height: 1080 });
+    expect(pictureRect({ captionLayout: 'overlay', pictureHeight: 87, pictureShift: 0 }, 1920, 1080)).toEqual({ left: 0, top: 0, width: 1920, height: 1080 });
   });
   it('inset keeps the panel aspect at the dialled height, locked on the centre both ways', () => {
     // 87 % of 1080 = 940 tall; 16:9 → 1671 wide; (1920 − 1671) / 2 = 125 (rounded); (1080 − 940) / 2 = 70.
-    expect(pictureRect({ captionLayout: 'inset', pictureHeight: 87 }, 1920, 1080)).toEqual({ left: 125, top: 70, width: 1671, height: 940 });
+    expect(pictureRect({ captionLayout: 'inset', pictureHeight: 87, pictureShift: 0 }, 1920, 1080)).toEqual({ left: 125, top: 70, width: 1671, height: 940 });
     // Growing the picture moves its top up and its foot down by the same amount.
-    const small = pictureRect({ captionLayout: 'inset', pictureHeight: 50 }, 1920, 1080);
-    const big = pictureRect({ captionLayout: 'inset', pictureHeight: 70 }, 1920, 1080);
+    const small = pictureRect({ captionLayout: 'inset', pictureHeight: 50, pictureShift: 0 }, 1920, 1080);
+    const big = pictureRect({ captionLayout: 'inset', pictureHeight: 70, pictureShift: 0 }, 1920, 1080);
     expect(small.top + small.height / 2).toBe(540);
     expect(big.top + big.height / 2).toBe(540);
   });
   it('scales with the panel it is drawn on', () => {
-    expect(pictureRect({ captionLayout: 'inset', pictureHeight: 50 }, 960, 540)).toEqual({ left: 240, top: 135, width: 480, height: 270 });
+    expect(pictureRect({ captionLayout: 'inset', pictureHeight: 50, pictureShift: 0 }, 960, 540)).toEqual({ left: 240, top: 135, width: 480, height: 270 });
+  });
+  it('the nudge slides the picture off centre by a percent of the panel, negative up, and changes nothing else', () => {
+    const centred = pictureRect({ captionLayout: 'inset', pictureHeight: 87, pictureShift: 0 }, 1920, 1080);
+    const up = pictureRect({ captionLayout: 'inset', pictureHeight: 87, pictureShift: -5 }, 1920, 1080);
+    const down = pictureRect({ captionLayout: 'inset', pictureHeight: 87, pictureShift: 5 }, 1920, 1080);
+    expect(up.top).toBe(centred.top - 54); // 5 % of 1080
+    expect(down.top).toBe(centred.top + 54);
+    expect({ ...up, top: 0 }).toEqual({ ...centred, top: 0 });
+    // Half the panel, half the nudge: it is a percent, not a pixel count.
+    expect(pictureRect({ captionLayout: 'inset', pictureHeight: 87, pictureShift: 5 }, 960, 540).top)
+      .toBe(pictureRect({ captionLayout: 'inset', pictureHeight: 87, pictureShift: 0 }, 960, 540).top + 27);
+  });
+  it('the caption goes with it: the pair keeps its gap and moves as one block', () => {
+    const d = { captionLayout: 'inset' as const, captionAlign: 'picture' as const, captionGap: 18 };
+    const centred = pictureRect({ captionLayout: 'inset', pictureHeight: 80, pictureShift: 0 }, 1920, 1080);
+    const up = pictureRect({ captionLayout: 'inset', pictureHeight: 80, pictureShift: -5 }, 1920, 1080);
+    expect(captionBox(d, up, 1920).top).toBe(captionBox(d, centred, 1920).top! - 54);
+  });
+  it('overlay has no centre to nudge: the picture is the panel', () => {
+    expect(pictureRect({ captionLayout: 'overlay', pictureHeight: 87, pictureShift: -10 }, 1920, 1080))
+      .toEqual({ left: 0, top: 0, width: 1920, height: 1080 });
+  });
+});
+
+describe('splitTime', () => {
+  it('keeps the words the two readings share and hands back only what changed', () => {
+    expect(splitTime('7:42 pm there', '7:52 pm there')).toEqual({ fromHead: '7:42', toHead: '7:52', tail: 'pm there' });
+    // "pm" is shared until it isn't.
+    expect(splitTime('11:52 am there', '12:02 pm there')).toEqual({ fromHead: '11:52 am', toHead: '12:02 pm', tail: 'there' });
+    expect(splitTime('sun 1.2° above the horizon', 'sun 0.4° above the horizon'))
+      .toEqual({ fromHead: 'sun 1.2°', toHead: 'sun 0.4°', tail: 'above the horizon' });
+  });
+  it('compares whole words, so a shared digit never splits a number', () => {
+    expect(splitTime('7:42', '7:52')).toEqual({ fromHead: '7:42', toHead: '7:52', tail: '' });
+  });
+  it('leaves a word in the head even when every word matches, so there is always something to fade', () => {
+    expect(splitTime('7:42 pm there', '7:42 pm there')).toEqual({ fromHead: '7:42', toHead: '7:42', tail: 'pm there' });
   });
 });
 
@@ -119,18 +156,18 @@ describe('captionHeight', () => {
 });
 
 describe('captionBox', () => {
-  const pic = pictureRect({ captionLayout: 'inset', pictureHeight: 87 }, 1920, 1080); // 125, 70, 1671 × 940
+  const pic = pictureRect({ captionLayout: 'inset', pictureHeight: 87, pictureShift: 0 }, 1920, 1080); // 125, 70, 1671 × 940
   const d = { captionLayout: 'inset' as const, captionAlign: 'picture' as const, captionGap: 18 };
   it('hangs the gap below the picture\'s foot, flush with the picture', () => {
     expect(captionBox(d, pic, 1920)).toEqual({ left: 125, maxWidth: 1671, top: 70 + 940 + 18, textAlign: 'left' });
   });
   it('the gap is from the picture whatever its height: the caption follows the foot, never the panel edge', () => {
     for (const h of [40, 60, 80, 92]) {
-      const p = pictureRect({ captionLayout: 'inset', pictureHeight: h }, 1920, 1080);
+      const p = pictureRect({ captionLayout: 'inset', pictureHeight: h, pictureShift: 0 }, 1920, 1080);
       expect(captionBox(d, p, 1920).top).toBe(p.top + p.height + 18);
     }
     // At 92 % the picture ends at 1034 and the caption starts at 1052: it leaves the panel, and that is what the preview shows.
-    const tall = pictureRect({ captionLayout: 'inset', pictureHeight: 92 }, 1920, 1080);
+    const tall = pictureRect({ captionLayout: 'inset', pictureHeight: 92, pictureShift: 0 }, 1920, 1080);
     expect(captionBox(d, tall, 1920).top).toBeGreaterThan(1080 - 30);
   });
   it('center spans the panel; panel sits at the glass margin', () => {
@@ -138,7 +175,7 @@ describe('captionBox', () => {
     expect(captionBox({ ...d, captionAlign: 'panel' }, pic, 1920)).toMatchObject({ left: 24, textAlign: 'left', top: 1028 });
   });
   it('the gap is in glass pixels: everything halves on a half-size panel', () => {
-    const half = pictureRect({ captionLayout: 'inset', pictureHeight: 87 }, 960, 540);
+    const half = pictureRect({ captionLayout: 'inset', pictureHeight: 87, pictureShift: 0 }, 960, 540);
     expect(captionBox(d, half, 960).top).toBe(half.top + half.height + 9);
   });
   it('overlay tucks into the picture corner whatever the dials say', () => {
@@ -155,7 +192,7 @@ it('gray is a percent of white', () => {
 describe('drawFactor', () => {
   it('is the picture width over the source width: 1 at native size, ~4.2 at the default inset on a 1080 panel', () => {
     expect(drawFactor({ width: 400 })).toBe(1);
-    const d = { captionLayout: 'inset' as const, pictureHeight: 87 };
+    const d = { captionLayout: 'inset' as const, pictureHeight: 87, pictureShift: 0 };
     expect(drawFactor(pictureRect(d, 1920, 1080))).toBeCloseTo(4.18, 2);
     expect(drawFactor(pictureRect({ ...d, captionLayout: 'overlay' }, 2560, 1440))).toBeCloseTo(6.4, 2);
     expect(drawFactor({ width: 1000 }, { width: 500 })).toBe(2);

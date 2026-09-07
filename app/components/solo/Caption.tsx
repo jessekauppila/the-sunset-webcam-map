@@ -3,7 +3,8 @@
 import type { CSSProperties } from 'react';
 import type { Feed, SoloDials } from '@/app/lib/solo/types';
 import {
-  FONT_STACKS, LINE_HEIGHT, captionBox, captionLines, captionScale, formatTime, gray, type CaptionEntry, type Rect,
+  FONT_STACKS, LINE_HEIGHT, captionBox, captionLines, captionScale, formatTime, gray, splitTime,
+  type CaptionEntry, type Rect,
 } from '@/app/lib/solo/caption';
 
 const TIME_KEYFRAMES = `
@@ -30,9 +31,11 @@ export function Caption({ entry, dials, picture, width, feed, step }: {
   /**
    * The frame the time is stepping from, inside a camera run. Every frame of
    * a run is the same camera, so the title and the place hold still and only
-   * the clock moves: the old time fades out over the first half of `fadeS`,
-   * the new one in over the second, never overlapping. Absent on a dwell's
-   * first frame, where the whole caption arrives with the picture instead.
+   * the clock moves — and inside the clock, only the words that actually
+   * change. Those crossfade over `fadeS`, out and in together, the way the
+   * picture underneath dissolves; "pm there" and the rest of the shared tail
+   * never animate. Absent on a dwell's first frame, where the whole caption
+   * arrives with the picture instead.
    */
   step?: { from: CaptionEntry; fadeS: number } | null;
 }) {
@@ -61,27 +64,33 @@ export function Caption({ entry, dials, picture, width, feed, step }: {
     : null;
   // Two frames of the same minute say the same thing; nothing to fade.
   const stepping = !!from && !!lines.time && from !== lines.time;
-  const half = stepping && step ? step.fadeS / 2 : 0;
+  // What the two readings share, and the head that differs.
+  const split = stepping && from ? splitTime(from, lines.time) : null;
+  const fade = split && step ? step.fadeS : 0;
 
-  const timeText = (
-    <span data-testid="caption-time" key={lines.time} style={
-      stepping ? { ...timeFace, display: 'inline-block', animation: `solo-time-in ${half}s ease ${half}s both` } : timeFace
-    }>
-      {lines.time}
-    </span>
-  );
-  const time = !lines.time ? null : stepping ? (
-    // The outgoing clock rides on top of the incoming one, which holds the
-    // line's width so nothing around it moves while the two swap.
-    <span style={{ position: 'relative', display: 'inline-block' }}>
-      {timeText}
-      <span data-testid="caption-time-out" key={from} aria-hidden style={{
-        ...timeFace, position: 'absolute', left: 0, top: 0, animation: `solo-time-out ${half}s ease both`,
+  const time = !lines.time ? null : split ? (
+    // The head crossfades in place: the outgoing reading rides on top of the
+    // incoming one, which holds the width so the tail beside it never moves.
+    // Each head is keyed by its own text, so a step restarts the two
+    // animations without remounting the line they sit in.
+    <span style={{ ...timeFace, position: 'relative', display: 'inline-block' }}>
+      <span data-testid="caption-time" style={{ display: 'inline-block' }}>
+        <span data-testid="caption-time-head" key={split.toHead} style={{
+          display: 'inline-block', animation: `solo-time-in ${fade}s ease both`,
+        }}>
+          {split.toHead}
+        </span>
+        {split.tail ? ` ${split.tail}` : null}
+      </span>
+      <span data-testid="caption-time-out" key={split.fromHead} aria-hidden style={{
+        position: 'absolute', left: 0, top: 0, animation: `solo-time-out ${fade}s ease both`,
       }}>
-        {from}
+        {split.fromHead}
       </span>
     </span>
-  ) : timeText;
+  ) : (
+    <span data-testid="caption-time" style={timeFace}>{lines.time}</span>
+  );
 
   return (
     <>

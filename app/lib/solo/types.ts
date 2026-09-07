@@ -56,6 +56,8 @@ export type CaptionFont = 'system' | 'geist' | 'sans' | 'serif' | 'mono';
 export interface CaptionDials {
   captionLayout: CaptionLayout;
   pictureHeight: number;
+  /** Percent of the panel's height the picture and its caption move together, negative up. */
+  pictureShift: number;
   captionAlign: CaptionAlign;
   captionGap: number;
   font: CaptionFont;

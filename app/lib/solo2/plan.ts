@@ -18,6 +18,24 @@ export function fitPlan(d: PlanDials, frames: number): DwellPlan {
   return { dwellS: d.dwellS, frames: n, stepS: d.dwellS / n, leadS: Math.min(d.dwellS, Math.max(0, d.leadS)) };
 }
 
+/** The most of one step a dissolve may take, so a frame is still for the rest of it. */
+export const DISSOLVE_SHARE = 0.5;
+
+/**
+ * How long one frame of a run takes to dissolve into the next: the dial,
+ * capped at a share of the step.
+ *
+ * The cap is what makes the two screens fade alike. A step is the dwell over
+ * the run, so a camera with twelve frames at a 20 s dwell gets a 1.67 s step:
+ * uncapped, the 1.5 s dial fills it and that screen never rests, while a
+ * three-frame run dissolves for 1.5 s and then holds for 5. One dial, two
+ * rhythms — reported 2026-09-06 as the sunset side fading at a different rate
+ * from the sunrise side.
+ */
+export function stepFadeS(sameCameraFadeS: number, p: Pick<DwellPlan, 'stepS'>): number {
+  return Math.min(Math.max(0, sameCameraFadeS), p.stepS * DISSOLVE_SHARE);
+}
+
 export interface Stage {
   /** Which frame of the run is up, 0-based. */
   index: number;
