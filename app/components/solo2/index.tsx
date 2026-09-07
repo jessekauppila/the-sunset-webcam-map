@@ -43,13 +43,15 @@ export function Solo2Kiosk(props: MosaicProps) {
   const dials = dialsFrom2(withCaption(mergeSettings(SOLO2_SETTINGS_SCHEMA, props.settings), props.shared));
   const glass = useSoloGlass({
     feed: props.feed,
-    dials,
     drive: props.driveSchedule !== false,
     dozing: props.dozing === true,
     version: 'solo2',
   });
   const current = glass.current;
-  const startFor = () => glass.shownSince ?? glass.boundaryMs - dials.dwellS * 1000;
+  // The server stamps shown-since; without one, treat the dwell as starting
+  // now rather than working backwards from an end and a dial, which a budget
+  // makes wrong (spec §5.1).
+  const startFor = () => glass.shownSince ?? Date.now();
   const [dwell, setDwell] = useState<Dwell>(() => ({ entry: current, previous: null, startMs: startFor() }));
   // Derived during render, so the new dwell and its previous frame commit together.
   if ((current?.snapshotId ?? null) !== (dwell.entry?.snapshotId ?? null)) {

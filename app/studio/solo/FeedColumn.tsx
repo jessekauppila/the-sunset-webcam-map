@@ -2,7 +2,6 @@
 
 import { useEffect, useState, type ReactNode } from 'react';
 import type { EntryView, StateView } from '@/app/api/kiosk/solo/view';
-import { nextBoundaryMs } from '@/app/lib/solo/schedule';
 import type { Feed, SoloDials } from '@/app/lib/solo/types';
 import type { SoloVersionSpec } from '@/app/lib/solo/versions';
 import { cameraGroups, representative, runOf } from '@/app/lib/solo2/run';
@@ -100,7 +99,11 @@ export function FeedColumn({ feed, server, projected, liveDials, nowMs, version,
   /** The clicked frame, its screen, and the frames of its column in order, so a pop-up can step through them. */
   onSelect: (entry: EntryView, feed: Feed, list: EntryView[]) => void;
 }) {
-  const boundary = nextBoundaryMs(nowMs, feed, liveDials.dwellS, liveDials.offsetS);
+  // The server's published end, not a boundary derived here (spec §5.1). A
+  // dwell's length is engine state, so a countdown computed from the dwell
+  // dial would be a confident wrong number the moment dwells stop being
+  // uniform — and this is a surface an operator reads.
+  const boundary = server.schedule.nextBoundaryMs;
   const leftS = Math.max(0, Math.ceil((boundary - nowMs) / 1000));
   const current = server.current;
   const queue: EntryView[] = [...(current ? [current.entry] : []), ...projected.next];

@@ -1,7 +1,6 @@
 import { isEligible } from '@/app/lib/solo/engine';
 import { SOLO_VERSIONS, type SoloVersionSpec } from '@/app/lib/solo/versions';
 import type { Role } from '@/app/lib/solo2/types';
-import { nextBoundaryMs, slotFor } from '@/app/lib/solo/schedule';
 import type { ScreenRow, StoredEntry, TapeFrame } from '@/app/lib/solo/store';
 import type { BinEntry, Feed, SoloDials } from '@/app/lib/solo/types';
 import type { Zone } from '@/app/lib/solo/zone';
@@ -134,11 +133,18 @@ export function buildStateView(input: {
     lastSnapshotId: currentEntry?.snapshotId ?? null,
     sunsetStreak: screen?.sunsetStreak ?? 0,
   };
-  // The next draw happens at the next boundary, whose slot is one past now's.
-  const firstSlot = slotFor(nowMs, feed, dials.dwellS, dials.offsetS) + 1;
+  // The next draw is simply the one after what is on glass: the slot is a
+  // counter, not a function of the clock (spec §5, step 3).
+  const firstSlot = (screen?.slot ?? -1) + 1;
   // Project past the queue so every eligible frame gets a draw position (stages spec §3.1).
   const eligibleCount = entries.filter((e) => isEligible(e, dials)).length;
-  const draws = version.project(entries, dials, state, eligibleCount + NEXT_COUNT, firstSlot, feed);
+  // The first projected draw goes on glass when the current dwell ends; with
+  // nothing on glass, now. The projection's timestamps are then real, which
+  // a slot counter can no longer supply on its own (spec §5).
+  const projectionStartMs = currentEntry && screen?.shownSince != null
+    ? screen.shownSince + version.dwellMs(entries, currentEntry, dials)
+    : nowMs;
+  const draws = version.project(entries, dials, state, eligibleCount + NEXT_COUNT, firstSlot, feed, projectionStartMs);
   const next = draws.slice(0, NEXT_COUNT);
   const stages = assignStages({ entries, dials, state, firstSlot, draws, queueDepth: NEXT_COUNT });
   // The frames a draw plays share its stage (camera-run spec §3.4): a
@@ -185,8 +191,12 @@ export function buildStateView(input: {
       nonSunset: remaining.filter((e) => e.bin === 'non_sunset').sort(staged).map(view),
     },
     schedule: {
-      slot: slotFor(nowMs, feed, dials.dwellS, dials.offsetS),
-      nextBoundaryMs: nextBoundaryMs(nowMs, feed, dials.dwellS, dials.offsetS),
+      slot: screen?.slot ?? 0,
+      // The server's own published end, so every countdown on every surface
+      // reads one number rather than each deriving its own (spec §5.1).
+      nextBoundaryMs: screen?.shownSince != null && currentEntry
+        ? screen.shownSince + version.dwellMs(entries, currentEntry, dials)
+        : nowMs,
     },
     lastPull: { admitted: input.admitted },
     entries,

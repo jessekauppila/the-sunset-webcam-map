@@ -1,4 +1,3 @@
-import { boundaryMs } from './schedule';
 import type { BinEntry, Feed, ScreenState, SoloDials } from './types';
 import { qualityOf } from './scores';
 
@@ -93,7 +92,7 @@ export function choosePool(
 
 /** The next frame for one screen drawing at `slot`, or null when nothing is eligible. */
 export function next(
-  entries: BinEntry[], d: SoloDials, state: ScreenState, slot: number, feed: Feed,
+  entries: BinEntry[], d: SoloDials, state: ScreenState, slot: number,
 ): BinEntry | null {
   const pool = choosePool(entries, d, state, slot);
   if (pool.length === 0) return null;
@@ -116,21 +115,30 @@ export function afterShowing(e: BinEntry, state: ScreenState): ScreenState {
  */
 export function project(
   entries: BinEntry[], d: SoloDials, state: ScreenState, n: number, firstSlot: number, feed: Feed,
+  /**
+   * When the first projected draw goes on glass, ms since epoch. The
+   * projected clock walks forward from here by each draw's length, because a
+   * slot is a counter now and cannot be turned back into a time (spec §5,
+   * §6.1). Still pure: the caller supplies the instant, this reads no clock.
+   */
+  startMs = 0,
 ): BinEntry[] {
   const working = entries.map((e) => ({ ...e }));
   let s = state;
+  let atMs = startMs;
   const out: BinEntry[] = [];
   for (let i = 0; i < n; i++) {
     const slot = firstSlot + i;
-    const pick = next(working, d, s, slot, feed);
+    const pick = next(working, d, s, slot);
     if (!pick) break;
     out.push({ ...pick });
     pick.tally += 1;
     pick.isNew = false;
     // Both currencies, never one instead of the other (spec §6.1.1): the
     // slot is what rest is measured in, the timestamp is what time is.
-    pick.lastShownAt = boundaryMs(slot, feed, d.dwellS, d.offsetS);
+    pick.lastShownAt = atMs;
     pick.lastShownSlot = slot;
+    atMs += d.dwellS * 1000; // solo's dwell is the dial and nothing else
     s = afterShowing(pick, s);
   }
   return out;

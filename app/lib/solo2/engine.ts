@@ -1,5 +1,4 @@
 import { afterShowing, choosePool, compareRecency, compareWithin, rankScore } from '@/app/lib/solo/engine';
-import { boundaryMs } from '@/app/lib/solo/schedule';
 import type { BinEntry, Feed, ScreenState } from '@/app/lib/solo/types';
 import { poolEntries, runOf, type RunEntry } from './run';
 import type { Role, Solo2Dials } from './types';
@@ -75,21 +74,26 @@ export function dwellMs2(_entries: BinEntry[], _pick: BinEntry, d: Solo2Dials): 
  */
 export function project2<T extends RunEntry>(
   entries: T[], d: Solo2Dials, state: ScreenState, n: number, firstSlot: number, feed: Feed,
+  /** When the first projected draw goes on glass; the clock walks by dwellMs2 from there (spec §5). */
+  startMs = 0,
 ): T[] {
   const working = entries.map((e) => ({ ...e }));
   let s = state;
+  let atMs = startMs;
   const out: T[] = [];
   for (let i = 0; i < n; i++) {
     const pick = next2(working, d, s, firstSlot + i, feed);
     if (!pick) break;
     out.push({ ...pick });
+    const playedFor = dwellMs2(working, pick, d);
     for (const f of shown2(working, pick, d)) {
       f.tally += 1;
       f.isNew = false;
       // Both currencies (spec §6.1.1); every frame the dwell played rests.
-      f.lastShownAt = boundaryMs(firstSlot + i, feed, d.dwellS, d.offsetS);
+      f.lastShownAt = atMs;
       f.lastShownSlot = firstSlot + i;
     }
+    atMs += playedFor;
     s = afterShowing(pick, s);
   }
   return out;

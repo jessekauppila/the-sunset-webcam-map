@@ -2,10 +2,8 @@
 
 import { useEffect, useRef, useState } from 'react';
 import type { EntryView, StateView, ViewEntry } from '@/app/api/kiosk/solo/view';
-import { slotFor } from '@/app/lib/solo/schedule';
-import type { Feed, SoloDials } from '@/app/lib/solo/types';
+import type { Feed } from '@/app/lib/solo/types';
 import type { SoloVersionName } from '@/app/lib/solo/versions';
-import { msUntilBoundary } from './schedule';
 
 const STATE_REFRESH_MS = 60_000;
 
@@ -13,6 +11,8 @@ export interface SoloGlass {
   current: EntryView | null;
   /** When the server put `current` on glass, ms since epoch; null when unknown. A dwell's clock starts here. */
   shownSince: number | null;
+  /** When this dwell ends, ms since epoch, as the server computed it (spec §5.1). Null before the first state arrives. */
+  endsAtMs: number | null;
   next: EntryView | null;
   slot: number;
   boundaryMs: number;
@@ -39,9 +39,8 @@ function preload(url: string): Promise<void> {
  * preload the one after. Two tabs stay staggered because both read the same
  * clock; a reload just waits for its next boundary.
  */
-export function useSoloGlass({ feed, dials, drive, dozing, version = 'solo' }: {
+export function useSoloGlass({ feed, drive, dozing, version = 'solo' }: {
   feed: Feed;
-  dials: SoloDials;
   drive: boolean;
   dozing: boolean;
   /** Which version's dials and engine the server should use. */
@@ -81,11 +80,22 @@ export function useSoloGlass({ feed, dials, drive, dozing, version = 'solo' }: {
     };
   }, [feed, version]);
 
-  // The boundary timer. Re-armed after every fire and whenever dials change.
+  // The dwell timer. Waits for the instant the SERVER says this dwell ends,
+  // rather than computing a boundary from the clock and a dial (spec §5.1).
+  // A dwell's length is a function of engine state, so only the server can
+  // know it; deriving it here would duplicate engine logic and drift
+  // silently. Re-armed after every fire and whenever the published end moves.
+  const endsAtMs = view?.current?.endsAtMs ?? null;
+  const currentSlot = view?.current?.slot ?? null;
   useEffect(() => {
-    const wait = msUntilBoundary(Date.now(), feed, dials.dwellS, dials.offsetS);
+    // No state yet, or a screen with nothing on it: poll rather than guess a
+    // boundary. The state refresh above is what recovers from this.
+    const wait = endsAtMs == null ? STATE_REFRESH_MS : Math.max(1, endsAtMs - Date.now());
     const t = setTimeout(async () => {
-      const slot = slotFor(Date.now(), feed, dials.dwellS, dials.offsetS);
+      // The slot is a counter now, not a function of the clock: the next draw
+      // is simply the one after the one on glass. Monotonic per feed, which is
+      // what kiosk_draws' (feed, slot) primary key needs.
+      const slot = (currentSlot ?? 0) + 1;
       if (driveRef.current && !dozingRef.current && lastSlotPosted.current !== slot) {
         lastSlotPosted.current = slot;
         try {
@@ -106,15 +116,15 @@ export function useSoloGlass({ feed, dials, drive, dozing, version = 'solo' }: {
       setTick((n) => n + 1); // re-arm
     }, wait);
     return () => clearTimeout(t);
-  }, [feed, version, dials.dwellS, dials.offsetS, tick]);
+  }, [feed, version, endsAtMs, currentSlot, tick]);
 
-  const nowMs = Date.now();
   return {
     current: view?.current?.entry ?? null,
     shownSince: view?.current?.shownSince ?? null,
+    endsAtMs,
     next: view?.next[0] ?? null,
-    slot: slotFor(nowMs, feed, dials.dwellS, dials.offsetS),
-    boundaryMs: nowMs + msUntilBoundary(nowMs, feed, dials.dwellS, dials.offsetS),
+    slot: currentSlot ?? 0,
+    boundaryMs: endsAtMs ?? Date.now(),
     error,
     queueLength: view?.next.length ?? 0,
     nextEntries: view?.next ?? [],

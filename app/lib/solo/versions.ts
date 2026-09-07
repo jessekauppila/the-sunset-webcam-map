@@ -19,8 +19,8 @@ export interface SoloVersionSpec<D extends SoloDials = SoloDials> {
   dialsFrom(values: SettingsValues): D;
   /** The next frame for a draw at `slot`. */
   next(entries: BinEntry[], d: D, state: ScreenState, slot: number, feed: Feed): BinEntry | null;
-  /** `n` draws forward, the first at `firstSlot`. */
-  project(entries: BinEntry[], d: D, state: ScreenState, n: number, firstSlot: number, feed: Feed): BinEntry[];
+  /** `n` draws forward, the first at `firstSlot`, going on glass at `startMs`. */
+  project(entries: BinEntry[], d: D, state: ScreenState, n: number, firstSlot: number, feed: Feed, startMs?: number): BinEntry[];
   /** What a draw at `slot` is inside the bar; solo is all peaks. */
   roleAt(slot: number, feed: Feed, d: D): Role;
   /** The frames a draw of `pick` puts on glass, all of which count as shown; solo shows the pick alone. */
