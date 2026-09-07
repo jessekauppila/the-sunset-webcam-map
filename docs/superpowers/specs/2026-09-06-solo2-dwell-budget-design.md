@@ -1,10 +1,9 @@
 # solo2 — the dwell budget: frames share a budget with a floor, and the clock leaves the grid
 
 **Date:** 2026-09-06
-**Status:** designed, not built. No branch yet. Needs its own worktree off
-`main` (`scripts/wt.sh new feat/solo2-dwell-budget`, run from the main
-checkout). Drafted from the `feat-one-studio` worktree, which owns unrelated
-work; do not commit it there.
+**Status:** designed, **not built**. Spec landed ahead of the work on
+`feat/solo2-dwell-budget` (PR #154) so other sessions can read it. §7's
+caption fixes were delivered separately by PR #153.
 **Amends:** `2026-09-05-solo2-camera-run-design.md` §2.2 ("every frame plays;
 no cap, no hold floor"), §3.2, §4.1, §4.2;
 `2026-09-04-solo-kiosk-design.md` §4 rule 2 (rest) and §6.2 (the schedule).
@@ -371,6 +370,61 @@ The fix is to store the draw number rather than recompute it:
 Small, but it is a migration plus four call sites plus their tests, not a
 rename. Apply the migration before merging the code that reads the column.
 
+### 6.1 The draw number is rest's currency, not just an idempotency token
+
+Raised by the replay session on 2026-09-06, and worth stating outright
+because the bullets above read as plumbing and this is why they are not
+optional.
+
+Today's conversion between a timestamp and a draw number is free **and
+reversible**, because slots are clock-derived: `floor(t / dwellS)` goes one
+way, `slot × dwellS` comes back. The moment a slot becomes a counter that
+conversion has no inverse. From a timestamp you cannot recover which draw it
+was, because the draws in between were not all the same length.
+
+So `rest`, counted in draws, can no longer be measured against
+`lastShownAt`, a timestamp. Every site that measures rest changes currency
+**in the same step**, not merely gains a column:
+
+| site | today | after |
+|---|---|---|
+| `isResting` | `slot - slotFor(lastShownAt)` | `slot - lastShownSlot` |
+| `stages.ts` draws-until-rested | the same conversion | the same stored integer |
+| `project` (solo) | writes `lastShownAt = boundaryMs(slot)` | writes the draw number |
+| `project2` (solo2) | the same | the same |
+
+**Why §10's order cannot flip.** Doing §6 first is safe: a stored draw number
+written while slots are still clock-derived agrees with a clock-derived
+comparison, so the tree is correct at every point. Doing §5 first is not.
+Rest would compare a counter against a clock-derived number and rest the
+wrong frames, quietly. That produces a plausible-looking queue rather than an
+error, which is worse than the half-moved clock this document already warns
+about.
+
+### 6.2 Every consumer of the grid
+
+Eleven non-test files read `slotFor`, `boundaryMs`, `nextBoundaryMs` or
+`msUntilBoundary`. Listed so none is found late:
+
+| file | what it uses the grid for |
+|---|---|
+| `app/lib/solo/engine.ts` | `isResting`, and `project` stamping `lastShownAt` |
+| `app/lib/solo2/engine.ts` | `project2` stamping `lastShownAt` |
+| `app/lib/solo/stages.ts` | draws-until-rested |
+| `app/api/kiosk/solo/advance/route.ts` | server-side slot validation |
+| `app/api/kiosk/solo/view.ts` | `firstSlot` for the projection, and the current slot |
+| `app/components/solo/useSoloGlass.ts` | the glass's clock and boundary timer |
+| `app/components/solo/schedule.ts` | the `msUntilBoundary` wrapper |
+| `app/components/solo/index.tsx` | debug overlay countdown |
+| `app/components/solo2/index.tsx` | dwell start, debug overlay countdown |
+| `app/studio/solo/FeedColumn.tsx` | the studio's "next in N s" countdown |
+| `app/lib/solo/replay.ts` | start and end slots, evaluation moment, `lastShownAt` write |
+
+`FeedColumn.tsx` is the one most easily missed and it is a surface Jesse
+reads: a countdown derived from a grid that no longer exists would show a
+confident wrong number rather than break. **`solo` keeps the grid**, so each
+of these needs a version branch rather than a wholesale replacement.
+
 An alternative Jesse raised: rest a camera until it has a new frame, rather
 than for N draws. That is a genuine behaviour change and a reasonable one now
 that the camera is the draw unit, but it is not needed to make the clock work
@@ -434,14 +488,21 @@ on 2026-09-06.
 ## 10. Build order
 
 0. ~~The caption fixes~~ — delivered by PR #153, see §7.
-1. The stored draw number (§6). Migration first, applied before the merge.
-2. `dwellMs` on the version spec, then the server-owned dwell end (§5, §5.1).
+1. **The rest currency (§6, §6.1).** Migration first, applied before the
+   merge. Not just the column: `isResting`, `stages.ts`, `project` and
+   `project2` all move to the stored draw number in this step. Safe on its
+   own, because a stored number and a clock-derived comparison still agree
+   while slots remain clock-derived.
+2. `dwellMs` on the version spec, then the server-owned dwell end (§5, §5.1),
+   and with it every consumer in §6.2 including the replay and the studio
+   countdown.
 3. The budget rule and the per-bin caps (§3, §4), including the studio
    readout of `n*`.
 
-Steps 1 and 2 have no visible effect on their own and are what step 3 needs,
-so they are one PR or two, never split across a merge boundary that leaves
-the clock half-moved.
+**Step 1 must precede step 2 and the two must not be split across a merge.**
+The reasoning is §6.1: reversing them makes rest compare a counter against a
+clock-derived number, which rests the wrong frames quietly. Step 2 spans
+lanes, so the replay half belongs in the same PR rather than a follow-up.
 
 ## 11. Where this file lives
 
