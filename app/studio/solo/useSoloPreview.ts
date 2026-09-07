@@ -21,12 +21,22 @@ const empty = (startMs: number): PreviewDwell => ({ entry: null, previous: null,
 
 /**
  * A local clock through `order` (the on-glass frame first, then the projected
- * queue) at `dwellS` per frame, wrapping at the end. It calls nothing: the
- * studio preview plays on the studio's dials while the glass keeps its own
- * clock. When `order[0]` changes — the server advanced — the clock restarts
- * at index 0 with the frame that was showing as `previous`.
+ * queue), wrapping at the end. It calls nothing: the studio preview plays on
+ * the studio's dials while the glass keeps its own clock. When `order[0]`
+ * changes — the server advanced — the clock restarts at index 0 with the frame
+ * that was showing as `previous`.
+ *
+ * `dwellS` is a number when every frame holds for the same time, and a
+ * function of the frame when they do not. solo2 needs the function: a dwell is
+ * as long as the run it plays, and once a run has more frames than the step
+ * floor can divide the budget into, the dwell STRETCHES past the dial
+ * (`fitPlan`'s `plan.dwellS`). A single shared period cannot find that
+ * boundary, so a stretched run was cut short here while the glass played it
+ * whole.
  */
-export function useSoloPreview(order: EntryView[], dwellS: number, tickMs = 250): PreviewDwell {
+export function useSoloPreview(
+  order: EntryView[], dwellS: number | ((entry: EntryView) => number), tickMs = 250,
+): PreviewDwell {
   const [dwell, setDwell] = useState<PreviewDwell>(() => (
     order.length === 0 ? empty(Date.now()) : { entry: order[0], previous: null, startMs: Date.now(), index: 0 }
   ));
@@ -42,13 +52,17 @@ export function useSoloPreview(order: EntryView[], dwellS: number, tickMs = 250)
       : { entry: order[0], previous: dwell.entry, startMs: Date.now(), index: 0 });
   }
 
-  // The interval reads the latest order without being torn down and rebuilt
-  // on every parent render (a studio dial in motion would starve the tick).
+  // The interval reads the latest order and dwell without being torn down and
+  // rebuilt on every parent render (a studio dial in motion would starve the
+  // tick, and a caller's dwell function is a fresh closure every time).
   const latest = useRef(order);
+  const dwellMs = useRef<(entry: EntryView) => number>(() => 0);
   useEffect(() => { latest.current = order; });
+  useEffect(() => {
+    dwellMs.current = (entry) => Math.max(1, (typeof dwellS === 'function' ? dwellS(entry) : dwellS) * 1000);
+  });
 
   useEffect(() => {
-    const period = Math.max(1, dwellS * 1000);
     const tick = () => {
       // Captured once per real tick, outside the updater: a functional
       // setState update can be queued and evaluated later rather than at
@@ -67,15 +81,28 @@ export function useSoloPreview(order: EntryView[], dwellS: number, tickMs = 250)
         // step per tick: after a long pause (backgrounded tab, sleep) a
         // one-step-per-tick catch-up would replay every intermediate fade
         // and restart the stage clock at each step — a flicker storm.
-        const steps = Math.floor((nowMs - prev.startMs) / period);
-        if (steps < 1) return prev;
-        const next = (prev.index + steps) % now.length;
-        return { entry: now[next], previous: prev.entry, startMs: prev.startMs + steps * period, index: next };
+        //
+        // Frames no longer share a period, so the jump is a lap skip and then
+        // at most one walk of the order, counting each frame by its own dwell.
+        // It all happens inside the updater, so however far behind the clock
+        // is, ONE state change commits and no intermediate dwell is rendered.
+        const periods = now.map((e) => dwellMs.current(e));
+        const lap = periods.reduce((a, b) => a + b, 0);
+        let index = prev.index;
+        let startMs = prev.startMs;
+        const laps = Math.floor((nowMs - startMs) / lap);
+        if (laps > 0) startMs += laps * lap;
+        while (nowMs - startMs >= periods[index]) {
+          startMs += periods[index];
+          index = (index + 1) % now.length;
+        }
+        if (index === prev.index && startMs === prev.startMs) return prev;
+        return { entry: now[index], previous: prev.entry, startMs, index };
       });
     };
     const t = setInterval(tick, Math.max(1, tickMs));
     return () => clearInterval(t);
-  }, [dwellS, tickMs]);
+  }, [tickMs]);
 
   return dwell;
 }

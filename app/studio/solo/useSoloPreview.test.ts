@@ -175,4 +175,35 @@ describe('useSoloPreview', () => {
     expect(result.current.entry?.snapshotId).toBe(2);
     expect(result.current.startMs).toBe(T0 + 5_000);
   });
+
+  // A solo2 dwell is only as long as ITS OWN frame's run. Once a run has more
+  // frames than the step floor allows, the budget stretches the dwell past the
+  // dial (plan.dwellS), so one shared period cannot find the boundary.
+  const stretched = (e: EntryView) => (e.snapshotId === 2 ? 20 : DWELL);
+
+  it('gives every frame its own dwell, so a stretched run is not cut short at the dial', () => {
+    const order = [entry(1), entry(2), entry(3)];
+    const { result } = renderHook(() => useSoloPreview(order, stretched));
+    act(() => { vi.advanceTimersByTime(DWELL * 1000); });
+    expect(result.current.entry?.snapshotId).toBe(2);
+    // The dial's 8 s comes and goes twice over; frame 2 holds, because its run is 20 s.
+    act(() => { vi.advanceTimersByTime(DWELL * 1000); });
+    expect(result.current.entry?.snapshotId).toBe(2);
+    act(() => { vi.advanceTimersByTime(12_000); }); // 20 s into frame 2, at last
+    expect(result.current.entry?.snapshotId).toBe(3);
+    expect(result.current.startMs).toBe(T0 + (DWELL + 20) * 1000);
+  });
+
+  it('catches up over mixed dwells in one jump, counting each frame by its own length', () => {
+    const order = [entry(1), entry(2), entry(3), entry(4)]; // 8 + 20 + 8 + 8 = 44 s a lap
+    const { result } = renderHook(() => useSoloPreview(order, stretched));
+    act(() => {
+      // A lap, then frame 1's 8 s and frame 2's 20 s, and a second into frame 3.
+      vi.setSystemTime(new Date(T0 + 44_000 + 28_000 + 1_000));
+      vi.advanceTimersByTime(250);
+    });
+    expect(result.current.index).toBe(2);
+    expect(result.current.startMs).toBe(T0 + 44_000 + 28_000);
+    expect(result.current.previous?.snapshotId).toBe(1);
+  });
 });

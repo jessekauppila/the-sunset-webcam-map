@@ -190,3 +190,53 @@ it('a run restarts by rebuilding its stack, never by fading back down to an earl
   // on top of the oldest one.
   expect(screen.getByTestId('stack')).not.toBe(stackBefore);
 });
+
+it('plays the queue when the glass is dark, and never calls a queued frame `on glass now`', async () => {
+  vi.useFakeTimers();
+  // `current` is null whenever the on-glass frame has aged out of the pool
+  // (view.ts resolves it by id against the live entries), which is the state
+  // a screen sits in whenever nothing is advancing it. The queue is fine.
+  const dark = { current: null, entries: [] } as unknown as StateView;
+  const projected = { next: [at(8, 2), at(9, 3)] } as unknown as StateView;
+  const { container } = render(<GlassPreview screens={[{ feed: 'sunrise', server: dark, projected }]}
+    dials={{ ...D, dwellS: 4 }} panel={{ width: 1920, height: 1080 }} />);
+
+  expect(screen.queryByText('no frame to preview')).toBeNull();
+  expect([...container.querySelectorAll('img')].map((i) => i.getAttribute('src'))).toEqual(['u8']);
+  // The glass really is dark, so the status says so rather than claiming the queue is on it.
+  expect(screen.getByText(/^nothing on glass · preview · frame 8 · next in \d+ s$/)).toBeInTheDocument();
+
+  await act(async () => { vi.advanceTimersByTime(4_100); });
+  expect(screen.getByText(/^nothing on glass · preview · frame 9/)).toBeInTheDocument();
+});
+
+it('a screen with neither a frame on glass nor a queue still says it has nothing to draw', () => {
+  const dark = { current: null, entries: [] } as unknown as StateView;
+  render(<GlassPreview screens={[{ feed: 'sunrise', server: dark, projected: { next: [] } as unknown as StateView }]}
+    dials={D} panel={{ width: 1920, height: 1080 }} />);
+  expect(screen.getByText('no frame to preview')).toBeInTheDocument();
+  expect(screen.getByText('nothing on glass')).toBeInTheDocument();
+});
+
+it('solo2 holds a stretched dwell for the run it plays, not for the dial', async () => {
+  const { SOLO_VERSIONS } = await import('@/app/lib/solo/versions');
+  const { SOLO2_SETTINGS_SCHEMA, dialsFrom2 } = await import('@/app/lib/solo2/settingsSchema');
+  vi.useFakeTimers();
+  // 3 frames against a 3 s floor: the budget cannot divide 6 s that finely, so
+  // the dwell STRETCHES to 9 s (dwell-budget spec §3). The walker has to wait
+  // for the run it is actually playing.
+  const d2 = { ...dialsFrom2(schemaDefaults(SOLO2_SETTINGS_SCHEMA)), dwellS: 6, minStepS: 3, sameCameraFadeS: 1 };
+  const older = (id: number, capturedAt: number) => ({ ...entry, snapshotId: id, imageUrl: `u${id}`, capturedAt });
+  const entries = [older(5, entry.capturedAt - 20 * 60_000), older(6, entry.capturedAt - 10 * 60_000), entry];
+  const s2 = { ...server, entries } as unknown as StateView;
+  const projected = { next: [at(8, 2)] } as unknown as StateView;
+  render(<GlassPreview version={SOLO_VERSIONS.solo2} screens={[{ feed: 'sunset', server: s2, projected }]}
+    dials={d2} panel={{ width: 1920, height: 1080 }} />);
+
+  await act(async () => { vi.advanceTimersByTime(6_100); }); // the dial is up; the run is not
+  expect(screen.getByTestId('top')).toHaveAttribute('src', 'u7'); // still the run's last frame
+  expect(screen.getByText(/on glass now · frame 7/)).toBeInTheDocument();
+
+  await act(async () => { vi.advanceTimersByTime(3_000); }); // 9 s: the run is done
+  expect(screen.getByText(/^preview · frame 8/)).toBeInTheDocument();
+});

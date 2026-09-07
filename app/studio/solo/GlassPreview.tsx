@@ -54,33 +54,52 @@ function PlayingScreen({ feed, server, projected, error, dials, panel, version }
   dials: SoloDials; panel: { width: number; height: number }; version: SoloVersionSpec;
 }) {
   const current = server?.current?.entry ?? null;
-  const order: EntryView[] = current ? [current, ...(projected?.next ?? [])] : [];
-  const dwell = useSoloPreview(order, dials.dwellS);
-  const now = useNow();
+  // The queue plays whether or not anything is on glass. `current` is resolved
+  // by id against the live pool (view.ts), so it goes null the moment the
+  // on-glass frame ages out — which is where a screen sits any time nothing is
+  // advancing it. Gating the whole order on it blanked a screen whose queue was
+  // eight frames deep.
+  const queue = projected?.next ?? [];
+  const order: EntryView[] = current ? [current, ...queue] : queue;
 
-  // Hooks run on both versions; only solo2 reads the stage.
+  // Only solo2 reads the stage, but the run and the plan are what say how long
+  // a dwell lasts, so they are derived for every version before the walker.
   const solo2 = version.name === 'solo2';
   const d2 = dials as Solo2Dials;
   // The same capped run and the same budget rule the glass uses, so the
   // preview steps at the rate the glass will (dwell-budget spec §3, §4).
-  const run = solo2 && dwell.entry
-    ? runOf(dwell.entry, server?.entries ?? [], d2.cameraRun, capFor(dwell.entry, d2))
-    : [];
-  const plan = fitPlan(
-    { dwellS: dials.dwellS, leadS: d2.leadS ?? 0, minStepS: d2.minStepS ?? dials.dwellS },
-    Math.max(1, run.length),
+  const runFor = (e: EntryView) => (
+    solo2 ? runOf(e, server?.entries ?? [], d2.cameraRun, capFor(e, d2)) : []
   );
+  const planFor = (e: EntryView | null) => fitPlan(
+    { dwellS: dials.dwellS, leadS: d2.leadS ?? 0, minStepS: d2.minStepS ?? dials.dwellS },
+    Math.max(1, e ? runFor(e).length : 1),
+  );
+  // Per frame, not once: the budget stretches a dwell past the dial whenever a
+  // run has more frames than the floor can divide it into, so a walker on the
+  // dial alone cut a stretched run short — the preview jumped to the next
+  // camera mid-timelapse while the glass played the run out.
+  const dwell = useSoloPreview(order, (e) => planFor(e).dwellS);
+  const now = useNow();
+
+  const run = dwell.entry ? runFor(dwell.entry) : [];
+  const plan = planFor(dwell.entry);
   // Keyed on the dwell start, not the index: the start changes on every step
   // AND every restart (a server advance while sitting at index 0 still gets
   // a fresh start), but never on a bare tick, so this is the one value that
   // means "the dwell actually changed."
   const stage = useLoopingStage(plan, dwell.startMs);
 
-  const remainingS = Math.max(0, Math.ceil((dwell.startMs + dials.dwellS * 1000 - now) / 1000));
+  // This dwell's own length, so the countdown agrees with when the walker will move.
+  const remainingS = Math.max(0, Math.ceil((dwell.startMs + plan.dwellS * 1000 - now) / 1000));
+  // Index 0 is the on-glass frame only when there IS one; with a dark glass
+  // it is the first queued frame, and saying `on glass now` there would be a
+  // lie about the thing this header exists to keep in sight.
+  const dark = current ? '' : 'nothing on glass · ';
   const status = dwell.entry
-    ? (dwell.index === 0
+    ? (current && dwell.index === 0
       ? `on glass now · frame ${dwell.entry.snapshotId}`
-      : `preview · frame ${dwell.entry.snapshotId} · next in ${remainingS} s`)
+      : `${dark}preview · frame ${dwell.entry.snapshotId} · next in ${remainingS} s`)
     : error ?? 'nothing on glass';
 
   return (
