@@ -48,7 +48,7 @@ describe('Rail, solo kind', () => {
     render(<Rail api={a} surface={STUDIO_SURFACES.solo2} tab="change" onTab={noop} />);
     for (const k of ARRIVAL_KNOBS) expect(screen.getByLabelText(k.label)).toBeInTheDocument();
     for (const k of PLAY_KNOBS) expect(screen.queryByLabelText(k.label)).toBeNull();
-    expect(screen.getByText('a sunrise dips through')).toHaveStyle({ fontWeight: 700 });
+    expect(screen.getByText('sunrise change')).toHaveStyle({ fontWeight: 700 });
     expect(screen.getByRole('tab', { name: /Change/ })).toHaveAttribute('aria-selected', 'true');
     fireEvent.click(screen.getByText('reset arrival'));
     expect(a.resetSection).toHaveBeenCalledWith('solo2', 'arrival');

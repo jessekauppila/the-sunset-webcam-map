@@ -91,11 +91,11 @@ export function arrivalLook(feed: Feed, d: Pick<Solo2Dials,
   const base = { covers: d.veilCovers, ease };
   const sunrise = feed === 'sunrise';
   switch (d.veilStyle) {
-    case 'none':
+    case 'crossfade':
       return { ...base, veilColor: sunrise ? null : '#000000', lift: 1 };
-    case 'light':
+    case 'lift':
       return { ...base, veilColor: sunrise ? (VEIL_TINTS[d.veilTint] ?? VEIL_TINTS.dawn) : '#000000', lift: 1 };
-    case 'burn':
+    case 'exposure':
       // The picture moves toward the veil: up into white on the sunrise
       // screen, down into black on the sunset one. Both screens burn; they
       // burn toward opposite ends, which is the whole idea.

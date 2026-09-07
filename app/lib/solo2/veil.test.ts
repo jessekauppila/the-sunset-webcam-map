@@ -12,21 +12,21 @@ describe('the four looks, per screen', () => {
     expect(arrivalLook('sunset', D)).toMatchObject({ veilColor: '#000000', lift: 1 });
   });
 
-  it('none takes the veil off the sunrise screen and leaves the sunset one ending in black', () => {
-    const d = { ...D, veilStyle: 'none' as const };
+  it('crossfade takes the veil off the sunrise screen and leaves the sunset one ending in black', () => {
+    const d = { ...D, veilStyle: 'crossfade' as const };
     expect(arrivalLook('sunrise', d).veilColor).toBeNull();
     expect(arrivalLook('sunset', d).veilColor).toBe('#000000');
   });
 
-  it('light dips a sunrise through the chosen tint; the sunset screen never changes colour', () => {
-    const d = { ...D, veilStyle: 'light' as const };
+  it('lift dips a sunrise through the chosen tint; the sunset screen never changes colour', () => {
+    const d = { ...D, veilStyle: 'lift' as const };
     expect(arrivalLook('sunrise', d).veilColor).toBe(VEIL_TINTS.dawn);
     expect(arrivalLook('sunrise', { ...d, veilTint: 'dim' }).veilColor).toBe(VEIL_TINTS.dim);
     expect(arrivalLook('sunset', { ...d, veilTint: 'dim' }).veilColor).toBe('#000000');
   });
 
-  it('burn moves each picture toward its own veil: up into white, down into black', () => {
-    const d = { ...D, veilStyle: 'burn' as const };
+  it('exposure moves each picture toward its own veil: up into white, down into black', () => {
+    const d = { ...D, veilStyle: 'exposure' as const };
     expect(arrivalLook('sunrise', d)).toMatchObject({ veilColor: '#ffffff', lift: 1.6 });
     expect(arrivalLook('sunset', d)).toMatchObject({ veilColor: '#000000', lift: 0 });
     // A lift below 1 on the sunrise screen would darken it into a white veil, which is nonsense.

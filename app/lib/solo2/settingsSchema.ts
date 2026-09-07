@@ -56,24 +56,24 @@ export const SOLO2_SETTINGS_SCHEMA: SettingsSchema = [
   // ---- change: everything about one picture giving way to the next (its own rail page) ----
   {
     key: 'transition', kind: 'enum', options: ['cut', 'crossfade', 'dip'], default: 'dip',
-    label: 'how it changes', section: 'arrival',
+    label: 'camera change', section: 'arrival',
     description: 'The gesture, for both screens. cut: the new picture simply replaces the old. crossfade: the old picture fades out while the new one fades in on top of it. dip: the old picture fades away into a veil, then the new one fades up out of it. Only `dip` reads the veil dial below — the other two are already not ending in darkness.',
   },
-  { ...(solo('fadeS') as NumberKnob), default: 1.5, section: 'arrival', label: 'how long (s)', description: 'How long a crossfade takes, or a dip (down plus up). Ignored by cut. This also sets the arrival segment at the front of every dwell, so a long change makes every dwell longer — watch the dwell line on the Play tab.' },
+  { ...(solo('fadeS') as NumberKnob), default: 1.5, section: 'arrival', label: 'camera change (s)', description: 'How long a crossfade takes, or a dip (down plus up). Ignored by cut. This also sets the arrival segment at the front of every dwell, so a long change makes every dwell longer — watch the dwell line on the Play tab.' },
   {
-    key: 'veilStyle', kind: 'enum', options: ['black', 'none', 'light', 'burn'], default: 'black',
-    label: 'a sunrise dips through', section: 'arrival',
-    description: 'What a camera change dips through, on a `dip`. The SUNSET screen ends in black under all four; this dial is about what a sunrise does instead, because a sunrise fading to black plays the day backwards. black: both screens dip through black, as today. none: the sunrise screen never goes dark, one dawn dissolving straight into the next. light: the sunrise screen dips through the tint below. burn: the picture itself moves toward its veil — the sunrise blows out into white, the sunset darkens into black.',
+    key: 'veilStyle', kind: 'enum', options: ['black', 'crossfade', 'lift', 'exposure'], default: 'black',
+    label: 'sunrise change', section: 'arrival',
+    description: 'What a camera change dips through, on a `dip`. The SUNSET screen ends in black under all four; this dial is about what a sunrise does instead, because a sunrise fading to black plays the day backwards. black: both screens dip through black, as today. crossfade: the sunrise screen never goes dark, one dawn dissolving straight into the next. lift: the sunrise screen dips through the tint below. exposure: the picture itself moves toward its veil — the sunrise blows out into white, the sunset darkens into black.',
   },
   {
     key: 'veilTint', kind: 'enum', options: ['white', 'dawn', 'sky', 'dim'], default: 'dawn',
-    label: 'light tint', section: 'arrival',
-    description: 'Which light a `light` sunrise dips through. Pure white on a 27-inch panel in a dark room reads as a camera flash; dawn and dim are the room-safe ones. Ignored by the other three.',
+    label: 'lift tint', section: 'arrival',
+    description: 'Which light a `lift` sunrise dips through. Pure white on a 27-inch panel in a dark room reads as a camera flash; dawn and dim are the room-safe ones. Ignored by the other three.',
   },
   {
     key: 'burnLift', kind: 'number', min: 1, max: 3, step: 0.1, default: 1.6,
     label: 'burn', section: 'arrival',
-    description: 'How hard an exposure pushes the picture toward its veil. 1 is a plain dip through white — the picture is covered, never brightened. 1.6 blows the sky out first and the dark ground last, which is what reads as overexposure. Past about 2 the picture is white long before the veil is, and the change looks lopsided again. Ignored unless the change is `burn`.',
+    description: 'How hard an exposure pushes the picture toward its veil. 1 is a plain dip through white — the picture is covered, never brightened. 1.6 blows the sky out first and the dark ground last, which is what reads as overexposure. Past about 2 the picture is white long before the veil is, and the change looks lopsided again. Ignored unless the sunrise change is `exposure`.',
   },
   {
     key: 'veilCovers', kind: 'enum', options: ['picture', 'panel'], default: 'picture',

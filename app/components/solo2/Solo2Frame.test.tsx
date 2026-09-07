@@ -216,27 +216,27 @@ describe('what the change dips through', () => {
     expect(screen.getByTestId('dip')).toHaveStyle({ background: '#000000' });
   });
 
-  it('light dips the sunrise through its tint and leaves the sunset ending in black', () => {
-    dip({ veilStyle: 'light', veilTint: 'dawn' });
+  it('lift dips the sunrise through its tint and leaves the sunset ending in black', () => {
+    dip({ veilStyle: 'lift', veilTint: 'dawn' });
     expect(screen.getByTestId('dip')).toHaveStyle({ background: VEIL_TINTS.dawn });
     cleanup();
-    dip({ veilStyle: 'light', veilTint: 'dawn' }, 'sunset');
+    dip({ veilStyle: 'lift', veilTint: 'dawn' }, 'sunset');
     expect(screen.getByTestId('dip')).toHaveStyle({ background: '#000000' });
   });
 
-  it('a veil of `none` takes it off the sunrise screen entirely; the sunset screen still dips', () => {
-    dip({ veilStyle: 'none' });
+  it('a sunrise change of `crossfade` takes the veil off that screen entirely; the sunset screen still dips', () => {
+    dip({ veilStyle: 'crossfade' });
     expect(screen.queryByTestId('dip')).toBeNull();
     // Not a cut: the outgoing picture stays, and the new one dissolves over the WHOLE fade.
     expect(screen.getByTestId('prev')).toBeInTheDocument();
     expect(screen.getByTestId('stack')).toHaveStyle({ animation: `solo2-fade-in 2s ${E} both` });
     cleanup();
-    dip({ veilStyle: 'none' }, 'sunset');
+    dip({ veilStyle: 'crossfade' }, 'sunset');
     expect(screen.getByTestId('dip')).toHaveStyle({ background: '#000000' });
   });
 
-  it('burn moves the picture toward the veil, each screen toward its own end', () => {
-    dip({ veilStyle: 'burn', burnLift: 1.6 });
+  it('exposure moves the picture toward the veil, each screen toward its own end', () => {
+    dip({ veilStyle: 'exposure', burnLift: 1.6 });
     expect(screen.getByTestId('dip')).toHaveStyle({ background: '#ffffff' });
     expect(screen.getByTestId('prev').style.animation).toBe(`solo2-burn-out 1s ${E} both`);
     expect(screen.getByTestId('stack').style.animation)
@@ -245,23 +245,23 @@ describe('what the change dips through', () => {
     // share one document, and a `<style>` rule is global.
     expect(screen.getByTestId('prev').style.getPropertyValue('--solo2-lift')).toBe('1.6');
     cleanup();
-    dip({ veilStyle: 'burn', burnLift: 1.6 }, 'sunset');
+    dip({ veilStyle: 'exposure', burnLift: 1.6 }, 'sunset');
     expect(screen.getByTestId('dip')).toHaveStyle({ background: '#000000' });
     expect(screen.getByTestId('stack').style.getPropertyValue('--solo2-lift')).toBe('0');
   });
 
   it('no burn animation at all when the lift asks for nothing', () => {
-    dip({ veilStyle: 'burn', burnLift: 1 });
+    dip({ veilStyle: 'exposure', burnLift: 1 });
     expect(screen.getByTestId('prev').style.animation).toBe('');
     expect(screen.getByTestId('stack').style.animation).toBe(`solo2-fade-in 1s ${E} 1s both`);
   });
 
   it('the veil stays inside the picture unless it is told to flood the panel', () => {
-    dip({ veilStyle: 'light', veilCovers: 'panel' });
+    dip({ veilStyle: 'lift', veilCovers: 'panel' });
     expect(screen.getByTestId('dip')).toHaveStyle({ width: '100%', height: '100%' });
     cleanup();
     // Inside the picture: the veil takes the picture box, the same one the stack sits in.
-    dip({ veilStyle: 'light' });
+    dip({ veilStyle: 'lift' });
     const veil = screen.getByTestId('dip').style;
     const stack = screen.getByTestId('stack').style;
     expect(veil.width).toBe(stack.width);
