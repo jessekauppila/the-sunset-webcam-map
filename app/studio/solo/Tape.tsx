@@ -21,6 +21,8 @@ export const THUMB_H = 48;
 const PLAYHEAD_ANIM = 'tape-playhead';
 /** A block never draws narrower than this, whatever its time says. */
 const MIN_BLOCK_PX = 14;
+/** A frame the cap cut takes no time on glass, so its stub has a fixed width that stands for none. */
+const CUT_STUB_PX = 8;
 /** A past frame that stayed on glass longer than this many dwells was held (nothing else eligible). */
 const HELD_AFTER = 1.5;
 /** …and its block is capped here so one long hold does not push everything off screen. */
@@ -35,8 +37,8 @@ const clock = (ms: number) => new Date(ms).toLocaleTimeString([], { hour: 'numer
 const place = (f: { city: string; country: string }) => [f.city, f.country].filter(Boolean).join(', ');
 const secs = (s: number) => `${Number.isInteger(s) ? s : s.toFixed(1)} s`;
 
-function Thumb({ testId, src, color, width, dashed = false, ring = false, repeat = false, title, onClick, children }: {
-  testId: string; src: string; color: string; width: number; dashed?: boolean; ring?: boolean; repeat?: boolean;
+function Thumb({ testId, src, color, width, dashed = false, dim = false, ring = false, repeat = false, title, onClick, children }: {
+  testId: string; src: string; color: string; width: number; dashed?: boolean; dim?: boolean; ring?: boolean; repeat?: boolean;
   title: string; onClick?: () => void; children?: ReactNode;
 }) {
   return (
@@ -44,7 +46,7 @@ function Thumb({ testId, src, color, width, dashed = false, ring = false, repeat
       flex: 'none', width, height: THUMB_H, padding: 0, background: '#000', cursor: onClick ? 'pointer' : 'default',
       borderWidth: 1.5, borderStyle: dashed ? 'dashed' : 'solid', borderColor: color, borderTopColor: repeat ? REPEAT : color,
       borderTopWidth: repeat ? 3 : 1.5, borderRadius: 3, boxShadow: ring ? RING : undefined, boxSizing: 'border-box',
-      position: 'relative', overflow: 'hidden',
+      position: 'relative', overflow: 'hidden', opacity: dim ? 0.35 : 1,
     }}>
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src={src} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
@@ -106,8 +108,9 @@ function Playhead({ sinceMs, endsAtMs, nowMs }: { sinceMs: number | null; endsAt
  * else was eligible, reads as a wide block); the frame on glass wears the
  * orange ring; a seam separates fact from the projection, whose blocks are
  * dashed and one dwell wide. A crossfade is an orange X straddling the cut,
- * as wide as the fade dial. A solo2 dwell with a prelude shows its earlier
- * frames as narrow sub-blocks before the chosen one. A frame already seen
+ * as wide as the fade dial. A solo2 dwell with a camera run shows its earlier
+ * frames as narrow sub-blocks before the chosen one, and the frames the
+ * most-frames cap cut as dim stubs before those. A frame already seen
  * earlier on the strip carries a red top edge, the REPEAT tag's colour. When
  * nothing is on glass the seam is preceded by a black blank. Scrolls
  * sideways; on mount and whenever the past grows, the seam is brought to
@@ -229,9 +232,15 @@ export function Tape({ past, current, currentSince, currentEndsAt, next, nextSeq
     const mainWidth = Math.max(MIN_BLOCK_PX, total - (seq?.earlier.length ?? 0) * stepPx);
     const title = `draw ${i + 1} · ${e.title}${place(e) ? ` · ${place(e)}` : ''}`
       + (seq && seq.earlier.length > 0 ? ` · after ${seq.earlier.length} earlier frame${seq.earlier.length === 1 ? '' : 's'} of this camera, ${secs(seq.stepS)} each` : '');
-    if (seq && seq.earlier.length > 0) {
+    const cut = seq?.skipped ?? [];
+    if (seq && (seq.earlier.length > 0 || cut.length > 0)) {
       blocks.push(
         <div key={`next-${i}`} data-testid={`tape-next-${i}-group`} style={{ flex: 'none', display: 'flex', gap: 1 }}>
+          {/* Cut by the most-frames cap: no time on the strip, only a dim stub so the operator sees what a higher cap adds. */}
+          {cut.map((f) => (
+            <Thumb key={`cut-${f.snapshotId}`} testId={`tape-next-${i}-cut-${f.snapshotId}`} src={f.imageUrl} width={CUT_STUB_PX} color="#2a3242" dashed dim
+              title={`not played · ${f.title} · over the ${seq.capLabel ?? 'most-frames cap'}`} onClick={() => onSelect(f)} />
+          ))}
           {seq.earlier.map((f) => (
             <Thumb key={f.snapshotId} testId={`tape-next-${i}-pre-${f.snapshotId}`} src={f.imageUrl} width={stepPx} color="#2a3242" dashed
               title={`run · ${f.title} · ${secs(seq.stepS)}`} />

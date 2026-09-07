@@ -7,7 +7,8 @@ import { mergeSettings } from '@/app/lib/settings/schema';
 import { SHARED_NAMESPACE } from '@/app/lib/settings/sharedSchema';
 import { withCaption } from '@/app/lib/solo/captionSchema';
 import { SOLO_VERSIONS, type SoloVersionSpec } from '@/app/lib/solo/versions';
-import { runOf } from '@/app/lib/solo2/run';
+import { capFor, runOf } from '@/app/lib/solo2/run';
+import type { Solo2Dials } from '@/app/lib/solo2/types';
 import { Header } from './Header';
 import { Rail, type RailTab } from './Rail';
 import { DeployHistory } from './DeployHistory';
@@ -85,7 +86,7 @@ export function StudioClient() {
   // solo2's dwell readout reads the camera on glass: the longer run of the two screens.
   const runFrames = solo?.name === 'solo2' && studioDials
     ? Math.max(1, ...[sunset, sunrise].map((s) => (s.server?.current
-      ? runOf(s.server.current.entry, s.server.entries, (studioDials as { cameraRun?: boolean }).cameraRun !== false).length
+      ? runOf(s.server.current.entry, s.server.entries, (studioDials as Solo2Dials).cameraRun !== false, capFor(s.server.current.entry, studioDials as Solo2Dials)).length
       : 0)))
     : 1;
 

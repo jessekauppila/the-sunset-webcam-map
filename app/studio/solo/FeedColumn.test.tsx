@@ -1,5 +1,5 @@
 import { it, expect, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, within } from '@testing-library/react';
 import { FeedColumn } from './FeedColumn';
 import { dialsFrom, SOLO_SETTINGS_SCHEMA } from '@/app/lib/solo/settingsSchema';
 import { schemaDefaults } from '@/app/lib/settings/schema';
@@ -137,4 +137,34 @@ it('solo2 with the camera run off lists every frame for itself', async () => {
   expect(screen.queryByRole('group')).toBeNull();
   expect(screen.getAllByText('cam1').length).toBeGreaterThan(0);
   expect(screen.getAllByText('cam2').length).toBeGreaterThan(0);
+});
+
+it('solo2 greys out the frames of a camera that the most-frames cap cuts, keeps them clickable, and sizes the run by the budget rule', async () => {
+  const { SOLO_VERSIONS } = await import('@/app/lib/solo/versions');
+  const { SOLO2_SETTINGS_SCHEMA, dialsFrom2 } = await import('@/app/lib/solo2/settingsSchema');
+  // Defaults: dwell 20 s, floor 4 s, most frames sunset 8. Ten frames of one camera: the glass plays the newest 8.
+  const d2 = { ...dialsFrom2(schemaDefaults(SOLO2_SETTINGS_SCHEMA)), ratingFloor: 1 };
+  const at = Date.UTC(2026, 8, 5, 2, 42);
+  const es = Array.from({ length: 10 }, (_, i) => ({
+    ...entry(i + 1, 'sunset', 0.5 + i * 0.01, 7), capturedAt: at - (10 - i) * 60_000, timezone: 'America/Mazatlan',
+  }));
+  const v = buildStateView({ feed: 'sunrise', dials: d2, entries: es, screen: null,
+    nowMs: 0, admitted: { sunset: 0, nonSunset: 0 }, zone: { minDeg: -24, maxDeg: -2 }, version: SOLO_VERSIONS.solo2 });
+  const onSelect = vi.fn();
+  render(<FeedColumn feed="sunrise" server={v} projected={v} liveDials={d2} nowMs={0} version={SOLO_VERSIONS.solo2} onSelect={onSelect} />);
+  const group = screen.getAllByRole('group')[0];
+  // The two oldest are cut and say so; the eight played are numbered 1/8 … 8/8, at the 4 s floor (20 s / 8 = 2.5 s would be under it).
+  expect(group).toHaveTextContent(/CUT.*CUT.*1\/8.*7\/8.*8\/8/s);
+  const cut = within(group).getAllByTitle(/not played/);
+  expect(cut).toHaveLength(2);
+  expect(cut[0].getAttribute('title')).toMatch(/most frames, sunset.*8/);
+  expect(cut[0]).toHaveStyle({ opacity: '0.35' });
+  expect(within(group).getByTitle(/1 of 8 in this dwell, 4 s/)).toBeInTheDocument();
+  expect(group.getAttribute('aria-label')).toBe('cam10: 8 frames in one dwell, 2 cut');
+  // A cut frame is still a way into the pop-up, with every frame of the camera in capture order around it.
+  fireEvent.click(cut[0]);
+  expect(onSelect).toHaveBeenCalledWith(expect.objectContaining({ snapshotId: 1 }), 'sunrise',
+    expect.arrayContaining(Array.from({ length: 10 }, (_, i) => expect.objectContaining({ snapshotId: i + 1 }))));
+  const list = onSelect.mock.calls[0][2].map((e: { snapshotId: number }) => e.snapshotId);
+  expect(list.indexOf(1)).toBeLessThan(list.indexOf(3));
 });
