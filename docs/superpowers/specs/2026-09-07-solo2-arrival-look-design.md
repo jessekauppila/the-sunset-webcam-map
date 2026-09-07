@@ -30,8 +30,15 @@ black under all four; the dial is about what a **sunrise** does instead.
 |---|---|---|
 | `black` (default) | dips through black | dips through black |
 | `crossfade` | no veil at all; one dawn dissolves into the next | dips through black |
-| `light` | dips through `veilTint` | dips through black |
-| `burn` | blows out into white | darkens into black |
+| `lift` | dips through `veilTint` | dips through black |
+| `exposure` | blows out into white | darkens into black |
+
+**The names are the mockup's names**, deliberately. Jesse spent an afternoon
+comparing these looks on a page whose tabs read *Today / Crossfade / Lift /
+Exposure / Sky-sampled*, and that is the vocabulary he now thinks in. Shipping
+`light` and `burn` instead cost him a round trip: *"why did we change the names?
+The names used to be very clear in the veil study. Can we keep those?"* When a
+decision is made against a prototype, the prototype's words ship with it.
 
 `black` is today's behaviour exactly, so merging changes nothing until the dial
 moves. Resolution lives in `app/lib/solo2/veil.ts` (`arrivalLook`), pure and
@@ -123,8 +130,14 @@ tabs — the UI taught the wrong thing.
 Everything about one picture giving way to the next now lives on the Change
 page, in the order you reason about it: **how it changes** → **how long** → **a
 sunrise dips through** → its tint / burn / coverage → **same camera** → **ease**.
-`veilStyle`'s `crossfade` option became `none`, because `transition` already owns
-that word and a dropdown should not offer the same value under two meanings.
+The dials keep the mockup's labels too — *camera change*, *camera change (s)*,
+*sunrise change*, *lift tint*, *burn*, *veil covers*, *same camera (s)*, *ease*.
+An earlier pass renamed `veilStyle`'s `crossfade` option to `none`, reasoning
+that `transition` already owned the word. That was solving the wrong problem:
+the confusion was never two identical option values, it was two dials called
+almost the same thing **on different tabs**. One tab owning both, with
+`transition` labelled for the gesture and `veilStyle` for the screen it acts on,
+removes it without spending the mockup's vocabulary.
 
 A schema test now asserts the arrival section's exact membership and that no two
 dials in the schema share a label.
