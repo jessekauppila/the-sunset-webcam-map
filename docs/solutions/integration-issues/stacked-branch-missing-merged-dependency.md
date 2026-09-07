@@ -59,4 +59,10 @@ Stacked branches snapshot their base at cut time; later merges to that base don'
 - A **walking-skeleton run** (deploy + run the real entrypoint early) catches this class of bug structurally — see [[walking-skeleton-over-horizontal-buildout]].
 
 ## Related Issues
+
+- `docs/solutions/workflow-issues/merged-is-a-claim-about-a-branch.md` — this
+  incident is one of five sharing a root cause: every cheap git signal describes
+  a branch, never `main`. That doc also carries the other reading of the ancestry
+  check (`--is-ancestor <sha> origin/main`, "did my work reach main"), which is
+  the general rule; the direction used here is the special case.
 - `../integration-issues/mpu6050-reads-fake-zeros-when-asleep.md` — the gyro `wake()`/`make_orientation_reader` fix (PR #4) that was the missing dependency here.

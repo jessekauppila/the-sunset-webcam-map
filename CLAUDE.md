@@ -36,6 +36,14 @@ Still true in every worktree:
 - **Push as soon as a commit exists** and land small increments the same day.
   Long-lived branches orphan fixes:
   `docs/solutions/best-practices/integrate-frequently-dont-let-branches-sprawl.md`.
+- **"Merged" is a claim about a branch, not about `main`.** Before pushing a
+  follow-up to a branch that already has a PR, check `gh pr view <n> --json
+  state` — MERGED means that branch is closed and the work needs a new one.
+  Before saying anything shipped, run `git merge-base --is-ancestor <sha>
+  origin/main`; it is the only check that answers the question. Merging parallel
+  PRs, build the merge RESULT (`git merge --no-commit`, then `npm run build`),
+  never each branch alone — a zero-file-overlap merge broke `main` twice.
+  `docs/solutions/workflow-issues/merged-is-a-claim-about-a-branch.md`.
 - **Remove the worktree when the PR merges.** `git worktree list` should read
   like the list of open PRs.
 

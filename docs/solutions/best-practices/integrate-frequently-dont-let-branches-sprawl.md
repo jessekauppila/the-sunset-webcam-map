@@ -39,3 +39,15 @@ already fix/build this?" a one-line `git log main` away.
 - Prefer a few short integration checkpoints over a heroic end-of-arc tidy.
 - When you *do* spin up parallel worktrees, set a reminder to reconcile them back soon — a
   worktree is a loan against `main`, not a parking lot.
+
+## Necessary, but not sufficient (added 2026-09-07)
+
+Landing fast is not the same as landing. This doc treats orphaning as a function
+of *time*, and that reading is incomplete: on 2026-09-06 a stacked PR orphaned
+five files in **21 seconds**, and on 2026-09-07 a commit was orphaned within the
+hour, both on branches doing exactly what this doc asks. Speed narrows the window
+for drift; it does nothing about work that never reached `main` at all.
+
+The complement is to verify rather than infer — `git merge-base --is-ancestor
+<sha> origin/main` is the only signal that means "on main". See
+`docs/solutions/workflow-issues/merged-is-a-claim-about-a-branch.md`.
