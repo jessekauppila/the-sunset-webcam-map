@@ -151,8 +151,8 @@ export function StudioClient() {
               <>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, minHeight: 0 }}>
                   <GlassPreview dials={studioDials!} panel={panel} version={solo!} screens={[
-                    { feed: 'sunrise', server: sunrise.server ?? null, error: sunrise.error },
-                    { feed: 'sunset', server: sunset.server ?? null, error: sunset.error },
+                    { feed: 'sunrise', server: sunrise.server ?? null, projected: sunrise.projected ?? null, error: sunrise.error },
+                    { feed: 'sunset', server: sunset.server ?? null, projected: sunset.projected ?? null, error: sunset.error },
                   ]} />
                 </div>
                 <SoloPanel version={solo!} liveDials={liveDials!} sunrise={sunrise} sunset={sunset} />
