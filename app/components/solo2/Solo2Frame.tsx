@@ -45,9 +45,17 @@ export function arrival(
  * frame — and inside a run, where every frame is the same camera, the title
  * and the place hold still while only the clock steps.
  */
-export function Solo2Frame({ entry, run, previous, stage, plan, dials, width, height, feed }: {
+export function Solo2Frame({ entry, run, previous, stage, plan, dials, width, height, feed, dwellKey }: {
   /** The drawn frame: the run's last. */
   entry: EntryView;
+  /**
+   * What identifies this dwell, so a new one rebuilds rather than fades. The
+   * drawn frame is not enough on its own: the studio preview replays the same
+   * frame whenever there is no queue behind it, and a run that restarts inside
+   * a mounted stack lowers `shown`, leaving the layers above it to dissolve
+   * away and reveal the oldest picture. Callers pass the dwell's start.
+   */
+  dwellKey?: string | number;
   /** What the dwell plays, oldest first, `entry` last (run.ts `runOf`). */
   run: RunFrame[];
   previous: ViewEntry | null;
@@ -75,6 +83,8 @@ export function Solo2Frame({ entry, run, previous, stage, plan, dials, width, he
   const shown = Math.min(stage.index, sequence.length - 1);
   const up = sequence[shown];
   const rank = up.rank ?? entry.rank;
+  // Every per-dwell key hangs off this, so one dwell is one stack.
+  const dwellId = dwellKey ?? entry.snapshotId;
   const stepFade = Math.min(Math.max(0, dials.sameCameraFadeS), plan.stepS);
 
   const arrive = arrival(entry, previous, dials);
@@ -110,12 +120,12 @@ export function Solo2Frame({ entry, run, previous, stage, plan, dials, width, he
         </div>
       )}
       {arrive.kind === 'dip' && showPrevious && (
-        <div key={`dip-${entry.snapshotId}`} data-testid="dip" style={{
+        <div key={`dip-${dwellId}`} data-testid="dip" style={{
           ...layer, background: '#000', animation: `solo2-dip ${arrive.fadeS / 2}s linear both`,
         }} />
       )}
       {/* keyed by the drawn frame so the arrival runs once per dwell; the stage only changes opacities inside */}
-      <div key={`stack-${entry.snapshotId}`} data-testid="stack" style={{ ...pictureLayer, animation: inAnimation }}>
+      <div key={`stack-${dwellId}`} data-testid="stack" style={{ ...pictureLayer, animation: inAnimation }}>
         <div style={pushStyle} data-testid="push">
           {sequence.map((f, i) => (
             <div key={f.snapshotId} data-testid={`seq-${i}`} style={{
@@ -130,7 +140,7 @@ export function Solo2Frame({ entry, run, previous, stage, plan, dials, width, he
       </div>
       {/* keyed like the stack, so the words arrive with the picture and once
           per dwell; inside the dwell only the clock moves. */}
-      <div key={`caption-${entry.snapshotId}`} data-testid="caption-layer" style={{ ...captionLayer, animation: inAnimation }}>
+      <div key={`caption-${dwellId}`} data-testid="caption-layer" style={{ ...captionLayer, animation: inAnimation }}>
         <Caption entry={up} dials={dials} picture={picture} width={width} height={height} feed={feed}
           step={shown > 0 ? { from: sequence[shown - 1], fadeS: stepFade } : null} />
       </div>

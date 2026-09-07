@@ -75,7 +75,7 @@ export function Solo2Kiosk(props: MosaicProps) {
   return (
     <div style={{ position: 'relative', width: props.width, height: props.height, background: '#000' }}>
       {current ? (
-        <Solo2Frame entry={current} run={run} previous={previous} stage={stage} plan={plan} dials={dials}
+        <Solo2Frame entry={current} run={run} previous={previous} stage={stage} plan={plan} dials={dials} dwellKey={dwell.startMs}
           width={props.width} height={props.height} feed={props.feed} />
       ) : null}
       {debug && (
