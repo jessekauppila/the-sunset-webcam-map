@@ -159,3 +159,34 @@ it('restarts the run\'s stage clock when the server advances a different camera 
     dials={d2} panel={panel} />);
   expect(screen.getByTestId('top')).toHaveAttribute('src', 'u20'); // camera B's run, first frame — the stage restarted
 });
+
+// The reported bug: at the end of a run the preview "fades up to an earlier
+// image". A run restarting inside a mounted stack lowers `shown`, and the
+// layers above it carry an opacity transition, so they dissolve away and
+// reveal the oldest frame underneath instead of the run simply beginning
+// again. A dwell must therefore rebuild its stack, not fade back down it —
+// including when the preview replays the very same drawn frame, which is what
+// it does whenever there is no projected queue.
+it('a run restarts by rebuilding its stack, never by fading back down to an earlier frame', async () => {
+  const { SOLO_VERSIONS } = await import('@/app/lib/solo/versions');
+  const { SOLO2_SETTINGS_SCHEMA, dialsFrom2 } = await import('@/app/lib/solo2/settingsSchema');
+  vi.useFakeTimers();
+  // minStepS 2 keeps the 6 s dwell divided evenly by 3 rather than stretched,
+  // so this test is about the stack and not about the budget.
+  const d2 = { ...dialsFrom2(schemaDefaults(SOLO2_SETTINGS_SCHEMA)), dwellS: 6, minStepS: 2, sameCameraFadeS: 1 }; // 3 frames → 2 s each
+  const older = (id: number, capturedAt: number) => ({ ...entry, snapshotId: id, imageUrl: `u${id}`, capturedAt });
+  const entries = [older(5, entry.capturedAt - 20 * 60_000), older(6, entry.capturedAt - 10 * 60_000), entry];
+  const s2 = { ...server, entries } as unknown as StateView;
+  render(<GlassPreview version={SOLO_VERSIONS.solo2} screens={[{ feed: 'sunset', server: s2, projected: null }]}
+    dials={d2} panel={{ width: 1920, height: 1080 }} />);
+
+  await act(async () => { vi.advanceTimersByTime(4_100); });
+  expect(screen.getByTestId('top')).toHaveAttribute('src', 'u7'); // last frame of the run
+  const stackBefore = screen.getByTestId('stack');
+
+  await act(async () => { vi.advanceTimersByTime(2_000); }); // the dwell ends and replays
+  expect(screen.getByTestId('top')).toHaveAttribute('src', 'u5'); // back to the oldest frame
+  // Rebuilt, so the later frames are simply gone rather than dissolving away
+  // on top of the oldest one.
+  expect(screen.getByTestId('stack')).not.toBe(stackBefore);
+});
