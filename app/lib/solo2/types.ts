@@ -6,6 +6,18 @@ export type Transition = 'cut' | 'crossfade' | 'dip';
 /** The time part of the caption moved to the solo dials with the caption section; re-exported for older imports. */
 export type { TimeStyle } from '@/app/lib/solo/types';
 
+/** What a camera change dips through (arrival-look spec §2). A pair: one look per screen. */
+export type VeilStyle = 'black' | 'crossfade' | 'light' | 'burn';
+
+/** The tint a `light` sunrise dips through (veil.ts `VEIL_TINTS`). */
+export type VeilTint = 'white' | 'dawn' | 'sky' | 'dim';
+
+/** Whether the veil spans the panel or only the picture inside it. */
+export type VeilCovers = 'picture' | 'panel';
+
+/** The timing function both halves of every dissolve share (veil.ts `ARRIVAL_EASES`). */
+export type ArrivalEase = 'linear' | 'gentle' | 'soft';
+
 /** Whether the two screens peak on the same beat or opposite ones (spec §3). */
 export type Screens = 'together' | 'alternate';
 
@@ -41,6 +53,19 @@ export interface Solo2Dials extends SoloDials {
    * buys pictures, never screen time (spec §4.1).
    */
   runFramesOther: number;
+  /** What a camera change dips through; the sunset screen stays black under all of them. */
+  veilStyle: VeilStyle;
+  /** The tint a `light` sunrise dips through. Ignored by every other style. */
+  veilTint: VeilTint;
+  /** How far an exposure pushes the picture toward its veil. Ignored unless `burn`. */
+  burnLift: number;
+  veilCovers: VeilCovers;
+  /**
+   * The timing function every layer of a dissolve shares — the camera change
+   * and the steps inside a run alike. Symmetric by construction so the two
+   * halves cannot drift apart (veil.ts).
+   */
+  arrivalEase: ArrivalEase;
   // bins
   valleys: number;
   screens: Screens;

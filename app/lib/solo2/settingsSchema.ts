@@ -1,7 +1,7 @@
 import type { NumberKnob, SettingsSchema, SettingsValues } from '@/app/lib/settings/schema';
 import { SOLO_SETTINGS_SCHEMA } from '@/app/lib/solo/settingsSchema';
 import { dialsFrom } from '@/app/lib/solo/settingsSchema';
-import type { Screens, Solo2Dials, Transition } from './types';
+import type { ArrivalEase, Screens, Solo2Dials, Transition, VeilCovers, VeilStyle, VeilTint } from './types';
 
 export const SOLO2_NAMESPACE = 'solo2';
 
@@ -64,6 +64,32 @@ export const SOLO2_SETTINGS_SCHEMA: SettingsSchema = [
     label: 'lead scale', section: 'glass',
     description: 'How far the push goes by the moment of the change. 1.03 is barely felt; 1.10 is a visible zoom.',
   },
+  // ---- arrival: what a camera change dips through (its own rail page) ----
+  {
+    key: 'veilStyle', kind: 'enum', options: ['black', 'crossfade', 'light', 'burn'], default: 'black',
+    label: 'the change', section: 'arrival',
+    description: 'What a camera change dips through. The sunset screen ends in black under all four; this dial is about what a SUNRISE does instead, because a sunrise fading to black plays the day backwards. black: both screens dip through black, as today. crossfade: the sunrise screen never goes dark, one dawn dissolving into the next. light: the sunrise screen dips through the tint below. burn: the picture itself moves toward its veil — the sunrise blows out into white, the sunset darkens into black.',
+  },
+  {
+    key: 'veilTint', kind: 'enum', options: ['white', 'dawn', 'sky', 'dim'], default: 'dawn',
+    label: 'light tint', section: 'arrival',
+    description: 'Which light a `light` sunrise dips through. Pure white on a 27-inch panel in a dark room reads as a camera flash; dawn and dim are the room-safe ones. Ignored by the other three.',
+  },
+  {
+    key: 'burnLift', kind: 'number', min: 1, max: 3, step: 0.1, default: 1.6,
+    label: 'burn', section: 'arrival',
+    description: 'How hard an exposure pushes the picture toward its veil. 1 is a plain dip through white — the picture is covered, never brightened. 1.6 blows the sky out first and the dark ground last, which is what reads as overexposure. Past about 2 the picture is white long before the veil is, and the change looks lopsided again. Ignored unless the change is `burn`.',
+  },
+  {
+    key: 'veilCovers', kind: 'enum', options: ['picture', 'panel'], default: 'picture',
+    label: 'veil covers', section: 'arrival',
+    description: 'Whether the veil stays inside the picture or floods the black surround with it too. Invisible while the veil is black; it is the light and burn styles that make it a choice.',
+  },
+  {
+    key: 'arrivalEase', kind: 'enum', options: ['linear', 'gentle', 'soft'], default: 'gentle',
+    label: 'ease', section: 'arrival',
+    description: 'How a dissolve starts and stops — the camera change and the steps inside a run alike. linear moves at one rate throughout, which is what makes a change feel like it snaps in. gentle and soft ramp in and out. Every curve here is symmetric, so the leaving half and the arriving half stay the same shape run opposite ways; an eased arrival against a linear departure lands in a third of the time it left in.',
+  },
   solo('showPlace'),
   solo('showScores'),
   solo('showRank'),
@@ -100,6 +126,11 @@ export function dialsFrom2(values: SettingsValues): Solo2Dials {
     minStepS: values.minStepS as number,
     runFramesSunset: values.runFramesSunset as number,
     runFramesOther: values.runFramesOther as number,
+    veilStyle: values.veilStyle as VeilStyle,
+    veilTint: values.veilTint as VeilTint,
+    burnLift: values.burnLift as number,
+    veilCovers: values.veilCovers as VeilCovers,
+    arrivalEase: values.arrivalEase as ArrivalEase,
     valleys: values.valleys as number,
     screens: values.screens as Screens,
   };
