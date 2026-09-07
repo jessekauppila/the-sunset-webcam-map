@@ -1,17 +1,24 @@
 'use client';
 
-import { useEffect, useRef, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { EntryView, TapeEntry } from '@/app/api/kiosk/solo/view';
 import type { BinKind } from '@/app/lib/solo/types';
 import type { Run } from './EntryRow';
+import { PX_PER_S, SCALE_LABEL, SCALE_NOTE } from './timeScale';
 
 const COLOR: Record<BinKind, string> = { sunset: '#7ee2ac', non_sunset: '#c3cad6' };
 const REPEAT = '#8b2e2e';
 const RING = '0 0 0 2px #f5a344';
 const mono = 'ui-monospace, SFMono-Regular, Menlo, monospace';
-export const THUMB_H = 22;
-/** Width is time on the tape: this many pixels per second of glass. */
-export const TAPE_PX_PER_S = 3;
+/**
+ * Width is time on the tape, so height carries no meaning and can be spent
+ * entirely on legibility. At 22 px a block was a letterbox slice with most of
+ * the sky cropped away; 48 is close to uncropped at the default dwell, where
+ * a block is 80 px wide.
+ */
+export const THUMB_H = 48;
+/** The keyframes the playhead rides; defined once inside the strip. */
+const PLAYHEAD_ANIM = 'tape-playhead';
 /** A block never draws narrower than this, whatever its time says. */
 const MIN_BLOCK_PX = 14;
 /** A past frame that stayed on glass longer than this many dwells was held (nothing else eligible). */
@@ -48,12 +55,41 @@ function Thumb({ testId, src, color, width, dashed = false, ring = false, repeat
 
 /** The Final Cut "X": the seconds during which both pictures are on glass. */
 function Fade({ testId, seconds }: { testId: string; seconds: number }) {
-  const width = Math.max(4, seconds * TAPE_PX_PER_S);
+  const width = Math.max(4, seconds * PX_PER_S);
   return (
     <div data-testid={testId} title={`crossfade ${secs(seconds)}: both pictures on glass`} style={{
       flex: 'none', width, height: THUMB_H, marginLeft: -width / 2, marginRight: -width / 2, position: 'relative', zIndex: 1,
       background: 'linear-gradient(135deg, rgba(245,163,68,0) 0%, rgba(245,163,68,0.55) 50%, rgba(245,163,68,0) 100%)',
       borderLeft: '1px solid rgba(245,163,68,0.8)', borderRight: '1px solid rgba(245,163,68,0.8)', boxSizing: 'border-box',
+    }} />
+  );
+}
+
+/**
+ * Where the glass is inside the current dwell: a line that starts at the left
+ * edge of the on-glass block and reaches the seam as the picture changes.
+ *
+ * The motion is one CSS animation, not a JavaScript tick, so nothing re-renders
+ * while it travels. Duration is the whole dwell and the delay is minus the time
+ * already elapsed, which starts it part-way through; `forwards` parks it at the
+ * right edge when a frame is held past its dwell, which the block's `held` mark
+ * explains. `left` is also set inline, so a reader with reduced motion gets the
+ * line at its true position without it moving.
+ *
+ * `nowMs` is read once on mount rather than during render, because a clock read
+ * during render disagrees between the server and the client and React reports
+ * that as a hydration mismatch.
+ */
+function Playhead({ sinceMs, dwellS, nowMs }: { sinceMs: number | null; dwellS: number; nowMs: number | null }) {
+  if (sinceMs == null || nowMs == null || dwellS <= 0) return null;
+  const elapsedS = Math.max(0, (nowMs - sinceMs) / 1000);
+  const pct = Math.min(100, (elapsedS / dwellS) * 100);
+  return (
+    <span data-testid="tape-playhead" aria-hidden style={{
+      position: 'absolute', top: 0, bottom: 0, width: 2, left: `${pct}%`, background: '#fff',
+      boxShadow: '0 0 4px rgba(255,255,255,0.9)', pointerEvents: 'none',
+      animationName: PLAYHEAD_ANIM, animationDuration: `${dwellS}s`, animationTimingFunction: 'linear',
+      animationDelay: `${-elapsedS}s`, animationFillMode: 'forwards',
     }} />
   );
 }
@@ -95,13 +131,18 @@ export function Tape({ past, current, currentSince, next, nextSequences, pastDia
     s.scrollLeft = Math.max(0, m.offsetLeft - s.clientWidth * (2 / 3));
   }, [past.length, current?.snapshotId]);
 
+  // Read once per frame on glass, after mount. The playhead's own motion is
+  // CSS, so this never ticks; it only re-anchors when the picture changes.
+  const [nowMs, setNowMs] = useState<number | null>(null);
+  useEffect(() => { setNowMs(Date.now()); }, [currentSince, current?.snapshotId]);
+
   const seen = new Set<number>();
   const repeatOf = (id: number) => {
     const r = seen.has(id);
     seen.add(id);
     return r;
   };
-  const dwellPx = (d: TapeDials) => Math.max(MIN_BLOCK_PX, d.dwellS * TAPE_PX_PER_S);
+  const dwellPx = (d: TapeDials) => Math.max(MIN_BLOCK_PX, d.dwellS * PX_PER_S);
 
   const blocks: ReactNode[] = [];
   let fades = 0;
@@ -115,7 +156,7 @@ export function Tape({ past, current, currentSince, next, nextSequences, pastDia
     const onGlassS = Math.max(0, (endMs - f.shownAt) / 1000);
     const dwells = pastDials.dwellS > 0 ? onGlassS / pastDials.dwellS : 1;
     const held = dwells > HELD_AFTER;
-    const width = Math.max(MIN_BLOCK_PX, Math.min(dwells, MAX_DWELLS) * pastDials.dwellS * TAPE_PX_PER_S);
+    const width = Math.max(MIN_BLOCK_PX, Math.min(dwells, MAX_DWELLS) * pastDials.dwellS * PX_PER_S);
     blocks.push(
       <Thumb key={`${f.snapshotId}-${f.slot}`} testId={`tape-past-${f.snapshotId}-${f.slot}`} src={f.imageUrl} width={width}
         color={COLOR[f.bin]} repeat={repeatOf(f.snapshotId)} onClick={() => onSelect(f)}
@@ -131,7 +172,9 @@ export function Tape({ past, current, currentSince, next, nextSequences, pastDia
     blocks.push(
       <Thumb key="current" testId="tape-current" src={current.imageUrl} width={dwellPx(pastDials)} color={COLOR[current.bin]} ring
         repeat={repeatOf(current.snapshotId)} onClick={() => onSelect(current)}
-        title={`on glass${currentSince ? ` since ${clock(currentSince)}` : ''} · ${current.title}${place(current) ? ` · ${place(current)}` : ''}`} />,
+        title={`on glass${currentSince ? ` since ${clock(currentSince)}` : ''} · ${current.title}${place(current) ? ` · ${place(current)}` : ''}`}>
+        <Playhead sinceMs={currentSince ?? null} dwellS={pastDials.dwellS} nowMs={nowMs} />
+      </Thumb>,
     );
   } else {
     blocks.push(
@@ -149,7 +192,7 @@ export function Tape({ past, current, currentSince, next, nextSequences, pastDia
   next.forEach((e, i) => {
     fade(nextDials.fadeS);
     const seq = nextSequences?.[i];
-    const stepPx = seq ? Math.max(6, seq.stepS * TAPE_PX_PER_S) : 0;
+    const stepPx = seq ? Math.max(6, seq.stepS * PX_PER_S) : 0;
     const total = dwellPx(nextDials);
     const mainWidth = Math.max(MIN_BLOCK_PX, total - (seq?.earlier.length ?? 0) * stepPx);
     const title = `draw ${i + 1} · ${e.title}${place(e) ? ` · ${place(e)}` : ''}`
@@ -174,8 +217,18 @@ export function Tape({ past, current, currentSince, next, nextSequences, pastDia
   });
 
   return (
-    <div ref={strip} data-testid="tape" title="The tape: width is time. Past draws, the frame on glass, then the projected next draws."
+    <div ref={strip} data-testid="tape"
+      title={`The tape: past draws, the frame on glass, then the projected next draws. ${SCALE_NOTE}`}
       style={{ display: 'flex', alignItems: 'center', overflowX: 'auto', padding: '4px 2px', minHeight: THUMB_H + 12 }}>
+      <style>{
+        `@keyframes ${PLAYHEAD_ANIM} { from { left: 0% } to { left: 100% } }`
+        + ` @media (prefers-reduced-motion: reduce) { [data-testid="tape-playhead"] { animation: none } }`
+      }</style>
+      {/* Sticks to the left edge while the strip scrolls, so the scale is readable without hovering. */}
+      <span data-testid="tape-scale" title={SCALE_NOTE} style={{
+        position: 'sticky', left: 0, zIndex: 2, flex: 'none', alignSelf: 'stretch', display: 'grid', placeItems: 'center',
+        fontFamily: mono, fontSize: 9, color: '#4b5568', background: '#0e1119', padding: '0 5px', cursor: 'help',
+      }}>{SCALE_LABEL}</span>
       {past.length === 0 && (
         <span style={{ fontFamily: mono, fontSize: 9.5, color: '#4b5568', whiteSpace: 'nowrap', paddingRight: 6 }}>no draws logged yet</span>
       )}

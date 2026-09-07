@@ -5,13 +5,17 @@ import type { Feed } from '@/app/lib/solo/types';
 import { formatTime } from '@/app/lib/solo/caption';
 import { scoreLine } from '@/app/lib/solo/scores';
 import type { Role } from '@/app/lib/solo2/types';
+import { PX_PER_S } from './timeScale';
 
 const COLOR = { sunset: '#7ee2ac', non_sunset: '#c3cad6' } as const;
 const mono = 'ui-monospace, SFMono-Regular, Menlo, monospace';
 const LIGHT = '#2a3242';
 
-/** Height is time on the solo2 studio: this many pixels per second of glass. */
-export const PX_PER_S = 4;
+/**
+ * Height is time in the queue, at the rate the tape draws it as width, so one
+ * dwell is one length in both surfaces. The constant lives in `./timeScale`.
+ */
+export { PX_PER_S };
 /** A frame's share shorter than this many pixels would hide its thumbnail. */
 export const MIN_FRAME_PX = 14;
 

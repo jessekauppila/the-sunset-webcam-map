@@ -1,6 +1,7 @@
 import { it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
-import { Tape, TAPE_PX_PER_S } from './Tape';
+import { Tape, THUMB_H } from './Tape';
+import { PX_PER_S } from './timeScale';
 import type { EntryView, TapeEntry } from '@/app/api/kiosk/solo/view';
 
 const entry = (id: number, bin: 'sunset' | 'non_sunset' = 'sunset'): EntryView => ({
@@ -21,23 +22,69 @@ it('lays out past, current, seam, and projected in order, outlined by bin', () =
     pastDials={D} nextDials={D} onSelect={vi.fn()} />);
   const strip = screen.getByTestId('tape');
   const ids = [...strip.querySelectorAll('[data-testid^="tape-"]')].map((n) => n.getAttribute('data-testid'));
-  expect(ids).toEqual(['tape-past-1-10', 'tape-past-2-11', 'tape-past-1-12', 'tape-current', 'tape-seam', 'tape-next-0', 'tape-next-1']);
+  expect(ids).toEqual(['tape-scale', 'tape-past-1-10', 'tape-past-2-11', 'tape-past-1-12',
+    'tape-current', 'tape-playhead', 'tape-seam', 'tape-next-0', 'tape-next-1']);
   expect(screen.getByTestId('tape-past-1-10')).toHaveStyle({ borderLeftColor: '#7ee2ac' });
   expect(screen.getByTestId('tape-past-2-11')).toHaveStyle({ borderLeftColor: '#c3cad6' });
   expect(screen.getByTestId('tape-current')).toHaveStyle({ boxShadow: '0 0 0 2px #f5a344' });
   expect(screen.getByTestId('tape-next-0')).toHaveStyle({ borderLeftStyle: 'dashed' });
 });
 
+it('the playhead sits where the dwell has got to, and rides one CSS animation rather than a tick', () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(since + 5_000); // 5 s into a 20 s dwell
+  render(<Tape past={past} current={entry(3)} currentSince={since} next={[entry(4)]}
+    pastDials={D} nextDials={D} onSelect={vi.fn()} />);
+  const head = screen.getByTestId('tape-playhead');
+  // Static position is correct on its own, so reduced motion still reads true.
+  expect(head).toHaveStyle({ left: '25%' });
+  // The motion: a whole dwell, started 5 s ago, parked at the end when a frame is held.
+  expect(head).toHaveStyle({ animationDuration: '20s', animationDelay: '-5s', animationFillMode: 'forwards' });
+  vi.useRealTimers();
+});
+
+it('a frame held past its dwell parks the playhead at the right edge, and no playhead without a start time', () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(since + 50_000); // 50 s into a 20 s dwell: held
+  const { unmount } = render(<Tape past={past} current={entry(3)} currentSince={since} next={[entry(4)]}
+    pastDials={D} nextDials={D} onSelect={vi.fn()} />);
+  expect(screen.getByTestId('tape-playhead')).toHaveStyle({ left: '100%' });
+  unmount();
+  render(<Tape past={past} current={entry(3)} currentSince={null} next={[entry(4)]}
+    pastDials={D} nextDials={D} onSelect={vi.fn()} />);
+  expect(screen.queryByTestId('tape-playhead')).toBeNull();
+  vi.useRealTimers();
+});
+
+it('blocks are tall enough to read: height is the same for a block, the blank and the strip', () => {
+  const { unmount } = render(<Tape past={past} current={entry(3)} currentSince={since} next={[entry(4)]}
+    pastDials={D} nextDials={D} onSelect={vi.fn()} />);
+  // Height carries no meaning on the tape, so it is spent on legibility: tall
+  // enough that a 20 s block, 80 px wide, is close to an uncropped 16:9 frame.
+  expect(THUMB_H).toBeGreaterThanOrEqual(20 * PX_PER_S * (9 / 16));
+  expect(screen.getByTestId('tape-past-1-10')).toHaveStyle({ height: `${THUMB_H}px` });
+  expect(screen.getByTestId('tape-current')).toHaveStyle({ height: `${THUMB_H}px` });
+  unmount();
+  render(<Tape past={[]} current={null} next={[]} pastDials={D} nextDials={D} onSelect={vi.fn()} />);
+  expect(screen.getByTestId('tape-blank')).toHaveStyle({ height: `${THUMB_H}px` });
+});
+
+it('the strip names its scale so size does not have to be inferred', () => {
+  render(<Tape past={past} current={entry(3)} currentSince={since} next={[]} pastDials={D} nextDials={D} onSelect={vi.fn()} />);
+  expect(screen.getByTestId('tape-scale')).toHaveTextContent(`${PX_PER_S} px/s`);
+  expect(screen.getByTestId('tape-scale').getAttribute('title')).toMatch(/on the glass it means quality/);
+});
+
 it('width is time: a dwell is dwellS × px/s; a frame held on glass is wider and says so; the projection is one dwell each', () => {
   const held = [drawn(1, 10, 0), drawn(2, 11, 20_000), drawn(3, 12, 40_000)];
   // Frame 3 stayed 60 s (three dwells) before the current frame took over.
   render(<Tape past={held} current={entry(9)} currentSince={100_000} next={[entry(4)]} pastDials={D} nextDials={{ dwellS: 30, fadeS: 0 }} onSelect={vi.fn()} />);
-  expect(screen.getByTestId('tape-past-1-10')).toHaveStyle({ width: `${20 * TAPE_PX_PER_S}px` });
-  expect(screen.getByTestId('tape-past-3-12')).toHaveStyle({ width: `${60 * TAPE_PX_PER_S}px` });
+  expect(screen.getByTestId('tape-past-1-10')).toHaveStyle({ width: `${20 * PX_PER_S}px` });
+  expect(screen.getByTestId('tape-past-3-12')).toHaveStyle({ width: `${60 * PX_PER_S}px` });
   expect(screen.getByTestId('tape-held')).toBeInTheDocument();
   expect(screen.getByTestId('tape-past-3-12').getAttribute('title')).toMatch(/on glass 60 s · held/);
   expect(screen.getByTestId('tape-past-1-10').getAttribute('title')).toMatch(/on glass 20 s$/);
-  expect(screen.getByTestId('tape-next-0')).toHaveStyle({ width: `${30 * TAPE_PX_PER_S}px` });
+  expect(screen.getByTestId('tape-next-0')).toHaveStyle({ width: `${30 * PX_PER_S}px` });
 });
 
 it('a crossfade is an X as wide as the fade dial, straddling every cut; fade 0 draws none', () => {
@@ -45,8 +92,8 @@ it('a crossfade is an X as wide as the fade dial, straddling every cut; fade 0 d
     pastDials={{ dwellS: 20, fadeS: 2 }} nextDials={{ dwellS: 20, fadeS: 4 }} onSelect={vi.fn()} />);
   // past→past ×2, past→current, current→next, next→next
   expect(screen.getAllByTestId(/^tape-fade-/)).toHaveLength(5);
-  expect(screen.getByTestId('tape-fade-0')).toHaveStyle({ width: `${2 * TAPE_PX_PER_S}px` });
-  expect(screen.getByTestId('tape-fade-3')).toHaveStyle({ width: `${4 * TAPE_PX_PER_S}px` });
+  expect(screen.getByTestId('tape-fade-0')).toHaveStyle({ width: `${2 * PX_PER_S}px` });
+  expect(screen.getByTestId('tape-fade-3')).toHaveStyle({ width: `${4 * PX_PER_S}px` });
   expect(screen.getByTestId('tape-fade-3').getAttribute('title')).toMatch(/crossfade 4 s/);
   unmount();
   render(<Tape past={past} current={entry(3)} currentSince={since} next={[entry(4)]} pastDials={D} nextDials={D} onSelect={vi.fn()} />);
@@ -82,7 +129,7 @@ it('a projected dwell with a camera run shows the earlier frames as narrow sub-b
   const ids = [...group.querySelectorAll('[data-testid^="tape-next-0"]')].map((n) => n.getAttribute('data-testid'));
   expect(ids).toEqual(['tape-next-0-pre-7', 'tape-next-0-pre-8', 'tape-next-0']);
   expect(screen.getByTestId('tape-next-0-pre-7')).toHaveStyle({ width: '6px' }); // 1.5 s × 3 px = 4.5, floored to the legible minimum
-  expect(screen.getByTestId('tape-next-0')).toHaveStyle({ width: `${20 * TAPE_PX_PER_S - 12}px` });
+  expect(screen.getByTestId('tape-next-0')).toHaveStyle({ width: `${20 * PX_PER_S - 12}px` });
   expect(screen.getByTestId('tape-next-0').getAttribute('title')).toMatch(/after 2 earlier frames of this camera, 1.5 s each/);
 });
 
