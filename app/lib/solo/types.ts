@@ -21,6 +21,15 @@ export interface BinEntry {
   enteredAt: number;
   /** When this frame was last on glass, ms since epoch. Undefined or null = never (rule 2). */
   lastShownAt?: number | null;
+  /**
+   * WHICH DRAW this frame was last shown on — the currency `rest` is counted
+   * in (dwell-budget spec §6.1). Undefined or null = never.
+   *
+   * Not derivable from `lastShownAt` once dwells vary in length, and
+   * `lastShownAt` is not derivable from it either, which is why both are
+   * kept. This is the same counter as `kiosk_draws.slot`.
+   */
+  lastShownSlot?: number | null;
 }
 
 // ---- caption dials (see lib/solo/caption.ts) ----

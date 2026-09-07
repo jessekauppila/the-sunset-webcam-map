@@ -121,13 +121,26 @@ describe('screen state', () => {
     const ok = await commitAdvance('sunset', 42, { snapshotId: 7, webcamId: 3, bin: 'sunset', quality: 0.9, detection: 0.8, isNew: true, tally: 0, enteredAt: 0 }, 1);
     expect(ok).toBe(true);
     expect(sqlMock).toHaveBeenCalledTimes(3);
-    expect(sqlMock.mock.calls[1].slice(1)).toEqual(['sunset', [7]]);
+    // slot first: the shown-update now stamps last_shown_slot with the SAME
+    // counter logDraw writes to kiosk_draws.slot (spec §6.1.1).
+    expect(sqlMock.mock.calls[1].slice(1)).toEqual([42, 'sunset', [7]]);
+  });
+  it('the shown-update and the draw log carry the SAME slot (spec §6.1.1)', async () => {
+    sqlMock.mockResolvedValueOnce([{ feed: 'sunset' }]).mockResolvedValueOnce([]).mockResolvedValueOnce([]);
+    const e = (id: number) => ({ snapshotId: id, webcamId: 3, bin: 'sunset' as const, quality: 0.9, detection: 0.8, isNew: true, tally: 0, enteredAt: 0 });
+    await commitAdvance('sunset', 77, e(9), 1, [e(7), e(9)], 'solo2');
+    const binSlot = sqlMock.mock.calls[1].slice(1)[0];
+    const drawSlot = sqlMock.mock.calls.at(-1)!.slice(1)[1];
+    // Two counters that happen to agree is the failure that would not
+    // announce itself, so this asserts one value reached both writes.
+    expect(binSlot).toBe(77);
+    expect(drawSlot).toBe(77);
   });
   it('commitAdvance marks every frame of the run shown in one statement', async () => {
     sqlMock.mockResolvedValueOnce([{ feed: 'sunset' }]).mockResolvedValueOnce([]).mockResolvedValueOnce([]);
     const e = (id: number) => ({ snapshotId: id, webcamId: 3, bin: 'sunset' as const, quality: 0.9, detection: 0.8, isNew: true, tally: 0, enteredAt: 0 });
     await commitAdvance('sunset', 42, e(9), 1, [e(7), e(8), e(9)], 'solo2');
-    expect(sqlMock.mock.calls[1].slice(1)).toEqual(['sunset', [7, 8, 9]]);
+    expect(sqlMock.mock.calls[1].slice(1)).toEqual([42, 'sunset', [7, 8, 9]]);
     // The draw log names the drawn frame and stamps every frame the dwell played.
     expect(sqlMock.mock.calls.at(-1)!.slice(1)).toEqual(['sunset', 42, 9, 'solo2', 'sunset', 0.9, 0.8, [7, 8, 9]]);
   });
