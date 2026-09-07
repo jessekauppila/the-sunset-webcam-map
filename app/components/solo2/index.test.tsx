@@ -53,7 +53,8 @@ it('with the camera run off, the dwell is the drawn frame alone', () => {
 });
 
 it('the dwell clock starts at the server\'s shown-since, so a follower joins the run in the right place', () => {
-  mocked.mockImplementation(() => ({ ...glass, shownSince: 13_000, boundaryMs: 40_000 })); // 7 s in: frame 2 of 3 (6.67 s each)
+  // 8.5 s in: the 1.5 s arrival segment, then 7 s into the run = frame 2 of 3 (6.67 s each)
+  mocked.mockImplementation(() => ({ ...glass, shownSince: 11_500, boundaryMs: 40_000 }));
   render(<Solo2Kiosk webcams={[]} width={100} height={50} feed="sunset" />);
   expect(screen.getByTestId('top')).toHaveAttribute('src', 'u2');
 });

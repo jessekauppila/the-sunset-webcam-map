@@ -1,33 +1,89 @@
 import { describe, it, expect } from 'vitest';
-import { describePlan, fitPlan, stageAt, stepFadeS, stretchThreshold } from './plan';
+import { arrivalS, describePlan, fitPlan, stageAt, stepFadeS, stretchThreshold } from './plan';
 
 const D = { dwellS: 20, leadS: 4, minStepS: 4 };
 
 describe('fitPlan: the budget rule', () => {
   it('below the threshold the frames divide the budget and the dwell does not move', () => {
     // Jesse's own numbers: one image holds the full 20 s, five hold 4 s each.
-    expect(fitPlan(D, 1)).toEqual({ dwellS: 20, frames: 1, stepS: 20, leadS: 4 });
-    expect(fitPlan(D, 2)).toEqual({ dwellS: 20, frames: 2, stepS: 10, leadS: 4 });
-    expect(fitPlan(D, 5)).toEqual({ dwellS: 20, frames: 5, stepS: 4, leadS: 4 });
+    expect(fitPlan(D, 1)).toEqual({ dwellS: 20, frames: 1, stepS: 20, leadS: 4, arrivalS: 0 });
+    expect(fitPlan(D, 2)).toEqual({ dwellS: 20, frames: 2, stepS: 10, leadS: 4, arrivalS: 0 });
+    expect(fitPlan(D, 5)).toEqual({ dwellS: 20, frames: 5, stepS: 4, leadS: 4, arrivalS: 0 });
     expect(fitPlan(D, 3).stepS).toBeCloseTo(6.667, 3);
     expect(fitPlan(D, 3).dwellS).toBeCloseTo(20, 6);
   });
   it('above it the DWELL stretches rather than the frames shrinking', () => {
     // This is the whole change: a run is a timelapse, and a timelapse has one
     // step. Eight frames run 4 s each for 32 s, not 2.5 s each for 20 s.
-    expect(fitPlan(D, 6)).toEqual({ dwellS: 24, frames: 6, stepS: 4, leadS: 4 });
-    expect(fitPlan(D, 8)).toEqual({ dwellS: 32, frames: 8, stepS: 4, leadS: 4 });
+    expect(fitPlan(D, 6)).toEqual({ dwellS: 24, frames: 6, stepS: 4, leadS: 4, arrivalS: 0 });
+    expect(fitPlan(D, 8)).toEqual({ dwellS: 32, frames: 8, stepS: 4, leadS: 4, arrivalS: 0 });
     expect(fitPlan(D, 12).stepS).toBe(4);
     expect(fitPlan(D, 12).dwellS).toBe(48);
   });
   it('at least one frame; the lead never exceeds the dwell it is measured against', () => {
-    expect(fitPlan(D, 0)).toEqual({ dwellS: 20, frames: 1, stepS: 20, leadS: 4 });
+    expect(fitPlan(D, 0)).toEqual({ dwellS: 20, frames: 1, stepS: 20, leadS: 4, arrivalS: 0 });
     expect(fitPlan({ dwellS: 5, leadS: 8, minStepS: 4 }, 1).leadS).toBe(5);
     expect(fitPlan({ dwellS: 5, leadS: -1, minStepS: 4 }, 1).leadS).toBe(0);
     // A stretched dwell gives the lead more room: 30 s of lead fits inside a
     // 32 s dwell, where the 20 s budget alone would have clipped it.
     expect(fitPlan({ dwellS: 20, leadS: 30, minStepS: 4 }, 8).leadS).toBe(30);
     expect(fitPlan({ dwellS: 20, leadS: 30, minStepS: 4 }, 1).leadS).toBe(20);
+  });
+});
+
+describe('the arrival segment: the camera change is added before frame 1, not charged against it', () => {
+  // Reported 2026-09-07 on the studio preview: the first frame of a run
+  // looked shorter than the others. It was. The dip's veil covered the old
+  // picture and the new one faded up inside frame 1's own share of the dwell,
+  // so frame 1 held for stepS - fadeS while every later frame held for stepS.
+  const F = { transition: 'dip' as const, fadeS: 1.5, sameCameraFadeS: 1.5 };
+
+  it('is the longest fade the dwell might open with: the camera change, or the same-camera dissolve', () => {
+    expect(arrivalS(F)).toBe(1.5);
+    expect(arrivalS({ ...F, fadeS: 3 })).toBe(3);
+    expect(arrivalS({ ...F, sameCameraFadeS: 4 })).toBe(4);
+    // A cut has no camera-change fade, but a later frame of the same camera still dissolves in.
+    expect(arrivalS({ ...F, transition: 'cut' })).toBe(1.5);
+    expect(arrivalS({ transition: 'cut', fadeS: 1.5, sameCameraFadeS: 0 })).toBe(0);
+    // Dials without fades (solo, old fixtures) have no arrival at all.
+    expect(arrivalS({})).toBe(0);
+    expect(arrivalS({ transition: 'crossfade', fadeS: -1, sameCameraFadeS: -1 })).toBe(0);
+  });
+
+  it('sits on top of the budget: the frames still divide dwellS, and the dwell is arrivalS longer', () => {
+    expect(fitPlan({ ...D, ...F }, 5)).toEqual({ dwellS: 21.5, frames: 5, stepS: 4, leadS: 4, arrivalS: 1.5 });
+    expect(fitPlan({ ...D, ...F }, 1)).toEqual({ dwellS: 21.5, frames: 1, stepS: 20, leadS: 4, arrivalS: 1.5 });
+    // A stretched run stretches from the same base.
+    expect(fitPlan({ ...D, ...F }, 8)).toEqual({ dwellS: 33.5, frames: 8, stepS: 4, leadS: 4, arrivalS: 1.5 });
+  });
+
+  it('does not move the stretch threshold: the frames\' budget is still dwellS', () => {
+    for (let frames = 1; frames <= 5; frames++) expect(fitPlan({ ...D, ...F }, frames).dwellS).toBeCloseTo(21.5, 6);
+    expect(fitPlan({ ...D, ...F }, 6).dwellS).toBeCloseTo(25.5, 6);
+  });
+
+  it('the stage clock waits out the arrival, so frame 1 holds a whole step once it is up', () => {
+    const p = fitPlan({ ...D, ...F }, 4); // 1.5 s arrival, then 4 × 5 s
+    expect(stageAt(0, p).index).toBe(0);
+    expect(stageAt(1_499, p).index).toBe(0);
+    expect(stageAt(1_500, p).index).toBe(0);
+    expect(stageAt(6_499, p).index).toBe(0); // frame 1 is still up 5 s after it finished arriving
+    expect(stageAt(6_500, p).index).toBe(1);
+    expect(stageAt(16_500, p).index).toBe(3);
+    expect(stageAt(30_000, p).index).toBe(3);
+  });
+
+  it('the lead still measures back from the end of the whole dwell', () => {
+    const p = fitPlan({ ...D, ...F }, 4); // dwell 21.5 s, lead over 17.5–21.5
+    expect(stageAt(17_499, p).leadProgress).toBe(0);
+    expect(stageAt(19_500, p).leadProgress).toBe(0.5);
+    expect(stageAt(21_500, p).leadProgress).toBe(1);
+  });
+
+  it('the studio line names it', () => {
+    expect(describePlan(fitPlan({ dwellS: 20, leadS: 0, minStepS: 4, ...F }, 4))).toBe('4 frames × 5 s · arrival 1.5 s');
+    expect(describePlan(fitPlan({ dwellS: 20, leadS: 0, minStepS: 4, ...F }, 1))).toBe('1 frame · 20 s · arrival 1.5 s');
+    expect(describePlan(fitPlan({ ...D, ...F }, 4))).toBe('4 frames × 5 s · lead 4 s · arrival 1.5 s');
   });
 });
 

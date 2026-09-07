@@ -24,6 +24,16 @@ it('says so when the run stretches the dwell rather than dividing it', () => {
   expect(screen.getByText('stretched: past 5 frames each one adds 4 s')).toBeInTheDocument();
 });
 
+it('names the arrival segment, and does not call it a stretch', () => {
+  // The camera change sits in front of the frames (dwell-budget spec §3.3):
+  // the dwell is 1.5 s longer than the dial by design, not because the run
+  // outgrew the budget.
+  render(<DwellBudget dials={{ ...D, transition: 'dip', fadeS: 1.5, sameCameraFadeS: 1.5 }} frames={4} />);
+  expect(screen.getByText(/4 frames × 5 s · lead 4 s · arrival 1.5 s/)).toBeInTheDocument();
+  expect(screen.queryByText(/· dwell/)).toBeNull();
+  expect(screen.getByText('divides the dwell up to 5 frames')).toBeInTheDocument();
+});
+
 it('the threshold moves with the floor, not just the dwell', () => {
   const { rerender } = render(<DwellBudget dials={{ ...D, minStepS: 6 }} frames={2} />);
   expect(screen.getByText('divides the dwell up to 3 frames')).toBeInTheDocument();

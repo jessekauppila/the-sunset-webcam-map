@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { arrivalS } from '@/app/lib/solo2/plan';
 import { schemaDefaults } from '@/app/lib/settings/schema';
 import { project } from './engine';
 import { SOLO_VERSIONS, resolveSoloVersion } from './versions';
@@ -36,9 +37,12 @@ describe('descriptors', () => {
     // renders toward a dwell end follows without knowing about versions.
     for (const v of Object.values(SOLO_VERSIONS)) {
       const d = v.dialsFrom(schemaDefaults(v.schema));
-      expect(v.dwellMs(entries, entries[0], d)).toBe(d.dwellS * 1000);
+      // solo2's dwell opens with the camera change's own segment (dwell-budget
+      // spec §3.3); solo's dials have no fades, so its arrival is 0.
+      const expected = (d.dwellS + arrivalS(d)) * 1000;
+      expect(v.dwellMs(entries, entries[0], d)).toBe(expected);
       // Pure: same answer for a different pick, and no mutation of the input.
-      expect(v.dwellMs(entries, entries[2], d)).toBe(d.dwellS * 1000);
+      expect(v.dwellMs(entries, entries[2], d)).toBe(expected);
       expect(entries.map((e) => e.tally)).toEqual([0, 0, 0]);
     }
   });

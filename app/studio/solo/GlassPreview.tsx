@@ -71,8 +71,13 @@ function PlayingScreen({ feed, server, projected, error, dials, panel, version }
   const runFor = (e: EntryView) => (
     solo2 ? runOf(e, server?.entries ?? [], d2.cameraRun, capFor(e, d2)) : []
   );
+  // The fades only for solo2: its dwell opens with an arrival segment
+  // (dwell-budget spec §3.3); solo's does not, so its walker must not wait one out.
   const planFor = (e: EntryView | null) => fitPlan(
-    { dwellS: dials.dwellS, leadS: d2.leadS ?? 0, minStepS: d2.minStepS ?? dials.dwellS },
+    {
+      dwellS: dials.dwellS, leadS: d2.leadS ?? 0, minStepS: d2.minStepS ?? dials.dwellS,
+      ...(solo2 ? { transition: d2.transition, fadeS: d2.fadeS, sameCameraFadeS: d2.sameCameraFadeS } : {}),
+    },
     Math.max(1, e ? runFor(e).length : 1),
   );
   // Per frame, not once: the budget stretches a dwell past the dial whenever a
