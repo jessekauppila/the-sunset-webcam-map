@@ -56,6 +56,29 @@ describe('StudioPanelFrame', () => {
     expect(stage.style.background).toBe('rgb(0, 0, 0)');
   });
 
+  it('outlines the panel box when given an edge colour, and nothing without one', () => {
+    stubResizeObserver({ width: 700, height: 900 });
+
+    const { rerender } = render(
+      <StudioPanelFrame panel={{ width: 1440, height: 2560 }} edge="#f5a344">
+        <div>content</div>
+      </StudioPanelFrame>
+    );
+
+    // On the box, not the stage: the stage is unscaled panel pixels, so a line
+    // there would be drawn at the scale factor and read as a hairline of a
+    // different weight on every panel preset.
+    expect(screen.getByTestId('studio-panel-box').style.outline).toBe('1px solid #f5a344');
+    expect(screen.getByTestId('studio-panel-stage').style.outline).toBe('');
+
+    rerender(
+      <StudioPanelFrame panel={{ width: 1440, height: 2560 }}>
+        <div>content</div>
+      </StudioPanelFrame>
+    );
+    expect(screen.getByTestId('studio-panel-box').style.outline).toBe('');
+  });
+
   it('caps the scale at 1 when the measured box is larger than the panel', () => {
     stubResizeObserver({ width: 5000, height: 8000 });
 

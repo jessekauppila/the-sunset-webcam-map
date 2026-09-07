@@ -15,6 +15,14 @@ import { useSoloPreview } from './useSoloPreview';
 
 const mono = 'ui-monospace, SFMono-Regular, Menlo, monospace';
 const SIDE: Record<Feed, string> = { sunrise: 'left screen', sunset: 'right screen' };
+/**
+ * The panel's own edge, drawn on the scaled panel and nowhere else. Amber
+ * because it must not be mistaken for the chrome around it: the preview column
+ * used to carry the only visible rectangle, so the eye read the column's
+ * border as the glass and judged the caption against a line the glass does
+ * not have. This one is the glass.
+ */
+const PANEL_EDGE = '#f5a344';
 
 /** One screen's inputs: what the glass holds, and the queue re-projected on the studio dials. */
 export interface PreviewScreen {
@@ -114,9 +122,10 @@ function PlayingScreen({ feed, server, projected, error, dials, panel, version }
         <span>{status}</span>
         <span style={{ marginLeft: 'auto' }}>{panel.width} × {panel.height}</span>
       </div>
-      <div data-testid={`preview-${feed}`} style={{ flex: 1, minHeight: 0, background: '#000', border: '1px solid #1d2432' }}>
+      {/* No border here: this box is the column, not the panel. The panel draws its own edge. */}
+      <div data-testid={`preview-${feed}`} style={{ flex: 1, minHeight: 0, background: '#000' }}>
         {dwell.entry ? (
-          <StudioPanelFrame panel={panel}>
+          <StudioPanelFrame panel={panel} edge={PANEL_EDGE}>
             {solo2 ? (
               <Solo2Frame entry={dwell.entry} run={run} previous={dwell.previous} stage={stage} plan={plan} dials={d2} dwellKey={dwell.startMs}
                 width={panel.width} height={panel.height} feed={feed} />

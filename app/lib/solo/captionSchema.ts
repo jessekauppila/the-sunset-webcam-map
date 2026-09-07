@@ -103,9 +103,9 @@ export const CAPTION_SCHEMA: SettingsSchema = [
     description: 'own: the time on its own line under the place. inline: after the place with a middle dot.',
   },
   {
-    key: 'timeGap', kind: 'number', min: 0, max: 60, step: 1, default: 0,
+    key: 'timeGap', kind: 'number', min: 0, max: 240, step: 1, default: 0,
     label: 'time gap (px)', section: CAPTION_SECTION,
-    description: 'Extra space above the time line only, on top of the line gap, so the time can sit apart from the title and the place instead of evenly under them. Nothing when the time is inline.',
+    description: 'Extra space above the time line only, on top of the line gap, so the time can sit apart from the title and the place instead of evenly under them. It reaches a quarter of the panel, far enough to drop the time clear of the pair above it; past what the panel can hold the time leaves the panel, and the preview\u2019s amber edge shows where that is. Nothing when the time is inline.',
   },
   {
     key: 'timeSize', kind: 'number', min: 8, max: 32, step: 1, default: 12,

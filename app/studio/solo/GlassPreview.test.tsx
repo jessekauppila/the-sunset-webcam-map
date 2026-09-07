@@ -43,6 +43,17 @@ it('draws each screen\'s current frame at the panel\'s true pixels with the stud
   expect(stage).toHaveStyle({ width: '1920px', height: '1080px', transform: 'scale(0.25)' });
 });
 
+it('draws the panel edge on the panel and leaves the preview column unbordered', () => {
+  render(<GlassPreview screens={[{ feed: 'sunrise', server, projected: null }]} dials={D} panel={{ width: 1920, height: 1080 }} />);
+  // The line the eye judges the caption against must be the panel's, not the
+  // column's: the column is 480 x 270 here and the panel scales to 480 x 270
+  // only because they happen to share an aspect. A portrait panel in this
+  // column would leave black margins, and a border on the column would sit
+  // where the glass has nothing.
+  expect(screen.getByTestId('studio-panel-box')).toHaveStyle({ outline: '1px solid #f5a344' });
+  expect(screen.getByTestId('preview-sunrise').style.border).toBe('');
+});
+
 it('names the screen before the title on each preview', () => {
   render(<GlassPreview screens={[{ feed: 'sunrise', server, projected: null }, { feed: 'sunset', server, projected: null }]} dials={D} panel={{ width: 1920, height: 1080 }} />);
   const titles = screen.getAllByTestId('caption-title').map((t) => t.textContent);

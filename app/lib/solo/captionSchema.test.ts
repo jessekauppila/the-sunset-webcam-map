@@ -15,6 +15,15 @@ describe('CAPTION_SCHEMA', () => {
     });
   });
 
+  it('the time gap reaches far enough to drop the time clear of the pair above it', () => {
+    const timeGap = CAPTION_SCHEMA.find((k) => k.key === 'timeGap');
+    // A gap that tops out below the two lines it is separating the time from
+    // cannot separate them: at the mockup sizes title + place stand about 47
+    // glass px tall, and 60 px of gap left the time reading as the third line
+    // of one block rather than as its own thing.
+    expect(timeGap?.kind === 'number' && timeGap.max).toBeGreaterThanOrEqual(200);
+  });
+
   it('every knob is in the caption section, keys are unique, and every default is legal', () => {
     const keys = CAPTION_SCHEMA.map((k) => k.key);
     expect(new Set(keys).size).toBe(keys.length);
