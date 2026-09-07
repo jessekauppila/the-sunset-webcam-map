@@ -54,7 +54,13 @@ function PlayingScreen({ feed, server, projected, error, dials, panel, version }
   dials: SoloDials; panel: { width: number; height: number }; version: SoloVersionSpec;
 }) {
   const current = server?.current?.entry ?? null;
-  const order: EntryView[] = current ? [current, ...(projected?.next ?? [])] : [];
+  // The queue plays whether or not anything is on glass. `current` is resolved
+  // by id against the live pool (view.ts), so it goes null the moment the
+  // on-glass frame ages out — which is where a screen sits any time nothing is
+  // advancing it. Gating the whole order on it blanked a screen whose queue was
+  // eight frames deep.
+  const queue = projected?.next ?? [];
+  const order: EntryView[] = current ? [current, ...queue] : queue;
   const dwell = useSoloPreview(order, dials.dwellS);
   const now = useNow();
 
@@ -77,10 +83,14 @@ function PlayingScreen({ feed, server, projected, error, dials, panel, version }
   const stage = useLoopingStage(plan, dwell.startMs);
 
   const remainingS = Math.max(0, Math.ceil((dwell.startMs + dials.dwellS * 1000 - now) / 1000));
+  // Index 0 is the on-glass frame only when there IS one; with a dark glass
+  // it is the first queued frame, and saying `on glass now` there would be a
+  // lie about the thing this header exists to keep in sight.
+  const dark = current ? '' : 'nothing on glass · ';
   const status = dwell.entry
-    ? (dwell.index === 0
+    ? (current && dwell.index === 0
       ? `on glass now · frame ${dwell.entry.snapshotId}`
-      : `preview · frame ${dwell.entry.snapshotId} · next in ${remainingS} s`)
+      : `${dark}preview · frame ${dwell.entry.snapshotId} · next in ${remainingS} s`)
     : error ?? 'nothing on glass';
 
   return (

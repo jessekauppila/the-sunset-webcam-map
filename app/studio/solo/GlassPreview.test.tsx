@@ -190,3 +190,30 @@ it('a run restarts by rebuilding its stack, never by fading back down to an earl
   // on top of the oldest one.
   expect(screen.getByTestId('stack')).not.toBe(stackBefore);
 });
+
+it('plays the queue when the glass is dark, and never calls a queued frame `on glass now`', async () => {
+  vi.useFakeTimers();
+  // `current` is null whenever the on-glass frame has aged out of the pool
+  // (view.ts resolves it by id against the live entries), which is the state
+  // a screen sits in whenever nothing is advancing it. The queue is fine.
+  const dark = { current: null, entries: [] } as unknown as StateView;
+  const projected = { next: [at(8, 2), at(9, 3)] } as unknown as StateView;
+  const { container } = render(<GlassPreview screens={[{ feed: 'sunrise', server: dark, projected }]}
+    dials={{ ...D, dwellS: 4 }} panel={{ width: 1920, height: 1080 }} />);
+
+  expect(screen.queryByText('no frame to preview')).toBeNull();
+  expect([...container.querySelectorAll('img')].map((i) => i.getAttribute('src'))).toEqual(['u8']);
+  // The glass really is dark, so the status says so rather than claiming the queue is on it.
+  expect(screen.getByText(/^nothing on glass · preview · frame 8 · next in \d+ s$/)).toBeInTheDocument();
+
+  await act(async () => { vi.advanceTimersByTime(4_100); });
+  expect(screen.getByText(/^nothing on glass · preview · frame 9/)).toBeInTheDocument();
+});
+
+it('a screen with neither a frame on glass nor a queue still says it has nothing to draw', () => {
+  const dark = { current: null, entries: [] } as unknown as StateView;
+  render(<GlassPreview screens={[{ feed: 'sunrise', server: dark, projected: { next: [] } as unknown as StateView }]}
+    dials={D} panel={{ width: 1920, height: 1080 }} />);
+  expect(screen.getByText('no frame to preview')).toBeInTheDocument();
+  expect(screen.getByText('nothing on glass')).toBeInTheDocument();
+});
