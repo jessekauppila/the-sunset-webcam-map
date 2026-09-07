@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { describePlan, fitPlan, stageAt, stretchThreshold } from './plan';
+import { describePlan, fitPlan, stageAt, stepFadeS, stretchThreshold } from './plan';
 
 const D = { dwellS: 20, leadS: 4, minStepS: 4 };
 
@@ -72,5 +72,24 @@ describe('describePlan', () => {
     expect(describePlan(fitPlan({ dwellS: 20, leadS: 0, minStepS: 4 }, 8))).toBe('8 frames × 4 s');
     expect(describePlan(fitPlan({ dwellS: 20, leadS: 0, minStepS: 4 }, 1))).toBe('1 frame · 20 s');
     expect(describePlan(fitPlan(D, 4))).toBe('4 frames × 5 s · lead 4 s');
+  });
+});
+
+describe('stepFadeS', () => {
+  it('gives the dial when the step is long enough to hold it and still rest', () => {
+    expect(stepFadeS(1.5, { stepS: 6.67 })).toBe(1.5);
+  });
+  it('caps at half the step, so a long run cannot spend the whole step dissolving', () => {
+    // The reported sunrise/sunset difference: 12 frames over a 20 s dwell is a
+    // 1.67 s step, which the 1.5 s dial would have filled end to end. The
+    // budget's floor normally prevents a step that short — at the default
+    // minStepS of 4 s the dwell stretches instead — so this is the case an
+    // operator creates by dropping the floor to the bottom of its range.
+    expect(stepFadeS(1.5, fitPlan({ dwellS: 20, leadS: 0, minStepS: 1 }, 12))).toBeCloseTo(0.833, 3);
+    expect(stepFadeS(1.5, fitPlan({ dwellS: 20, leadS: 0, minStepS: 1 }, 3))).toBe(1.5);
+  });
+  it('a dial at zero is still a cut, and a negative one cannot go below zero', () => {
+    expect(stepFadeS(0, { stepS: 5 })).toBe(0);
+    expect(stepFadeS(-2, { stepS: 5 })).toBe(0);
   });
 });

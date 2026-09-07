@@ -16,7 +16,7 @@ describe('SOLO_SETTINGS_SCHEMA', () => {
       dwellS: 20, offsetS: 10, fadeS: 0,
       showPlace: true, showScores: false, showRank: false, showTally: false,
       // the caption as dialled in on 2026-09-05, at its defaults because no shared values were laid over
-      captionLayout: 'inset', pictureHeight: 87, captionAlign: 'picture', captionGap: 18,
+      captionLayout: 'inset', pictureHeight: 87, pictureShift: 0, captionAlign: 'picture', captionGap: 18,
       font: 'system', feedPrefix: true, titleClean: 'compass',
       titleSize: 21, titleWeight: '300', titleGray: 71,
       placeSize: 17, placeGray: 57, lineGap: 0,

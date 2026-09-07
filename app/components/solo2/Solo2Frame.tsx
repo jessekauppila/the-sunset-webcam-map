@@ -5,7 +5,7 @@ import { pictureRect } from '@/app/lib/solo/caption';
 import { scoreLine } from '@/app/lib/solo/scores';
 import type { Feed } from '@/app/lib/solo/types';
 import { Caption } from '@/app/components/solo/Caption';
-import type { DwellPlan, Stage } from '@/app/lib/solo2/plan';
+import { stepFadeS, type DwellPlan, type Stage } from '@/app/lib/solo2/plan';
 import type { Solo2Dials } from '@/app/lib/solo2/types';
 
 const mono = 'ui-monospace, SFMono-Regular, Menlo, monospace';
@@ -85,7 +85,7 @@ export function Solo2Frame({ entry, run, previous, stage, plan, dials, width, he
   const rank = up.rank ?? entry.rank;
   // Every per-dwell key hangs off this, so one dwell is one stack.
   const dwellId = dwellKey ?? entry.snapshotId;
-  const stepFade = Math.min(Math.max(0, dials.sameCameraFadeS), plan.stepS);
+  const stepFade = stepFadeS(dials.sameCameraFadeS, plan);
 
   const arrive = arrival(entry, previous, dials);
   const showPrevious = arrive.kind !== 'cut' && !!previous;

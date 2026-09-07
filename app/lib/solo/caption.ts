@@ -120,14 +120,39 @@ export const captionScale = (panelWidth: number) => panelWidth / GLASS_WIDTH;
  * fills the panel; inset keeps the panel's aspect at `pictureHeight` percent
  * of its height, locked on the panel's centre both ways (camera-run spec
  * §6.1), so the height dial grows it about its middle.
+ *
+ * `pictureShift` then slides that centre up or down by a percent of the
+ * panel's height. The caption hangs off the picture's foot, so the shift
+ * carries the words with the picture: one block to balance, not two things
+ * to line up.
  */
 export function pictureRect(
-  d: Pick<SoloDials, 'captionLayout' | 'pictureHeight'>, width: number, height: number,
+  d: Pick<SoloDials, 'captionLayout' | 'pictureHeight' | 'pictureShift'>, width: number, height: number,
 ): Rect {
   if (d.captionLayout === 'overlay') return { left: 0, top: 0, width, height };
   const h = Math.round(height * d.pictureHeight / 100);
   const w = Math.round(h * (width / height));
-  return { left: Math.round((width - w) / 2), top: Math.round((height - h) / 2), width: w, height: h };
+  const shift = Math.round(height * d.pictureShift / 100);
+  return { left: Math.round((width - w) / 2), top: Math.round((height - h) / 2) + shift, width: w, height: h };
+}
+
+/**
+ * The two readings of the clock, split into the words that change and the
+ * tail they share. "7:42 pm there" → "7:52 pm there" changes only "7:42", so
+ * only that crossfades and "pm there" holds still; "sun 1.2° above the
+ * horizon" keeps "above the horizon". Compared word by word from the end, so
+ * a shared digit never splits a number, and the head keeps at least one word.
+ */
+export function splitTime(from: string, to: string): { fromHead: string; toHead: string; tail: string } {
+  const a = from.split(' ');
+  const b = to.split(' ');
+  let shared = 0;
+  while (shared < a.length - 1 && shared < b.length - 1 && a[a.length - 1 - shared] === b[b.length - 1 - shared]) shared++;
+  return {
+    fromHead: a.slice(0, a.length - shared).join(' '),
+    toHead: b.slice(0, b.length - shared).join(' '),
+    tail: b.slice(b.length - shared).join(' '),
+  };
 }
 
 export interface CaptionBox {

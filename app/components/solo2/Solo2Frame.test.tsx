@@ -57,8 +57,8 @@ it('the run is stacked: frames up to the stage are opaque, later ones transparen
     dials={{ ...D, sameCameraFadeS: 5 }} width={1920} height={1080} />);
   expect(layers()).toEqual([
     ['seq-0', '1', 'none'],
-    ['seq-1', '1', 'opacity 1s linear'], // capped at the 1 s share
-    ['seq-2', '1', 'opacity 1s linear'],
+    ['seq-1', '1', 'opacity 0.5s linear'], // half of the 1 s step, so the frame is still for the other half
+    ['seq-2', '1', 'opacity 0.5s linear'],
   ]);
   expect(screen.getByTestId('top')).toHaveAttribute('src', 'u3');
   rerender(<Solo2Frame entry={e} run={run} previous={null} stage={last} plan={plan}
@@ -150,24 +150,30 @@ it('on a dip the veil covers the outgoing caption, and the new words fade in aft
   expect(arriving).toHaveStyle({ animation: 'solo2-fade-in 1s ease 1s both' });
 });
 
-it('inside a run only the clock moves: the old time fades out, the new one in, and the words are not remounted', () => {
+it('inside a run only the clock moves, and inside the clock only the part that changed: the two readings crossfade over the same seconds', () => {
   // A real run is one camera, so every frame carries the same words.
   const sameCam = run.map((f) => ({ ...f, title: 'Pier' }));
   const { rerender } = render(<Solo2Frame entry={e} run={sameCam} previous={null} stage={{ index: 1, leadProgress: 0 }} plan={plan}
     dials={{ ...D, sameCameraFadeS: 1 }} width={1920} height={1080} />);
   expect(screen.getByTestId('caption-time')).toHaveTextContent('7:32 pm there');
-  expect(screen.getByTestId('caption-time')).toHaveStyle({ animation: 'solo-time-in 0.5s ease 0.5s both' });
-  expect(screen.getByTestId('caption-time-out')).toHaveTextContent('7:22 pm there');
-  expect(screen.getByTestId('caption-time-out')).toHaveStyle({ animation: 'solo-time-out 0.5s ease both' });
+  // Only "7:22" → "7:32" animates; "pm there" is one static text node beside it.
+  expect(screen.getByTestId('caption-time-head')).toHaveTextContent('7:32');
+  expect(screen.getByTestId('caption-time-head')).toHaveStyle({ animation: 'solo-time-in 1s ease both' });
+  expect(screen.getByTestId('caption-time-out')).toHaveTextContent('7:22');
+  // No delay on either: out and in run together, the way the picture dissolves.
+  expect(screen.getByTestId('caption-time-out')).toHaveStyle({ animation: 'solo-time-out 1s ease both' });
 
-  // Stepping again keeps the very same caption element: the title and the
-  // place hold still while the clock swaps under them.
+  // Stepping again keeps the very same caption element, and the tail with it:
+  // the title, the place and "pm there" hold still while the clock swaps.
   const held = screen.getByTestId('caption-layer');
+  const tail = screen.getByTestId('caption-time');
   rerender(<Solo2Frame entry={e} run={sameCam} previous={null} stage={{ index: 2, leadProgress: 0 }} plan={plan}
     dials={{ ...D, sameCameraFadeS: 1 }} width={1920} height={1080} />);
   expect(screen.getByTestId('caption-layer')).toBe(held);
+  expect(screen.getByTestId('caption-time')).toBe(tail);
   expect(screen.getByTestId('caption-time')).toHaveTextContent('7:42 pm there');
-  expect(screen.getByTestId('caption-time-out')).toHaveTextContent('7:32 pm there');
+  expect(screen.getByTestId('caption-time-head')).toHaveTextContent('7:42');
+  expect(screen.getByTestId('caption-time-out')).toHaveTextContent('7:32');
 });
 
 it('a run’s first frame has no clock to leave', () => {

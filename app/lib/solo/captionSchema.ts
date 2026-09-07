@@ -33,6 +33,11 @@ export const CAPTION_SCHEMA: SettingsSchema = [
     description: 'How tall the inset picture is, as a percent of the panel. It keeps the panel\'s shape and stays locked on the panel\'s centre. Frames arrive at 400 × 224, so the readout beneath says how far the picture is blown up; 1× is pixel-for-pixel. The caption hangs the gap below the picture; set too tall, it leaves the panel, and the preview shows that.',
   },
   {
+    key: 'pictureShift', kind: 'number', min: -15, max: 15, step: 1, default: 0,
+    label: 'nudge up / down (%)', section: CAPTION_SECTION,
+    description: 'Moves the picture and its caption together, as a percent of the panel\'s height: negative up, positive down. The gap between them does not change, so the pair balances on the panel as one block. Inset only; overlay fills the panel.',
+  },
+  {
     key: 'captionAlign', kind: 'enum', options: ['picture', 'center', 'panel'], default: 'picture',
     label: 'caption aligned to', section: CAPTION_SECTION,
     description: 'Flush with the picture\'s left edge, centred on the panel, or at the panel\'s left margin.',
@@ -114,6 +119,7 @@ export function captionDialsFrom(values: SettingsValues): CaptionDials {
   return {
     captionLayout: values.captionLayout as CaptionLayout,
     pictureHeight: values.pictureHeight as number,
+    pictureShift: values.pictureShift as number,
     captionAlign: values.captionAlign as CaptionAlign,
     captionGap: values.captionGap as number,
     font: values.font as CaptionFont,
