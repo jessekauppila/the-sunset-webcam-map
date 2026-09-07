@@ -17,12 +17,21 @@ export const TERMINATOR_PRECISION_DEG = 12; // Terminator ring precision in degr
 // 13 works
 // 11 works
 
-// Base sun altitude used for the terminator ring radius: radius = 90 - sunAltitude
-// Keep default at 0 to match current terminator behavior (sun at horizon).
-export const TERMINATOR_SUN_ALTITUDE_DEG = -13;
-// was 0 and one of the lines was on the exact terminator line
-// -10 works when precision is 14 and radius is 11
-// -8 showed too much day time
+// Base sun altitude the sweep ring sits at: radius = 90 - sunAltitude from
+// the subsolar point. The pool gathers within SEARCH_RADIUS_DEG of it, so
+// this is the centre of the solar-altitude band the glass can ever show.
+//
+// -5 was chosen 2026-09-07 from 46k Claude-rated frames and 9.1k gold labels
+// (scripts/altitude-quality-report.mjs). Good frames peak from -10 to +8
+// degrees and fall to 1-3% below -13. Share of good frames each window can
+// see, at equal Windy cost:
+//   ring -13 (-24..-2)  55%   ring -8 (-19..+3)  71%   ring -5 (-16..+6)  86%
+// Sweeping the day ring as a second ring reaches 100% for 1.7x the boxes,
+// almost all of them spent on the dead -24..-16 band, so the ring moved
+// instead. History: 0 put a line on the geometric terminator; -13 was tuned
+// for how the ring looked on the globe ("-8 showed too much day time"), not
+// for what the pool caught.
+export const TERMINATOR_SUN_ALTITUDE_DEG = -5;
 
 // Search radius per Windy API call, in degrees. The query box spans
 // 2 x this value, and Windy's clusters endpoint caps the north-south span
@@ -52,10 +61,13 @@ export const TERMINATOR_RETENTION_GRACE_MS = 20 * 60_000;
 export const TERMINATOR_SWEEP_FAILED_HOLD_RATIO = 0.5;
 
 // Extra rings to sweep when a feed is under the floor, tried in this order.
-// radius = 90 - (sunAltitude + offset), so POSITIVE MOVES TOWARD DAY: +15.75
-// puts the ring near +2.75 degrees solar altitude (golden hour, which the base
-// ring at -13 misses entirely), and -15.75 puts it near -28.75 (deep night,
-// where the detection gate floors the frames anyway). Day side first.
+// radius = 90 - (sunAltitude + offset), so POSITIVE MOVES TOWARD DAY. With
+// the base ring at -5, +15.75 puts the day ring near +10.75 (daylight, but its
+// box still reaches down to the -0.25 edge of the quality peak) and -15.75
+// puts the night ring near -20.75 (deep night, where the detection gate
+// floors the frames anyway). Day side first. Before the base ring moved on
+// 2026-09-07 the day ring sat at +2.75; the escalation is a camera-count
+// escape hatch for a thin feed, and it still adds cameras from there.
 //
 // The magnitude is EMPIRICAL, not derived. Measured 2026-09-02 at
 // SEARCH_RADIUS_DEG = 11: a 3-degree offset returned 26-35% cameras the base

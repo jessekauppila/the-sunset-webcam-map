@@ -78,10 +78,10 @@ export interface SweepOptions {
    *
    * The floor-based trigger asks "is a panel too empty to look at". This asks
    * a different question: "does the pool reach the altitudes where sunsets
-   * actually happen". Good frames peak at 0 to +6 degrees solar altitude and
-   * the base ring at -13 never sees them, so the day-side ring is worth
-   * paying for even when nothing is thin. Additive to the floor trigger,
-   * never a replacement for it.
+   * actually happen". Written when the base ring sat at -13 and missed the
+   * -10..+8 quality peak entirely; since the ring moved to -5 on 2026-09-07
+   * the base ring covers the peak and this is a plain widener. Additive to
+   * the floor trigger, never a replacement for it.
    *
    * Empty or absent means today's behaviour exactly.
    */

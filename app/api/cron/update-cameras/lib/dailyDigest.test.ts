@@ -246,13 +246,13 @@ function summaryWithDayRing(): SweepDigestSummary {
 
 describe('sweptAltitudeSpan', () => {
   it('is the base ring alone when nothing escalated', () => {
-    expect(sweptAltitudeSpan([ringStat(0)])).toEqual({ min: -24, max: -2 });
+    expect(sweptAltitudeSpan([ringStat(0)])).toEqual({ min: -16, max: 6 });
   });
 
-  it('reaches golden hour once the day-side ring ran', () => {
+  it('reaches into daylight once the day-side ring ran', () => {
     expect(sweptAltitudeSpan([ringStat(0), ringStat(15.75)])).toEqual({
-      min: -24,
-      max: 13.75,
+      min: -16,
+      max: 21.75,
     });
   });
 
@@ -306,7 +306,7 @@ describe('formatSweepLine', () => {
   });
 
   it('prints the swept altitude span in degrees, not ring offsets', () => {
-    expect(formatSweepLine(summaryWithDayRing())).toContain('-24° to +14°');
+    expect(formatSweepLine(summaryWithDayRing())).toContain('-16° to +22°');
   });
 
   it('shows a partial-escalation ring share against the base ring\'s ticks, not just the full-day hull', () => {

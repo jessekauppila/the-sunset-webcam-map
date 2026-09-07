@@ -652,7 +652,7 @@ describe('GET /api/cron/update-cameras', () => {
       forcedOffsetsDeg: '',
     });
     expect(maintainBinsMock).toHaveBeenCalledWith(
-      expect.objectContaining({ zone: { minDeg: -24, maxDeg: -2 } }),
+      expect.objectContaining({ zone: { minDeg: -16, maxDeg: 6 } }),
     );
   });
 
@@ -669,7 +669,7 @@ describe('GET /api/cron/update-cameras', () => {
     const res = await GET(makeReq());
     expect(res.status).toBe(200);
     expect(maintainBinsMock).toHaveBeenCalledWith(
-      expect.objectContaining({ zone: { minDeg: -39.75, maxDeg: 13.75 } }),
+      expect.objectContaining({ zone: { minDeg: -31.75, maxDeg: 21.75 } }),
     );
   });
 

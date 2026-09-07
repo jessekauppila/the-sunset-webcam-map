@@ -48,12 +48,12 @@ describe('altitudeToUnit — direction per feed', () => {
 
 describe('altitudeToUnit — clamping', () => {
   it('clamps a sun outside the window to the edge, never past it', () => {
-    // The widening rings sweep near +2.75 and -28.75, both outside the window.
+    // The widening rings sweep near +10.75 and -20.75, both outside the window.
     // They belong at an edge; they must not compute a position off the panel.
-    expect(altitudeToUnit(2.75, -24, -2, 'sunset')).toBe(0);
-    expect(altitudeToUnit(-28.75, -24, -2, 'sunset')).toBe(1);
-    expect(altitudeToUnit(2.75, -24, -2, 'sunrise')).toBe(1);
-    expect(altitudeToUnit(-28.75, -24, -2, 'sunrise')).toBe(0);
+    expect(altitudeToUnit(10.75, -16, 6, 'sunset')).toBe(0);
+    expect(altitudeToUnit(-20.75, -16, 6, 'sunset')).toBe(1);
+    expect(altitudeToUnit(10.75, -16, 6, 'sunrise')).toBe(1);
+    expect(altitudeToUnit(-20.75, -16, 6, 'sunrise')).toBe(0);
   });
 });
 

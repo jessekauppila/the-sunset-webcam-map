@@ -86,7 +86,7 @@ describe('GET /api/kiosk/solo/state', () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.dials.dwellS).toBe(30);
-    expect(body.zone).toEqual({ minDeg: -24, maxDeg: -2 });
+    expect(body.zone).toEqual({ minDeg: -16, maxDeg: 6 });
     expect(requireOwner).not.toHaveBeenCalled();
   });
   it('studio profile is owner-gated and projects with studio dials', async () => {

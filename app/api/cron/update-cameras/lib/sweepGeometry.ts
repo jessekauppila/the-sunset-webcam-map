@@ -9,8 +9,9 @@ import {
  * The ring angles a tick actually ran with.
  *
  * Stored beside the counters because offset_deg alone is not a fact about the
- * sky. +15.75 means +2.75 degrees of solar altitude only while the base ring
- * is at -13, and this configuration is expected to move. Without this record,
+ * sky. +15.75 meant +2.75 degrees of solar altitude while the base ring was
+ * at -13 and means +10.75 now that it is at -5; it moved once on 2026-09-07
+ * and is expected to move again. Without this record,
  * comparing a day of counters against a day from before a change silently
  * compares two different experiments.
  */
