@@ -73,7 +73,7 @@ export const CAPTION_SCHEMA: SettingsSchema = [
     description: '300 light, 400 regular, 500 medium, 600 semibold.',
   },
   {
-    key: 'titleGray', kind: 'number', min: 40, max: 100, step: 1, default: 71,
+    key: 'titleGray', kind: 'number', min: 0, max: 100, step: 1, default: 71,
     label: 'title gray (%)', section: CAPTION_SECTION,
     description: '100 is white.',
   },
@@ -83,14 +83,14 @@ export const CAPTION_SCHEMA: SettingsSchema = [
     description: 'The region and country line.',
   },
   {
-    key: 'placeGray', kind: 'number', min: 30, max: 100, step: 1, default: 57,
+    key: 'placeGray', kind: 'number', min: 0, max: 100, step: 1, default: 57,
     label: 'place gray (%)', section: CAPTION_SECTION,
     description: '100 is white.',
   },
   {
     key: 'lineGap', kind: 'number', min: 0, max: 24, step: 1, default: 0,
     label: 'line gap (px)', section: CAPTION_SECTION,
-    description: 'Extra space between the caption\'s lines.',
+    description: 'Extra space above every caption line after the first.',
   },
   {
     key: 'timeStyle', kind: 'enum', options: ['off', '12h', '12h-there', '24h', 'sun', '12h-sun'], default: '12h-there',
@@ -103,16 +103,71 @@ export const CAPTION_SCHEMA: SettingsSchema = [
     description: 'own: the time on its own line under the place. inline: after the place with a middle dot.',
   },
   {
+    key: 'timeGap', kind: 'number', min: 0, max: 60, step: 1, default: 0,
+    label: 'time gap (px)', section: CAPTION_SECTION,
+    description: 'Extra space above the time line only, on top of the line gap, so the time can sit apart from the title and the place instead of evenly under them. Nothing when the time is inline.',
+  },
+  {
     key: 'timeSize', kind: 'number', min: 8, max: 32, step: 1, default: 12,
     label: 'time size (px)', section: CAPTION_SECTION,
     description: 'The time line.',
   },
   {
-    key: 'timeGray', kind: 'number', min: 20, max: 90, step: 1, default: 46,
+    key: 'timeGray', kind: 'number', min: 0, max: 90, step: 1, default: 46,
     label: 'time gray (%)', section: CAPTION_SECTION,
     description: '100 would be white; keep it quieter than the place.',
   },
 ] as const;
+
+/**
+ * The three title / place / time dials the studio can drive as one, per
+ * group. Editing state, not glass state: the caption draws from three
+ * independent numbers whether or not the studio was linking them, so nothing
+ * about a link is stored or deployed.
+ */
+export const LINKED_CAPTION_KEYS = {
+  size: ['titleSize', 'placeSize', 'timeSize'],
+  gray: ['titleGray', 'placeGray', 'timeGray'],
+} as const;
+
+export type LinkedCaptionGroup = keyof typeof LINKED_CAPTION_KEYS;
+
+/** Which linked group a caption key belongs to, or null for the rest of them. */
+export function linkedCaptionGroup(key: string): LinkedCaptionGroup | null {
+  for (const group of Object.keys(LINKED_CAPTION_KEYS) as LinkedCaptionGroup[]) {
+    if ((LINKED_CAPTION_KEYS[group] as readonly string[]).includes(key)) return group;
+  }
+  return null;
+}
+
+const CAPTION_KNOBS = new Map(CAPTION_SCHEMA.map((k) => [k.key, k]));
+
+/**
+ * What the other two dials of a linked group become when one of them moves
+ * from its value in `values` to `next`. Sizes are pixels, so they scale by
+ * the same ratio and the hierarchy between the three lines survives a drag;
+ * grays are already percents of white, so they shift by the same number of
+ * points and the contrast steps between the lines survive one. Each result is
+ * rounded and clamped into its own dial's range, so a line that reaches an
+ * end stops there while the others keep moving — dragging back does not
+ * restore it, which is what a slider that has hit its floor should do.
+ */
+export function linkedCaptionValues(
+  group: LinkedCaptionGroup, changed: string, next: number, values: SettingsValues,
+): Record<string, number> {
+  const out: Record<string, number> = {};
+  const from = Number(values[changed]);
+  if (!Number.isFinite(from) || !Number.isFinite(next) || from === next) return out;
+  for (const key of LINKED_CAPTION_KEYS[group]) {
+    if (key === changed) continue;
+    const knob = CAPTION_KNOBS.get(key);
+    const was = Number(values[key]);
+    if (!knob || knob.kind !== 'number' || !Number.isFinite(was)) continue;
+    const moved = group === 'size' ? (from === 0 ? was : was * next / from) : was + (next - from);
+    out[key] = Math.min(knob.max, Math.max(knob.min, Math.round(moved)));
+  }
+  return out;
+}
 
 /** Typed view of merged caption values (mergeSettings over CAPTION_SCHEMA). */
 export function captionDialsFrom(values: SettingsValues): CaptionDials {
@@ -133,6 +188,7 @@ export function captionDialsFrom(values: SettingsValues): CaptionDials {
     lineGap: values.lineGap as number,
     timeStyle: values.timeStyle as TimeStyle,
     timeLine: values.timeLine as TimeLine,
+    timeGap: values.timeGap as number,
     timeSize: values.timeSize as number,
     timeGray: values.timeGray as number,
   };

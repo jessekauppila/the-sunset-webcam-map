@@ -55,6 +55,33 @@ describe('Rail, solo kind', () => {
     fireEvent.change(screen.getByLabelText('title size (px)'), { target: { value: '30' } });
     expect(a.setKnob).toHaveBeenCalledWith('shared', 'titleSize', 30);
   });
+  it('with sizes linked, one size drag scales the other two; unlinked, it moves alone', () => {
+    const a = api();
+    render(<Rail api={a} surface={STUDIO_SURFACES.solo} tab="picture" onTab={noop} />);
+    fireEvent.change(screen.getByLabelText('title size (px)'), { target: { value: '42' } });
+    expect(a.setKnob).toHaveBeenCalledTimes(1);
+    expect(a.setKnob).toHaveBeenCalledWith('shared', 'titleSize', 42);
+
+    fireEvent.click(screen.getByLabelText('sizes'));
+    fireEvent.change(screen.getByLabelText('title size (px)'), { target: { value: '42' } });
+    // 21 → 42 is 2×, so place 17 → 34 and time 12 → 24.
+    expect(a.setKnob).toHaveBeenCalledWith('shared', 'placeSize', 34);
+    expect(a.setKnob).toHaveBeenCalledWith('shared', 'timeSize', 24);
+    // the grays are a link of their own and stay put
+    expect(a.setKnob).not.toHaveBeenCalledWith('shared', 'placeGray', expect.anything());
+  });
+  it('with grays linked, one gray drag shifts the other two by the same points', () => {
+    const a = api();
+    render(<Rail api={a} surface={STUDIO_SURFACES.solo} tab="picture" onTab={noop} />);
+    fireEvent.click(screen.getByLabelText('grays'));
+    fireEvent.change(screen.getByLabelText('title gray (%)'), { target: { value: '81' } });
+    expect(a.setKnob).toHaveBeenCalledWith('shared', 'titleGray', 81);
+    expect(a.setKnob).toHaveBeenCalledWith('shared', 'placeGray', 67);
+    expect(a.setKnob).toHaveBeenCalledWith('shared', 'timeGray', 56);
+    // a caption dial outside the two groups is never carried along
+    fireEvent.change(screen.getByLabelText('gap (px)'), { target: { value: '20' } });
+    expect(a.setKnob).toHaveBeenLastCalledWith('shared', 'captionGap', 20);
+  });
   it('solo2 shows the dwell readout after the camera-run knob', () => {
     render(<Rail api={api()} surface={STUDIO_SURFACES.solo2} tab="play" onTab={noop} runFrames={3} />);
     expect(screen.getByTestId('dwell-budget')).toBeInTheDocument();

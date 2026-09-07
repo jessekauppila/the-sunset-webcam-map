@@ -170,20 +170,34 @@ export interface CaptionBox {
 export const LINE_HEIGHT = { title: 1.15, place: 1.3, time: 1.3 } as const;
 
 /**
+ * The space above each caption line, in glass pixels: nothing above the first
+ * line, `lineGap` above any line after it, and `timeGap` on top of that above
+ * the time when the time has a line of its own. Caption.tsx draws these as
+ * margins and captionHeight adds them up, so the two always agree about how
+ * far the block reaches.
+ */
+export function lineGaps(
+  d: Pick<SoloDials, 'lineGap' | 'timeGap'>,
+): { place: number; time: number } {
+  return { place: d.lineGap, time: d.lineGap + d.timeGap };
+}
+
+/**
  * How tall the caption block will be, in CSS pixels at scale `s`: the lines
  * that will exist (the title always; the place line when there is a place or
  * an inline time; the time on its own line unless inline) at the line heights
- * Caption draws with, plus the line gap between them.
+ * Caption draws with, plus the gap above each line after the first.
  */
 export function captionHeight(
-  d: Pick<SoloDials, 'titleSize' | 'placeSize' | 'timeSize' | 'lineGap' | 'timeLine'>,
+  d: Pick<SoloDials, 'titleSize' | 'placeSize' | 'timeSize' | 'lineGap' | 'timeGap' | 'timeLine'>,
   lines: Pick<CaptionLines, 'place' | 'time'>, s: number,
 ): number {
   const inline = d.timeLine === 'inline';
-  const heights = [d.titleSize * LINE_HEIGHT.title];
-  if (lines.place || (inline && lines.time)) heights.push(d.placeSize * LINE_HEIGHT.place);
-  if (!inline && lines.time) heights.push(d.timeSize * LINE_HEIGHT.time);
-  return (heights.reduce((a, b) => a + b, 0) + d.lineGap * (heights.length - 1)) * s;
+  const gaps = lineGaps(d);
+  let total = d.titleSize * LINE_HEIGHT.title;
+  if (lines.place || (inline && lines.time)) total += gaps.place + d.placeSize * LINE_HEIGHT.place;
+  if (!inline && lines.time) total += gaps.time + d.timeSize * LINE_HEIGHT.time;
+  return total * s;
 }
 
 /**
