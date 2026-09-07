@@ -91,7 +91,7 @@ it('cut shows no previous layer; crossfade keeps it and animates the top; dip ad
   expect(screen.getAllByRole('presentation').map((i) => i.getAttribute('src'))).toEqual(['u3']);
   rerender(<Solo2Frame entry={e} run={[e]} previous={prev} stage={one} plan={plan} dials={{ ...D, transition: 'crossfade', fadeS: 2 }} width={100} height={50} />);
   expect(screen.getAllByRole('presentation').map((i) => i.getAttribute('src'))).toEqual(['u0', 'u3']);
-  expect(screen.getByTestId('stack')).toHaveStyle({ animation: 'solo2-fade-in 2s ease both' });
+  expect(screen.getByTestId('stack')).toHaveStyle({ animation: 'solo2-fade-in 2s linear both' });
   expect(screen.queryByTestId('dip')).toBeNull();
   rerender(<Solo2Frame entry={e} run={[e]} previous={prev} stage={one} plan={plan} dials={{ ...D, transition: 'dip', fadeS: 2 }} width={100} height={50} />);
   expect(screen.getByTestId('dip')).toHaveStyle({ animation: 'solo2-dip 1s linear both' });
@@ -103,7 +103,7 @@ it('a change to the same camera dissolves over the same-camera fade, never throu
     dials={{ ...D, transition: 'dip', fadeS: 4, sameCameraFadeS: 1 }} width={100} height={50} />);
   expect(screen.getAllByRole('presentation').map((i) => i.getAttribute('src'))).toEqual(['u0', 'u3']);
   expect(screen.queryByTestId('dip')).toBeNull();
-  expect(screen.getByTestId('stack')).toHaveStyle({ animation: 'solo2-fade-in 1s ease both' });
+  expect(screen.getByTestId('stack')).toHaveStyle({ animation: 'solo2-fade-in 1s linear both' });
 });
 
 it('the defaults dip through black between cameras', () => {
@@ -126,7 +126,7 @@ it('the caption arrives on the picture’s transition: the same animation, and t
   const one = { index: 0, leadProgress: 0 };
   const { rerender } = render(<Solo2Frame entry={e} run={[e]} previous={prev} stage={one} plan={plan}
     dials={{ ...D, transition: 'crossfade', fadeS: 2 }} width={1920} height={1080} />);
-  expect(screen.getByTestId('caption-layer')).toHaveStyle({ animation: 'solo2-fade-in 2s ease both' });
+  expect(screen.getByTestId('caption-layer')).toHaveStyle({ animation: 'solo2-fade-in 2s linear both' });
   expect(screen.getByTestId('caption-layer').style.animation).toBe(screen.getByTestId('stack').style.animation);
   expect(screen.getByText('Old pier')).toBeInTheDocument(); // the words being left behind
 
@@ -147,7 +147,20 @@ it('on a dip the veil covers the outgoing caption, and the new words fade in aft
   // Painted in this order, so the veil hides the old words rather than sitting behind them.
   expect(out.compareDocumentPosition(veil) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   expect(veil.compareDocumentPosition(arriving) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-  expect(arriving).toHaveStyle({ animation: 'solo2-fade-in 1s ease 1s both' });
+  expect(arriving).toHaveStyle({ animation: 'solo2-fade-in 1s linear 1s both' });
+});
+
+it('a dip goes down and comes up on the same ramp: the veil and the arriving picture share duration and timing function', () => {
+  const prev = { ...e, snapshotId: 0, webcamId: 99, imageUrl: 'u0' };
+  render(<Solo2Frame entry={e} run={[e]} previous={prev} stage={{ index: 0, leadProgress: 0 }} plan={plan}
+    dials={{ ...D, transition: 'dip', fadeS: 2 }} width={100} height={50} />);
+  // An eased up-ramp against a linear down-ramp is what made the new picture
+  // read as arriving three times faster than the old one left.
+  const [, downDuration, downEasing] = screen.getByTestId('dip').style.animation.split(' ');
+  const [, upDuration, upEasing] = screen.getByTestId('stack').style.animation.split(' ');
+  expect(upDuration).toBe(downDuration);
+  expect(upEasing).toBe(downEasing);
+  expect(upEasing).toBe('linear');
 });
 
 it('inside a run only the clock moves: the old time fades out, the new one in, and the words are not remounted', () => {
