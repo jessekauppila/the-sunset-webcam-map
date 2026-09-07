@@ -4,7 +4,10 @@ import { Fragment, useState, type CSSProperties, type ReactNode } from 'react';
 import type { StudioSettingsApi } from './useStudioSettings';
 import type { StudioSurface } from './surfaces';
 import { SHARED_NAMESPACE } from '@/app/lib/settings/sharedSchema';
-import { CAPTION_SCHEMA, CAPTION_SECTION, withCaption } from '@/app/lib/solo/captionSchema';
+import {
+  CAPTION_SCHEMA, CAPTION_SECTION, linkedCaptionGroup, linkedCaptionValues, withCaption,
+  type LinkedCaptionGroup,
+} from '@/app/lib/solo/captionSchema';
 import { SOURCE_FRAME, drawFactor, pictureRect } from '@/app/lib/solo/caption';
 import { PANEL_PRESETS, DEFAULT_PANEL_PRESET, type PanelSize } from '@/app/kiosk/panelPreview';
 import type { KnobDescriptor, KnobValue, SettingsSchema, SettingsValues } from '@/app/lib/settings/schema';
@@ -218,6 +221,40 @@ function GroupHeader({ title, color, hint, section, onReset, asSummary = false, 
 }
 
 /**
+ * The caption's two links, above its dials. With one on, dragging any of the
+ * three title / place / time dials in that group carries the other two: the
+ * sizes by the same ratio, the grays by the same number of points, so the
+ * block is re-scaled or re-dimmed as a whole instead of three sliders at a
+ * time. It is editing state only — it lives for as long as the page does and
+ * nothing about it is stored or deployed.
+ */
+function CaptionLinks({ linked, onToggle }: {
+  linked: Record<LinkedCaptionGroup, boolean>;
+  onToggle: (group: LinkedCaptionGroup, on: boolean) => void;
+}) {
+  const groups: { group: LinkedCaptionGroup; label: string; hint: string }[] = [
+    { group: 'size', label: 'sizes', hint: 'Move one of the title, place and time sizes and the other two scale by the same ratio, keeping the hierarchy between the lines. A size that reaches the end of its own slider stops there.' },
+    { group: 'gray', label: 'grays', hint: 'Move one of the title, place and time grays and the other two shift by the same number of points, keeping the contrast steps between the lines. A gray that reaches the end of its own slider stops there.' },
+  ];
+  return (
+    <div data-testid="caption-links" style={{
+      display: 'flex', alignItems: 'center', gap: 10, padding: '2px 4px 6px',
+      fontSize: 11, color: '#8b95a7',
+    }}>
+      <span>link title · place · time</span>
+      {groups.map(({ group, label, hint }) => (
+        <span key={group} style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+          <input id={`rail-link-${group}`} type="checkbox" checked={linked[group]}
+            onChange={(e) => onToggle(group, e.target.checked)} />
+          <LabeledControl id={`rail-link-${group}`} description={hint}
+            style={{ color: '#8b95a7', fontSize: 11, cursor: 'help' }}>{label}</LabeledControl>
+        </span>
+      ))}
+    </div>
+  );
+}
+
+/**
  * The one dial rail (one-studio spec §2.3). It renders whatever schema the
  * surface hands it: a solo version's two coloured groups plus the shared
  * picture page, or a mosaic version's sections as collapsible groups. No
@@ -259,11 +296,31 @@ export function Rail({ api, surface, tab, onTab, runFrames = 1, children }: {
   // Which collapsible groups are open. Unvisited sections fall back to
   // "the first one", so the rail opens the same way it always did.
   const [opened, setOpened] = useState<Record<string, boolean>>({});
+  // Which caption groups are linked. Editing state: never written to a namespace.
+  const [linked, setLinked] = useState<Record<LinkedCaptionGroup, boolean>>({ size: false, gray: false });
 
-  const knob = (k: KnobDescriptor, target: { ns: string; values: SettingsValues; diff: Set<string> }) => (
+  // A caption write, plus its linked siblings. `shared` is what the rail is
+  // already rendering, so the ratio the sizes scale by is measured against
+  // the values on screen; the siblings go out in the same event, which
+  // useStudioSettings merges through its ref rather than one overwriting
+  // the other.
+  const setCaptionKnob = (key: string, v: KnobValue) => {
+    api.setKnob(SHARED_NAMESPACE, key, v);
+    const group = linkedCaptionGroup(key);
+    if (!group || !linked[group] || typeof v !== 'number') return;
+    for (const [sibling, value] of Object.entries(linkedCaptionValues(group, key, v, shared))) {
+      api.setKnob(SHARED_NAMESPACE, sibling, value);
+    }
+  };
+
+  const knob = (k: KnobDescriptor, target: {
+    ns: string; values: SettingsValues; diff: Set<string>;
+    /** Owns the write when set, so a page can carry sibling dials along with it. */
+    onChange?: (key: string, v: KnobValue) => void;
+  }) => (
     <Fragment key={k.key}>
       <Control knob={k} value={target.values[k.key]} differs={target.diff.has(k.key)}
-        onChange={(v) => api.setKnob(target.ns, k.key, v)} />
+        onChange={(v) => (target.onChange ? target.onChange(k.key, v) : api.setKnob(target.ns, k.key, v))} />
       {k.key === 'pictureHeight' && soloDials && <PictureReadout dials={soloDials} panel={panel} />}
       {k.key === 'cameraRun' && planDials && <DwellBudget dials={planDials} frames={runFrames} />}
     </Fragment>
@@ -315,7 +372,10 @@ export function Rail({ api, surface, tab, onTab, runFrames = 1, children }: {
         <section>
           <GroupHeader {...CAPTION_GROUP} section={CAPTION_SECTION}
             onReset={() => api.resetSection(SHARED_NAMESPACE, CAPTION_SECTION)} />
-          {CAPTION_SCHEMA.map((k) => knob(k, { ns: SHARED_NAMESPACE, values: shared, diff: sharedDiff }))}
+          <CaptionLinks linked={linked} onToggle={(g, on) => setLinked((l) => ({ ...l, [g]: on }))} />
+          {CAPTION_SCHEMA.map((k) => knob(k, {
+            ns: SHARED_NAMESPACE, values: shared, diff: sharedDiff, onChange: setCaptionKnob,
+          }))}
         </section>
       )}
       <div style={{ marginTop: 'auto', paddingTop: 10 }}>{children}</div>

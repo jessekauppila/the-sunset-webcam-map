@@ -33,6 +33,29 @@ it('caption sizes are glass pixels: the dialled px on a 1920 panel, and the gray
   expect(screen.getByTestId('caption')).toHaveStyle({ left: '125px', top: '1028px', maxWidth: '1671px' });
 });
 
+it('the line gap spaces every line after the first; the time gap pushes the time further down still', () => {
+  const { rerender } = render(<SoloFrame entry={e} previous={null} fadeS={0}
+    dials={{ ...D, lineGap: 6, timeGap: 0 }} width={1920} height={1080} />);
+  expect(screen.getByTestId('caption-place')).toHaveStyle({ marginTop: '6px' });
+  expect(screen.getByTestId('caption-time-line')).toHaveStyle({ marginTop: '6px' });
+  rerender(<SoloFrame entry={e} previous={null} fadeS={0}
+    dials={{ ...D, lineGap: 6, timeGap: 14 }} width={1920} height={1080} />);
+  expect(screen.getByTestId('caption-place')).toHaveStyle({ marginTop: '6px' });
+  expect(screen.getByTestId('caption-time-line')).toHaveStyle({ marginTop: '20px' });
+  // glass pixels like every other caption size: half the panel, half the gaps
+  rerender(<SoloFrame entry={e} previous={null} fadeS={0}
+    dials={{ ...D, lineGap: 6, timeGap: 14 }} width={960} height={540} />);
+  expect(screen.getByTestId('caption-time-line')).toHaveStyle({ marginTop: '10px' });
+});
+
+it('a gray dialled to 0 draws the line black', () => {
+  render(<SoloFrame entry={e} previous={null} fadeS={0}
+    dials={{ ...D, titleGray: 0, placeGray: 0, timeGray: 0 }} width={1920} height={1080} />);
+  expect(screen.getByTestId('caption-title')).toHaveStyle({ color: 'rgb(0, 0, 0)' });
+  expect(screen.getByTestId('caption-place')).toHaveStyle({ color: 'rgb(0, 0, 0)' });
+  expect(screen.getByTestId('caption-time')).toHaveStyle({ color: 'rgb(0, 0, 0)' });
+});
+
 it('on a half-size panel everything halves', () => {
   render(<SoloFrame entry={e} previous={null} fadeS={0} dials={D} width={960} height={540} />);
   expect(screen.getByRole('presentation')).toHaveStyle({ width: '836px', height: '470px' });

@@ -72,6 +72,8 @@ export interface CaptionDials {
   lineGap: number;
   timeStyle: TimeStyle;
   timeLine: TimeLine;
+  /** Extra space above the time line, on top of lineGap; own-line time only. */
+  timeGap: number;
   timeSize: number;
   timeGray: number;
 }
