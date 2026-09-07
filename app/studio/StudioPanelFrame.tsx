@@ -9,12 +9,22 @@ import { fitScale, type PanelSize } from '@/app/kiosk/panelPreview';
  * studio's preview column, sized by the rest of the grid). Same stage
  * markup — true panel px, scaled down, `top left` origin — just measured
  * with a ResizeObserver on the wrapping element instead of `window.innerWidth`.
+ *
+ * `edge` draws a hairline on the scaled panel box — the line the glass's own
+ * bezel makes. Without it the only rectangle in the preview column is the
+ * column's own border, and the panel inside it is black on black, so a
+ * caption falling off the panel still looks comfortably inside the frame the
+ * eye is using. It is an outline, not a border: outlines take no layout
+ * space, so the box the line marks is exactly the box that was measured.
  */
 export function StudioPanelFrame({
   panel,
+  edge,
   children,
 }: {
   panel: PanelSize;
+  /** Colour of the panel-edge hairline. No line without one. */
+  edge?: string;
   children: React.ReactNode;
 }) {
   const measureRef = useRef<HTMLDivElement | null>(null);
@@ -54,6 +64,7 @@ export function StudioPanelFrame({
           width: panel.width * scale,
           height: panel.height * scale,
           overflow: 'hidden',
+          outline: edge ? `1px solid ${edge}` : undefined,
         }}
       >
         <div
