@@ -459,6 +459,25 @@ doing its job.
 both are surfaces Jesse reads and both would show a confident wrong number
 rather than break.
 
+One more line in the same file, `Tape.tsx:155`, deserves recording rather
+than fixing:
+
+```ts
+const endMs = i + 1 < past.length ? past[i + 1].shownAt
+            : currentSince ?? f.shownAt + pastDials.dwellS * 1000;
+```
+
+The first two branches measure and are safe. The third computes, and it fires
+in a real state rather than a theoretical one: draws logged with nothing
+currently on glass. It is right today at a fixed 20 s and would be wrong under
+a budget by however far the last draw's `n` exceeded `n*`.
+
+**It should not be fixed ahead of §5.1.** Once the server publishes a dwell
+end, that block has a measured end like every other and the fallback is
+deleted rather than corrected. It belongs in the same commit that swaps the
+`Playhead`'s `dwellS` for an `endsAtMs`. Recorded here because the session
+that found it may not outlive this document.
+
 An earlier draft of this section said each of these sites needs a
 `solo`-versus-`solo2` branch. **That is wrong, and §5.1 is why.** A client
 handed an end instant does not need to know which version produced it.
