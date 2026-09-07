@@ -590,10 +590,23 @@ the server publishing an end instant and no client deriving one.
 3. The budget rule and the per-bin caps (§3, §4), including the studio
    readout of `n*`.
 
-**Step 1 must precede step 2 and the two must not be split across a merge.**
-The reasoning is §6.1: reversing them makes rest compare a counter against a
-clock-derived number, which rests the wrong frames quietly. Step 2 spans
-lanes, so the replay half belongs in the same PR rather than a follow-up.
+**Step 1 must precede step 2.** The reasoning is §6.1: reversing them makes
+rest compare a counter against a clock-derived number, which rests the wrong
+frames quietly.
+
+An earlier draft added "and the two must not be split across a merge". That
+was over-cautious and is retracted. Step 1 is deliberately behaviour-neutral:
+while slots are still clock-derived, a stored draw number and a clock-derived
+comparison agree exactly, so a tree with step 1 and not step 2 is correct at
+every point. It should ship on its own, per the repo rule about landing small
+increments. What must not happen is step 2 without step 1.
+
+There is no discontinuity at the step 2 cutover either. The counter continues
+from the screen state's current slot, which is itself clock-derived at that
+moment, so the sequence stays monotonic across the deploy.
+
+Step 2 spans lanes, so the replay half belongs in the same PR as the rest of
+step 2 rather than a follow-up.
 
 ## 11. Provenance
 
