@@ -5,6 +5,7 @@ import { Sparkline } from './Sparkline';
 import { UsageChart } from './UsageChart';
 import { DozeControl } from './DozeControl';
 import { CalibrationPanel } from './CalibrationPanel';
+import { SweepOverlayControl } from './SweepOverlayControl';
 
 function Stat({
   label,
@@ -34,6 +35,7 @@ export function OpsPanels({ data }: { data: OpsStatsResponse }) {
   return (
     <>
       <DozeControl />
+      <SweepOverlayControl />
       {!latest ? (
         <Typography sx={{ color: '#9ca3af', p: 2 }}>No data yet.</Typography>
       ) : (
