@@ -34,6 +34,42 @@ describe('toViewEntry', () => {
   });
 });
 
+describe('buildStateView: the published dwell end', () => {
+  const entries = [stored(1, 'sunset', 0.9), stored(2, 'sunset', 0.8)];
+  const build = (screen: Parameters<typeof buildStateView>[0]['screen']) =>
+    buildStateView({ feed: 'sunset', dials: D, entries, screen, nowMs: 1_000_000, admitted: { sunset: 0, nonSunset: 0 }, zone: ZONE });
+
+  it('is an absolute instant, shownSince plus the version dwell (spec §5.1)', () => {
+    const shownSince = 1_700_000_000_000;
+    const v = build({ feed: 'sunset', currentSnapshotId: 1, shownSince, slot: 9, sunsetStreak: 0 });
+    expect(v.current?.endsAtMs).toBe(shownSince + D.dwellS * 1000);
+  });
+
+  it('is null when there is no shownSince to measure from', () => {
+    const v = build({ feed: 'sunset', currentSnapshotId: 1, shownSince: null, slot: 9, sunsetStreak: 0 });
+    expect(v.current?.endsAtMs).toBeNull();
+  });
+
+  it('is an instant, not a remaining duration: it does not move with nowMs', () => {
+    // A duration would go stale in a cached response; an instant does not.
+    const shownSince = 1_700_000_000_000;
+    const screen = { feed: 'sunset' as const, currentSnapshotId: 1, shownSince, slot: 9, sunsetStreak: 0 };
+    const early = buildStateView({ feed: 'sunset', dials: D, entries, screen, nowMs: shownSince + 1000, admitted: { sunset: 0, nonSunset: 0 }, zone: ZONE });
+    const late = buildStateView({ feed: 'sunset', dials: D, entries, screen, nowMs: shownSince + 19_000, admitted: { sunset: 0, nonSunset: 0 }, zone: ZONE });
+    expect(early.current?.endsAtMs).toBe(late.current?.endsAtMs);
+  });
+
+  it('follows the dwell dial', () => {
+    const shownSince = 1_700_000_000_000;
+    const v = buildStateView({
+      feed: 'sunset', dials: { ...D, dwellS: 47 }, entries,
+      screen: { feed: 'sunset', currentSnapshotId: 1, shownSince, slot: 9, sunsetStreak: 0 },
+      nowMs: 1_000_000, admitted: { sunset: 0, nonSunset: 0 }, zone: ZONE,
+    });
+    expect(v.current?.endsAtMs).toBe(shownSince + 47_000);
+  });
+});
+
 describe('buildStateView', () => {
   it('queued frames are absent from the bins; every entry carries a stage', () => {
     const entries = [stored(1, 'sunset', 0.9), stored(2, 'sunset', 0.8), stored(3, 'non_sunset', 0.5), stored(4, 'sunset', 0.1)];

@@ -69,7 +69,22 @@ export interface TapeEntry extends EntryView {
 export interface StateView {
   feed: Feed;
   dials: SoloDials;
-  current: { entry: EntryView; shownSince: number | null; slot: number | null } | null;
+  current: {
+    entry: EntryView;
+    shownSince: number | null;
+    slot: number | null;
+    /**
+     * When this dwell ends, ms since epoch (dwell-budget spec §5.1). An
+     * absolute instant, never a remaining duration: a duration is only
+     * meaningful with a fetch timestamp attached and goes stale in a cached
+     * response, an instant does not.
+     *
+     * The server owns WHEN a dwell ends because its length is a function of
+     * engine state; a client owns only how far along it is. Null when the
+     * screen has no shown-since to measure from.
+     */
+    endsAtMs: number | null;
+  } | null;
   next: EntryView[];
   /** Parallel to `next`: what each draw is inside its bar. All peaks for solo. */
   nextRoles: Role[];
@@ -154,7 +169,14 @@ export function buildStateView(input: {
     feed,
     dials,
     current: currentEntry
-      ? { entry: view(currentEntry), shownSince: screen?.shownSince ?? null, slot: screen?.slot ?? null }
+      ? {
+        entry: view(currentEntry),
+        shownSince: screen?.shownSince ?? null,
+        slot: screen?.slot ?? null,
+        endsAtMs: screen?.shownSince != null
+          ? screen.shownSince + version.dwellMs(entries, currentEntry, dials)
+          : null,
+      }
       : null,
     next: next.map((e) => view(byId.get(e.snapshotId)!)),
     nextRoles: next.map((_, i) => version.roleAt(firstSlot + i, feed, dials)),

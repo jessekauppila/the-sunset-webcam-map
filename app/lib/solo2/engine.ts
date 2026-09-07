@@ -56,6 +56,19 @@ export function shown2<T extends RunEntry>(entries: T[], pick: T, d: Solo2Dials)
 }
 
 /**
+ * How long a draw of `pick` occupies the glass, ms (dwell-budget spec §5.2).
+ *
+ * Today this is the dial, exactly as `solo`'s is: the budget rule of §3 is
+ * step 3 of that spec and is not in yet. It lives here rather than at the
+ * call sites so that step 3 changes ONE function and every surface that
+ * renders toward a dwell end follows without knowing anything about
+ * versions, caps or frame counts.
+ */
+export function dwellMs2(_entries: BinEntry[], _pick: BinEntry, d: Solo2Dials): number {
+  return d.dwellS * 1000;
+}
+
+/**
  * `n` draws forward from `state`, the first at `firstSlot`, each applied to
  * a private copy of the entries: every frame the draw plays is marked
  * shown. Inputs are never mutated.
