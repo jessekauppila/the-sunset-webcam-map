@@ -50,7 +50,7 @@ it('draws the panel edge on the panel and leaves the preview column unbordered',
   // only because they happen to share an aspect. A portrait panel in this
   // column would leave black margins, and a border on the column would sit
   // where the glass has nothing.
-  expect(screen.getByTestId('studio-panel-box')).toHaveStyle({ outline: '1px solid #f5a344' });
+  expect(screen.getByTestId('studio-panel-edge').style.boxShadow).toBe('inset 0 0 0 1px #f5a344');
   expect(screen.getByTestId('preview-sunrise').style.border).toBe('');
 });
 

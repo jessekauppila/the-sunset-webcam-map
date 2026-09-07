@@ -14,8 +14,16 @@ import { fitScale, type PanelSize } from '@/app/kiosk/panelPreview';
  * bezel makes. Without it the only rectangle in the preview column is the
  * column's own border, and the panel inside it is black on black, so a
  * caption falling off the panel still looks comfortably inside the frame the
- * eye is using. It is an outline, not a border: outlines take no layout
- * space, so the box the line marks is exactly the box that was measured.
+ * eye is using.
+ *
+ * It is an inset shadow on a layer over the stage, not an outline on the box.
+ * An outline is painted *outside* the border box, and `fitScale` sizes the
+ * box to meet the measuring wrapper on its limiting axis — so the wrapper's
+ * `overflow: hidden` clipped the line away on that axis, and clipped all four
+ * sides whenever the panel and the column were the same shape, which in the
+ * solo studio they nearly are. Measured headless: nothing drawn at all.
+ * An inset shadow is painted inside, so it cannot be clipped; the layer puts
+ * it over the stage, whose own black background would otherwise cover it.
  */
 export function StudioPanelFrame({
   panel,
@@ -64,7 +72,7 @@ export function StudioPanelFrame({
           width: panel.width * scale,
           height: panel.height * scale,
           overflow: 'hidden',
-          outline: edge ? `1px solid ${edge}` : undefined,
+          position: 'relative',
         }}
       >
         <div
@@ -79,6 +87,18 @@ export function StudioPanelFrame({
         >
           {children}
         </div>
+        {edge && (
+          <div
+            data-testid="studio-panel-edge"
+            aria-hidden
+            style={{
+              position: 'absolute',
+              inset: 0,
+              boxShadow: `inset 0 0 0 1px ${edge}`,
+              pointerEvents: 'none',
+            }}
+          />
+        )}
       </div>
     </div>
   );
