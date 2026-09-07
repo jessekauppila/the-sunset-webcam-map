@@ -3,7 +3,7 @@ import { renderHook, act } from '@testing-library/react';
 import { useStage } from './useStage';
 import { fitPlan } from '@/app/lib/solo2/plan';
 
-const plan = fitPlan({ dwellS: 6, leadS: 2 }, 3); // 2 s a frame, lead over the last 2 s
+const plan = fitPlan({ dwellS: 6, leadS: 2, minStepS: 1 }, 3); // 2 s a frame, lead over the last 2 s
 
 beforeEach(() => {
   vi.useFakeTimers();

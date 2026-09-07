@@ -3,7 +3,8 @@ import { schemaDefaults } from '@/app/lib/settings/schema';
 import { project } from '@/app/lib/solo/engine';
 import type { BinEntry, ScreenState } from '@/app/lib/solo/types';
 import { boundaryMs } from '@/app/lib/solo/schedule';
-import { beatOf, next2, project2, roleAt, shown2 } from './engine';
+import { beatOf, next2, project2, roleAt, shown2, dwellMs2 } from './engine';
+import { fitPlan } from './plan';
 import { SOLO2_SETTINGS_SCHEMA, dialsFrom2 } from './settingsSchema';
 import type { Solo2Dials } from './types';
 
@@ -148,5 +149,52 @@ describe('the camera run', () => {
     const d = { ...D, cameraRun: false, rest: 0 };
     expect(project2(entries(), d, S0, 4, 0, 'sunrise').map((e) => e.snapshotId)).toEqual([2, 3, 4, 1]);
     expect(shown2(entries(), entries()[1], d).map((e) => e.snapshotId)).toEqual([2]);
+  });
+});
+
+describe('dwellMs2: the budget rule over the frames actually played', () => {
+  const D2 = { ...dialsFrom2(schemaDefaults(SOLO2_SETTINGS_SCHEMA)), cameraRun: true };
+  const frame = (id: number, cam: number, at: number, bin: 'sunset' | 'non_sunset' = 'sunset') => ({
+    snapshotId: id, webcamId: cam, bin, quality: bin === 'sunset' ? 0.9 : null, detection: 0.9,
+    isNew: false, tally: 0, enteredAt: at, capturedAt: at,
+  });
+
+  it('a lone frame holds the whole dwell', () => {
+    const one = [frame(1, 7, 1000)];
+    expect(dwellMs2(one, one[0], D2)).toBe(D2.dwellS * 1000);
+  });
+
+  it('below the threshold the dwell does not move however many frames play', () => {
+    const five = Array.from({ length: 5 }, (_, i) => frame(i + 1, 7, (i + 1) * 1000));
+    expect(dwellMs2(five, five[4], D2)).toBe(D2.dwellS * 1000);
+  });
+
+  it('above it the dwell stretches, and the sunset cap sets the ceiling', () => {
+    const twelve = Array.from({ length: 12 }, (_, i) => frame(i + 1, 7, (i + 1) * 1000));
+    // 12 frames capped to 8, each held at the 4 s floor: 32 s, not 48.
+    expect(dwellMs2(twelve, twelve[11], D2)).toBe(32_000);
+  });
+
+  it('a non-sunset can never stretch the dwell at the default cap (spec §4.1)', () => {
+    // The cap of 3 sits below the threshold of 5, so the budget is merely
+    // divided more finely: this dial buys pictures, never screen time.
+    const twelve = Array.from({ length: 12 }, (_, i) => frame(i + 1, 7, (i + 1) * 1000, 'non_sunset'));
+    expect(dwellMs2(twelve, twelve[11], D2)).toBe(D2.dwellS * 1000);
+    expect(shown2(twelve, twelve[11], D2)).toHaveLength(3);
+  });
+
+  it('raising the non-sunset cap past the threshold breaks that guarantee', () => {
+    // Recorded because it is the invariant's failure mode, not a nicety.
+    const twelve = Array.from({ length: 12 }, (_, i) => frame(i + 1, 7, (i + 1) * 1000, 'non_sunset'));
+    expect(dwellMs2(twelve, twelve[11], { ...D2, runFramesOther: 8 })).toBe(32_000);
+  });
+
+  it('agrees with what shown2 puts on glass, always', () => {
+    const twelve = Array.from({ length: 12 }, (_, i) => frame(i + 1, 7, (i + 1) * 1000));
+    for (const cap of [1, 3, 5, 8, 12]) {
+      const d = { ...D2, runFramesSunset: cap };
+      const played = shown2(twelve, twelve[11], d).length;
+      expect(dwellMs2(twelve, twelve[11], d)).toBe(fitPlan(d, played).dwellS * 1000);
+    }
   });
 });

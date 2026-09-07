@@ -1,6 +1,7 @@
 import { afterShowing, choosePool, compareRecency, compareWithin, rankScore } from '@/app/lib/solo/engine';
 import type { BinEntry, Feed, ScreenState } from '@/app/lib/solo/types';
-import { poolEntries, runOf, type RunEntry } from './run';
+import { capFor, poolEntries, runOf, type RunEntry } from './run';
+import { fitPlan } from './plan';
 import type { Role, Solo2Dials } from './types';
 
 /**
@@ -51,20 +52,23 @@ export function next2<T extends RunEntry>(
 
 /** The frames a draw of `pick` puts on glass (camera-run spec §3.3). */
 export function shown2<T extends RunEntry>(entries: T[], pick: T, d: Solo2Dials): T[] {
-  return runOf(pick, entries, d.cameraRun);
+  // Capped per bin (spec §4). A frame the cap dropped never plays, so it is
+  // never stamped shown either — the two must not disagree.
+  return runOf(pick, entries, d.cameraRun, capFor(pick, d));
 }
 
 /**
  * How long a draw of `pick` occupies the glass, ms (dwell-budget spec §5.2).
+ * The budget rule of §3 over the frames the draw actually plays, which is
+ * `shown2` — so the caps of §4 are already applied and this cannot disagree
+ * with what reaches the glass.
  *
- * Today this is the dial, exactly as `solo`'s is: the budget rule of §3 is
- * step 3 of that spec and is not in yet. It lives here rather than at the
- * call sites so that step 3 changes ONE function and every surface that
- * renders toward a dwell end follows without knowing anything about
- * versions, caps or frame counts.
+ * It lives here rather than at the call sites so that every surface renders
+ * toward a supplied instant without knowing anything about versions, caps or
+ * frame counts.
  */
-export function dwellMs2(_entries: BinEntry[], _pick: BinEntry, d: Solo2Dials): number {
-  return d.dwellS * 1000;
+export function dwellMs2(entries: BinEntry[], pick: BinEntry, d: Solo2Dials): number {
+  return fitPlan(d, shown2(entries as RunEntry[], pick as RunEntry, d).length).dwellS * 1000;
 }
 
 /**

@@ -61,11 +61,29 @@ export function poolEntries<T extends RunEntry>(entries: T[], cameraRun: boolean
 /**
  * What a dwell of `entry` plays (§3.2): its camera's frames taken at or
  * before it, oldest first, `entry` last. `[entry]` when the dial is off.
+ *
+ * `cap` bounds the run (dwell-budget spec §4). When a camera has more frames
+ * than the cap allows, the run plays the NEWEST `cap` of them — the window
+ * sits against the chosen frame. Playback order is unchanged and
+ * non-negotiable: oldest to newest, so the sun goes down. "Newest" selects
+ * the window, not the direction. Taking the oldest instead would play frames
+ * from hours earlier and then cut to the chosen one, and at high latitude
+ * that window could be broad daylight.
  */
-export function runOf<T extends RunEntry>(entry: T, entries: T[], cameraRun: boolean): T[] {
+export function runOf<T extends RunEntry>(
+  entry: T, entries: T[], cameraRun: boolean, cap = Number.POSITIVE_INFINITY,
+): T[] {
   if (!cameraRun) return [entry];
   const earlier = entries
     .filter((e) => e.webcamId === entry.webcamId && e.snapshotId !== entry.snapshotId && compareCapture(e, entry) < 0)
     .sort(compareCapture);
-  return [...earlier, entry];
+  const keep = Math.max(1, Math.floor(cap)) - 1; // the chosen frame takes one place
+  return [...earlier.slice(Math.max(0, earlier.length - keep)), entry];
+}
+
+/** The frame cap for this entry's bin (spec §4): sunsets get the longer run. */
+export function capFor(
+  e: Pick<BinEntry, 'bin'>, d: { runFramesSunset: number; runFramesOther: number },
+): number {
+  return e.bin === 'sunset' ? d.runFramesSunset : d.runFramesOther;
 }
