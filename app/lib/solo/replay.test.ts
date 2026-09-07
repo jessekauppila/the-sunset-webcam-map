@@ -3,7 +3,6 @@ import {
   poolAt, isNewAtEntry, seedFromDraws, initialState, replay, actualStrip, summarize, compare,
   type ReplayEntry, type DrawLike,
 } from './replay';
-import { boundaryMs } from './schedule';
 import { SOLO_VERSIONS } from './versions';
 import { dialsFrom, SOLO_SETTINGS_SCHEMA } from './settingsSchema';
 import { dialsFrom2, SOLO2_SETTINGS_SCHEMA } from '@/app/lib/solo2/settingsSchema';
@@ -13,7 +12,8 @@ import type { Feed, SoloDials } from './types';
 const FEED: Feed = 'sunrise';
 const D: SoloDials = { ...dialsFrom(schemaDefaults(SOLO_SETTINGS_SCHEMA)), dwellS: 20, offsetS: 10 };
 const T0 = 1_000_000_000_000; // a slot boundary for dwell 20 on the sunrise grid
-const at = (slot: number, d: SoloDials = D) => boundaryMs(slot, FEED, d.dwellS, d.offsetS);
+/** A plausible wall-clock stamp for a draw; the grid it came from is gone (spec §5). */
+const at = (slot: number, d: SoloDials = D) => slot * d.dwellS * 1000;
 const SLOT0 = T0 / 20_000;
 
 function sun(id: number, q: number, extra: Partial<ReplayEntry> = {}): ReplayEntry {

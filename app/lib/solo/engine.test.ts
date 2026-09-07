@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'vitest';
 import { next, project, isEligible, isResting, choosePool, afterShowing } from './engine';
-import { boundaryMs } from './schedule';
 import type { BinEntry, SoloDials, ScreenState, Feed } from './types';
 import { dialsFrom, SOLO_SETTINGS_SCHEMA } from './settingsSchema';
 import { schemaDefaults } from '@/app/lib/settings/schema';
@@ -14,6 +13,13 @@ const D: SoloDials = {
 };
 const S0: ScreenState = { lastSnapshotId: null, sunsetStreak: 0 };
 const FEED: Feed = 'sunrise';
+/**
+ * A plausible wall-clock stamp for a draw, for fixtures that need one. The
+ * grid this used to come from is gone (dwell-budget spec §5): a slot is an
+ * ordinal now, so nothing derives a time from one in production either.
+ */
+const atMs = (slot: number) => slot * D.dwellS * 1000;
+
 
 function sun(id: number, q: number, extra: Partial<BinEntry> = {}): BinEntry {
   return { snapshotId: id, webcamId: 1000 + id, bin: 'sunset', quality: q, detection: 0.9,
@@ -37,7 +43,7 @@ const bins = (entries: BinEntry[], d: SoloDials, n: number) => project(entries, 
   * timestamp is what time is (spec §6.1.1).
   */
 const shownAt = (slot: number) => ({
-  tally: 1, lastShownAt: boundaryMs(slot, FEED, D.dwellS, D.offsetS), lastShownSlot: slot,
+  tally: 1, lastShownAt: atMs(slot), lastShownSlot: slot,
 });
 
 describe('spec §4 worked cases (floor 6, mix 2, rest 4)', () => {
@@ -135,7 +141,7 @@ describe('rule 2: rest', () => {
     // A row from before the column existed that the backfill could not
     // explain. Rest cannot be inferred from the timestamp, so it does not
     // guess (spec §6.1.1).
-    const e = sun(1, 0.9, { tally: 1, lastShownAt: boundaryMs(0, FEED, D.dwellS, D.offsetS) });
+    const e = sun(1, 0.9, { tally: 1, lastShownAt: atMs(0) });
     expect(isResting(e, D, 1)).toBe(false);
   });
 });
@@ -143,12 +149,12 @@ describe('rule 2: rest', () => {
 describe('rule 3: within a bin', () => {
   it('never shown first, whatever the tally says', () => {
     // Frame 1 is better and has a lower tally, but it has been on glass; frame 2 never has.
-    expect(nx([sun(1, 0.9, { tally: 1, lastShownAt: boundaryMs(-9, FEED, D.dwellS, D.offsetS) }), sun(2, 0.6)])?.snapshotId).toBe(2);
-    expect(nx([non(1, 0.5, { tally: 2, lastShownAt: boundaryMs(-9, FEED, D.dwellS, D.offsetS) }), non(2, 0.4)])?.snapshotId).toBe(2);
+    expect(nx([sun(1, 0.9, { tally: 1, lastShownAt: atMs(-9) }), sun(2, 0.6)])?.snapshotId).toBe(2);
+    expect(nx([non(1, 0.5, { tally: 2, lastShownAt: atMs(-9) }), non(2, 0.4)])?.snapshotId).toBe(2);
   });
   it('among shown frames, longest since shown first, even when its tally is higher', () => {
-    const older = sun(1, 0.6, { tally: 13, lastShownAt: boundaryMs(-20, FEED, D.dwellS, D.offsetS) });
-    const newer = sun(2, 0.9, { tally: 1, lastShownAt: boundaryMs(-10, FEED, D.dwellS, D.offsetS) });
+    const older = sun(1, 0.6, { tally: 13, lastShownAt: atMs(-20) });
+    const newer = sun(2, 0.9, { tally: 1, lastShownAt: atMs(-10) });
     expect(nx([older, newer])?.snapshotId).toBe(1);
   });
   it('then sunsets by quality, non-sunsets by detection', () => {
@@ -169,7 +175,7 @@ describe('rule 3: within a bin', () => {
   it('the 2026-09-05 sunset screen: five new frames and twenty-one old ones each get a turn before any repeat', () => {
     // Old frames were on glass at slots -30..-10, tallies 7–13; new ones never. Rest 4 would loop the new five under the old rule.
     const old = Array.from({ length: 21 }, (_, i) =>
-      sun(i + 1, 0.55 + i * 0.01, { tally: 7 + (i % 7), lastShownAt: boundaryMs(-30 + i, FEED, D.dwellS, D.offsetS) }));
+      sun(i + 1, 0.55 + i * 0.01, { tally: 7 + (i % 7), lastShownAt: atMs(-30 + i) }));
     const fresh = Array.from({ length: 5 }, (_, i) => sun(100 + i, 0.6 + i * 0.03, { enteredAt: 1000 + i }));
     const out = project([...old, ...fresh], D, S0, 26, 0, FEED).map((e) => e.snapshotId);
     expect(new Set(out).size).toBe(26);

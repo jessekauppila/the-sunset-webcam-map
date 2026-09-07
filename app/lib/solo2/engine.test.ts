@@ -2,10 +2,16 @@ import { describe, it, expect } from 'vitest';
 import { schemaDefaults } from '@/app/lib/settings/schema';
 import { project } from '@/app/lib/solo/engine';
 import type { BinEntry, ScreenState } from '@/app/lib/solo/types';
-import { boundaryMs } from '@/app/lib/solo/schedule';
 import { beatOf, next2, project2, roleAt, shown2, dwellMs2 } from './engine';
 import { fitPlan } from './plan';
 import { SOLO2_SETTINGS_SCHEMA, dialsFrom2 } from './settingsSchema';
+/**
+ * A plausible wall-clock stamp for a draw, for fixtures that need one. The
+ * grid this used to come from is gone (dwell-budget spec §5): a slot is an
+ * ordinal now, so nothing derives a time from one in production either.
+ */
+const atMs = (slot: number) => slot * D.dwellS * 1000;
+
 import type { Solo2Dials } from './types';
 
 const D: Solo2Dials = dialsFrom2(schemaDefaults(SOLO2_SETTINGS_SCHEMA));
@@ -83,13 +89,13 @@ describe('rhythm', () => {
   it('a valley prefers an unshown frame over a lower-scored one already shown', () => {
     const d = { ...D, valleys: 1 };
     // Frame 3 was on glass long ago (rested); rule 3 puts never-shown before it.
-    const entries = [sun(1, 0.95), sun(2, 0.6), sun(3, 0.58, { tally: 1, lastShownAt: boundaryMs(-20, 'sunrise', D.dwellS, D.offsetS) })];
+    const entries = [sun(1, 0.95), sun(2, 0.6), sun(3, 0.58, { tally: 1, lastShownAt: atMs(-20) })];
     expect(next2(entries, d, S0, 1, 'sunrise')?.snapshotId).toBe(2);
   });
   it('a peak prefers the frame longest since shown over a better one shown more recently', () => {
     const d = { ...D, valleys: 1 };
-    const older = sun(1, 0.6, { tally: 9, lastShownAt: boundaryMs(-20, 'sunrise', D.dwellS, D.offsetS) });
-    const newer = sun(2, 0.95, { tally: 1, lastShownAt: boundaryMs(-10, 'sunrise', D.dwellS, D.offsetS) });
+    const older = sun(1, 0.6, { tally: 9, lastShownAt: atMs(-20) });
+    const newer = sun(2, 0.95, { tally: 1, lastShownAt: atMs(-10) });
     // slot 0 is a peak
     expect(next2([older, newer], d, S0, 0, 'sunrise')?.snapshotId).toBe(1);
   });
@@ -114,7 +120,7 @@ describe('rhythm', () => {
   });
   it('a resting frame is out of both the peak and the valley', () => {
     const d = { ...D, valleys: 1 };
-    const shown = { tally: 1, lastShownAt: boundaryMs(0, 'sunrise', D.dwellS, D.offsetS) };
+    const shown = { tally: 1, lastShownAt: atMs(0) };
     const entries = [sun(1, 0.95, shown), sun(2, 0.6), sun(3, 0.58, shown)];
     // slot 1 is a valley: the lowest score among the rested is frame 2, the only one.
     expect(next2(entries, d, S0, 1, 'sunrise')?.snapshotId).toBe(2);
@@ -141,7 +147,7 @@ describe('the camera run', () => {
     expect(shown2(working, working[1], D).map((e) => e.snapshotId)).toEqual([1, 2]);
   });
   it('a camera shown recently is not "never shown" because a new frame arrived', () => {
-    const es = [cam(1, 7, 0.9, 100, { tally: 1, lastShownAt: boundaryMs(0, 'sunrise', D.dwellS, D.offsetS) }), cam(2, 7, 0.95, 200), cam(3, 9, 0.5, 150)];
+    const es = [cam(1, 7, 0.9, 100, { tally: 1, lastShownAt: atMs(0) }), cam(2, 7, 0.95, 200), cam(3, 9, 0.5, 150)];
     // Slot 1: camera 7 rests (shown at slot 0, rest 4), camera 9 is drawn although it scores lower.
     expect(next2(es, D, { lastSnapshotId: 1, sunsetStreak: 1 }, 1, 'sunrise')?.snapshotId).toBe(3);
   });
