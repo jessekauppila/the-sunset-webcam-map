@@ -3,7 +3,6 @@ import {
   poolAt, isNewAtEntry, seedFromDraws, initialState, replay, actualStrip, summarize, compare,
   type ReplayEntry, type DrawLike,
 } from './replay';
-import { boundaryMs } from './schedule';
 import { SOLO_VERSIONS } from './versions';
 import { dialsFrom, SOLO_SETTINGS_SCHEMA } from './settingsSchema';
 import { dialsFrom2, SOLO2_SETTINGS_SCHEMA } from '@/app/lib/solo2/settingsSchema';
@@ -13,7 +12,8 @@ import type { Feed, SoloDials } from './types';
 const FEED: Feed = 'sunrise';
 const D: SoloDials = { ...dialsFrom(schemaDefaults(SOLO_SETTINGS_SCHEMA)), dwellS: 20, offsetS: 10 };
 const T0 = 1_000_000_000_000; // a slot boundary for dwell 20 on the sunrise grid
-const at = (slot: number, d: SoloDials = D) => boundaryMs(slot, FEED, d.dwellS, d.offsetS);
+/** A plausible wall-clock stamp for a draw; the grid it came from is gone (spec §5). */
+const at = (slot: number, d: SoloDials = D) => slot * d.dwellS * 1000;
 const SLOT0 = T0 / 20_000;
 
 function sun(id: number, q: number, extra: Partial<ReplayEntry> = {}): ReplayEntry {
@@ -96,12 +96,36 @@ describe('replay', () => {
   const entries = [sun(1, 0.97), sun(2, 0.6), sun(3, 0.4), ...[1, 2, 3, 4, 5, 6, 7, 8].map((i) => non(100 + i, 0.6 - i * 0.02))];
   const solo = SOLO_VERSIONS.solo;
 
-  it('parity: reproduces project() slot for slot from an empty history', () => {
+  it('parity: reproduces project() draw for draw from an empty history', () => {
     const picks = solo.project(entries, D, { lastSnapshotId: null, sunsetStreak: 0 }, 12, SLOT0, FEED);
     const strip = replay({ feed: FEED, version: solo, dials: D, entries, priorDraws: [], fromMs: at(SLOT0), toMs: at(SLOT0 + 11) });
     expect(ids(strip)).toEqual(picks.map((p) => p.snapshotId));
-    expect(strip.frames.map((f) => f.slot)).toEqual(picks.map((_, i) => SLOT0 + i));
-    expect(strip.grid).toEqual({ dwellS: 20, offsetS: 10 });
+    // The counter starts at 0 with no prior draws: a slot is an ordinal now,
+    // not a clock reading, so it no longer derives from fromMs. Rest compares
+    // differences, so the picks are unchanged by the origin moving.
+    expect(strip.frames.map((f) => f.slot)).toEqual(picks.map((_, i) => i));
+    expect(strip.schedule).toEqual({ dwellS: 20 });
+    // solo's dwell is the dial, so the clock lands exactly where the grid did.
+    expect(strip.frames.map((f) => f.shownAt)).toEqual(picks.map((_, i) => at(SLOT0) + i * 20_000));
+    expect(strip.frames.every((f) => f.dwellMs === 20_000)).toBe(true);
+  });
+
+  it('the counter continues the recorded sequence rather than restarting', () => {
+    const picks = solo.project(entries, D, { lastSnapshotId: null, sunsetStreak: 0 }, 12, SLOT0, FEED);
+    const prior = drawsOf(picks.slice(0, 5), 400);
+    const strip = replay({ feed: FEED, version: solo, dials: D, entries, priorDraws: prior, fromMs: at(SLOT0 + 5), toMs: at(SLOT0 + 7) });
+    expect(strip.frames.map((f) => f.slot)).toEqual([405, 406, 407]);
+  });
+
+  it('solo2 stretches the clock by each draw\u2019s own budget, not by the dial', () => {
+    const d2 = { ...dialsFrom2(schemaDefaults(SOLO2_SETTINGS_SCHEMA)), dwellS: 20, offsetS: 10, cameraRun: true };
+    // One camera with eight frames: past n* the budget floor stretches the dwell.
+    const many = [1, 2, 3, 4, 5, 6, 7, 8].map((i) => sun(i, 0.9 - i * 0.01, { webcamId: 7, capturedAt: i }));
+    const strip = replay({ feed: FEED, version: SOLO_VERSIONS.solo2, dials: d2, entries: many, priorDraws: [], fromMs: at(SLOT0), toMs: at(SLOT0) + 1 });
+    const first = strip.frames[0];
+    expect(first.dwellMs).toBe(SOLO_VERSIONS.solo2.dwellMs(many, many.find((e) => e.snapshotId === first.snapshotId)!, d2));
+    // Whatever the budget says, the strip's clock advanced by exactly it.
+    expect(first.dwellMs).toBeGreaterThanOrEqual(20_000);
   });
 
   it('parity: seeded from the first five draws, reproduces draws six to twelve', () => {
@@ -129,12 +153,13 @@ describe('replay', () => {
     expect(summarize(high)).toMatchObject({ draws: 0, blanks: 2 });
   });
 
-  it('a different dwell puts frames on the new grid', () => {
+  it('a different dwell walks the clock at the new rate', () => {
     const d = { ...D, dwellS: 10 };
-    const strip = replay({ feed: FEED, version: solo, dials: d, entries, priorDraws: [], fromMs: at(SLOT0), toMs: at(SLOT0 + 1) - 1 });
+    const strip = replay({ feed: FEED, version: solo, dials: d, entries, priorDraws: [], fromMs: at(SLOT0), toMs: at(SLOT0) + 19_999 });
     expect(strip.frames).toHaveLength(2); // 20 s of glass at a 10 s dwell
     expect(strip.frames.map((f) => f.shownAt)).toEqual([at(SLOT0), at(SLOT0) + 10_000]);
-    expect(strip.grid.dwellS).toBe(10);
+    expect(strip.schedule.dwellS).toBe(10);
+    expect(strip.frames.every((f) => f.dwellMs === 10_000)).toBe(true);
   });
 
   it('solo2 marks every frame of the camera run shown, and the strip carries them', () => {
@@ -157,13 +182,17 @@ describe('actualStrip, summarize, compare', () => {
     { ...rows[0], slot: 12, shownAt: at(12) },
     { ...rows[2], slot: 13, shownAt: at(13) },
   ];
-  const grid = { dwellS: 20, offsetS: 10 };
-  const actual = actualStrip(FEED, draws, grid, at(10), at(13));
+  const schedule = { dwellS: 20 };
+  const actual = actualStrip(FEED, draws, schedule, at(10), at(13));
 
-  it('the fact strip flags repeats and keeps the grid', () => {
+  it('the fact strip flags repeats, keeps its schedule, and MEASURES each block', () => {
     expect(actual.version).toBe('actual');
     expect(actual.frames.map((f) => f.repeat)).toEqual([false, false, true, false]);
     expect(actual.frames[0].shownSnapshotIds).toEqual([1]);
+    expect(actual.schedule).toEqual({ dwellS: 20 });
+    // Measured from the next draw, never computed from a dwell rule. The last
+    // block has nothing after it, so its length is null rather than a guess.
+    expect(actual.frames.map((f) => f.dwellMs)).toEqual([20_000, 20_000, 20_000, null]);
   });
   it('summarize counts what the strip showed', () => {
     const s = summarize(actual);
@@ -172,10 +201,14 @@ describe('actualStrip, summarize, compare', () => {
     expect(s.qualityHistogram).toEqual([1, 0, 0, 0, 0, 0, 0, 0, 0, 2]);
     expect(s.perCamera[0]).toEqual({ webcamId: 1001, title: 'cam1', draws: 2 });
   });
-  it('compare counts shared slots that drew the same frame, and refuses another grid', () => {
+  it('compare counts shared draws that drew the same frame, and refuses another screen', () => {
     const other = { ...actual, frames: actual.frames.map((f) => (f.slot === 11 ? { ...f, snapshotId: 1 } : f)) };
     expect(compare(actual, other)).toEqual({ slots: 4, same: 3, inOrder: 3 });
-    expect(compare(actual, { ...other, grid: { dwellS: 10, offsetS: 10 } })).toBeNull();
+    // A differing dwell no longer refuses: a slot is an ordinal, so the nth
+    // draw of one strip is comparable with the nth of the other.
+    expect(compare(actual, { ...other, schedule: { dwellS: 10 } })).toEqual({ slots: 4, same: 3, inOrder: 3 });
+    // Two screens keep independent counters, so their slots mean nothing to each other.
+    expect(compare(actual, { ...other, feed: 'sunset' as const })).toBeNull();
     // The glass missed slot 11: every later draw sits one slot early. Slot-for-slot says 1; the order says 3 of 4 survive.
     const shifted = { ...actual, frames: [actual.frames[0], { ...actual.frames[2], slot: 11 }, { ...actual.frames[3], slot: 12 }] };
     expect(compare(actual, shifted)).toEqual({ slots: 3, same: 1, inOrder: 3 });

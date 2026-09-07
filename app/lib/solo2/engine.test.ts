@@ -2,9 +2,16 @@ import { describe, it, expect } from 'vitest';
 import { schemaDefaults } from '@/app/lib/settings/schema';
 import { project } from '@/app/lib/solo/engine';
 import type { BinEntry, ScreenState } from '@/app/lib/solo/types';
-import { boundaryMs } from '@/app/lib/solo/schedule';
-import { beatOf, next2, project2, roleAt, shown2 } from './engine';
+import { beatOf, next2, project2, roleAt, shown2, dwellMs2 } from './engine';
+import { fitPlan } from './plan';
 import { SOLO2_SETTINGS_SCHEMA, dialsFrom2 } from './settingsSchema';
+/**
+ * A plausible wall-clock stamp for a draw, for fixtures that need one. The
+ * grid this used to come from is gone (dwell-budget spec §5): a slot is an
+ * ordinal now, so nothing derives a time from one in production either.
+ */
+const atMs = (slot: number) => slot * D.dwellS * 1000;
+
 import type { Solo2Dials } from './types';
 
 const D: Solo2Dials = dialsFrom2(schemaDefaults(SOLO2_SETTINGS_SCHEMA));
@@ -82,13 +89,13 @@ describe('rhythm', () => {
   it('a valley prefers an unshown frame over a lower-scored one already shown', () => {
     const d = { ...D, valleys: 1 };
     // Frame 3 was on glass long ago (rested); rule 3 puts never-shown before it.
-    const entries = [sun(1, 0.95), sun(2, 0.6), sun(3, 0.58, { tally: 1, lastShownAt: boundaryMs(-20, 'sunrise', D.dwellS, D.offsetS) })];
+    const entries = [sun(1, 0.95), sun(2, 0.6), sun(3, 0.58, { tally: 1, lastShownAt: atMs(-20) })];
     expect(next2(entries, d, S0, 1, 'sunrise')?.snapshotId).toBe(2);
   });
   it('a peak prefers the frame longest since shown over a better one shown more recently', () => {
     const d = { ...D, valleys: 1 };
-    const older = sun(1, 0.6, { tally: 9, lastShownAt: boundaryMs(-20, 'sunrise', D.dwellS, D.offsetS) });
-    const newer = sun(2, 0.95, { tally: 1, lastShownAt: boundaryMs(-10, 'sunrise', D.dwellS, D.offsetS) });
+    const older = sun(1, 0.6, { tally: 9, lastShownAt: atMs(-20) });
+    const newer = sun(2, 0.95, { tally: 1, lastShownAt: atMs(-10) });
     // slot 0 is a peak
     expect(next2([older, newer], d, S0, 0, 'sunrise')?.snapshotId).toBe(1);
   });
@@ -113,7 +120,7 @@ describe('rhythm', () => {
   });
   it('a resting frame is out of both the peak and the valley', () => {
     const d = { ...D, valleys: 1 };
-    const shown = { tally: 1, lastShownAt: boundaryMs(0, 'sunrise', D.dwellS, D.offsetS) };
+    const shown = { tally: 1, lastShownAt: atMs(0) };
     const entries = [sun(1, 0.95, shown), sun(2, 0.6), sun(3, 0.58, shown)];
     // slot 1 is a valley: the lowest score among the rested is frame 2, the only one.
     expect(next2(entries, d, S0, 1, 'sunrise')?.snapshotId).toBe(2);
@@ -140,7 +147,7 @@ describe('the camera run', () => {
     expect(shown2(working, working[1], D).map((e) => e.snapshotId)).toEqual([1, 2]);
   });
   it('a camera shown recently is not "never shown" because a new frame arrived', () => {
-    const es = [cam(1, 7, 0.9, 100, { tally: 1, lastShownAt: boundaryMs(0, 'sunrise', D.dwellS, D.offsetS) }), cam(2, 7, 0.95, 200), cam(3, 9, 0.5, 150)];
+    const es = [cam(1, 7, 0.9, 100, { tally: 1, lastShownAt: atMs(0) }), cam(2, 7, 0.95, 200), cam(3, 9, 0.5, 150)];
     // Slot 1: camera 7 rests (shown at slot 0, rest 4), camera 9 is drawn although it scores lower.
     expect(next2(es, D, { lastSnapshotId: 1, sunsetStreak: 1 }, 1, 'sunrise')?.snapshotId).toBe(3);
   });
@@ -148,5 +155,52 @@ describe('the camera run', () => {
     const d = { ...D, cameraRun: false, rest: 0 };
     expect(project2(entries(), d, S0, 4, 0, 'sunrise').map((e) => e.snapshotId)).toEqual([2, 3, 4, 1]);
     expect(shown2(entries(), entries()[1], d).map((e) => e.snapshotId)).toEqual([2]);
+  });
+});
+
+describe('dwellMs2: the budget rule over the frames actually played', () => {
+  const D2 = { ...dialsFrom2(schemaDefaults(SOLO2_SETTINGS_SCHEMA)), cameraRun: true };
+  const frame = (id: number, cam: number, at: number, bin: 'sunset' | 'non_sunset' = 'sunset') => ({
+    snapshotId: id, webcamId: cam, bin, quality: bin === 'sunset' ? 0.9 : null, detection: 0.9,
+    isNew: false, tally: 0, enteredAt: at, capturedAt: at,
+  });
+
+  it('a lone frame holds the whole dwell', () => {
+    const one = [frame(1, 7, 1000)];
+    expect(dwellMs2(one, one[0], D2)).toBe(D2.dwellS * 1000);
+  });
+
+  it('below the threshold the dwell does not move however many frames play', () => {
+    const five = Array.from({ length: 5 }, (_, i) => frame(i + 1, 7, (i + 1) * 1000));
+    expect(dwellMs2(five, five[4], D2)).toBe(D2.dwellS * 1000);
+  });
+
+  it('above it the dwell stretches, and the sunset cap sets the ceiling', () => {
+    const twelve = Array.from({ length: 12 }, (_, i) => frame(i + 1, 7, (i + 1) * 1000));
+    // 12 frames capped to 8, each held at the 4 s floor: 32 s, not 48.
+    expect(dwellMs2(twelve, twelve[11], D2)).toBe(32_000);
+  });
+
+  it('a non-sunset can never stretch the dwell at the default cap (spec §4.1)', () => {
+    // The cap of 3 sits below the threshold of 5, so the budget is merely
+    // divided more finely: this dial buys pictures, never screen time.
+    const twelve = Array.from({ length: 12 }, (_, i) => frame(i + 1, 7, (i + 1) * 1000, 'non_sunset'));
+    expect(dwellMs2(twelve, twelve[11], D2)).toBe(D2.dwellS * 1000);
+    expect(shown2(twelve, twelve[11], D2)).toHaveLength(3);
+  });
+
+  it('raising the non-sunset cap past the threshold breaks that guarantee', () => {
+    // Recorded because it is the invariant's failure mode, not a nicety.
+    const twelve = Array.from({ length: 12 }, (_, i) => frame(i + 1, 7, (i + 1) * 1000, 'non_sunset'));
+    expect(dwellMs2(twelve, twelve[11], { ...D2, runFramesOther: 8 })).toBe(32_000);
+  });
+
+  it('agrees with what shown2 puts on glass, always', () => {
+    const twelve = Array.from({ length: 12 }, (_, i) => frame(i + 1, 7, (i + 1) * 1000));
+    for (const cap of [1, 3, 5, 8, 12]) {
+      const d = { ...D2, runFramesSunset: cap };
+      const played = shown2(twelve, twelve[11], d).length;
+      expect(dwellMs2(twelve, twelve[11], d)).toBe(fitPlan(d, played).dwellS * 1000);
+    }
   });
 });

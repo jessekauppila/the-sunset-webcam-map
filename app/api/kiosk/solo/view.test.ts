@@ -34,6 +34,42 @@ describe('toViewEntry', () => {
   });
 });
 
+describe('buildStateView: the published dwell end', () => {
+  const entries = [stored(1, 'sunset', 0.9), stored(2, 'sunset', 0.8)];
+  const build = (screen: Parameters<typeof buildStateView>[0]['screen']) =>
+    buildStateView({ feed: 'sunset', dials: D, entries, screen, nowMs: 1_000_000, admitted: { sunset: 0, nonSunset: 0 }, zone: ZONE });
+
+  it('is an absolute instant, shownSince plus the version dwell (spec §5.1)', () => {
+    const shownSince = 1_700_000_000_000;
+    const v = build({ feed: 'sunset', currentSnapshotId: 1, shownSince, slot: 9, sunsetStreak: 0 });
+    expect(v.current?.endsAtMs).toBe(shownSince + D.dwellS * 1000);
+  });
+
+  it('is null when there is no shownSince to measure from', () => {
+    const v = build({ feed: 'sunset', currentSnapshotId: 1, shownSince: null, slot: 9, sunsetStreak: 0 });
+    expect(v.current?.endsAtMs).toBeNull();
+  });
+
+  it('is an instant, not a remaining duration: it does not move with nowMs', () => {
+    // A duration would go stale in a cached response; an instant does not.
+    const shownSince = 1_700_000_000_000;
+    const screen = { feed: 'sunset' as const, currentSnapshotId: 1, shownSince, slot: 9, sunsetStreak: 0 };
+    const early = buildStateView({ feed: 'sunset', dials: D, entries, screen, nowMs: shownSince + 1000, admitted: { sunset: 0, nonSunset: 0 }, zone: ZONE });
+    const late = buildStateView({ feed: 'sunset', dials: D, entries, screen, nowMs: shownSince + 19_000, admitted: { sunset: 0, nonSunset: 0 }, zone: ZONE });
+    expect(early.current?.endsAtMs).toBe(late.current?.endsAtMs);
+  });
+
+  it('follows the dwell dial', () => {
+    const shownSince = 1_700_000_000_000;
+    const v = buildStateView({
+      feed: 'sunset', dials: { ...D, dwellS: 47 }, entries,
+      screen: { feed: 'sunset', currentSnapshotId: 1, shownSince, slot: 9, sunsetStreak: 0 },
+      nowMs: 1_000_000, admitted: { sunset: 0, nonSunset: 0 }, zone: ZONE,
+    });
+    expect(v.current?.endsAtMs).toBe(shownSince + 47_000);
+  });
+});
+
 describe('buildStateView', () => {
   it('queued frames are absent from the bins; every entry carries a stage', () => {
     const entries = [stored(1, 'sunset', 0.9), stored(2, 'sunset', 0.8), stored(3, 'non_sunset', 0.5), stored(4, 'sunset', 0.1)];
@@ -83,7 +119,11 @@ describe('buildStateView', () => {
     expect(v.current?.entry.snapshotId).toBe(1);
     expect(v.current?.slot).toBe(3);
     expect(v.next[0].snapshotId).toBe(2);
-    expect(v.schedule).toEqual({ slot: 3, nextBoundaryMs: 90_000 });
+    // The published end, not a grid boundary: shownSince plus this version's
+    // dwell (spec §5.1). Every countdown reads this one number rather than
+    // deriving its own.
+    expect(v.schedule).toEqual({ slot: 3, nextBoundaryMs: 5 + D.dwellS * 1000 });
+    expect(v.current?.endsAtMs).toBe(v.schedule.nextBoundaryMs);
     expect(v.lastPull.admitted.sunset).toBe(2);
   });
   it('rank is the position within the bin by score, ignoring queue membership', () => {
@@ -108,12 +148,19 @@ describe('buildStateView with a version', () => {
     const v2 = SOLO_VERSIONS.solo2;
     const dials = { ...v2.dialsFrom(schemaDefaults(v2.schema)), valleys: 1 };
     const entries = [stored(1, 'sunset', 0.9), stored(2, 'sunset', 0.8), stored(3, 'sunset', 0.7)];
-    // nowMs 0 on sunrise → slot 0 now, first draw at slot 1 (a valley).
+    // The beat is off the slot COUNTER now, not the clock: with no screen row
+    // the first projected draw is slot 0, a peak. Nothing here depends on
+    // nowMs any more, which is the point of the change.
     const v = buildStateView({ feed: 'sunrise', dials, entries, screen: null, nowMs: 0,
       admitted: { sunset: 0, nonSunset: 0 }, zone: ZONE, version: v2 });
-    expect(v.nextRoles.slice(0, 4)).toEqual(['valley', 'peak', 'valley', 'peak']);
-    // Slot 4 is a peak with every frame shown: the one longest since shown (3) comes back before the best (1).
-    expect(v.next.slice(0, 4).map((e) => e.snapshotId)).toEqual([3, 1, 2, 3]);
+    expect(v.nextRoles.slice(0, 4)).toEqual(['peak', 'valley', 'peak', 'valley']);
+    expect(v.next.slice(0, 4).map((e) => e.snapshotId)).toEqual([1, 3, 2, 1]);
+    // Starting from a stored slot 0 shifts the beat by one, and the wall clock
+    // still has no say.
+    const shifted = buildStateView({ feed: 'sunrise', dials, entries,
+      screen: { feed: 'sunrise', currentSnapshotId: null, shownSince: null, slot: 0, sunsetStreak: 0 },
+      nowMs: 999_999, admitted: { sunset: 0, nonSunset: 0 }, zone: ZONE, version: v2 });
+    expect(shifted.nextRoles.slice(0, 4)).toEqual(['valley', 'peak', 'valley', 'peak']);
   });
   it('solo2 with the camera run: the frames a draw plays share its stage, and the on-glass camera\'s frames are on glass', async () => {
     const { SOLO_VERSIONS } = await import('@/app/lib/solo/versions');

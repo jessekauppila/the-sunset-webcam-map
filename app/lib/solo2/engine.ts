@@ -1,7 +1,7 @@
 import { afterShowing, choosePool, compareRecency, compareWithin, rankScore } from '@/app/lib/solo/engine';
-import { boundaryMs } from '@/app/lib/solo/schedule';
 import type { BinEntry, Feed, ScreenState } from '@/app/lib/solo/types';
-import { poolEntries, runOf, type RunEntry } from './run';
+import { capFor, poolEntries, runOf, type RunEntry } from './run';
+import { fitPlan } from './plan';
 import type { Role, Solo2Dials } from './types';
 
 /**
@@ -52,7 +52,23 @@ export function next2<T extends RunEntry>(
 
 /** The frames a draw of `pick` puts on glass (camera-run spec §3.3). */
 export function shown2<T extends RunEntry>(entries: T[], pick: T, d: Solo2Dials): T[] {
-  return runOf(pick, entries, d.cameraRun);
+  // Capped per bin (spec §4). A frame the cap dropped never plays, so it is
+  // never stamped shown either — the two must not disagree.
+  return runOf(pick, entries, d.cameraRun, capFor(pick, d));
+}
+
+/**
+ * How long a draw of `pick` occupies the glass, ms (dwell-budget spec §5.2).
+ * The budget rule of §3 over the frames the draw actually plays, which is
+ * `shown2` — so the caps of §4 are already applied and this cannot disagree
+ * with what reaches the glass.
+ *
+ * It lives here rather than at the call sites so that every surface renders
+ * toward a supplied instant without knowing anything about versions, caps or
+ * frame counts.
+ */
+export function dwellMs2(entries: BinEntry[], pick: BinEntry, d: Solo2Dials): number {
+  return fitPlan(d, shown2(entries as RunEntry[], pick as RunEntry, d).length).dwellS * 1000;
 }
 
 /**
@@ -62,21 +78,26 @@ export function shown2<T extends RunEntry>(entries: T[], pick: T, d: Solo2Dials)
  */
 export function project2<T extends RunEntry>(
   entries: T[], d: Solo2Dials, state: ScreenState, n: number, firstSlot: number, feed: Feed,
+  /** When the first projected draw goes on glass; the clock walks by dwellMs2 from there (spec §5). */
+  startMs = 0,
 ): T[] {
   const working = entries.map((e) => ({ ...e }));
   let s = state;
+  let atMs = startMs;
   const out: T[] = [];
   for (let i = 0; i < n; i++) {
     const pick = next2(working, d, s, firstSlot + i, feed);
     if (!pick) break;
     out.push({ ...pick });
+    const playedFor = dwellMs2(working, pick, d);
     for (const f of shown2(working, pick, d)) {
       f.tally += 1;
       f.isNew = false;
       // Both currencies (spec §6.1.1); every frame the dwell played rests.
-      f.lastShownAt = boundaryMs(firstSlot + i, feed, d.dwellS, d.offsetS);
+      f.lastShownAt = atMs;
       f.lastShownSlot = firstSlot + i;
     }
+    atMs += playedFor;
     s = afterShowing(pick, s);
   }
   return out;

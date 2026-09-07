@@ -10,12 +10,38 @@ export interface DwellPlan {
   leadS: number;
 }
 
-export type PlanDials = Pick<Solo2Dials, 'dwellS' | 'leadS'>;
+export type PlanDials = Pick<Solo2Dials, 'dwellS' | 'leadS' | 'minStepS'>;
 
-/** `frames` frames share the dwell evenly. The lead is capped at the dwell. */
+/**
+ * The budget rule (dwell-budget spec §3). `dwellS` is a budget the run's
+ * frames share, floored at `minStepS`:
+ *
+ *     perFrame = max(minStepS, dwellS / n)
+ *     total    = perFrame * n
+ *
+ * At or below `n* = floor(dwellS / minStepS)` frames the budget is merely
+ * divided more finely and the total stays `dwellS` — one image holds the
+ * whole 20 s, five hold 4 s each. Above it the DWELL STRETCHES rather than
+ * the frames shrinking, which is the whole point: a run is a timelapse and a
+ * timelapse has one step, so eight frames run 4 s each for 32 s.
+ *
+ * `plan.dwellS` is therefore the total this dwell occupies, not the dial.
+ * The lead is capped at that total.
+ */
 export function fitPlan(d: PlanDials, frames: number): DwellPlan {
   const n = Math.max(1, Math.floor(frames));
-  return { dwellS: d.dwellS, frames: n, stepS: d.dwellS / n, leadS: Math.min(d.dwellS, Math.max(0, d.leadS)) };
+  const stepS = Math.max(d.minStepS, d.dwellS / n);
+  const totalS = stepS * n;
+  return { dwellS: totalS, frames: n, stepS, leadS: Math.min(totalS, Math.max(0, d.leadS)) };
+}
+
+/**
+ * The frame count at which the dwell starts stretching (spec §3.1). Printed
+ * beside the dials so an operator can see whether a cap will ever move the
+ * clock: at or below this, a cap buys pictures rather than time.
+ */
+export function stretchThreshold(d: Pick<PlanDials, 'dwellS' | 'minStepS'>): number {
+  return Math.max(1, Math.floor(d.dwellS / Math.max(0.001, d.minStepS)));
 }
 
 export interface Stage {

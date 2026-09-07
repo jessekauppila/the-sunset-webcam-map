@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { cameraGroups, poolEntries, representative, runOf, type RunEntry } from './run';
+import { cameraGroups, poolEntries, representative, runOf, type RunEntry, capFor } from './run';
 
 const f = (id: number, cam: number, capturedAt: number, extra: Partial<RunEntry> = {}): RunEntry => ({
   snapshotId: id, webcamId: cam, bin: 'sunset', quality: 0.5, detection: 0.8, isNew: false, tally: 0, enteredAt: id,
@@ -47,5 +47,40 @@ describe('poolEntries / runOf', () => {
   });
   it('with the dial off the run is the entry alone', () => {
     expect(runOf(entries[2], entries, false)).toEqual([entries[2]]);
+  });
+});
+
+describe('the per-bin frame cap (dwell-budget spec §4)', () => {
+  const cam = (id: number, at: number) => ({
+    snapshotId: id, webcamId: 7, bin: 'sunset' as const, quality: 0.9, detection: 0.9,
+    isNew: false, tally: 0, enteredAt: at, capturedAt: at,
+  });
+  const twelve = Array.from({ length: 12 }, (_, i) => cam(i + 1, (i + 1) * 1000));
+  const chosen = twelve[11];
+
+  it('plays the NEWEST n, and still oldest to newest, so the sun goes down', () => {
+    const run = runOf(chosen, twelve, true, 8);
+    expect(run).toHaveLength(8);
+    // Frames 5..12: the window sits against the chosen frame, and the order
+    // inside it is unchanged. Taking the oldest 8 would play 1..8 and then cut
+    // to 12, skipping the middle of the descent.
+    expect(run.map((e) => e.snapshotId)).toEqual([5, 6, 7, 8, 9, 10, 11, 12]);
+    expect(run[run.length - 1].snapshotId).toBe(chosen.snapshotId);
+  });
+
+  it('a cap of 1 is the chosen frame alone; an uncapped run is every earlier frame', () => {
+    expect(runOf(chosen, twelve, true, 1).map((e) => e.snapshotId)).toEqual([12]);
+    expect(runOf(chosen, twelve, true, 0).map((e) => e.snapshotId)).toEqual([12]);
+    expect(runOf(chosen, twelve, true)).toHaveLength(12);
+  });
+
+  it('a cap larger than the camera has is not padded', () => {
+    expect(runOf(twelve[2], twelve, true, 8).map((e) => e.snapshotId)).toEqual([1, 2, 3]);
+  });
+
+  it('capFor gives sunsets the longer run', () => {
+    const d = { runFramesSunset: 8, runFramesOther: 3 };
+    expect(capFor({ bin: 'sunset' }, d)).toBe(8);
+    expect(capFor({ bin: 'non_sunset' }, d)).toBe(3);
   });
 });

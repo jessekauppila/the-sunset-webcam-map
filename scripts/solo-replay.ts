@@ -139,7 +139,7 @@ async function main(): Promise<void> {
   const liveDeploy = deploys.find((d) => d.id === window.at(-1)?.deployId) ?? deploy;
   const liveVersion = resolveSoloVersion(window.at(-1)?.version ?? versionName) ?? version;
   const liveDials = liveVersion.dialsFrom(mergeSettings(liveVersion.schema, liveDeploy.namespaces[liveVersion.namespace]));
-  const actual = actualStrip(args.feed, window, { dwellS: liveDials.dwellS, offsetS: liveDials.offsetS }, args.from, args.to);
+  const actual = actualStrip(args.feed, window, { dwellS: liveDials.dwellS }, args.from, args.to);
   const re = replay({ feed: args.feed, version, dials, entries, priorDraws: prior, fromMs: args.from, toMs: args.to });
   const summaries = { actual: summarize(actual), replay: summarize(re) };
   const agreement = compare(actual, re);
@@ -151,7 +151,7 @@ async function main(): Promise<void> {
     + (d.deployedAt ? `(deployed ${clock(Date.parse(d.deployedAt))} PT)` : `(take, saved ${clock(Date.parse(d.createdAt))} PT)`);
   console.log(`${args.feed} screen, ${clock(args.from)} → ${clock(args.to)} PT`);
   console.log(`pool: ${entries.length} bin rows overlapped the window; ${prior.length} prior draws seed the shown state`);
-  console.log(`actual: ${liveVersion.name}, deploy ${deployLabel(liveDeploy)}, dwell ${liveDials.dwellS} s${window.length === 0 ? ' — no draws logged in this window' : ''}`);
+  console.log(`actual: ${liveVersion.name}, deploy ${deployLabel(liveDeploy)}, dwell ${liveDials.dwellS} s nominal${window.length === 0 ? ' — no draws logged in this window' : ''}`);
   console.log(`replay: ${version.name}, deploy ${deployLabel(deploy)}` +
     (Object.keys(deviations).length ? `, dials ${Object.entries(deviations).map(([k, v]) => `${k}=${v}`).join(' ')}` : ', dials at defaults'));
   console.log('');
@@ -180,9 +180,9 @@ async function main(): Promise<void> {
   for (const [k, a, r] of rows) console.log(`${k.padEnd(18)} ${a.padEnd(22)} ${r}`);
   if (agreement) {
     console.log(`${'same frame'.padEnd(18)} ${agreement.same} of ${agreement.slots} slots`);
-    console.log(`${'same order'.padEnd(18)} ${agreement.inOrder} of ${Math.min(actual.frames.length, re.frames.length)} draws (a slot the glass missed shifts the rest)`);
+    console.log(`${'same order'.padEnd(18)} ${agreement.inOrder} of ${Math.min(actual.frames.length, re.frames.length)} draws (a draw the glass missed shifts the rest)`);
   }
-  else console.log(`${'same frame'.padEnd(18)} (grids differ; slots do not line up)`);
+  else console.log(`${'same frame'.padEnd(18)} (different screens; their counters are independent)`);
   console.log('');
   console.log('draws per camera (actual | replay)');
   const cams = new Map<number, { title: string; a: number; r: number }>();

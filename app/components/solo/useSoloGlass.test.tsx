@@ -9,9 +9,20 @@ const entry = (id: number) => ({
   snapshotId: id, webcamId: 1, bin: 'sunset', quality: 0.9, detection: 0.9, isNew: false,
   tally: 0, enteredAt: 0, imageUrl: `u${id}`, title: `t${id}`, city: '', region: '', country: '', eligible: true, rank: 1,
 });
-const state = (currentId: number | null, nextIds: number[]) => ({
-  feed: 'sunrise', dials: D, current: currentId ? { entry: entry(currentId), shownSince: 0, slot: 0 } : null,
-  next: nextIds.map(entry), bins: { sunset: [], nonSunset: [] }, schedule: { slot: 0, nextBoundaryMs: 0 },
+const NOW = 1_000_000_000_000;
+const DWELL_MS = D.dwellS * 1000;
+/**
+ * A server state view. `n` is which draw it is: the slot is a counter, and
+ * the dwell's end is an instant the SERVER publishes, so the hook waits for
+ * that rather than computing a boundary from the clock (spec §5.1).
+ */
+const state = (currentId: number | null, nextIds: number[], n = 0) => ({
+  feed: 'sunrise', dials: D,
+  current: currentId
+    ? { entry: entry(currentId), shownSince: NOW + n * DWELL_MS, slot: n, endsAtMs: NOW + (n + 1) * DWELL_MS }
+    : null,
+  next: nextIds.map(entry), bins: { sunset: [], nonSunset: [] },
+  schedule: { slot: n, nextBoundaryMs: NOW + (n + 1) * DWELL_MS },
   lastPull: { admitted: { sunset: 0, nonSunset: 0 } }, entries: [], zone: { minDeg: -24, maxDeg: -2 },
 });
 
@@ -25,7 +36,7 @@ const advance = (ms: number) => act(async () => { await vi.advanceTimersByTimeAs
 beforeEach(() => {
   calls = [];
   vi.useFakeTimers();
-  vi.setSystemTime(new Date(1_000_000_000_000)); // on a sunrise boundary; next at +20 s
+  vi.setSystemTime(new Date(NOW));
   vi.stubGlobal('Image', class {
     onload: null | (() => void) = null;
     onerror: null | (() => void) = null;
@@ -33,7 +44,7 @@ beforeEach(() => {
   });
   fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
     calls.push({ url, body: init?.body ? JSON.parse(String(init.body)) : undefined });
-    if (url.includes('/advance')) return { ok: true, json: async () => ({ advanced: true, ...state(2, [3]) }) };
+    if (url.includes('/advance')) return { ok: true, json: async () => ({ advanced: true, ...state(2, [3], 1) }) };
     return { ok: true, json: async () => state(1, [2]) };
   });
   vi.stubGlobal('fetch', fetchMock);
@@ -52,7 +63,8 @@ describe('useSoloGlass', () => {
     await advance(20_000);
     expect(result.current.current?.snapshotId).toBe(2);
     const adv = calls.find((c) => c.url.includes('/advance'));
-    expect(adv?.body).toEqual({ feed: 'sunrise', slot: 50_000_001, version: 'solo' });
+    // The counter after the one on glass, not a clock reading.
+    expect(adv?.body).toEqual({ feed: 'sunrise', slot: 1, version: 'solo' });
     expect(calls[0].url).toContain('version=solo');
   });
   it('names its version in the state URL and the advance body, and surfaces the entries', async () => {

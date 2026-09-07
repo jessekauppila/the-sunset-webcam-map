@@ -2,7 +2,6 @@ import { NextResponse } from 'next/server';
 import { getLiveSettingsCached } from '@/app/lib/settings/liveSettings';
 import { mergeSettings } from '@/app/lib/settings/schema';
 import { afterShowing } from '@/app/lib/solo/engine';
-import { slotFor } from '@/app/lib/solo/schedule';
 import { resolveSoloVersion } from '@/app/lib/solo/versions';
 import { commitAdvance, countAdmittedSince, getScreenState, getSweptZone, listActiveEntries } from '@/app/lib/solo/store';
 import { isFlagEnabled, SWEEP_FORCE_DAY_RING } from '@/app/lib/runtimeFlags';
@@ -14,7 +13,13 @@ export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 const LAST_PULL_WINDOW_MS = 10 * 60 * 1000;
-/** A tab's clock may drift a little; anything further off is a bug, not a boundary. */
+/**
+ * A slot is a counter now, not a function of the clock (spec §5, step 3), so
+ * a posting tab can no longer compute one. The only slot this endpoint will
+ * accept is the one after what is stored, which keeps it monotonic per feed
+ * for kiosk_draws' (feed, slot) primary key. One behind is the idempotent
+ * case: a second tab racing the same advance, which lands as a no-op below.
+ */
 const SLOT_TOLERANCE = 1;
 
 /**
@@ -41,12 +46,16 @@ export async function POST(request: Request) {
   const live = await getLiveSettingsCached();
   const dials = version.dialsFrom(mergeSettings(version.schema, live?.namespaces[version.namespace]));
   const nowMs = Date.now();
-  const serverSlot = slotFor(nowMs, feed, dials.dwellS, dials.offsetS);
+
+  const [entries, screenBefore] = await Promise.all([listActiveEntries(feed), getScreenState(feed)]);
+  // Idempotency is now compare-and-set against the observed slot rather than
+  // by-value against a clock-derived one. The screen-state upsert below still
+  // carries the `is distinct from` guard, so two tabs racing the same advance
+  // leave exactly one winner.
+  const serverSlot = (screenBefore?.slot ?? -1) + 1;
   if (Math.abs(slot - serverSlot) > SLOT_TOLERANCE) {
     return NextResponse.json({ error: `slot ${slot} is not near ${serverSlot}` }, { status: 400 });
   }
-
-  const [entries, screenBefore] = await Promise.all([listActiveEntries(feed), getScreenState(feed)]);
   let advanced = false;
   let screen = screenBefore;
   if (screenBefore?.slot !== slot) {

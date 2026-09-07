@@ -21,7 +21,6 @@ export function SoloKiosk(props: MosaicProps) {
   const dials = dialsFrom(withCaption(mergeSettings(SOLO_SETTINGS_SCHEMA, props.settings), props.shared));
   const glass = useSoloGlass({
     feed: props.feed,
-    dials,
     drive: props.driveSchedule !== false,
     dozing: props.dozing === true,
   });

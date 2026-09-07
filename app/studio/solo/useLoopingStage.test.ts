@@ -3,7 +3,7 @@ import { renderHook, act } from '@testing-library/react';
 import { useLoopingStage } from './useLoopingStage';
 import { fitPlan } from '@/app/lib/solo2/plan';
 
-const plan = fitPlan({ dwellS: 6, leadS: 0 }, 3); // 2 s a frame
+const plan = fitPlan({ dwellS: 6, leadS: 0, minStepS: 1 }, 3); // 2 s a frame, above the floor so the budget divides
 const NOW = 100_000;
 
 beforeEach(() => {
