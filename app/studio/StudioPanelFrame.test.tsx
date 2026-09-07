@@ -56,7 +56,7 @@ describe('StudioPanelFrame', () => {
     expect(stage.style.background).toBe('rgb(0, 0, 0)');
   });
 
-  it('outlines the panel box when given an edge colour, and nothing without one', () => {
+  it('draws the edge inside the panel box, where the wrapper cannot clip it', () => {
     stubResizeObserver({ width: 700, height: 900 });
 
     const { rerender } = render(
@@ -65,18 +65,25 @@ describe('StudioPanelFrame', () => {
       </StudioPanelFrame>
     );
 
-    // On the box, not the stage: the stage is unscaled panel pixels, so a line
-    // there would be drawn at the scale factor and read as a hairline of a
-    // different weight on every panel preset.
-    expect(screen.getByTestId('studio-panel-box').style.outline).toBe('1px solid #f5a344');
-    expect(screen.getByTestId('studio-panel-stage').style.outline).toBe('');
+    // Not `outline`, which paints outside the border box: fitScale sizes the
+    // box to meet the measuring wrapper on its limiting axis, and that
+    // wrapper is `overflow: hidden`, so an outline is clipped away — all four
+    // sides of it when the panel and its column are the same shape. An inset
+    // shadow is painted inside the box and survives.
+    const box = screen.getByTestId('studio-panel-box');
+    expect(box.style.outline).toBe('');
+    expect(box.style.position).toBe('relative');
+    const line = screen.getByTestId('studio-panel-edge');
+    expect(line.style.boxShadow).toBe('inset 0 0 0 1px #f5a344');
+    // Over the stage, whose own black background would cover a line behind it.
+    expect(box.lastElementChild).toBe(line);
 
     rerender(
       <StudioPanelFrame panel={{ width: 1440, height: 2560 }}>
         <div>content</div>
       </StudioPanelFrame>
     );
-    expect(screen.getByTestId('studio-panel-box').style.outline).toBe('');
+    expect(screen.queryByTestId('studio-panel-edge')).toBeNull();
   });
 
   it('caps the scale at 1 when the measured box is larger than the panel', () => {
