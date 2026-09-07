@@ -144,7 +144,11 @@ async function main(): Promise<void> {
   const summaries = { actual: summarize(actual), replay: summarize(re) };
   const agreement = compare(actual, re);
 
-  const deployLabel = (d: typeof deploy) => `#${d.id}${d.label ? ` ${d.label}` : ''} (${clock(Date.parse(d.deployedAt))} PT)`;
+  // A row with no deployedAt is a saved take: dialled and kept, never sent to
+  // the glass (takes spec, PR #147). Replaying one is legitimate and is the
+  // point of a take, so name it rather than pretending it was deployed.
+  const deployLabel = (d: typeof deploy) => `#${d.id}${d.label ? ` ${d.label}` : ''} `
+    + (d.deployedAt ? `(deployed ${clock(Date.parse(d.deployedAt))} PT)` : `(take, saved ${clock(Date.parse(d.createdAt))} PT)`);
   console.log(`${args.feed} screen, ${clock(args.from)} → ${clock(args.to)} PT`);
   console.log(`pool: ${entries.length} bin rows overlapped the window; ${prior.length} prior draws seed the shown state`);
   console.log(`actual: ${liveVersion.name}, deploy ${deployLabel(liveDeploy)}, dwell ${liveDials.dwellS} s${window.length === 0 ? ' — no draws logged in this window' : ''}`);
