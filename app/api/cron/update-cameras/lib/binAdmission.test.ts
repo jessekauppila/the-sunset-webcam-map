@@ -23,7 +23,7 @@ vi.mock('@/app/lib/solo/store', () => ({
   pruneDraws: (...a: unknown[]) => pruneDraws(...a),
 }));
 
-import { decideBin, enterBins, maintainBins, BIN_ADMIT_DETECTION_FLOOR } from './binAdmission';
+import { decideBin, enterBins, maintainBins } from './binAdmission';
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -33,16 +33,20 @@ beforeEach(() => {
   removeStale.mockResolvedValue({ leftZone: 0, expired: 0 });
 });
 
-describe('decideBin (fixed cron floors, spec §5.3)', () => {
+describe('decideBin (the studio dial is the only non-sunset gate)', () => {
   it('detection verdict first: a sunset enters the sunset bin whatever its probability looks like', () => {
     expect(decideBin({ binaryIsSunset: true, binaryRawScore: 0.56 })).toBe('sunset');
   });
-  it('a non-sunset at or above the floor enters the non-sunset bin', () => {
-    expect(decideBin({ binaryIsSunset: false, binaryRawScore: BIN_ADMIT_DETECTION_FLOOR })).toBe('non_sunset');
+  it('every scored non-sunset enters the non-sunset bin, a dark frame at 0 included', () => {
+    // The cron used to hold a fixed 0.2 floor. The studio dial could only
+    // narrow from it, so lowering the dial past 0.2 changed nothing and the
+    // sunrise bin sat on two frames while New Zealand scored 0.00 (2026-09-07).
+    expect(decideBin({ binaryIsSunset: false, binaryRawScore: 0.19 })).toBe('non_sunset');
+    expect(decideBin({ binaryIsSunset: false, binaryRawScore: 0 })).toBe('non_sunset');
   });
-  it('below the floor, or with no binary verdict, nothing', () => {
-    expect(decideBin({ binaryIsSunset: false, binaryRawScore: 0.19 })).toBeNull();
+  it('with no binary verdict, nothing', () => {
     expect(decideBin({})).toBeNull();
+    expect(decideBin({ binaryIsSunset: false })).toBeNull();
   });
 });
 

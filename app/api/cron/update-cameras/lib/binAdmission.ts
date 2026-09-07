@@ -16,20 +16,21 @@ import type { BinKind, Feed } from '@/app/lib/solo/types';
 /**
  * Solo kiosk admission and maintenance, spec §5.3. Runs inside the cron tick.
  *
- * The cron floors are FIXED and generous. The studio dials only narrow from
- * here, so the cron never chases a dial and a dial change is visible within
- * one poll instead of one cron tick.
+ * The cron does not gate non-sunsets by probability: every scored frame in
+ * a feed's zone enters a bin, and the studio's sunset-probability floor dial
+ * is the one gate. A dial change is visible within one poll instead of one
+ * cron tick, and the dial can WIDEN the bin as well as narrow it. Until
+ * 2026-09-07 the cron held a fixed 0.2 floor here and the dial could only
+ * narrow from it, so lowering the dial past 0.2 changed nothing while the
+ * sunrise bin sat on two frames and every New Zealand camera scored 0.00.
  */
-export const BIN_ADMIT_DETECTION_FLOOR = 0.2;
 const MAX_ENTRY_AGE_HOURS = 24;
 const FEEDS: Feed[] = ['sunrise', 'sunset'];
 
-/** Detection verdict first, then the probability floor. Null = not for the bins. */
+/** Detection verdict first, then any scored non-sunset. Null = not scored, so not for the bins. */
 export function decideBin(scored: { binaryIsSunset?: boolean; binaryRawScore?: number }): BinKind | null {
   if (scored.binaryIsSunset === true) return 'sunset';
-  if (typeof scored.binaryRawScore === 'number' && scored.binaryRawScore >= BIN_ADMIT_DETECTION_FLOOR) {
-    return 'non_sunset';
-  }
+  if (typeof scored.binaryRawScore === 'number') return 'non_sunset';
   return null;
 }
 

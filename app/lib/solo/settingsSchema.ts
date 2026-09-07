@@ -58,7 +58,7 @@ export const SOLO_SETTINGS_SCHEMA: SettingsSchema = [
   {
     key: 'detectionFloor', kind: 'number', min: 0, max: 1, step: 0.05, default: 0.3,
     label: 'sunset-probability floor (non-sunsets)', section: 'bins',
-    description: 'A non-sunset frame needs at least this probability of being a sunset (0–1) to be eligible. Raise it to shrink that bin.',
+    description: 'A non-sunset frame needs at least this probability of being a sunset (0–1) to be eligible. This is the only gate: the cron admits every scored frame in the zone, so 0 shows every camera in the window, dark ones included. Raise it to shrink that bin.',
   },
   {
     key: 'sunsetFloor', kind: 'number', min: 0, max: 12, step: 1, default: 6,
