@@ -1,5 +1,5 @@
 import { afterShowing } from './engine';
-import { boundaryMs, slotFor } from './schedule';
+
 import type { BinEntry, BinKind, Feed, ScreenState, SoloDials } from './types';
 import type { SoloVersionSpec } from './versions';
 
@@ -52,19 +52,28 @@ export interface StripFrame {
   shownSnapshotIds: number[];
   /** Seen earlier on this strip. */
   repeat: boolean;
+  /**
+   * How long this block holds the glass. Replayed blocks carry what
+   * `version.dwellMs` said; actual blocks carry the measured gap to the next
+   * draw, or null for the last one, which has nothing to measure against.
+   */
+  dwellMs: number | null;
 }
 
-/** The slot grid a strip was drawn on; strips compare only on the same grid. */
-export interface Grid {
+/**
+ * What a strip was drawn with. `dwellS` is the nominal dial, not a grid: a
+ * dwell is a budget its frames share, so each block carries its own length
+ * and only a blank falls back to the nominal one.
+ */
+export interface Schedule {
   dwellS: number;
-  offsetS: number;
 }
 
 export interface Strip {
   feed: Feed;
   /** The engine that drew, or 'actual' for the fact strip. */
   version: string;
-  grid: Grid;
+  schedule: Schedule;
   fromMs: number;
   toMs: number;
   frames: StripFrame[];
@@ -133,16 +142,18 @@ export function initialState(priorDraws: DrawLike[], entries: ReplayEntry[]): Sc
   return { lastSnapshotId: priorDraws.at(-1)?.snapshotId ?? null, sunsetStreak: streak };
 }
 
-const blank = (slot: number, shownAt: number): StripFrame => ({
+const blank = (slot: number, shownAt: number, dwellMs: number | null): StripFrame => ({
   slot, shownAt, snapshotId: null, webcamId: null, bin: null, quality: null, detection: null,
-  title: '', imageUrl: '', capturedAt: null, shownSnapshotIds: [], repeat: false,
+  title: '', imageUrl: '', capturedAt: null, shownSnapshotIds: [], repeat: false, dwellMs,
 });
 
-function frameOf(e: FrameFacts, slot: number, shownAt: number, shownIds: number[], repeat: boolean): StripFrame {
+function frameOf(
+  e: FrameFacts, slot: number, shownAt: number, shownIds: number[], repeat: boolean, dwellMs: number | null,
+): StripFrame {
   return {
     slot, shownAt, snapshotId: e.snapshotId, webcamId: e.webcamId, bin: e.bin,
     quality: e.quality, detection: e.detection, title: e.title ?? '', imageUrl: e.imageUrl ?? '',
-    capturedAt: e.capturedAt ?? null, shownSnapshotIds: shownIds, repeat,
+    capturedAt: e.capturedAt ?? null, shownSnapshotIds: shownIds, repeat, dwellMs,
   };
 }
 
@@ -159,54 +170,78 @@ export interface ReplayOptions<D extends SoloDials> {
 }
 
 /**
- * Re-run the engine from `fromMs` to `toMs` on the replay dials' grid. Each
- * slot sees the pool as it was at that slot's boundary and the shown state
- * the replay itself has built, so this is what the glass would have shown
- * had these dials been live, given the same arrivals and departures.
+ * Re-run the engine from `fromMs` to `toMs`, walking a clock rather than a
+ * grid. Each draw sees the pool as it was at that instant and the shown
+ * state the replay itself has built, so this is what the glass would have
+ * shown had these dials been live, given the same arrivals and departures.
+ *
+ * The clock is the whole change from the grid version: a slot is a counter
+ * now and cannot be turned back into a time, so the loop asks
+ * `version.dwellMs` what each draw costs and advances by that. solo answers
+ * with the dial and so lands where the grid did; solo2 answers with the
+ * budget its frames share, so a run of eight stretches the block.
  */
 export function replay<D extends SoloDials>(o: ReplayOptions<D>): Strip {
   const { feed, version, dials } = o;
-  const grid = { dwellS: dials.dwellS, offsetS: dials.offsetS };
   const working = seedFromDraws(o.entries, o.priorDraws, o.fromMs);
   let state = initialState(o.priorDraws, o.entries);
   const seen = new Set<number>();
   const frames: StripFrame[] = [];
-  const first = slotFor(o.fromMs, feed, grid.dwellS, grid.offsetS);
-  const last = slotFor(o.toMs, feed, grid.dwellS, grid.offsetS);
-  for (let slot = first; slot <= last; slot++) {
-    const at = boundaryMs(slot, feed, grid.dwellS, grid.offsetS);
-    const pool = poolAt(working, at);
+  // The counter continues the recorded sequence rather than being derived
+  // from fromMs, so `rest` compares against the same numbers the log holds.
+  let slot = (o.priorDraws.at(-1)?.slot ?? -1) + 1;
+  let atMs = o.fromMs;
+  while (atMs <= o.toMs) {
+    const pool = poolAt(working, atMs);
     const pick = version.next(pool, dials, state, slot, feed);
     if (!pick) {
-      frames.push(blank(slot, at));
+      // Nothing eligible, so nothing to ask a length of. A blank costs one
+      // nominal dwell, which is what the glass waits while the bin is empty.
+      const blankMs = dials.dwellS * 1000;
+      frames.push(blank(slot, atMs, blankMs));
+      atMs += blankMs;
+      slot += 1;
       continue;
     }
     const shown = version.shown(pool, pick, dials);
+    const lengthMs = version.dwellMs(pool, pick, dials);
     for (const f of shown) {
       f.tally += 1;
       f.isNew = false;
-      f.lastShownAt = at;
+      f.lastShownAt = atMs;
       f.lastShownSlot = slot;
     }
     const chosen = working.find((e) => e.snapshotId === pick.snapshotId)!;
-    frames.push(frameOf(chosen, slot, at, shown.map((f) => f.snapshotId), seen.has(pick.snapshotId)));
+    frames.push(frameOf(chosen, slot, atMs, shown.map((f) => f.snapshotId), seen.has(pick.snapshotId), lengthMs));
     seen.add(pick.snapshotId);
     state = afterShowing(pick, state);
+    atMs += lengthMs;
+    slot += 1;
   }
-  return { feed, version: version.name, grid, fromMs: o.fromMs, toMs: o.toMs, frames };
+  return { feed, version: version.name, schedule: { dwellS: dials.dwellS }, fromMs: o.fromMs, toMs: o.toMs, frames };
 }
 
-/** The fact strip, from the draw log, on the grid the glass was running. */
+/**
+ * The fact strip, from the draw log. Each block's length is MEASURED from
+ * the next draw's time, never computed from a dwell rule: under a budget the
+ * rule and the record disagree for any run past the floor's threshold, by up
+ * to 2.4x on the runs already recorded. The last block has nothing after it
+ * to measure against, so its length is null rather than guessed.
+ */
 export function actualStrip(
-  feed: Feed, draws: (DrawLike & FrameFacts)[], grid: Grid, fromMs: number, toMs: number,
+  feed: Feed, draws: (DrawLike & FrameFacts)[], schedule: Schedule, fromMs: number, toMs: number,
 ): Strip {
   const seen = new Set<number>();
-  const frames = draws.map((d) => {
-    const f = frameOf(d, d.slot, d.shownAt, d.shownSnapshotIds?.length ? d.shownSnapshotIds : [d.snapshotId], seen.has(d.snapshotId));
+  const frames = draws.map((d, i) => {
+    const next = draws[i + 1];
+    const f = frameOf(
+      d, d.slot, d.shownAt, d.shownSnapshotIds?.length ? d.shownSnapshotIds : [d.snapshotId],
+      seen.has(d.snapshotId), next ? next.shownAt - d.shownAt : null,
+    );
     seen.add(d.snapshotId);
     return f;
   });
-  return { feed, version: 'actual', grid, fromMs, toMs, frames };
+  return { feed, version: 'actual', schedule, fromMs, toMs, frames };
 }
 
 export interface StripSummary {
@@ -267,14 +302,18 @@ function lcs(a: (number | null)[], b: (number | null)[]): number {
 }
 
 /**
- * Agreement between two strips on the same grid: `same` is slot-for-slot
- * (a missed slot on the glass shifts everything after it, so this reads
- * low even when the order is right); `inOrder` is the longest run of draws
- * both strips make in the same order, which survives that shift. Null when
- * the grids differ, since their slots do not line up.
+ * Agreement between two strips of one screen: `same` is draw-for-draw (a
+ * draw the glass missed shifts everything after it, so this reads low even
+ * when the order is right); `inOrder` is the longest run of draws both
+ * strips make in the same order, which survives that shift. Null for two
+ * different screens, whose counters are independent of each other.
  */
 export function compare(a: Strip, b: Strip): { slots: number; same: number; inOrder: number } | null {
-  if (a.grid.dwellS !== b.grid.dwellS || a.grid.offsetS !== b.grid.offsetS) return null;
+  // Slots are counters, so slot n means "the nth draw" in both strips and is
+  // comparable whatever the dwells were. The old guard refused on a differing
+  // grid because a slot then meant a time; there is no such thing to protect
+  // now. Two feeds are still not comparable: their counters are independent.
+  if (a.feed !== b.feed) return null;
   const byB = new Map(b.frames.map((f) => [f.slot, f.snapshotId]));
   let slots = 0;
   let same = 0;

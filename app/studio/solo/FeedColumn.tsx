@@ -175,7 +175,8 @@ export function FeedColumn({ feed, server, projected, liveDials, nowMs, version,
         </span>
       </h3>
       {tapeOpen && (
-        <Tape past={server.tape} current={current?.entry ?? null} currentSince={current?.shownSince ?? null} next={projected.next}
+        <Tape past={server.tape} current={current?.entry ?? null} currentSince={current?.shownSince ?? null}
+          currentEndsAt={current?.endsAtMs ?? null} next={projected.next}
           nextSequences={queueBoxes.slice(current ? 1 : 0).map((b) => b.run)}
           pastDials={{ dwellS: liveDials.dwellS, fadeS: liveDials.fadeS }} nextDials={{ dwellS: projected.dials.dwellS, fadeS: projected.dials.fadeS }}
           onSelect={(e) => onSelect(e, feed, tapeList)} />
