@@ -27,6 +27,8 @@ export interface StoredEntry extends BinEntry {
   sunAltitudeDeg: number | null;
   firstShownAt: number | null;
   lastShownAt: number | null;
+  /** Which draw it was last shown on — rest's currency (spec §6.1). */
+  lastShownSlot: number | null;
 }
 
 interface EntryRow {
@@ -42,6 +44,7 @@ interface EntryRow {
   captured_at: string;
   first_shown_at: string | null;
   last_shown_at: string | null;
+  last_shown_slot: string | number | null;
   firebase_url: string;
   title: string | null;
   city: string | null;
@@ -89,6 +92,7 @@ function toEntry(feed: Feed, r: EntryRow): StoredEntry {
     enteredAt: Date.parse(r.entered_at),
     firstShownAt: ms(r.first_shown_at),
     lastShownAt: ms(r.last_shown_at),
+    lastShownSlot: r.last_shown_slot == null ? null : num(r.last_shown_slot),
     imageUrl: r.firebase_url,
     title: r.title ?? '',
     city: r.city ?? '',
@@ -106,7 +110,7 @@ function toEntry(feed: Feed, r: EntryRow): StoredEntry {
 export async function listActiveEntries(feed: Feed): Promise<StoredEntry[]> {
   const rows = (await sql`
     select e.snapshot_id, e.webcam_id, e.bin, e.quality, e.detection, e.is_new, e.tally,
-           e.entered_at, e.first_shown_at, e.last_shown_at,
+           e.entered_at, e.first_shown_at, e.last_shown_at, e.last_shown_slot,
            s.firebase_url, s.captured_at::text as captured_at, w.title, w.city, w.region, w.country, w.lat, w.lng
     from kiosk_bin_entries e
     join webcam_snapshots s on s.id = e.snapshot_id
@@ -297,7 +301,11 @@ export async function commitAdvance(
     set tally = tally + 1,
         is_new = false,
         first_shown_at = coalesce(first_shown_at, now()),
-        last_shown_at = now()
+        last_shown_at = now(),
+        -- The SAME counter that logDraw writes to kiosk_draws.slot, below and
+        -- in this one operation (spec §6.1.1). Two counters that agree is the
+        -- failure that would not announce itself.
+        last_shown_slot = ${slot}
     where feed = ${feed} and snapshot_id = any(${shown.map((e) => e.snapshotId)}::bigint[])
   `;
   await logDraw(feed, slot, entry, version, shown);
@@ -345,7 +353,7 @@ export async function listRecentDraws(feed: Feed, n: number): Promise<TapeFrame[
     const rows = (await sql`
       select d.slot, d.shown_at,
              e.snapshot_id, e.webcam_id, e.bin, e.quality, e.detection, e.is_new, e.tally,
-             e.entered_at, e.first_shown_at, e.last_shown_at,
+             e.entered_at, e.first_shown_at, e.last_shown_at, e.last_shown_slot,
              s.firebase_url, s.captured_at::text as captured_at, w.title, w.city, w.region, w.country, w.lat, w.lng
       from kiosk_draws d
       join kiosk_bin_entries e on e.feed = d.feed and e.snapshot_id = d.snapshot_id
@@ -395,6 +403,7 @@ export async function listDrawsBetween(feed: Feed, fromMs: number, toMs: number)
              coalesce(d.bin, e.bin) as bin, coalesce(d.quality, e.quality) as quality, coalesce(d.detection, e.detection) as detection,
              coalesce(e.is_new, false) as is_new, coalesce(e.tally, 0) as tally,
              coalesce(e.entered_at, d.shown_at) as entered_at, e.first_shown_at, e.last_shown_at,
+             coalesce(e.last_shown_slot, d.slot) as last_shown_slot,
              s.firebase_url, s.captured_at::text as captured_at, w.title, w.city, w.region, w.country, w.lat, w.lng
       from kiosk_draws d
       left join kiosk_bin_entries e on e.feed = d.feed and e.snapshot_id = d.snapshot_id
@@ -426,7 +435,7 @@ export async function listDrawsBetween(feed: Feed, fromMs: number, toMs: number)
 export async function listEntriesOverlapping(feed: Feed, fromMs: number, toMs: number): Promise<ReplayEntry[]> {
   const rows = (await sql`
     select e.snapshot_id, e.webcam_id, e.bin, e.quality, e.detection, e.is_new, e.tally,
-           e.entered_at, e.first_shown_at, e.last_shown_at, e.removed_at,
+           e.entered_at, e.first_shown_at, e.last_shown_at, e.last_shown_slot, e.removed_at,
            s.firebase_url, s.captured_at::text as captured_at, w.title, w.city, w.region, w.country, w.lat, w.lng
     from kiosk_bin_entries e
     join webcam_snapshots s on s.id = e.snapshot_id

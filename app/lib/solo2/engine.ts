@@ -42,7 +42,7 @@ export function next2<T extends RunEntry>(
   entries: T[], d: Solo2Dials, state: ScreenState, slot: number, feed: Feed,
 ): T | null {
   // Rules 5, 4, 2 and 1 are solo's, over cameras when the dial says so.
-  const pool = choosePool(poolEntries(entries, d.cameraRun), d, state, slot, feed);
+  const pool = choosePool(poolEntries(entries, d.cameraRun), d, state, slot);
   if (pool.length === 0) return null;
   // Rule 3, on the beat.
   const cmp = roleAt(slot, feed, d) === 'peak' ? comparePeak(d) : compareValley(d);
@@ -73,7 +73,9 @@ export function project2<T extends RunEntry>(
     for (const f of shown2(working, pick, d)) {
       f.tally += 1;
       f.isNew = false;
+      // Both currencies (spec §6.1.1); every frame the dwell played rests.
       f.lastShownAt = boundaryMs(firstSlot + i, feed, d.dwellS, d.offsetS);
+      f.lastShownSlot = firstSlot + i;
     }
     s = afterShowing(pick, s);
   }

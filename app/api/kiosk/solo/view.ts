@@ -125,7 +125,7 @@ export function buildStateView(input: {
   const eligibleCount = entries.filter((e) => isEligible(e, dials)).length;
   const draws = version.project(entries, dials, state, eligibleCount + NEXT_COUNT, firstSlot, feed);
   const next = draws.slice(0, NEXT_COUNT);
-  const stages = assignStages({ entries, dials, state, firstSlot, feed, draws, queueDepth: NEXT_COUNT });
+  const stages = assignStages({ entries, dials, state, firstSlot, draws, queueDepth: NEXT_COUNT });
   // The frames a draw plays share its stage (camera-run spec §3.4): a
   // camera's older frames stand where the camera stands, not where the frame
   // rules alone would put them. solo shows the pick alone, so nothing moves.

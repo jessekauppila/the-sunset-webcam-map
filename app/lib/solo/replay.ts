@@ -97,24 +97,30 @@ export function isNewAtEntry(entry: ReplayEntry, entries: ReplayEntry[]): boolea
  */
 export function seedFromDraws<T extends ReplayEntry>(entries: T[], priorDraws: DrawLike[], windowStart = -Infinity): T[] {
   const shownAt = new Map<number, number>();
+  // The draw log is the history of draw NUMBERS once slot is a counter, and
+  // is already authoritative today (spec §6.1.1).
+  const loggedSlot = new Map<number, number>();
   const tally = new Map<number, number>();
   for (const d of priorDraws) {
     for (const id of d.shownSnapshotIds?.length ? d.shownSnapshotIds : [d.snapshotId]) {
       shownAt.set(id, Math.max(shownAt.get(id) ?? -Infinity, d.shownAt));
+      loggedSlot.set(id, Math.max(loggedSlot.get(id) ?? -Infinity, d.slot));
       tally.set(id, (tally.get(id) ?? 0) + 1);
     }
   }
   return entries.map((e) => {
     const logged = shownAt.get(e.snapshotId);
     if (logged != null) {
-      return { ...e, tally: tally.get(e.snapshotId) ?? 0, lastShownAt: logged, isNew: false };
+      return { ...e, tally: tally.get(e.snapshotId) ?? 0, lastShownAt: logged, lastShownSlot: loggedSlot.get(e.snapshotId) ?? null, isNew: false };
     }
     const first = e.firstShownAt ?? null;
     if (first != null && first < windowStart) {
       const last = e.lastShownAt != null && e.lastShownAt < windowStart ? e.lastShownAt : first;
-      return { ...e, tally: Math.max(1, e.tally), lastShownAt: last, isNew: false };
+      // No draw row, so no draw number to seed rest with. The timestamp
+      // cannot supply one (spec §6.1), so rest starts clean for this frame.
+      return { ...e, tally: Math.max(1, e.tally), lastShownAt: last, lastShownSlot: null, isNew: false };
     }
-    return { ...e, tally: 0, lastShownAt: null, isNew: isNewAtEntry(e, entries) };
+    return { ...e, tally: 0, lastShownAt: null, lastShownSlot: null, isNew: isNewAtEntry(e, entries) };
   });
 }
 
@@ -180,6 +186,7 @@ export function replay<D extends SoloDials>(o: ReplayOptions<D>): Strip {
       f.tally += 1;
       f.isNew = false;
       f.lastShownAt = at;
+      f.lastShownSlot = slot;
     }
     const chosen = working.find((e) => e.snapshotId === pick.snapshotId)!;
     frames.push(frameOf(chosen, slot, at, shown.map((f) => f.snapshotId), seen.has(pick.snapshotId)));

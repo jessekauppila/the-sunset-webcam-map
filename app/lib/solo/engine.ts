@@ -1,4 +1,4 @@
-import { boundaryMs, slotFor } from './schedule';
+import { boundaryMs } from './schedule';
 import type { BinEntry, Feed, ScreenState, SoloDials } from './types';
 import { qualityOf } from './scores';
 
@@ -22,13 +22,18 @@ export function isEligible(e: BinEntry, d: SoloDials): boolean {
 }
 
 /**
- * Rule 2: a frame sits out `rest` draws after it was on glass, counted in
- * slots of the current dwell. Never shown → never resting.
+ * Rule 2: a frame sits out `rest` draws after it was on glass. Counted in
+ * DRAWS, read from the stored draw number — never recovered by dividing a
+ * timestamp by the dwell length (dwell-budget spec §6.1). That division has
+ * no inverse once dwells vary, so `lastShownAt` cannot answer this question
+ * and is kept for time, not for rest.
+ *
+ * Never shown → never resting, and so is a row from before the column
+ * existed that the backfill could not explain.
  */
-export function isResting(e: BinEntry, d: SoloDials, slot: number, feed: Feed): boolean {
-  if (e.lastShownAt == null) return false;
-  const shownSlot = slotFor(e.lastShownAt, feed, d.dwellS, d.offsetS);
-  return slot - shownSlot <= d.rest;
+export function isResting(e: BinEntry, d: SoloDials, slot: number): boolean {
+  if (e.lastShownSlot == null) return false;
+  return slot - e.lastShownSlot <= d.rest;
 }
 
 /** Rule 3's score key: quality for sunsets, detection for non-sunsets, plus the new-frame bonus. */
@@ -69,11 +74,11 @@ export function compareWithin(d: SoloDials) {
  * Empty only when nothing is eligible.
  */
 export function choosePool(
-  entries: BinEntry[], d: SoloDials, state: ScreenState, slot: number, feed: Feed,
+  entries: BinEntry[], d: SoloDials, state: ScreenState, slot: number,
 ): BinEntry[] {
   const eligible = entries.filter((e) => isEligible(e, d));
   const notOnGlass = eligible.filter((e) => e.snapshotId !== state.lastSnapshotId);
-  let candidates = notOnGlass.filter((e) => !isResting(e, d, slot, feed));
+  let candidates = notOnGlass.filter((e) => !isResting(e, d, slot));
   if (candidates.length === 0) candidates = notOnGlass;
   if (candidates.length === 0) candidates = eligible;
   if (candidates.length === 0) return [];
@@ -90,7 +95,7 @@ export function choosePool(
 export function next(
   entries: BinEntry[], d: SoloDials, state: ScreenState, slot: number, feed: Feed,
 ): BinEntry | null {
-  const pool = choosePool(entries, d, state, slot, feed);
+  const pool = choosePool(entries, d, state, slot);
   if (pool.length === 0) return null;
   return [...pool].sort(compareWithin(d))[0];
 }
@@ -122,7 +127,10 @@ export function project(
     out.push({ ...pick });
     pick.tally += 1;
     pick.isNew = false;
+    // Both currencies, never one instead of the other (spec §6.1.1): the
+    // slot is what rest is measured in, the timestamp is what time is.
     pick.lastShownAt = boundaryMs(slot, feed, d.dwellS, d.offsetS);
+    pick.lastShownSlot = slot;
     s = afterShowing(pick, s);
   }
   return out;

@@ -1,7 +1,6 @@
 import { compareWithin, isEligible, isResting } from './engine';
-import { slotFor } from './schedule';
 import { qualityOf } from './scores';
-import type { BinEntry, Feed, ScreenState, SoloDials } from './types';
+import type { BinEntry, ScreenState, SoloDials } from './types';
 
 /**
  * Where a frame stands for one screen's next draw (stages spec §3.1). The
@@ -35,12 +34,11 @@ export function assignStages(input: {
   state: ScreenState;
   /** The slot of the first projected draw. */
   firstSlot: number;
-  feed: Feed;
   /** The projection, first draw at `firstSlot`; longer than `queueDepth` so in-line frames get positions. */
   draws: BinEntry[];
   queueDepth: number;
 }): Map<number, Stage> {
-  const { entries, dials: d, state, firstSlot, feed, draws, queueDepth } = input;
+  const { entries, dials: d, state, firstSlot, draws, queueDepth } = input;
   const firstDraw = new Map<number, number>();
   draws.forEach((e, i) => {
     if (!firstDraw.has(e.snapshotId)) firstDraw.set(e.snapshotId, i + 1);
@@ -51,8 +49,9 @@ export function assignStages(input: {
     if (e.snapshotId === state.lastSnapshotId) out.set(e.snapshotId, { kind: 'onGlass' });
     else if (position != null && position <= queueDepth) out.set(e.snapshotId, { kind: 'queued', position });
     else if (!isEligible(e, d)) out.set(e.snapshotId, { kind: 'underFloor', floor: floorFor(e, d) });
-    else if (isResting(e, d, firstSlot, feed)) {
-      const shownSlot = slotFor(e.lastShownAt!, feed, d.dwellS, d.offsetS);
+    else if (isResting(e, d, firstSlot)) {
+      // The stored draw number, not a timestamp divided by a dwell (spec §6.1).
+      const shownSlot = e.lastShownSlot!;
       out.set(e.snapshotId, { kind: 'resting', drawsLeft: Math.max(1, d.rest - (firstSlot - shownSlot) + 1) });
     } else out.set(e.snapshotId, { kind: 'inLine', position });
   }

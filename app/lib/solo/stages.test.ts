@@ -14,12 +14,14 @@ const sun = (id: number, q: number, extra: Partial<BinEntry> = {}): BinEntry => 
 const non = (id: number, det: number, extra: Partial<BinEntry> = {}): BinEntry => ({
   snapshotId: id, webcamId: 2000 + id, bin: 'non_sunset', quality: null, detection: det,
   isNew: false, tally: 0, enteredAt: id, lastShownAt: null, ...extra });
-const shownAt = (slot: number) => ({ tally: 1, lastShownAt: boundaryMs(slot, FEED, D.dwellS, D.offsetS) });
+const shownAt = (slot: number) => ({
+  tally: 1, lastShownAt: boundaryMs(slot, FEED, D.dwellS, D.offsetS), lastShownSlot: slot,
+});
 
 function stagesOf(entries: BinEntry[], state: ScreenState, firstSlot: number, queueDepth = 2) {
   const eligible = entries.filter((e) => (e.bin === 'sunset' ? (e.quality ?? -1) >= 0.55 : e.detection >= D.detectionFloor)).length;
   const draws = project(entries, D, state, eligible + queueDepth, firstSlot, FEED);
-  return assignStages({ entries, dials: D, state, firstSlot, feed: FEED, draws, queueDepth });
+  return assignStages({ entries, dials: D, state, firstSlot, draws, queueDepth });
 }
 
 describe('floorFor', () => {

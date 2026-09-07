@@ -31,8 +31,14 @@ const nx = (entries: BinEntry[], d: SoloDials = D, s: ScreenState = S0, slot = 0
 const seq = (entries: BinEntry[], d: SoloDials, n = 12) =>
   project(entries, d, S0, n, 0, FEED).map((e) => (e.bin === 'sunset' ? `S${e.snapshotId}` : `N${e.snapshotId - 100}`));
 const bins = (entries: BinEntry[], d: SoloDials, n: number) => project(entries, d, S0, n, 0, FEED).map((e) => e.bin);
-/** A frame that went on glass at `slot`. */
-const shownAt = (slot: number) => ({ tally: 1, lastShownAt: boundaryMs(slot, FEED, D.dwellS, D.offsetS) });
+/**
+  * A frame that went on glass at `slot`. Stamps BOTH currencies, as
+  * commitAdvance and project do: the slot is what rest is measured in, the
+  * timestamp is what time is (spec §6.1.1).
+  */
+const shownAt = (slot: number) => ({
+  tally: 1, lastShownAt: boundaryMs(slot, FEED, D.dwellS, D.offsetS), lastShownSlot: slot,
+});
 
 describe('spec §4 worked cases (floor 6, mix 2, rest 4)', () => {
   it('one sunset, eight non-sunsets: the sunset returns every fifth draw', () => {
@@ -87,23 +93,23 @@ describe('rule 1: choose the bin', () => {
   });
   it('the streak counts against the pool: after mix sunsets, a non-sunset', () => {
     const entries = [...fiveSun(), ...eightNon()];
-    expect(choosePool(entries, D, { lastSnapshotId: 2, sunsetStreak: 2 }, 2, FEED).every((e) => e.bin === 'non_sunset')).toBe(true);
-    expect(choosePool(entries, D, { lastSnapshotId: 1, sunsetStreak: 1 }, 1, FEED).every((e) => e.bin === 'sunset')).toBe(true);
+    expect(choosePool(entries, D, { lastSnapshotId: 2, sunsetStreak: 2 }, 2).every((e) => e.bin === 'non_sunset')).toBe(true);
+    expect(choosePool(entries, D, { lastSnapshotId: 1, sunsetStreak: 1 }, 1).every((e) => e.bin === 'sunset')).toBe(true);
   });
 });
 
 describe('rule 2: rest', () => {
   it('a frame shown at slot 0 rests through slot 4 and is back at slot 5', () => {
     const e = sun(1, 0.9, shownAt(0));
-    expect([1, 2, 3, 4].map((slot) => isResting(e, D, slot, FEED))).toEqual([true, true, true, true]);
-    expect(isResting(e, D, 5, FEED)).toBe(false);
+    expect([1, 2, 3, 4].map((slot) => isResting(e, D, slot))).toEqual([true, true, true, true]);
+    expect(isResting(e, D, 5)).toBe(false);
   });
   it('a frame never shown is never resting; rest 0 rests only in its own slot', () => {
-    expect(isResting(sun(1, 0.9), D, 3, FEED)).toBe(false);
-    expect(isResting(sun(1, 0.9, { lastShownAt: undefined }), D, 3, FEED)).toBe(false);
+    expect(isResting(sun(1, 0.9), D, 3)).toBe(false);
+    expect(isResting(sun(1, 0.9, { lastShownSlot: undefined }), D, 3)).toBe(false);
     const e = sun(1, 0.9, shownAt(2));
-    expect(isResting(e, { ...D, rest: 0 }, 2, FEED)).toBe(true);
-    expect(isResting(e, { ...D, rest: 0 }, 3, FEED)).toBe(false);
+    expect(isResting(e, { ...D, rest: 0 }, 2)).toBe(true);
+    expect(isResting(e, { ...D, rest: 0 }, 3)).toBe(false);
   });
   it('non-sunsets rest too', () => {
     // 101 is the best but rested, 102 is on glass, so 103 draws.
@@ -113,11 +119,24 @@ describe('rule 2: rest', () => {
   it('when every eligible frame is resting, rest is waived and rule 4 alone applies', () => {
     expect(seq([sun(1, 0.9), sun(2, 0.8)], D, 4)).toEqual(['S1', 'S2', 'S1', 'S2']);
   });
-  it('rest is measured in slots of the current dwell', () => {
-    const e = sun(1, 0.9, { tally: 1, lastShownAt: boundaryMs(0, FEED, 60, D.offsetS) });
-    // Shown at t=0 with a 60 s dwell: slot 3 of a 60 s dwell is 180 s later, still resting; slot 5 is not.
-    expect(isResting(e, { ...D, dwellS: 60 }, 3, FEED)).toBe(true);
-    expect(isResting(e, { ...D, dwellS: 60 }, 5, FEED)).toBe(false);
+  it('rest counts draws, so the dwell dial cannot change it (spec §6.1)', () => {
+    // The same frame, shown on draw 0, at three wildly different dwell
+    // lengths. Rest 4 means draws 1-4 rest and draw 5 does not, every time.
+    // Before the currency change this test's predecessor asserted the
+    // opposite: that rest scaled with dwellS, because the draw number was
+    // recovered by dividing a timestamp by it.
+    const e = sun(1, 0.9, shownAt(0));
+    for (const dwellS of [20, 60, 4]) {
+      expect(isResting(e, { ...D, dwellS }, 4)).toBe(true);
+      expect(isResting(e, { ...D, dwellS }, 5)).toBe(false);
+    }
+  });
+  it('a frame with a timestamp but no draw number is treated as never shown', () => {
+    // A row from before the column existed that the backfill could not
+    // explain. Rest cannot be inferred from the timestamp, so it does not
+    // guess (spec §6.1.1).
+    const e = sun(1, 0.9, { tally: 1, lastShownAt: boundaryMs(0, FEED, D.dwellS, D.offsetS) });
+    expect(isResting(e, D, 1)).toBe(false);
   });
 });
 
@@ -193,7 +212,7 @@ describe('state and projection', () => {
     expect(entries[0].tally).toBe(0);
     expect(entries[0].lastShownAt).toBeNull();
   });
-  it('project honours the live lastShownAt of the entries it starts from', () => {
+  it('project honours the live draw number of the entries it starts from', () => {
     // S1 went on glass at slot 3; projecting from slot 4 it must rest until slot 8.
     const entries = [sun(1, 0.9, shownAt(3)), sun(2, 0.8), ...eightNon()];
     const out = project(entries, D, { lastSnapshotId: 1, sunsetStreak: 1 }, 5, 4, FEED)
