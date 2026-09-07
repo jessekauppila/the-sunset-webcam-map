@@ -1,4 +1,4 @@
-import type { Feed, SoloDials, TimeStyle, TitleClean, CaptionFont } from './types';
+import type { Feed, HereTime, SoloDials, TimeStyle, TitleClean, CaptionFont } from './types';
 
 /**
  * The caption under (or over) a solo frame: what it says and where it sits.
@@ -36,23 +36,113 @@ function sun(deg: number): string {
 }
 
 /**
- * The time part of the caption for one time style (solo2 spec §4.5), or
- * null when there is nothing to say (style off, or the data the style needs
- * is missing).
+ * One piece of the time line. The line is drawn piece by piece rather than as
+ * one string so that a step inside a camera run crossfades only the pieces
+ * that actually changed: with the glass's own clock written beside the
+ * camera's, the reading that moves sits in the middle of the line, and a
+ * single split from the end would re-fade every word around it.
+ *
+ * `fade` is false for the punctuation between the readings, which never
+ * animates. Segments carry no separator of their own: `text` is written
+ * verbatim, in order, and the fixed segments are the spacing.
+ */
+export interface TimeSegment {
+  text: string;
+  fade: boolean;
+}
+
+/** Where the glass is, and how it wants its own clock written. */
+export interface HereClock {
+  style: HereTime;
+  /** IANA name of the glass's own zone; null when it cannot be resolved. */
+  timezone: string | null;
+}
+
+/** The glass's own zone, or null where Intl cannot say (a test, an odd runtime). */
+export function localTimezone(): string | null {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * How each shape attaches the here reading: what goes before it, whether it
+ * says the word, and what closes it. Kept as data so the studio's dial and
+ * the glass cannot drift apart about what a shape looks like.
+ */
+const HERE_SHAPES: Record<Exclude<HereTime, 'off'>, { open: string; word: boolean; close: string }> = {
+  dot: { open: ' · ', word: true, close: '' },
+  parens: { open: ' (', word: true, close: ')' },
+  'parens-bare': { open: ' (', word: false, close: ')' },
+  dash: { open: ' — ', word: true, close: '' },
+  comma: { open: ', ', word: true, close: '' },
+};
+
+/**
+ * The camera's half of the time line for one style (solo2 spec §4.5), as
+ * segments, or empty when there is nothing to say (style off, or the data
+ * the style needs is missing).
+ */
+function thereSegments(
+  style: TimeStyle, capturedAt: number, timezone: string | null, sunAltitudeDeg: number | null,
+): TimeSegment[] {
+  const twelve = timezone ? clock(capturedAt, timezone, true) : null;
+  const sunPart = sunAltitudeDeg == null || !Number.isFinite(sunAltitudeDeg) ? null : sun(sunAltitudeDeg);
+  const one = (text: string | null): TimeSegment[] => (text ? [{ text, fade: true }] : []);
+  switch (style) {
+    case 'off': return [];
+    case '12h': return one(twelve);
+    case '12h-there': return one(twelve ? `${twelve} there` : null);
+    case '24h': return one(timezone ? clock(capturedAt, timezone, false) : null);
+    case 'sun': return one(sunPart);
+    case '12h-sun': {
+      const parts = [twelve, sunPart].filter(Boolean) as string[];
+      return parts.flatMap((text, i) => (i === 0 ? [{ text, fade: true }] : [{ text: ' · ', fade: false }, { text, fade: true }]));
+    }
+  }
+}
+
+/**
+ * The whole time line as segments: the camera's reading, then the glass's own
+ * clock on the same instant when the here dial asks for it.
+ *
+ * The here half is dropped when the two zones read the same clock — a camera
+ * in your own zone would otherwise say the time twice — and when the there
+ * half said nothing at all, since there is nothing for it to sit beside.
+ */
+export function timeSegments(
+  style: TimeStyle, capturedAt: number, timezone: string | null, sunAltitudeDeg: number | null,
+  here?: HereClock,
+): TimeSegment[] {
+  const there = thereSegments(style, capturedAt, timezone, sunAltitudeDeg);
+  if (!here || here.style === 'off' || !here.timezone || there.length === 0) return there;
+  const mine = clock(capturedAt, here.timezone, true);
+  if (!mine) return there;
+  if (timezone && mine === clock(capturedAt, timezone, true)) return there; // same zone; it is one clock
+  const shape = HERE_SHAPES[here.style];
+  return [
+    ...there,
+    { text: shape.open, fade: false },
+    { text: shape.word ? `${mine} here` : mine, fade: true },
+    ...(shape.close ? [{ text: shape.close, fade: false }] : []),
+  ];
+}
+
+/** The segments written out, or '' when there are none. */
+export const timeText = (segments: TimeSegment[]): string => segments.map((s) => s.text).join('');
+
+/**
+ * The time part of the caption as one string, or null when there is nothing
+ * to say. The glass draws segments; this is for the readouts that want a
+ * plain line.
  */
 export function formatTime(
   style: TimeStyle, capturedAt: number, timezone: string | null, sunAltitudeDeg: number | null,
+  here?: HereClock,
 ): string | null {
-  const twelve = timezone ? clock(capturedAt, timezone, true) : null;
-  const sunPart = sunAltitudeDeg == null || !Number.isFinite(sunAltitudeDeg) ? null : sun(sunAltitudeDeg);
-  switch (style) {
-    case 'off': return null;
-    case '12h': return twelve;
-    case '12h-there': return twelve ? `${twelve} there` : null;
-    case '24h': return timezone ? clock(capturedAt, timezone, false) : null;
-    case 'sun': return sunPart;
-    case '12h-sun': return [twelve, sunPart].filter(Boolean).join(' · ') || null;
-  }
+  return timeText(timeSegments(style, capturedAt, timezone, sunAltitudeDeg, here)) || null;
 }
 
 const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '');
@@ -86,6 +176,8 @@ export interface CaptionLines {
   place: string;
   /** The formatted time, or '' when the style or the data says nothing. */
   time: string;
+  /** The same time, piece by piece, so the glass can crossfade each piece on its own. */
+  timeParts: TimeSegment[];
   /** place · time on one line, for the studio's compact readouts. */
   sub: string;
 }
@@ -99,14 +191,18 @@ export const FEED_PREFIX: Record<Feed, string> = { sunrise: 'Sunrise: ', sunset:
  * begins with its name (camera-run spec §6.2).
  */
 export function captionLines(
-  e: CaptionEntry, d: Pick<SoloDials, 'showPlace' | 'timeStyle' | 'titleClean' | 'feedPrefix'>, feed?: Feed,
+  e: CaptionEntry, d: Pick<SoloDials, 'showPlace' | 'timeStyle' | 'hereTime' | 'titleClean' | 'feedPrefix'>,
+  feed?: Feed, hereTimezone?: string | null,
 ): CaptionLines | null {
   if (!d.showPlace) return null;
   const t = displayTitle(e.title, d.titleClean);
   const prefix = d.feedPrefix && feed ? FEED_PREFIX[feed] : '';
   const place = [t.city, e.region, e.country].filter(Boolean).join(', ');
-  const time = formatTime(d.timeStyle, e.capturedAt, e.timezone, e.sunAltitudeDeg) ?? '';
-  return { title: prefix + t.title, place, time, sub: [place, time].filter(Boolean).join(' · ') };
+  const timeParts = timeSegments(d.timeStyle, e.capturedAt, e.timezone, e.sunAltitudeDeg, {
+    style: d.hereTime, timezone: hereTimezone === undefined ? localTimezone() : hereTimezone,
+  });
+  const time = timeText(timeParts);
+  return { title: prefix + t.title, place, time, timeParts, sub: [place, time].filter(Boolean).join(' · ') };
 }
 
 export interface Rect { left: number; top: number; width: number; height: number }
@@ -137,22 +233,60 @@ export function pictureRect(
 }
 
 /**
- * The two readings of the clock, split into the words that change and the
- * tail they share. "7:42 pm there" → "7:52 pm there" changes only "7:42", so
- * only that crossfades and "pm there" holds still; "sun 1.2° above the
- * horizon" keeps "above the horizon". Compared word by word from the end, so
- * a shared digit never splits a number, and the head keeps at least one word.
+ * One reading and the reading it replaces, split into the characters they
+ * share at each end and the stretch between that actually moved.
+ *
+ * Character by character, not word by word: "7:22 pm there" → "7:32 pm there"
+ * moves one digit, so `lead` holds "7:", `tail` holds "2 pm there", and only
+ * "2" → "3" crossfades. Comparing words would have faded the whole "7:22",
+ * carrying the hour and the colon along with the minute that changed. The
+ * time is drawn in tabular figures, so a digit swapped mid-number lands in
+ * exactly the same place and nothing beside it shifts.
+ *
+ * Both ends stop one character short of consuming a reading, so there is
+ * always something in the middle to fade even when the two are the same.
  */
-export function splitTime(from: string, to: string): { fromHead: string; toHead: string; tail: string } {
-  const a = from.split(' ');
-  const b = to.split(' ');
-  let shared = 0;
-  while (shared < a.length - 1 && shared < b.length - 1 && a[a.length - 1 - shared] === b[b.length - 1 - shared]) shared++;
+export interface TimeSplit {
+  /** What both readings begin with; never animates. */
+  lead: string;
+  /** The stretch that moved, on its way out and on its way in. */
+  fromMid: string;
+  toMid: string;
+  /** What both readings end with; never animates. */
+  tail: string;
+}
+
+export function splitTime(from: string, to: string): TimeSplit {
+  const room = Math.min(from.length, to.length) - 1;
+  let lead = 0;
+  while (lead < room && from[lead] === to[lead]) lead++;
+  let tail = 0;
+  while (lead + tail < room && from[from.length - 1 - tail] === to[to.length - 1 - tail]) tail++;
   return {
-    fromHead: a.slice(0, a.length - shared).join(' '),
-    toHead: b.slice(0, b.length - shared).join(' '),
-    tail: b.slice(b.length - shared).join(' '),
+    lead: to.slice(0, lead),
+    fromMid: from.slice(lead, from.length - tail),
+    toMid: to.slice(lead, to.length - tail),
+    tail: tail ? to.slice(to.length - tail) : '',
   };
+}
+
+/**
+ * The two readings of one time line, matched piece for piece, so the glass
+ * can fade each piece against the one it replaces. Pieces line up when the
+ * two readings have the same shape, which is the normal case inside a camera
+ * run; when they do not — a frame that knows the sun's height beside one that
+ * does not — the whole line is treated as a single piece and crossfades as
+ * one, which is what it did before there were pieces.
+ *
+ * `from` null means there is nothing to fade from, so nothing animates.
+ */
+export interface TimePair { from: string; to: string; fade: boolean }
+
+export function pairTimeSegments(from: TimeSegment[] | null, to: TimeSegment[]): TimePair[] {
+  if (!from) return to.map((s) => ({ from: s.text, to: s.text, fade: false }));
+  const aligned = from.length === to.length && to.every((s, i) => s.fade === from[i].fade);
+  if (aligned) return to.map((s, i) => ({ from: from[i].text, to: s.text, fade: s.fade }));
+  return [{ from: timeText(from), to: timeText(to), fade: true }];
 }
 
 export interface CaptionBox {

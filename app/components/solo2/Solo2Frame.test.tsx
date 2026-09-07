@@ -6,6 +6,18 @@ import { schemaDefaults } from '@/app/lib/settings/schema';
 import { fitPlan } from '@/app/lib/solo2/plan';
 import { ARRIVAL_EASES, VEIL_TINTS, easingIsSymmetric } from '@/app/lib/solo2/veil';
 
+/**
+ * The time line as it is actually drawn. Mid-crossfade the line also carries
+ * the reading on its way out, which is aria-hidden and sits on top of the one
+ * that replaced it, so it has to come out before reading the text.
+ */
+const drawnTime = () => {
+  const el = screen.getByTestId('caption-time').cloneNode(true) as HTMLElement;
+  el.querySelectorAll('[aria-hidden="true"]').forEach((n) => n.remove());
+  return el.textContent;
+};
+
+
 /** The curve the default dials put on every layer of a dissolve. */
 const E = ARRIVAL_EASES.gentle;
 
@@ -31,7 +43,7 @@ it('the last frame: inset on black, centred, with place and local time, no score
   expect(screen.getByTestId('stack')).toHaveStyle({ left: '125px', top: '70px', width: '1671px', height: '940px' });
   expect(screen.getByText('Pier')).toBeInTheDocument();
   expect(screen.getByText('Baja California Sur, Mexico')).toBeInTheDocument();
-  expect(screen.getByTestId('caption-time')).toHaveTextContent('7:42 pm there');
+  expect(drawnTime()).toBe('7:42 pm there');
   expect(screen.queryByText(/rating 4\.6/)).toBeNull();
 });
 
@@ -41,7 +53,7 @@ it('an earlier frame of the run carries its own caption, time and scores', () =>
   expect(screen.getByTestId('top')).toHaveAttribute('src', 'u2');
   expect(screen.getByText('Pier mid')).toBeInTheDocument();
   expect(screen.queryByText('Pier')).toBeNull();
-  expect(screen.getByTestId('caption-time')).toHaveTextContent('7:32 pm there');
+  expect(drawnTime()).toBe('7:32 pm there');
   expect(screen.getByText(/rating 3\.8/)).toBeInTheDocument(); // 1 + 4 × 0.7
   expect(screen.getByText(/×1/)).toBeInTheDocument();
   expect(screen.getByText(/sunset bin #3/)).toBeInTheDocument(); // the drawn frame's rank stands in for a run frame without one
@@ -282,11 +294,11 @@ it('inside a run only the clock moves, and inside the clock only the part that c
   const sameCam = run.map((f) => ({ ...f, title: 'Pier' }));
   const { rerender } = render(<Solo2Frame entry={e} run={sameCam} previous={null} stage={{ index: 1, leadProgress: 0 }} plan={plan}
     dials={{ ...D, sameCameraFadeS: 1 }} width={1920} height={1080} />);
-  expect(screen.getByTestId('caption-time')).toHaveTextContent('7:32 pm there');
-  // Only "7:22" → "7:32" animates; "pm there" is one static text node beside it.
-  expect(screen.getByTestId('caption-time-head')).toHaveTextContent('7:32');
+  expect(drawnTime()).toBe('7:32 pm there');
+  // Only the minute's first digit animates: "7:" holds and so does "2 pm there".
+  expect(screen.getByTestId('caption-time-head')).toHaveTextContent('3');
   expect(screen.getByTestId('caption-time-head')).toHaveStyle({ animation: 'solo-time-in 1s ease both' });
-  expect(screen.getByTestId('caption-time-out')).toHaveTextContent('7:22');
+  expect(screen.getByTestId('caption-time-out')).toHaveTextContent('2');
   // No delay on either: out and in run together, the way the picture dissolves.
   expect(screen.getByTestId('caption-time-out')).toHaveStyle({ animation: 'solo-time-out 1s ease both' });
 
@@ -298,9 +310,9 @@ it('inside a run only the clock moves, and inside the clock only the part that c
     dials={{ ...D, sameCameraFadeS: 1 }} width={1920} height={1080} />);
   expect(screen.getByTestId('caption-layer')).toBe(held);
   expect(screen.getByTestId('caption-time')).toBe(tail);
-  expect(screen.getByTestId('caption-time')).toHaveTextContent('7:42 pm there');
-  expect(screen.getByTestId('caption-time-head')).toHaveTextContent('7:42');
-  expect(screen.getByTestId('caption-time-out')).toHaveTextContent('7:32');
+  expect(drawnTime()).toBe('7:42 pm there');
+  expect(screen.getByTestId('caption-time-head')).toHaveTextContent('4');
+  expect(screen.getByTestId('caption-time-out')).toHaveTextContent('3');
 });
 
 it('a run’s first frame has no clock to leave', () => {
