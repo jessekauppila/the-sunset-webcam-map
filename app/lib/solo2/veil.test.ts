@@ -12,8 +12,8 @@ describe('the four looks, per screen', () => {
     expect(arrivalLook('sunset', D)).toMatchObject({ veilColor: '#000000', lift: 1 });
   });
 
-  it('crossfade takes the veil off the sunrise screen and leaves the sunset one ending in black', () => {
-    const d = { ...D, veilStyle: 'crossfade' as const };
+  it('none takes the veil off the sunrise screen and leaves the sunset one ending in black', () => {
+    const d = { ...D, veilStyle: 'none' as const };
     expect(arrivalLook('sunrise', d).veilColor).toBeNull();
     expect(arrivalLook('sunset', d).veilColor).toBe('#000000');
   });

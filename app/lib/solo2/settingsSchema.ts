@@ -29,17 +29,6 @@ export const SOLO2_SETTINGS_SCHEMA: SettingsSchema = [
     description: 'A camera\'s frames are one item in the bin. A dwell plays them oldest to newest, each for an even share of the dwell, dissolving from one to the next. Off: every frame is its own item, as solo does.',
   },
   {
-    key: 'transition', kind: 'enum', options: ['cut', 'crossfade', 'dip'], default: 'dip',
-    label: 'camera change', section: 'glass',
-    description: 'How the screen goes from one camera to another. cut: the new picture simply replaces the old. crossfade: the old picture fades out while the new one fades in on top of it. dip: the old picture fades to black, then the new one fades up from black.',
-  },
-  { ...(solo('fadeS') as NumberKnob), default: 1.5, label: 'camera change (s)', description: 'How long a crossfade takes, or a dip (down plus up). Ignored by cut.' },
-  {
-    key: 'sameCameraFadeS', kind: 'number', min: 0, max: 5, step: 0.5, default: 1.5,
-    label: 'same camera (s)', section: 'glass',
-    description: 'How long one frame of a camera takes to dissolve into the next inside the run, and on a change to a later frame of the camera on glass. Never through black. 0 is a cut.',
-  },
-  {
     key: 'minStepS', kind: 'number', min: 1, max: 20, step: 0.5, default: 4,
     label: 'shortest frame (s)', section: 'glass',
     description: 'The floor under a run\u2019s frames. A dwell is a budget its frames share: with few enough frames they simply divide it and the dwell stays the dwell. Once the share would fall below this, frames hold here instead and the dwell stretches. At a 20 s dwell that threshold is 5 frames.',
@@ -64,11 +53,17 @@ export const SOLO2_SETTINGS_SCHEMA: SettingsSchema = [
     label: 'lead scale', section: 'glass',
     description: 'How far the push goes by the moment of the change. 1.03 is barely felt; 1.10 is a visible zoom.',
   },
-  // ---- arrival: what a camera change dips through (its own rail page) ----
+  // ---- change: everything about one picture giving way to the next (its own rail page) ----
   {
-    key: 'veilStyle', kind: 'enum', options: ['black', 'crossfade', 'light', 'burn'], default: 'black',
-    label: 'the change', section: 'arrival',
-    description: 'What a camera change dips through. The sunset screen ends in black under all four; this dial is about what a SUNRISE does instead, because a sunrise fading to black plays the day backwards. black: both screens dip through black, as today. crossfade: the sunrise screen never goes dark, one dawn dissolving into the next. light: the sunrise screen dips through the tint below. burn: the picture itself moves toward its veil — the sunrise blows out into white, the sunset darkens into black.',
+    key: 'transition', kind: 'enum', options: ['cut', 'crossfade', 'dip'], default: 'dip',
+    label: 'how it changes', section: 'arrival',
+    description: 'The gesture, for both screens. cut: the new picture simply replaces the old. crossfade: the old picture fades out while the new one fades in on top of it. dip: the old picture fades away into a veil, then the new one fades up out of it. Only `dip` reads the veil dial below — the other two are already not ending in darkness.',
+  },
+  { ...(solo('fadeS') as NumberKnob), default: 1.5, section: 'arrival', label: 'how long (s)', description: 'How long a crossfade takes, or a dip (down plus up). Ignored by cut. This also sets the arrival segment at the front of every dwell, so a long change makes every dwell longer — watch the dwell line on the Play tab.' },
+  {
+    key: 'veilStyle', kind: 'enum', options: ['black', 'none', 'light', 'burn'], default: 'black',
+    label: 'a sunrise dips through', section: 'arrival',
+    description: 'What a camera change dips through, on a `dip`. The SUNSET screen ends in black under all four; this dial is about what a sunrise does instead, because a sunrise fading to black plays the day backwards. black: both screens dip through black, as today. none: the sunrise screen never goes dark, one dawn dissolving straight into the next. light: the sunrise screen dips through the tint below. burn: the picture itself moves toward its veil — the sunrise blows out into white, the sunset darkens into black.',
   },
   {
     key: 'veilTint', kind: 'enum', options: ['white', 'dawn', 'sky', 'dim'], default: 'dawn',
@@ -84,6 +79,11 @@ export const SOLO2_SETTINGS_SCHEMA: SettingsSchema = [
     key: 'veilCovers', kind: 'enum', options: ['picture', 'panel'], default: 'picture',
     label: 'veil covers', section: 'arrival',
     description: 'Whether the veil stays inside the picture or floods the black surround with it too. Invisible while the veil is black; it is the light and burn styles that make it a choice.',
+  },
+  {
+    key: 'sameCameraFadeS', kind: 'number', min: 0, max: 5, step: 0.5, default: 1.5,
+    label: 'same camera (s)', section: 'arrival',
+    description: 'How long one frame of a camera takes to dissolve into the next inside the run, and on a change to a later frame of the camera on glass. Never through black. 0 is a cut.',
   },
   {
     key: 'arrivalEase', kind: 'enum', options: ['linear', 'gentle', 'soft'], default: 'gentle',

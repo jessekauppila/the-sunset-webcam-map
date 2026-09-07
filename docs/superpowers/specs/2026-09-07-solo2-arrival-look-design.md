@@ -111,6 +111,24 @@ configuration allowing the site's origin), which is Jesse's to run; after that
 it is a small follow-up: sample region, tone toward day/night, and a hold on
 the flat colour, all of which the mockup already demonstrates.
 
+### 3.1 One tab owns the change (revised 2026-09-07, after the first look)
+
+Shipped, the dials were split: `transition` (cut / crossfade / dip) stayed on
+**Play** labelled *"camera change"*, while the new veil dial sat on **Change**
+labelled *"the change"*. Jesse went looking for the exposure settings, found the
+Play dial, and reported: *"Camera change tab just shows dip, cut, and crossfade.
+It doesn't show the other things."* Two controls, near-identical names, different
+tabs — the UI taught the wrong thing.
+
+Everything about one picture giving way to the next now lives on the Change
+page, in the order you reason about it: **how it changes** → **how long** → **a
+sunrise dips through** → its tint / burn / coverage → **same camera** → **ease**.
+`veilStyle`'s `crossfade` option became `none`, because `transition` already owns
+that word and a dropdown should not offer the same value under two meanings.
+
+A schema test now asserts the arrival section's exact membership and that no two
+dials in the schema share a label.
+
 ## 5. The rail gains a page
 
 `Change` sits between `Play` and `Picture`, and appears only for a version

@@ -91,7 +91,7 @@ export function arrivalLook(feed: Feed, d: Pick<Solo2Dials,
   const base = { covers: d.veilCovers, ease };
   const sunrise = feed === 'sunrise';
   switch (d.veilStyle) {
-    case 'crossfade':
+    case 'none':
       return { ...base, veilColor: sunrise ? null : '#000000', lift: 1 };
     case 'light':
       return { ...base, veilColor: sunrise ? (VEIL_TINTS[d.veilTint] ?? VEIL_TINTS.dawn) : '#000000', lift: 1 };
