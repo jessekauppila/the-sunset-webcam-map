@@ -11,7 +11,7 @@ describe('CAPTION_SCHEMA', () => {
       font: 'system', feedPrefix: true, titleClean: 'compass',
       titleSize: 21, titleWeight: '300', titleGray: 71,
       placeSize: 17, placeGray: 57, lineGap: 0,
-      timeStyle: '12h-there', timeLine: 'own', timeGap: 0, timeSize: 12, timeGray: 46,
+      timeStyle: '12h-there', hereTime: 'off', timeLine: 'own', timeGap: 0, timeSize: 12, timeGray: 46,
     });
   });
 
