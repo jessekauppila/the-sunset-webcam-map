@@ -89,9 +89,14 @@ export function Solo2Frame({ entry, run, previous, stage, plan, dials, width, he
 
   const arrive = arrival(entry, previous, dials);
   const showPrevious = arrive.kind !== 'cut' && !!previous;
+  // Linear, like the veil under it and like the in-run step above it. An
+  // eased ramp is not the same ramp run backwards: `ease` puts the picture at
+  // 80% brightness halfway through and spends the rest of the fade crawling
+  // the last 20%, so against a linear fade to black the picture reads as
+  // arriving in a third of the time it leaves in. Every dissolve here is linear.
   const inAnimation =
-    arrive.kind === 'crossfade' ? `solo2-fade-in ${arrive.fadeS}s ease both`
-    : arrive.kind === 'dip' ? `solo2-fade-in ${arrive.fadeS / 2}s ease ${arrive.fadeS / 2}s both`
+    arrive.kind === 'crossfade' ? `solo2-fade-in ${arrive.fadeS}s linear both`
+    : arrive.kind === 'dip' ? `solo2-fade-in ${arrive.fadeS / 2}s linear ${arrive.fadeS / 2}s both`
     : undefined;
 
   // The lead: a slow push over the last seconds, driven by the clock stage

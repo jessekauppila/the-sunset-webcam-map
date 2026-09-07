@@ -66,7 +66,7 @@ it('a new frame on glass arrives with the old one as its previous in the same re
   rerender(<Solo2Kiosk webcams={[]} width={100} height={50} feed="sunset" settings={{ transition: 'crossfade' }} />);
   // The previous frame (camera 7's drawn frame) sits underneath and the crossfade is on the stack, from the first render.
   expect(screen.getAllByRole('presentation').map((i) => i.getAttribute('src'))).toEqual(['u3', 'u9']);
-  expect(screen.getByTestId('stack')).toHaveStyle({ animation: 'solo2-fade-in 1.5s ease both' });
+  expect(screen.getByTestId('stack')).toHaveStyle({ animation: 'solo2-fade-in 1.5s linear both' });
   expect(screen.getByTestId('top')).toHaveAttribute('src', 'u9');
 });
 
