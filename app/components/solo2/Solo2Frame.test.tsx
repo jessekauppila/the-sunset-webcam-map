@@ -162,10 +162,11 @@ it('the outgoing caption dissolves away, so a veil-less change never leaves two 
   expect(screen.getByTestId('caption-prev').style.animation.split(' ').slice(1, 2))
     .toEqual(screen.getByTestId('dip').style.animation.split(' ').slice(1, 2));
 
-  // A sunrise set to `none` has no veil, so its dip becomes a crossfade — the
-  // case #172 opened up, and the one that must not strand the old words.
+  // A sunrise change of `crossfade` has no veil, so its dip becomes a crossfade
+  // — the case #172 opened up, and the one that must not strand the old words.
+  // (This option was briefly named `none`; #175 restored the veil study's word.)
   rerender(<Solo2Frame entry={e} run={[e]} previous={prev} stage={one} plan={plan} feed="sunrise"
-    dials={{ ...D, transition: 'dip', fadeS: 2, veilStyle: 'none' }} width={1920} height={1080} />);
+    dials={{ ...D, transition: 'dip', fadeS: 2, veilStyle: 'crossfade' }} width={1920} height={1080} />);
   expect(screen.queryByTestId('dip')).toBeNull();
   expect(screen.getByTestId('caption-prev')).toHaveStyle({ animation: `solo2-fade-out 2s ${E} both` });
 });
