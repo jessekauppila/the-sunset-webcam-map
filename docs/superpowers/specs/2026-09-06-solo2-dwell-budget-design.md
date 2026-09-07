@@ -427,6 +427,35 @@ wrong frames, quietly. That produces a plausible-looking queue rather than an
 error, which is worse than the half-moved clock this document already warns
 about.
 
+### 6.1.1 Three storage constraints
+
+From the replay session, 2026-09-06, before any code was written. All three
+are constraints rather than preferences.
+
+**1. Add `last_shown_slot`; keep `last_shown_at`. Never replace.** The two
+currencies coexist permanently: the slot is what rest is measured in, the
+timestamp is what time is measured in. A slot number has no position in time
+once the grid is gone, so a timestamp cannot be reconstructed from it. The
+replay's pre-log fallback compares a row's own timestamps against a window
+start in wall-clock ms and cannot survive a swap, and the timestamp is also
+what the studio and the tape show a human. This applies to `project` and
+`project2` too: they stamp **both** on the in-memory entry, not the slot
+instead of the timestamp.
+
+**2. `kiosk_draws.slot` and `last_shown_slot` must be the same counter,
+written in the same operation.** Not two counters that happen to agree.
+`kiosk_draws` is already `PRIMARY KEY (feed, slot)` and every draw is
+stamped, so the moment the slot becomes a counter the draw log is already a
+complete per-feed history of draw numbers, and `seedFromDraws` reads
+`d.slot` where it reads `d.shownAt` today. If the two ever diverge,
+historical replay misreads rest silently.
+
+**3. The published dwell end is an absolute instant, epoch ms**, beside
+`current.shownSince` on `StateView` — not a remaining duration. A duration
+is meaningful only with a fetch timestamp attached and goes stale in a cached
+response; an instant does not. The tape's `Playhead` becomes `sinceMs` plus
+`endsAtMs` with no dial involved.
+
 ### 6.2 Every consumer of the grid
 
 Eleven non-test files read `slotFor`, `boundaryMs`, `nextBoundaryMs` or
