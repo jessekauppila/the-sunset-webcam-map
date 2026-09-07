@@ -456,6 +456,39 @@ is meaningful only with a fetch timestamp attached and goes stale in a cached
 response; an instant does not. The tape's `Playhead` becomes `sinceMs` plus
 `endsAtMs` with no dial involved.
 
+### 6.1.2 The deploy window orphans rows; refill after, not before
+
+Found by the replay session on 2026-09-06, measured on production.
+
+The migration lands before the code. In between, production runs the old
+`commitAdvance`, which writes `last_shown_at` and knows nothing about
+`last_shown_slot`, so every frame drawn in that window keeps a timestamp and
+a NULL draw number — about three a minute across both feeds, against an
+active pool of roughly 169 rows.
+
+**What it costs, measured against the code rather than assumed.**
+`isResting` treats NULL as never shown, so rest is **waived** for those rows.
+That is the whole effect. It is not a queue jump: rule 3's first key is
+`compareRecency`, which reads `last_shown_at`, and the old code keeps that
+accurate, so an affected frame still sorts by how recently it was shown and
+lands at the **back** of its bin. That is most of what rest would have done
+anyway. The review that found this predicted a return of the
+least-recently-shown regression of 2026-09-05; it would not, because that
+regression was about rule 3's ordering key and this touches only rule 2's
+filter. The gap is real and worth closing, and it is smaller than that.
+
+**The fix is an ordering, not code.** Run
+`20260907_kiosk_bin_last_shown_slot_refill.sql` as the **last** step of the
+deploy, after the new code is live. Nothing is orphaned once it is, and the
+draw log covers the whole window, so the gap closes to zero. It only fills
+NULLs, so it is safe to run again if the deploy is slow.
+
+That refill also reads the draw log in both shapes, which the first backfill
+did not: `shown_snapshot_ids` only exists from 2026-09-06 23:44Z and 3,555
+earlier rows have it NULL. Falling back to the drawn frame's `snapshot_id`
+rescues those, and the array is still needed for a frame shown only inside a
+camera run.
+
 ### 6.1.3 The rest dial is inert at current pool sizes
 
 Measured by the replay session on 2026-09-06, on live bins, and worth
