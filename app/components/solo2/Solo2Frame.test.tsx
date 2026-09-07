@@ -195,14 +195,14 @@ describe('what the change dips through', () => {
     expect(screen.getByTestId('dip')).toHaveStyle({ background: '#000000' });
   });
 
-  it('crossfade takes the veil off the sunrise screen entirely; the sunset screen still dips', () => {
-    dip({ veilStyle: 'crossfade' });
+  it('a veil of `none` takes it off the sunrise screen entirely; the sunset screen still dips', () => {
+    dip({ veilStyle: 'none' });
     expect(screen.queryByTestId('dip')).toBeNull();
     // Not a cut: the outgoing picture stays, and the new one dissolves over the WHOLE fade.
     expect(screen.getByTestId('prev')).toBeInTheDocument();
     expect(screen.getByTestId('stack')).toHaveStyle({ animation: `solo2-fade-in 2s ${E} both` });
     cleanup();
-    dip({ veilStyle: 'crossfade' }, 'sunset');
+    dip({ veilStyle: 'none' }, 'sunset');
     expect(screen.getByTestId('dip')).toHaveStyle({ background: '#000000' });
   });
 

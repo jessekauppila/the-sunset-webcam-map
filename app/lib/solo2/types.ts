@@ -7,7 +7,7 @@ export type Transition = 'cut' | 'crossfade' | 'dip';
 export type { TimeStyle } from '@/app/lib/solo/types';
 
 /** What a camera change dips through (arrival-look spec §2). A pair: one look per screen. */
-export type VeilStyle = 'black' | 'crossfade' | 'light' | 'burn';
+export type VeilStyle = 'black' | 'none' | 'light' | 'burn';
 
 /** The tint a `light` sunrise dips through (veil.ts `VEIL_TINTS`). */
 export type VeilTint = 'white' | 'dawn' | 'sky' | 'dim';
