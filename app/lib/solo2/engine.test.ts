@@ -160,6 +160,9 @@ describe('the camera run', () => {
 
 describe('dwellMs2: the budget rule over the frames actually played', () => {
   const D2 = { ...dialsFrom2(schemaDefaults(SOLO2_SETTINGS_SCHEMA)), cameraRun: true };
+  // The camera change's own segment at the default fades (dwell-budget spec
+  // §3.3): every dwell is this much longer than the frames' budget.
+  const ARRIVAL = 1_500;
   const frame = (id: number, cam: number, at: number, bin: 'sunset' | 'non_sunset' = 'sunset') => ({
     snapshotId: id, webcamId: cam, bin, quality: bin === 'sunset' ? 0.9 : null, detection: 0.9,
     isNew: false, tally: 0, enteredAt: at, capturedAt: at,
@@ -167,32 +170,32 @@ describe('dwellMs2: the budget rule over the frames actually played', () => {
 
   it('a lone frame holds the whole dwell', () => {
     const one = [frame(1, 7, 1000)];
-    expect(dwellMs2(one, one[0], D2)).toBe(D2.dwellS * 1000);
+    expect(dwellMs2(one, one[0], D2)).toBe(D2.dwellS * 1000 + ARRIVAL);
   });
 
   it('below the threshold the dwell does not move however many frames play', () => {
     const five = Array.from({ length: 5 }, (_, i) => frame(i + 1, 7, (i + 1) * 1000));
-    expect(dwellMs2(five, five[4], D2)).toBe(D2.dwellS * 1000);
+    expect(dwellMs2(five, five[4], D2)).toBe(D2.dwellS * 1000 + ARRIVAL);
   });
 
   it('above it the dwell stretches, and the sunset cap sets the ceiling', () => {
     const twelve = Array.from({ length: 12 }, (_, i) => frame(i + 1, 7, (i + 1) * 1000));
     // 12 frames capped to 8, each held at the 4 s floor: 32 s, not 48.
-    expect(dwellMs2(twelve, twelve[11], D2)).toBe(32_000);
+    expect(dwellMs2(twelve, twelve[11], D2)).toBe(32_000 + ARRIVAL);
   });
 
   it('a non-sunset can never stretch the dwell at the default cap (spec §4.1)', () => {
     // The cap of 3 sits below the threshold of 5, so the budget is merely
     // divided more finely: this dial buys pictures, never screen time.
     const twelve = Array.from({ length: 12 }, (_, i) => frame(i + 1, 7, (i + 1) * 1000, 'non_sunset'));
-    expect(dwellMs2(twelve, twelve[11], D2)).toBe(D2.dwellS * 1000);
+    expect(dwellMs2(twelve, twelve[11], D2)).toBe(D2.dwellS * 1000 + ARRIVAL);
     expect(shown2(twelve, twelve[11], D2)).toHaveLength(3);
   });
 
   it('raising the non-sunset cap past the threshold breaks that guarantee', () => {
     // Recorded because it is the invariant's failure mode, not a nicety.
     const twelve = Array.from({ length: 12 }, (_, i) => frame(i + 1, 7, (i + 1) * 1000, 'non_sunset'));
-    expect(dwellMs2(twelve, twelve[11], { ...D2, runFramesOther: 8 })).toBe(32_000);
+    expect(dwellMs2(twelve, twelve[11], { ...D2, runFramesOther: 8 })).toBe(32_000 + ARRIVAL);
   });
 
   it('agrees with what shown2 puts on glass, always', () => {

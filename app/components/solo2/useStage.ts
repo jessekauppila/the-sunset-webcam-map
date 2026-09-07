@@ -12,9 +12,9 @@ const same = (a: Stage, b: Stage) => a.index === b.index && a.leadProgress === b
  */
 export function useStage(plan: DwellPlan, startMs: number, tickMs = 250): Stage {
   const [stage, setStage] = useState<Stage>(() => stageAt(Date.now() - startMs, plan));
-  const { dwellS, frames, stepS, leadS } = plan;
+  const { dwellS, frames, stepS, leadS, arrivalS } = plan;
   useEffect(() => {
-    const p = { dwellS, frames, stepS, leadS };
+    const p = { dwellS, frames, stepS, leadS, arrivalS };
     const read = () => setStage((prev) => {
       const nextStage = stageAt(Date.now() - startMs, p);
       return same(prev, nextStage) ? prev : nextStage;
@@ -22,6 +22,6 @@ export function useStage(plan: DwellPlan, startMs: number, tickMs = 250): Stage 
     read();
     const t = setInterval(read, tickMs);
     return () => clearInterval(t);
-  }, [startMs, tickMs, dwellS, frames, stepS, leadS]);
+  }, [startMs, tickMs, dwellS, frames, stepS, leadS, arrivalS]);
   return stage;
 }

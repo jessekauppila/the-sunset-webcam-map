@@ -168,7 +168,8 @@ describe('replay', () => {
       sun(1, 0.9, { webcamId: 7, capturedAt: 100 }), sun(3, 0.7, { webcamId: 7, capturedAt: 300 }),
       sun(2, 0.8, { webcamId: 8, capturedAt: 150 }),
     ];
-    const strip = replay({ feed: FEED, version: SOLO_VERSIONS.solo2, dials: d2, entries: rows, priorDraws: [], fromMs: at(SLOT0), toMs: at(SLOT0 + 1) });
+    // A solo2 dwell is the 20 s budget plus the 1.5 s arrival segment (dwell-budget spec §3.3), so the window reaches past one of them.
+    const strip = replay({ feed: FEED, version: SOLO_VERSIONS.solo2, dials: d2, entries: rows, priorDraws: [], fromMs: at(SLOT0), toMs: at(SLOT0) + 21_500 });
     expect(strip.frames[0]).toMatchObject({ snapshotId: 3, shownSnapshotIds: [1, 3] });
     expect(strip.frames[1].snapshotId).toBe(2);
   });

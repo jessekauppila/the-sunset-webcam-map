@@ -76,10 +76,13 @@ that is rejected. A run is a timelapse, and a timelapse has one step.
 
 ```
 perFrame = max(minStepS, dwellS / n)
-total    = perFrame × n
+total    = arrivalS + perFrame × n
 ```
 
-where `n` is the number of frames the run plays, after the caps in §4.
+where `n` is the number of frames the run plays, after the caps in §4, and
+`arrivalS` is the camera change's own segment at the front of the dwell
+(§3.3, added 2026-09-07). The table below is the frames' part; every dwell
+is `arrivalS` (1.5 s at the default fades) longer than it shows.
 
 At `dwellS` 20 and `minStepS` 4:
 
@@ -117,6 +120,43 @@ hold the screen for nearly ten minutes. The only way the floor alone could
 bound the total is by letting frames get arbitrarily short, which is the
 flicker this design exists to remove. **The frame cap is not an extra rule
 bolted on top of the budget. It is what makes the floor safe.**
+
+### 3.3 The arrival segment (added 2026-09-07)
+
+Jesse, on the studio preview, 2026-09-07: *"the first frame in a prelude
+series seems shorter than the others."* It was. The camera change — the
+dip's veil over the old picture, then the new picture fading up — ran inside
+frame 1's step. Frame 1 held for `stepS − fadeS` while every later frame held
+for `stepS`, and the run read as clipped at the front.
+
+The fix gives the change its own segment before the run's clock starts:
+
+```
+arrivalS = max(transition == cut ? 0 : fadeS, sameCameraFadeS)
+total    = arrivalS + perFrame × n
+```
+
+The run's clock — `stageAt` — starts when the arrival ends, so frame 1 is up
+throughout the arrival and then holds a whole step, like every frame after it.
+The last frame holds its whole step too, and then leaves under the next
+dwell's veil; nothing at the back needed to change.
+
+Three consequences:
+
+- **The arrival is sized for the longest fade the dwell might open with,**
+  not the one it will actually open with. The server sizes a dwell (§5.2)
+  without knowing what was on glass before it, so it cannot tell a camera
+  change (the transition dial's fade) from a later frame of the same camera
+  (the same-camera dissolve). At the default dials both are 1.5 s. When the
+  actual arrival is shorter, frame 1 simply holds for the rest.
+- **The stretch threshold does not move.** `dwellS` is still the frames'
+  budget; the arrival is on top of it, on every dwell alike. The studio's
+  budget line prints it (`5 frames × 4 s · arrival 1.5 s`) and compares the
+  frames' part, not the total, against the dial when deciding whether to say
+  "stretched".
+- **solo has no arrival.** Its dials carry no camera-change fade, so
+  `arrivalS` is 0 and its dwell is exactly the dial, as before. A version
+  gains an arrival only by having the fade dials.
 
 ## 4. Frame caps, per bin
 

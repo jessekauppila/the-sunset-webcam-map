@@ -2,22 +2,46 @@ import type { Solo2Dials } from './types';
 
 /** One dwell's timeline, in seconds (camera-run spec §4.1). */
 export interface DwellPlan {
+  /** The whole dwell: the arrival, then the frames. */
   dwellS: number;
   /** Frames the dwell plays, at least 1. */
   frames: number;
-  /** Each frame's even share of the dwell. */
+  /** Each frame's even share of the frames' budget. */
   stepS: number;
   leadS: number;
+  /**
+   * The camera change's own segment at the front of the dwell (dwell-budget
+   * spec §3.3). Frame 1's step begins when it ends, so the first frame holds
+   * as long as every other. 0 for dials without fades.
+   */
+  arrivalS: number;
 }
 
-export type PlanDials = Pick<Solo2Dials, 'dwellS' | 'leadS' | 'minStepS'>;
+/**
+ * The fade dials are optional so that solo's dials, which have no camera
+ * change, plan a dwell with no arrival — and so do fixtures that predate it.
+ */
+export type PlanDials = Pick<Solo2Dials, 'dwellS' | 'leadS' | 'minStepS'>
+  & Partial<Pick<Solo2Dials, 'transition' | 'fadeS' | 'sameCameraFadeS'>>;
+
+/**
+ * How long the front of a dwell is spent arriving (dwell-budget spec §3.3).
+ * Sized for the longest arrival the dwell might open with — the camera-change
+ * fade, or the same-camera dissolve — because the server sizes a dwell
+ * without knowing what was on glass before it. When the actual arrival is
+ * shorter, frame 1 simply holds for the rest.
+ */
+export function arrivalS(d: Partial<Pick<Solo2Dials, 'transition' | 'fadeS' | 'sameCameraFadeS'>>): number {
+  const change = d.transition && d.transition !== 'cut' ? Math.max(0, d.fadeS ?? 0) : 0;
+  return Math.max(change, Math.max(0, d.sameCameraFadeS ?? 0));
+}
 
 /**
  * The budget rule (dwell-budget spec §3). `dwellS` is a budget the run's
- * frames share, floored at `minStepS`:
+ * frames share, floored at `minStepS`, and the arrival sits in front of it:
  *
  *     perFrame = max(minStepS, dwellS / n)
- *     total    = perFrame * n
+ *     total    = arrivalS + perFrame * n
  *
  * At or below `n* = floor(dwellS / minStepS)` frames the budget is merely
  * divided more finely and the total stays `dwellS` — one image holds the
@@ -31,8 +55,9 @@ export type PlanDials = Pick<Solo2Dials, 'dwellS' | 'leadS' | 'minStepS'>;
 export function fitPlan(d: PlanDials, frames: number): DwellPlan {
   const n = Math.max(1, Math.floor(frames));
   const stepS = Math.max(d.minStepS, d.dwellS / n);
-  const totalS = stepS * n;
-  return { dwellS: totalS, frames: n, stepS, leadS: Math.min(totalS, Math.max(0, d.leadS)) };
+  const arrival = arrivalS(d);
+  const totalS = arrival + stepS * n;
+  return { dwellS: totalS, frames: n, stepS, leadS: Math.min(totalS, Math.max(0, d.leadS)), arrivalS: arrival };
 }
 
 /**
@@ -76,15 +101,18 @@ export interface Stage {
  */
 export function stageAt(elapsedMs: number, p: DwellPlan): Stage {
   const t = Math.max(0, elapsedMs) / 1000;
-  const index = Math.min(p.frames - 1, Math.floor(t / p.stepS));
+  // The run's own clock starts when the arrival ends; frame 1 is up throughout the arrival.
+  const index = Math.min(p.frames - 1, Math.floor(Math.max(0, t - p.arrivalS) / p.stepS));
   const leadStart = p.dwellS - p.leadS;
   const leadProgress = p.leadS > 0 ? Math.min(1, Math.max(0, (t - leadStart) / p.leadS)) : 0;
   return { index, leadProgress };
 }
 
-/** The line the studio prints: `4 frames × 5 s`, `1 frame · 20 s`, `· lead 4 s` when the lead is on. */
+/** The line the studio prints: `4 frames × 5 s`, `1 frame · 20 s`, `· lead 4 s` when the lead is on, `· arrival 1.5 s` when there is one. */
 export function describePlan(p: DwellPlan): string {
   const s = (n: number) => `${Number(n.toFixed(1))} s`;
-  const frames = p.frames === 1 ? `1 frame · ${s(p.dwellS)}` : `${p.frames} frames × ${s(p.stepS)}`;
-  return p.leadS > 0 ? `${frames} · lead ${s(p.leadS)}` : frames;
+  const frames = p.frames === 1 ? `1 frame · ${s(p.dwellS - p.arrivalS)}` : `${p.frames} frames × ${s(p.stepS)}`;
+  const lead = p.leadS > 0 ? ` · lead ${s(p.leadS)}` : '';
+  const arrival = p.arrivalS > 0 ? ` · arrival ${s(p.arrivalS)}` : '';
+  return `${frames}${lead}${arrival}`;
 }

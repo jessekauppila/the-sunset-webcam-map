@@ -278,14 +278,18 @@ export function Rail({ api, surface, tab, onTab, runFrames = 1, children }: {
   const sharedDiff = new Set(api.diffByNamespace[SHARED_NAMESPACE] ?? []);
   const panel = PANEL_PRESETS[String(shared.panelPreset)] ?? PANEL_PRESETS[DEFAULT_PANEL_PRESET];
   const soloDials = surface.solo ? surface.solo.dialsFrom(withCaption(values, shared)) : null;
-  // leadS and minStepS are solo2's. A version without a lead leads for no
-  // time at all; a version without a floor has none, so its frames divide the
-  // dwell at any count and it can never stretch (dwell-budget spec §3).
+  // leadS, minStepS and the fades are solo2's. A version without a lead leads
+  // for no time at all; a version without a floor has none, so its frames
+  // divide the dwell at any count and it can never stretch (dwell-budget spec
+  // §3); a version without a camera change has no arrival segment (§3.3).
   const planDials: PlanDials | null = soloDials
     ? {
       dwellS: soloDials.dwellS,
       leadS: (soloDials as Partial<Solo2Dials>).leadS ?? 0,
       minStepS: (soloDials as Partial<Solo2Dials>).minStepS ?? 0,
+      transition: (soloDials as Partial<Solo2Dials>).transition,
+      fadeS: (soloDials as Partial<Solo2Dials>).transition ? soloDials.fadeS : undefined,
+      sameCameraFadeS: (soloDials as Partial<Solo2Dials>).sameCameraFadeS,
     }
     : null;
   const page: RailTab = surface.hasPicturePage ? tab : 'play';
