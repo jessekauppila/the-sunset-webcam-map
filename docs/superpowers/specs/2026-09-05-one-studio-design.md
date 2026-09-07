@@ -1,8 +1,7 @@
 # One studio — design
 
 **Date:** 2026-09-05
-**Status:** phase A built on feat/one-studio (PR to follow); phases B and C
-follow as stacked PRs.
+**Status:** phases A, B, C built (PRs #146, #147, phase C PR to follow)
 **Branch:** `docs/one-studio` (this document only).
 **Builds on:** `2026-08-30-kiosk-studio-control-and-mosaic-v2-design.md`
 (studio/live profiles, Deploy), `2026-09-04-solo-kiosk-design.md` §6.4 (the
@@ -269,10 +268,14 @@ one page with one preview makes its absence obvious.
   solo2, `SoloFrame` for solo, `resolveMosaic(v)` for the mosaic versions.
   `Solo2Frame` today is reachable only from `Solo2Kiosk`; it takes the same
   props shape and needs no change.
-- For solo versions the preview **plays**: a `useSoloPreview(feed, order,
-  dials)` hook advances a local clock through the projected queue on the
-  studio dials, with the version's `roleAt` for lead/prelude/transition
-  phases. No server advance is called. The glass keeps its own clock; the
+- For solo versions the preview **plays**: a `useSoloPreview(order, dwellS,
+  tickMs = 250)` hook advances a local clock through the projected queue on
+  the studio dials, returning `{ entry, previous, startMs, index }`. No
+  server advance is called. Roles arrive baked into `projected.next` rather
+  than from the version's `roleAt`; the lead and camera-run phases are
+  played by `useLoopingStage` + `Solo2Frame`, keyed on the dwell start
+  (`dwell.startMs`) so a server advance while the preview sits at index 0
+  also restarts the run's stage clock. The glass keeps its own clock; the
   status line's poll age is the only live truth on the page.
 - The mosaic preview is unchanged: `resolveMosaic(v)` on the live or scene
   pool with studio dials, which already previews the studio profile.
@@ -314,7 +317,7 @@ New:
   `StudioClient` behind the surface lookup.
 - `app/studio/pollAge.ts` — `formatPollAge`, the header status line's "last
   heard from the kiosk" readout.
-- `app/studio/useSoloPreview.ts` — §5.
+- `app/studio/solo/useSoloPreview.ts` — §5.
 - `database/migrations/2026MMDD_kiosk_takes.sql` — §4.1.
 
 Changed: `StudioClient.tsx` (becomes the grid + the surface lookup),
