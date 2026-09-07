@@ -29,14 +29,16 @@ it('draws the on-glass frame at the top of the queue and keeps queued frames out
   expect(screen.queryByRole('group')).toBeNull();
 });
 
-it('each bin is three labelled stages with counts, even when a stage is empty', () => {
+it('each bin is three labelled stages with counts, even when a stage is empty; a bin the queue emptied says so instead', () => {
   const v = view();
   render(<FeedColumn feed="sunset" server={v} projected={v} liveDials={D} nowMs={5_000} onSelect={vi.fn()} />);
-  // Frame 4 (rating 1.4) is under the sunset floor; nothing rests; both bins render all three labels.
-  expect(screen.getAllByText('IN LINE · 0')).toHaveLength(2);
-  expect(screen.getAllByText('RESTING · 0')).toHaveLength(2);
+  // Frame 4 (rating 1.4) is under the sunset floor; nothing rests; the sunset bin renders all three labels.
+  expect(screen.getByText('IN LINE · 0')).toBeInTheDocument();
+  expect(screen.getByText('RESTING · 0')).toBeInTheDocument();
   expect(screen.getByText('UNDER FLOOR · 1')).toBeInTheDocument();
-  expect(screen.getByText('UNDER FLOOR · 0')).toBeInTheDocument();
+  // The non-sunset bin's only frame (3) is in the queue, so the bin is one line, not three zeros.
+  expect(screen.getByTestId('bin-emptied-non_sunset')).toHaveTextContent('its one frame is in the queue');
+  expect(screen.queryByText('UNDER FLOOR · 0')).toBeNull();
   expect(screen.getByText('rating 1.4 < 3.2')).toBeInTheDocument();
   expect(screen.getByText(/^on glass · shown ×/)).toBeInTheDocument();
 });
@@ -167,4 +169,27 @@ it('solo2 greys out the frames of a camera that the most-frames cap cuts, keeps 
     expect.arrayContaining(Array.from({ length: 10 }, (_, i) => expect.objectContaining({ snapshotId: i + 1 }))));
   const list = onSelect.mock.calls[0][2].map((e: { snapshotId: number }) => e.snapshotId);
   expect(list.indexOf(1)).toBeLessThan(list.indexOf(3));
+});
+
+it('a bin the queue has emptied says so in one line instead of three zero stages', async () => {
+  const { SOLO_VERSIONS } = await import('@/app/lib/solo/versions');
+  const { SOLO2_SETTINGS_SCHEMA, dialsFrom2 } = await import('@/app/lib/solo2/settingsSchema');
+  const d2 = { ...dialsFrom2(schemaDefaults(SOLO2_SETTINGS_SCHEMA)), ratingFloor: 1 };
+  const at = Date.UTC(2026, 8, 5, 2, 42);
+  // Two sunset cameras, both drawn by an 8-deep queue; one non-sunset camera under its floor stays in its bin.
+  const es = [
+    { ...entry(1, 'sunset', 0.8, 7), capturedAt: at, timezone: 'America/Mazatlan' },
+    { ...entry(2, 'sunset', 0.9, 9), capturedAt: at, timezone: 'America/Mazatlan' },
+    { ...entry(3, 'non_sunset', 0.1, 11), capturedAt: at, timezone: 'America/Mazatlan' },
+  ];
+  const v = buildStateView({ feed: 'sunrise', dials: d2, entries: es, screen: null,
+    nowMs: 0, admitted: { sunset: 0, nonSunset: 0 }, zone: { minDeg: -24, maxDeg: -2 }, version: SOLO_VERSIONS.solo2 });
+  render(<FeedColumn feed="sunrise" server={v} projected={v} liveDials={d2} nowMs={0} version={SOLO_VERSIONS.solo2} onSelect={vi.fn()} />);
+  expect(screen.getByTestId('bin-emptied-sunset')).toHaveTextContent('all 2 cameras are in the queue');
+  // Cameras, not draws: the heading still counts the queue's draws.
+  expect(screen.getByText(/Sunset bin · 0 waiting · \d+ queued/)).toBeInTheDocument();
+  expect(screen.queryByTestId('bin-emptied-non_sunset')).toBeNull();
+  // The emptied bin has no stage boxes; the other bin keeps its three.
+  expect(screen.getAllByText(/^IN LINE · /)).toHaveLength(1);
+  expect(screen.getByText('UNDER FLOOR · 1')).toBeInTheDocument();
 });

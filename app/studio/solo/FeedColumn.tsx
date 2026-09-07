@@ -159,12 +159,27 @@ export function FeedColumn({ feed, server, projected, liveDials, nowMs, version,
   const qNon = queue.length - qSun;
   const seen = new Set<number>();
 
+  // How many distinct items of a bin the queue holds: cameras with the run on, frames with it off.
+  const queuedOf = (bin: 'sunset' | 'non_sunset') =>
+    new Set(queue.filter((e) => e.bin === bin).map((e) => (grouping ? e.webcamId : e.snapshotId))).size;
+
   const column = (bin: 'sunset' | 'non_sunset', color: string, title: string, hint: string) => {
     const boxes = binOf(bin);
     const list = boxes.flatMap(framesOf);
+    const queuedHere = queuedOf(bin);
+    const unit = grouping ? 'camera' : 'frame';
+    // A bin the queue has emptied says so in one line. Three `· 0` stages under
+    // a heading that already says `6 queued` read as a broken view (2026-09-06).
+    const emptied = boxes.length === 0 && queuedHere > 0;
     return (
       <Bin color={color} title={`${title} · ${boxes.length} waiting · ${bin === 'sunset' ? qSun : qNon} queued`} hint={hint}>
-        {STAGE_KINDS.map((kind) => {
+        {emptied && (
+          <div data-testid={`bin-emptied-${bin}`} title="Every item of this bin is in the queue on the right, so nothing waits here. A queued item leaves its bin."
+            style={{ fontSize: 10, color, fontFamily: mono, padding: '4px 2px', cursor: 'help' }}>
+            {queuedHere === 1 ? `its one ${unit} is in the queue` : `all ${queuedHere} ${unit}s are in the queue`}
+          </div>
+        )}
+        {!emptied && STAGE_KINDS.map((kind) => {
           const rows = boxes.filter((b) => stageOf(b.entry) === kind);
           return (
             <StageBox key={kind} kind={kind} color={color} count={rows.length}>
