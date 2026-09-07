@@ -22,6 +22,7 @@ export type RunFrame = ViewEntry & { rank?: number };
  */
 const KEYFRAMES = `
 @keyframes solo2-fade-in { from { opacity: 0 } to { opacity: 1 } }
+@keyframes solo2-fade-out { from { opacity: 1 } to { opacity: 0 } }
 @keyframes solo2-dip { from { opacity: 0 } to { opacity: 1 } }
 @keyframes solo2-burn-out { from { filter: brightness(1) } to { filter: brightness(var(--solo2-lift, 1)) } }
 @keyframes solo2-burn-in { from { filter: brightness(var(--solo2-lift, 1)) } to { filter: brightness(1) } }
@@ -119,6 +120,18 @@ export function Solo2Frame({ entry, run, previous, stage, plan, dials, width, he
     arrive.kind === 'crossfade' ? `solo2-fade-in ${arrive.fadeS}s ${ease} both`
     : arrive.kind === 'dip' ? `solo2-fade-in ${arrive.fadeS / 2}s ${ease} ${arrive.fadeS / 2}s both`
     : undefined;
+  // The outgoing caption's half of that dissolve. A picture needs none — the
+  // arriving frame is opaque and covers the one beneath it — but a caption is
+  // transparent between its letters, so words left at full opacity stay
+  // legible under the new words for the whole dwell. Only the dip's veil ever
+  // hid them, which is why a crossfade, a same-camera arrival, or a dip with
+  // no veil colour showed two clocks at once. It leaves over the same span the
+  // picture takes to cover it: the whole fade on a crossfade, the closing half
+  // on a dip, held at the end by `both`.
+  const outAnimation =
+    arrive.kind === 'crossfade' ? `solo2-fade-out ${arrive.fadeS}s ${ease} both`
+    : arrive.kind === 'dip' ? `solo2-fade-out ${arrive.fadeS / 2}s ${ease} both`
+    : undefined;
   // The picture moves toward the veil rather than merely being covered by it:
   // up into white on a sunrise, down into black on a sunset. That is what
   // separates an exposure from a dip through a coloured card. Only on a dip,
@@ -150,7 +163,8 @@ export function Solo2Frame({ entry, run, previous, stage, plan, dials, width, he
       {showPrevious && (
         // The words being left behind, under the veil and under the arriving
         // caption, so the caption dissolves exactly as the picture does.
-        <div key={`caption-prev-${previous.snapshotId}`} data-testid="caption-prev" style={captionLayer}>
+        <div key={`caption-prev-${previous.snapshotId}`} data-testid="caption-prev"
+          style={{ ...captionLayer, animation: outAnimation }}>
           <Caption entry={previous} dials={dials} picture={picture} width={width} height={height} feed={feed} />
         </div>
       )}
