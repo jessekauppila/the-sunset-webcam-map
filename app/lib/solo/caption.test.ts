@@ -205,18 +205,26 @@ describe('pictureRect', () => {
 });
 
 describe('splitTime', () => {
-  it('keeps the words the two readings share and hands back only what changed', () => {
-    expect(splitTime('7:42 pm there', '7:52 pm there')).toEqual({ fromHead: '7:42', toHead: '7:52', tail: 'pm there' });
-    // "pm" is shared until it isn't.
-    expect(splitTime('11:52 am there', '12:02 pm there')).toEqual({ fromHead: '11:52 am', toHead: '12:02 pm', tail: 'there' });
-    expect(splitTime('sun 1.2° above the horizon', 'sun 0.4° above the horizon'))
-      .toEqual({ fromHead: 'sun 1.2°', toHead: 'sun 0.4°', tail: 'above the horizon' });
+  it('holds every character the two readings share at both ends and fades only the stretch between', () => {
+    // The hour and the colon did not move, so they do not animate.
+    expect(splitTime('7:22 pm there', '7:32 pm there'))
+      .toEqual({ lead: '7:', fromMid: '2', toMid: '3', tail: '2 pm there' });
+    expect(splitTime('7:42 pm there', '7:52 pm there'))
+      .toEqual({ lead: '7:', fromMid: '4', toMid: '5', tail: '2 pm there' });
+    // One digit of the sun's angle, with "sun 1." and the words after it still.
+    expect(splitTime('sun 1.2° above the horizon', 'sun 1.4° above the horizon'))
+      .toEqual({ lead: 'sun 1.', fromMid: '2', toMid: '4', tail: '° above the horizon' });
   });
-  it('compares whole words, so a shared digit never splits a number', () => {
-    expect(splitTime('7:42', '7:52')).toEqual({ fromHead: '7:42', toHead: '7:52', tail: '' });
+  it('an hour rolling over past noon moves the middle and keeps both ends', () => {
+    expect(splitTime('11:52 am there', '12:02 pm there'))
+      .toEqual({ lead: '1', fromMid: '1:52 a', toMid: '2:02 p', tail: 'm there' });
   });
-  it('leaves a word in the head even when every word matches, so there is always something to fade', () => {
-    expect(splitTime('7:42 pm there', '7:42 pm there')).toEqual({ fromHead: '7:42', toHead: '7:42', tail: 'pm there' });
+  it('a reading with no shared ends fades whole', () => {
+    expect(splitTime('7:59', '8:00')).toEqual({ lead: '', fromMid: '7:59', toMid: '8:00', tail: '' });
+  });
+  it('leaves a character in the middle even when the two readings match, so there is always something to fade', () => {
+    expect(splitTime('7:42 pm there', '7:42 pm there'))
+      .toEqual({ lead: '7:42 pm ther', fromMid: 'e', toMid: 'e', tail: '' });
   });
 });
 

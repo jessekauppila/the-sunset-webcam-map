@@ -233,21 +233,40 @@ export function pictureRect(
 }
 
 /**
- * The two readings of the clock, split into the words that change and the
- * tail they share. "7:42 pm there" → "7:52 pm there" changes only "7:42", so
- * only that crossfades and "pm there" holds still; "sun 1.2° above the
- * horizon" keeps "above the horizon". Compared word by word from the end, so
- * a shared digit never splits a number, and the head keeps at least one word.
+ * One reading and the reading it replaces, split into the characters they
+ * share at each end and the stretch between that actually moved.
+ *
+ * Character by character, not word by word: "7:22 pm there" → "7:32 pm there"
+ * moves one digit, so `lead` holds "7:", `tail` holds "2 pm there", and only
+ * "2" → "3" crossfades. Comparing words would have faded the whole "7:22",
+ * carrying the hour and the colon along with the minute that changed. The
+ * time is drawn in tabular figures, so a digit swapped mid-number lands in
+ * exactly the same place and nothing beside it shifts.
+ *
+ * Both ends stop one character short of consuming a reading, so there is
+ * always something in the middle to fade even when the two are the same.
  */
-export function splitTime(from: string, to: string): { fromHead: string; toHead: string; tail: string } {
-  const a = from.split(' ');
-  const b = to.split(' ');
-  let shared = 0;
-  while (shared < a.length - 1 && shared < b.length - 1 && a[a.length - 1 - shared] === b[b.length - 1 - shared]) shared++;
+export interface TimeSplit {
+  /** What both readings begin with; never animates. */
+  lead: string;
+  /** The stretch that moved, on its way out and on its way in. */
+  fromMid: string;
+  toMid: string;
+  /** What both readings end with; never animates. */
+  tail: string;
+}
+
+export function splitTime(from: string, to: string): TimeSplit {
+  const room = Math.min(from.length, to.length) - 1;
+  let lead = 0;
+  while (lead < room && from[lead] === to[lead]) lead++;
+  let tail = 0;
+  while (lead + tail < room && from[from.length - 1 - tail] === to[to.length - 1 - tail]) tail++;
   return {
-    fromHead: a.slice(0, a.length - shared).join(' '),
-    toHead: b.slice(0, b.length - shared).join(' '),
-    tail: b.slice(b.length - shared).join(' '),
+    lead: to.slice(0, lead),
+    fromMid: from.slice(lead, from.length - tail),
+    toMid: to.slice(lead, to.length - tail),
+    tail: tail ? to.slice(to.length - tail) : '',
   };
 }
 

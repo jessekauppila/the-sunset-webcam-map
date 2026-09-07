@@ -4,6 +4,18 @@ import { Caption } from './Caption';
 import { dialsFrom, SOLO_SETTINGS_SCHEMA } from '@/app/lib/solo/settingsSchema';
 import { schemaDefaults } from '@/app/lib/settings/schema';
 
+/**
+ * The time line as it is actually drawn. Mid-crossfade the line also carries
+ * the reading on its way out, which is aria-hidden and sits on top of the one
+ * that replaced it, so it has to come out before reading the text.
+ */
+const drawnTime = () => {
+  const el = screen.getByTestId('caption-time').cloneNode(true) as HTMLElement;
+  el.querySelectorAll('[aria-hidden="true"]').forEach((n) => n.remove());
+  return el.textContent;
+};
+
+
 const D = dialsFrom(schemaDefaults(SOLO_SETTINGS_SCHEMA));
 const AT = Date.UTC(2026, 8, 5, 2, 42); // 7:42 pm in Mazatlán, 10:42 pm in New York
 const e = {
@@ -27,12 +39,13 @@ it('off leaves the camera’s clock alone', () => {
 it('a step fades each reading against its own predecessor, so the words that held still do not animate', () => {
   const from = { ...e, capturedAt: AT - 9 * 60_000 }; // 7:33 pm there, 10:33 pm here
   draw({ dials: { ...D, hereTime: 'dot' }, step: { from, fadeS: 1 } });
-  // Two readings moved, so two heads fade in and two fade out — and "pm there"
-  // and "pm here" are tails on their own reading rather than one shared tail.
-  // (The line also carries the readings on their way out, so it is the heads
-  // and the tails that say what is being drawn, not the line's text content.)
-  expect(screen.getAllByTestId('caption-time-head').map((n) => n.textContent)).toEqual(['7:42', '10:42']);
-  expect(screen.getAllByTestId('caption-time-out').map((n) => n.textContent)).toEqual(['7:33', '10:33']);
+  expect(drawnTime()).toBe('7:42 pm there · 10:42 pm here');
+  // Two readings moved, so two stretches fade in and two fade out — and each
+  // reading holds its own ends rather than sharing one tail with the other.
+  // 7:33 → 7:42 and 10:33 → 10:42: the hour and the colon held, so only the
+  // minutes are on the move.
+  expect(screen.getAllByTestId('caption-time-head').map((n) => n.textContent)).toEqual(['42', '42']);
+  expect(screen.getAllByTestId('caption-time-out').map((n) => n.textContent)).toEqual(['33', '33']);
   for (const n of screen.getAllByTestId('caption-time-head')) {
     expect(n).toHaveStyle({ animation: 'solo-time-in 1s ease both' });
   }

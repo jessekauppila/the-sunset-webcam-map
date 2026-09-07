@@ -94,20 +94,21 @@ export function Caption({ entry, dials, picture, width, feed, step, hereTimezone
         // two animations without remounting the line they sit in.
         const split = splitTime(p.from, p.to);
         return (
-          <span key={i} style={{ position: 'relative', display: 'inline-block' }}>
-            <span style={{ display: 'inline-block' }}>
-              <span data-testid="caption-time-head" key={split.toHead} style={{
+          <span key={i}>
+            {split.lead}
+            <span style={{ position: 'relative', display: 'inline-block' }}>
+              <span data-testid="caption-time-head" key={split.toMid} style={{
                 display: 'inline-block', animation: `solo-time-in ${fade}s ease both`,
               }}>
-                {split.toHead}
+                {split.toMid}
               </span>
-              {split.tail ? ` ${split.tail}` : null}
+              <span data-testid="caption-time-out" key={split.fromMid} aria-hidden style={{
+                position: 'absolute', left: 0, top: 0, animation: `solo-time-out ${fade}s ease both`,
+              }}>
+                {split.fromMid}
+              </span>
             </span>
-            <span data-testid="caption-time-out" key={split.fromHead} aria-hidden style={{
-              position: 'absolute', left: 0, top: 0, animation: `solo-time-out ${fade}s ease both`,
-            }}>
-              {split.fromHead}
-            </span>
+            {split.tail}
           </span>
         );
       })}
