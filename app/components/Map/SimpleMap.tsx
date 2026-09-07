@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useMap } from './hooks/useMap';
 import { useSetWebcamMarkers } from './hooks/useSetWebcamMarkers';
 import { useUpdateTerminatorRing } from './hooks/useUpdateTerminatorRing';
+import { useSweepOverlay } from './hooks/useSweepOverlay';
 import { useMapInteractionPause } from './hooks/useMapInteractionPause';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import type { Location } from '../../lib/types';
@@ -61,6 +62,9 @@ export default function SimpleMap({
     precisionDeg: TERMINATOR_PRECISION_DEG, // Match cron job precision
     searchRadiusDegrees: SEARCH_RADIUS_DEG, // Match cron job search radius
   });
+
+  // The sweep, drawn on request from the Ops tab: rings, boxes, swept state.
+  useSweepOverlay(map, mapLoaded, currentTime);
 
   const {
     currentWebcam: nextLatitudeNorthSunsetWebCam,

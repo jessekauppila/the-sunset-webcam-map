@@ -4,40 +4,13 @@
  */
 
 import type { Location, WindyWebcam } from '@/app/lib/types';
+import { boundingBox } from '@/app/lib/sweepBox';
 import {
   SEARCH_RADIUS_DEG,
   WINDY_FETCH_STAGGER_WITHIN_BATCH_MS,
 } from '@/app/lib/masterConfig';
 
-export interface BoundingBox {
-  northLat: number;
-  southLat: number;
-  eastLon: number;
-  westLon: number;
-}
-
-/**
- * Query box for one ring point, clamped to the ranges Windy accepts.
- *
- * Verified live 2026-09-02: the clusters endpoint 400s on northLat > 90,
- * southLat < -90, eastLon > 180 or westLon < -180, and `fetchWebcamsFor`
- * turns that into a silent empty array. The ring genuinely reaches both
- * the pole and the antimeridian, so ~2 of 31 boxes per sweep were being
- * lost that way.
- *
- * Clamping shrinks the box rather than wrapping it, so a box straddling
- * the antimeridian loses the sliver on the far side. Splitting into two
- * boxes would recover it; not done here because that stretch is open
- * ocean and a shrunken box still beats a 400.
- */
-export function boundingBox(loc: Location, radiusDeg: number): BoundingBox {
-  return {
-    northLat: Math.min(90, loc.lat + radiusDeg),
-    southLat: Math.max(-90, loc.lat - radiusDeg),
-    eastLon: Math.min(180, loc.lng + radiusDeg),
-    westLon: Math.max(-180, loc.lng - radiusDeg),
-  };
-}
+export { boundingBox, type BoundingBox } from '@/app/lib/sweepBox';
 
 /**
  * One box's answer, with the status that produced it.
