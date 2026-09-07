@@ -456,6 +456,36 @@ is meaningful only with a fetch timestamp attached and goes stale in a cached
 response; an instant does not. The tape's `Playhead` becomes `sinceMs` plus
 `endsAtMs` with no dial involved.
 
+### 6.1.3 The rest dial is inert at current pool sizes
+
+Measured by the replay session on 2026-09-06, on live bins, and worth
+recording because it reframes everything in §6.
+
+Rest only binds when a frame's turn comes round again inside `rest` draws.
+Against a dial of 4:
+
+| feed | bin | active | waived |
+|---|---|---|---|
+| sunrise | non_sunset | 63 | 3 |
+| sunrise | sunset | 18 | 0 |
+| sunset | non_sunset | 20 | 1 |
+| sunset | sunset | 61 | 4 |
+
+Every bin is an order of magnitude larger than the dial, so a frame's turn
+never comes round within 4 draws and rest is not currently preventing
+anything. This is the same conclusion the replay runs reached from the other
+direction, that rest never binds.
+
+Two consequences, and neither is that §6 was wasted:
+
+1. **§6 is correctness, not behaviour.** The currency has to be right before
+   the clock moves, whether or not the rule is doing work today. But the
+   urgency of the refill in §6.1.2 is correspondingly low: it closes a gap in
+   a rule that is not binding.
+2. **The `rest` dial deserves a separate look.** An operator dial that cannot
+   fire at any realistic pool size is a dial that lies. Out of scope here,
+   flagged in §9.
+
 ### 6.2 Every consumer of the grid
 
 Eleven non-test files read `slotFor`, `boundaryMs`, `nextBoundaryMs` or
@@ -567,6 +597,9 @@ does today.
    on `/studio`.
 2. **The residual place-line reflow** in §7, if it survives #153.
 3. **The walking window** (§4.3) is deferred.
+4. **The `rest` dial may be inert** (§6.1.3). It cannot fire at current pool
+   sizes. Worth deciding whether it should be reframed or removed rather than
+   left as a dial that appears to do something.
 
 4. **Authorisation.** Jesse approved the design in conversation and asked for
    this write-up. He has not said to build it. Nothing here is started.
