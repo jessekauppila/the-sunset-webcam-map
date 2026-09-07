@@ -5,7 +5,9 @@ import type { EntryView, StateView, ViewEntry } from '@/app/api/kiosk/solo/view'
 import type { Feed } from '@/app/lib/solo/types';
 import type { SoloVersionName } from '@/app/lib/solo/versions';
 
-const STATE_REFRESH_MS = 60_000;
+export const STATE_REFRESH_MS = 60_000;
+/** The least time between two fires of the dwell timer, so a failed advance retries rather than spins. */
+export const RETRY_MS = 5_000;
 
 export interface SoloGlass {
   current: EntryView | null;
@@ -49,7 +51,13 @@ export function useSoloGlass({ feed, drive, dozing, version = 'solo' }: {
   const [view, setView] = useState<StateView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [tick, setTick] = useState(0);
-  const lastSlotPosted = useRef<number | null>(null);
+  // Set only while an advance is on the wire. It was once the last slot
+  // posted, and that latch never reopened: one rejected post (a 400 for a
+  // screen whose frame had aged out of the pool, 2026-09-06) and the screen
+  // could never advance again without a reload.
+  const inFlight = useRef(false);
+  // The timer may not fire again before this instant, whatever the dwell says.
+  const notBeforeMs = useRef(0);
   const driveRef = useRef(drive);
   const dozingRef = useRef(dozing);
   driveRef.current = drive;
@@ -86,18 +94,26 @@ export function useSoloGlass({ feed, drive, dozing, version = 'solo' }: {
   // know it; deriving it here would duplicate engine logic and drift
   // silently. Re-armed after every fire and whenever the published end moves.
   const endsAtMs = view?.current?.endsAtMs ?? null;
-  const currentSlot = view?.current?.slot ?? null;
+  // The slot belongs to the SCREEN, not to the frame on it: the state view
+  // publishes it as schedule.slot even when `current` is null because the
+  // frame on glass aged out of the pool. Reading it off `current` is what
+  // sent slot 1 for a screen at 89437689.
+  const screenSlot = view?.schedule.slot ?? null;
   useEffect(() => {
-    // No state yet, or a screen with nothing on it: poll rather than guess a
-    // boundary. The state refresh above is what recovers from this.
-    const wait = endsAtMs == null ? STATE_REFRESH_MS : Math.max(1, endsAtMs - Date.now());
+    // No state yet: nothing to post, the state refresh above is what recovers.
+    if (screenSlot == null) return;
+    // Nothing on glass means no dwell to wait out; the server projects from
+    // now in that case too, so advance now.
+    const dueMs = endsAtMs ?? Date.now();
+    const wait = Math.max(1, dueMs - Date.now(), notBeforeMs.current - Date.now());
     const t = setTimeout(async () => {
       // The slot is a counter now, not a function of the clock: the next draw
       // is simply the one after the one on glass. Monotonic per feed, which is
       // what kiosk_draws' (feed, slot) primary key needs.
-      const slot = (currentSlot ?? 0) + 1;
-      if (driveRef.current && !dozingRef.current && lastSlotPosted.current !== slot) {
-        lastSlotPosted.current = slot;
+      const slot = screenSlot + 1;
+      notBeforeMs.current = Date.now() + RETRY_MS;
+      if (driveRef.current && !dozingRef.current && !inFlight.current) {
+        inFlight.current = true;
         try {
           const res = await fetch('/api/kiosk/solo/advance', {
             method: 'POST',
@@ -106,24 +122,31 @@ export function useSoloGlass({ feed, drive, dozing, version = 'solo' }: {
           });
           if (!res.ok) throw new Error(`advance ${res.status}`);
           const v = (await res.json()) as StateView & { advanced: boolean };
+          // The server accepted the slot but the screen did not move (nothing
+          // eligible to draw). The pool only changes when the cron admits, so
+          // asking again before the next state refresh is asking the same
+          // question.
+          if (v.schedule.slot === screenSlot) notBeforeMs.current = Date.now() + STATE_REFRESH_MS;
           setView(v);
           setError(null);
           if (v.next[0]) void preload(v.next[0].imageUrl);
         } catch (e) {
           setError(String(e));
+        } finally {
+          inFlight.current = false;
         }
       }
       setTick((n) => n + 1); // re-arm
     }, wait);
     return () => clearTimeout(t);
-  }, [feed, version, endsAtMs, currentSlot, tick]);
+  }, [feed, version, endsAtMs, screenSlot, tick]);
 
   return {
     current: view?.current?.entry ?? null,
     shownSince: view?.current?.shownSince ?? null,
     endsAtMs,
     next: view?.next[0] ?? null,
-    slot: currentSlot ?? 0,
+    slot: screenSlot ?? 0,
     boundaryMs: endsAtMs ?? Date.now(),
     error,
     queueLength: view?.next.length ?? 0,
