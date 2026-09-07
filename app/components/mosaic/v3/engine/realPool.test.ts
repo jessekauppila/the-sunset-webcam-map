@@ -104,11 +104,17 @@ describe('the real pool, on the real axis', () => {
     // 13 x 480 drew 5 / evicted 37 here and showed 1 of the 4 real sunsets;
     // 8 x 240 (decided 2026-09-03) shows 3 of 4. Update these numbers when
     // the dials move again.
+    //
+    // Ring moved to -5 on 2026-09-07 (axis now -16..+6). This fixture was
+    // captured under the old -24..-2 ring, so a third of its cameras sit
+    // below the new night edge, clamp onto it and collide: 7 drawn / 35
+    // evicted, 2 of the 4 real sunsets. A drift tripwire only; recapture
+    // the fixture from the new ring before reading these as a tuning result.
     const layout = compose(sunset, viewport, cfg, 'sunset');
-    expect(layout.tiles.length).toBe(8);
-    expect(layout.evicted.length).toBe(34);
-    expect(layout.tiles.filter((t) => t.passes).length).toBe(3);
-    expect(compose(sunrise, viewport, cfg, 'sunrise').tiles.length).toBe(9);
+    expect(layout.tiles.length).toBe(7);
+    expect(layout.evicted.length).toBe(35);
+    expect(layout.tiles.filter((t) => t.passes).length).toBe(2);
+    expect(compose(sunrise, viewport, cfg, 'sunrise').tiles.length).toBe(8);
   });
 
   it('keeps every drawn tile inside the panel horizontally', () => {

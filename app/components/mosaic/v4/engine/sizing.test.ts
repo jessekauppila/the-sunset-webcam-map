@@ -4,7 +4,7 @@ import { v4Config } from './testConfig';
 import type { TileInput, V4Config } from './types';
 
 const tile = (id: number, passes: boolean, score: number | null): TileInput => ({
-  id, lat: 0, lng: 0, srcWidth: 400, srcHeight: 300, passes, score, sunAltitudeDeg: -13,
+  id, lat: 0, lng: 0, srcWidth: 400, srcHeight: 300, passes, score, sunAltitudeDeg: -5,
 });
 
 const cfg = (over: Partial<V4Config> = {}): V4Config =>

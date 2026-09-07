@@ -130,11 +130,10 @@ export async function GET(req: Request) {
     classify: classifyWebcamsByPhase,
     floor: TERMINATOR_CAMERA_FLOOR,
     offsets: TERMINATOR_WIDEN_OFFSETS_DEG,
-    // Phase 1 of the pool-coverage spec: force the golden-hour ring so the
-    // pool reaches 0 to +6 degrees, where good frames actually are, instead
-    // of only the -24 to -2 band the base ring covers. Roughly doubles Windy
-    // boxes per tick, which is the cost the measurement window exists to
-    // price.
+    // Phase 1 of the pool-coverage spec: force the day-side ring every tick.
+    // Written when the base ring sat at -13 and missed the quality peak; the
+    // base ring covers the peak itself since 2026-09-07, so the switch is now
+    // a plain camera-count widener. Roughly doubles Windy boxes per tick.
     forcedOffsets,
     // Escalation rings are the first thing sacrificed on a slow tick: the
     // scoring loop below needs the remaining budget more than the pool needs

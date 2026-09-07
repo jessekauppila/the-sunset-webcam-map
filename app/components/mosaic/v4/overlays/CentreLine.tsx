@@ -5,8 +5,8 @@ import { altitudeToUnit, type AxisConfig } from '../engine/axis';
  * The terminator zone made visible.
  *
  * Screen centre is the POOL's ring at TERMINATOR_SUN_ALTITUDE_DEG, not the
- * geometric terminator at 0 degrees — zero is outside the window today and
- * clamps (spec §3).
+ * geometric terminator at 0 degrees. Zero is inside the window since the
+ * ring moved to -5 on 2026-09-07, but it is still not the centre (spec §3).
  *
  * The line sits at `unit * width`: the ring's position on the full-width
  * axis, where a zero-width tile would centre. Real tiles are placed on a

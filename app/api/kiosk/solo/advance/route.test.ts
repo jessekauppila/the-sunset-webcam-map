@@ -49,10 +49,10 @@ afterEach(() => {
 describe('POST /api/kiosk/solo/advance', () => {
   it('echoes the zone the cron last aged entries against, falling back to the guaranteed rings', async () => {
     expect((await (await post({ feed: 'sunrise', slot: 0 })).json()).zone)
-      .toEqual({ minDeg: -24, maxDeg: -2 });
-    getSweptZone.mockResolvedValue({ minDeg: -39.75, maxDeg: 13.75 });
+      .toEqual({ minDeg: -16, maxDeg: 6 });
+    getSweptZone.mockResolvedValue({ minDeg: -31.75, maxDeg: 21.75 });
     expect((await (await post({ feed: 'sunrise', slot: 0 })).json()).zone)
-      .toEqual({ minDeg: -39.75, maxDeg: 13.75 });
+      .toEqual({ minDeg: -31.75, maxDeg: 21.75 });
   });
   it('rejects bad bodies', async () => {
     expect((await post({})).status).toBe(400);

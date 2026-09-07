@@ -106,9 +106,12 @@ describe('TERMINATOR_DAY_SIDE_OFFSETS_DEG', () => {
     expect(TERMINATOR_DAY_SIDE_OFFSETS_DEG).toEqual([15.75]);
   });
 
-  it('puts its ring inside the measured quality peak', () => {
+  it('still gathers from the measured quality peak', () => {
+    // The base ring covers the peak (-10..+8) itself since 2026-09-07; the
+    // day ring is the thin-feed escape hatch and must not have drifted so
+    // far into daylight that its box misses the peak entirely.
     const altitude = TERMINATOR_SUN_ALTITUDE_DEG + TERMINATOR_DAY_SIDE_OFFSETS_DEG[0];
-    expect(altitude).toBeGreaterThan(0);
-    expect(altitude).toBeLessThan(6);
+    expect(altitude - SEARCH_RADIUS_DEG).toBeLessThanOrEqual(0);
+    expect(altitude + SEARCH_RADIUS_DEG).toBeGreaterThanOrEqual(8);
   });
 });

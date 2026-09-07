@@ -114,11 +114,17 @@ describe('the real pool, on the real axis', () => {
     // admitted/evicted SET is identical with and without the taper. The
     // taper is exercised on this fixture; it just doesn't move these
     // particular counts.
+    //
+    // Ring moved to -5 on 2026-09-07 (axis now -16..+6). This fixture was
+    // captured under the old -24..-2 ring, so a third of its cameras sit
+    // below the new night edge, clamp onto it and collide: 7 drawn / 35
+    // evicted, 3 of the 4 real sunsets. A drift tripwire only; recapture
+    // the fixture from the new ring before reading these as a tuning result.
     const layout = compose(sunset, viewport, cfg, 'sunset');
-    expect(layout.tiles.length).toBe(8);
-    expect(layout.evicted.length).toBe(34);
+    expect(layout.tiles.length).toBe(7);
+    expect(layout.evicted.length).toBe(35);
     expect(layout.tiles.filter((t) => t.passes).length).toBe(3);
-    expect(compose(sunrise, viewport, cfg, 'sunrise').tiles.length).toBe(9);
+    expect(compose(sunrise, viewport, cfg, 'sunrise').tiles.length).toBe(8);
   });
 
   it('keeps every drawn tile inside the panel horizontally', () => {

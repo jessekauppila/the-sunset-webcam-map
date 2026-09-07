@@ -76,8 +76,9 @@ describe('V3_SETTINGS_SCHEMA', () => {
     expect(byKey.hysteresisMargin).toBe(0.05);
     expect(byKey.minDwellMs).toBe(90_000);
     // Spec §6: the window's current derived values, now held as dials.
-    expect(byKey.axisNightEdgeDeg).toBe(-24);
-    expect(byKey.axisDayEdgeDeg).toBe(-2);
+    // -16..+6 is the pool band since the ring moved to -5 on 2026-09-07.
+    expect(byKey.axisNightEdgeDeg).toBe(-16);
+    expect(byKey.axisDayEdgeDeg).toBe(6);
   });
 
   it('carries no dial the v3 engine cannot act on', () => {
@@ -97,7 +98,7 @@ describe('configFromSettings', () => {
     expect(cfg.gateThreshold).toBe(0.55);
     expect(cfg.maxTiles).toBe(0);
     expect(cfg.bandCount).toBe(8);
-    expect(cfg.axisDayEdgeDeg).toBe(-2);
+    expect(cfg.axisDayEdgeDeg).toBe(6);
   });
 
   it('carries dial changes through', () => {

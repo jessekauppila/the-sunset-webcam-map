@@ -15,21 +15,21 @@ beforeEach(() => {
 
 describe('sweptZone', () => {
   it('is the base ring alone when only the base ring swept', () => {
-    expect(sweptZone([0])).toEqual({ minDeg: -24, maxDeg: -2 });
+    expect(sweptZone([0])).toEqual({ minDeg: -16, maxDeg: 6 });
   });
 
   it('includes every ring that swept this tick, escalations included', () => {
     // The 2026-09-05 sunrise bug: the sweep escalated to +15.75 for a thin
     // sunrise feed and admitted golden-hour cameras at +1..+11, but the
-    // removal zone counted only the guaranteed rings (-24..-2), so every one
-    // of them was evicted three ticks later. Admission and removal must read
-    // the same band.
-    expect(sweptZone([0, 15.75, -15.75])).toEqual({ minDeg: -39.75, maxDeg: 13.75 });
+    // removal zone counted only the guaranteed rings (then -24..-2), so every
+    // one of them was evicted three ticks later. Admission and removal must
+    // read the same band.
+    expect(sweptZone([0, 15.75, -15.75])).toEqual({ minDeg: -31.75, maxDeg: 21.75 });
   });
 
   it('always contains the base ring, even if telemetry omitted it', () => {
-    expect(sweptZone([15.75])).toEqual({ minDeg: -24, maxDeg: 13.75 });
-    expect(sweptZone([])).toEqual({ minDeg: -24, maxDeg: -2 });
+    expect(sweptZone([15.75])).toEqual({ minDeg: -16, maxDeg: 21.75 });
+    expect(sweptZone([])).toEqual({ minDeg: -16, maxDeg: 6 });
   });
 });
 
@@ -46,20 +46,19 @@ describe('coverageSpan', () => {
 describe('sweepGeometry', () => {
   it('records the base ring alone when nothing is forced', () => {
     const g = sweepGeometry([]);
-    expect(g.baseAltitudeDeg).toBe(-13);
+    expect(g.baseAltitudeDeg).toBe(-5);
     expect(g.searchRadiusDeg).toBe(11);
     expect(g.forcedOffsetsDeg).toBe('');
-    expect(g.coverageMinDeg).toBe(-24);
-    expect(g.coverageMaxDeg).toBe(-2);
+    expect(g.coverageMinDeg).toBe(-16);
+    expect(g.coverageMaxDeg).toBe(6);
   });
 
-  it('widens the recorded coverage to golden hour when the day ring is forced', () => {
-    // This is the number the whole measurement is about: the guaranteed pool
-    // has to contain 0 to +6 degrees, where 19.7% of frames are good, versus
-    // 1.0% at the base ring.
+  it('widens the recorded coverage into daylight when the day ring is forced', () => {
+    // The base ring covers the quality peak on its own since 2026-09-07; a
+    // forced day ring extends the guaranteed band, and the record says so.
     const g = sweepGeometry([15.75]);
-    expect(g.coverageMinDeg).toBe(-24);
-    expect(g.coverageMaxDeg).toBe(13.75);
+    expect(g.coverageMinDeg).toBe(-16);
+    expect(g.coverageMaxDeg).toBe(21.75);
   });
 
   it('gives different configurations different signatures', () => {

@@ -4,29 +4,29 @@ import { TERMINATOR_POOL_COVERAGE_DEG, TERMINATOR_SUN_ALTITUDE_DEG } from '@/app
 import { V4_SETTINGS_SCHEMA } from '../settingsSchema';
 import type { SizedTile } from './types';
 
-const cfg: AxisConfig = { axisNightEdgeDeg: -24, axisDayEdgeDeg: -2 };
+const cfg: AxisConfig = { axisNightEdgeDeg: -16, axisDayEdgeDeg: 6 };
 
 const sized = (over: Partial<SizedTile> = {}): SizedTile => ({
   id: 1, lat: 0, lng: 0, srcWidth: 400, srcHeight: 224,
-  passes: true, score: 0.8, sunAltitudeDeg: -13,
+  passes: true, score: 0.8, sunAltitudeDeg: -5,
   width: 200, height: 112, pinnedToFloor: false,
   ...over,
 });
 
 describe('altitudeToUnit', () => {
   it('puts the pool ring at the centre of the panel on both feeds', () => {
-    expect(altitudeToUnit(-13, cfg, 'sunset')).toBeCloseTo(0.5, 6);
-    expect(altitudeToUnit(-13, cfg, 'sunrise')).toBeCloseTo(0.5, 6);
+    expect(altitudeToUnit(-5, cfg, 'sunset')).toBeCloseTo(0.5, 6);
+    expect(altitudeToUnit(-5, cfg, 'sunrise')).toBeCloseTo(0.5, 6);
   });
 
   it('puts the day side on the LEFT for sunset and the RIGHT for sunrise', () => {
     // Spec §3: west stays on the left, so the day edge swaps between feeds.
-    expect(altitudeToUnit(-2, cfg, 'sunset')).toBeCloseTo(0, 6);
-    expect(altitudeToUnit(-2, cfg, 'sunrise')).toBeCloseTo(1, 6);
+    expect(altitudeToUnit(6, cfg, 'sunset')).toBeCloseTo(0, 6);
+    expect(altitudeToUnit(6, cfg, 'sunrise')).toBeCloseTo(1, 6);
   });
 
   it('clamps altitudes outside the window to an edge rather than widening it', () => {
-    expect(altitudeToUnit(10, cfg, 'sunrise')).toBe(1);
+    expect(altitudeToUnit(20, cfg, 'sunrise')).toBe(1);
     expect(altitudeToUnit(-90, cfg, 'sunrise')).toBe(0);
   });
 
@@ -35,7 +35,7 @@ describe('altitudeToUnit', () => {
   });
 
   it('degenerates to the centre rather than dividing by zero', () => {
-    expect(altitudeToUnit(-13, { axisNightEdgeDeg: -2, axisDayEdgeDeg: -2 }, 'sunset')).toBe(0.5);
+    expect(altitudeToUnit(-5, { axisNightEdgeDeg: 6, axisDayEdgeDeg: 6 }, 'sunset')).toBe(0.5);
   });
 });
 
@@ -48,8 +48,8 @@ describe('tileX', () => {
 
   it('keeps a tile inside the panel at both edges', () => {
     const wide = sized({ width: 900 });
-    expect(tileX({ ...wide, sunAltitudeDeg: -2 }, 1080, cfg, 'sunset')).toBe(0);
-    expect(tileX({ ...wide, sunAltitudeDeg: -24 }, 1080, cfg, 'sunset')).toBe(180);
+    expect(tileX({ ...wide, sunAltitudeDeg: 6 }, 1080, cfg, 'sunset')).toBe(0);
+    expect(tileX({ ...wide, sunAltitudeDeg: -16 }, 1080, cfg, 'sunset')).toBe(180);
   });
 
   it('parks an unknown moment at the centre instead of an edge', () => {
@@ -61,9 +61,9 @@ describe('tileX', () => {
     // Documents the real relationship the centre-line overlay relies on:
     // tileCentre = unit * W + w * (0.5 - unit). An earlier comment claimed the
     // two always coincide; they coincide only at unit 0.5.
-    const offCentre: AxisConfig = { axisNightEdgeDeg: -24, axisDayEdgeDeg: -6 };
-    const unit = altitudeToUnit(-13, offCentre, 'sunrise');
-    const t = sized({ sunAltitudeDeg: -13, width: 200 });
+    const offCentre: AxisConfig = { axisNightEdgeDeg: -16, axisDayEdgeDeg: 2 };
+    const unit = altitudeToUnit(-5, offCentre, 'sunrise');
+    const t = sized({ sunAltitudeDeg: -5, width: 200 });
     const line = unit * 1080;
     const tileCentre = tileX(t, 1080, offCentre, 'sunrise') + t.width / 2;
     expect(unit).toBeCloseTo(11 / 18, 6);
