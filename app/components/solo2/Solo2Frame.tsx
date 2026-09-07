@@ -40,7 +40,10 @@ export function arrival(
  * clock-driven stage has reached it and dissolving in over the same-camera
  * fade capped at its share. The caption and the score overlays follow the
  * frame that is up, so the words and the score on glass are always those of
- * the picture on glass.
+ * the picture on glass. The caption arrives on the picture's own transition —
+ * the outgoing words sit under the veil, the new ones fade in with the new
+ * frame — and inside a run, where every frame is the same camera, the title
+ * and the place hold still while only the clock steps.
  */
 export function Solo2Frame({ entry, run, previous, stage, plan, dials, width, height, feed }: {
   /** The drawn frame: the run's last. */
@@ -64,6 +67,9 @@ export function Solo2Frame({ entry, run, previous, stage, plan, dials, width, he
   const pictureLayer = {
     position: 'absolute', left: picture.left, top: picture.top, width: picture.width, height: picture.height, objectFit: 'cover',
   } as const;
+  // The caption is panel-relative, not picture-relative, so its layers span
+  // the panel rather than the picture box. Never a click target.
+  const captionLayer = { position: 'absolute', inset: 0, pointerEvents: 'none' } as const;
   const scale = Math.max(1, Math.min(width, height) / 540); // score overlay text scales with the panel
   const sequence: RunFrame[] = run.length > 0 ? run : [entry];
   const shown = Math.min(stage.index, sequence.length - 1);
@@ -96,6 +102,13 @@ export function Solo2Frame({ entry, run, previous, stage, plan, dials, width, he
         // eslint-disable-next-line @next/next/no-img-element
         <img key={`prev-${previous.snapshotId}`} src={previous.imageUrl} alt="" role="presentation" style={pictureLayer} />
       )}
+      {showPrevious && (
+        // The words being left behind, under the veil and under the arriving
+        // caption, so the caption dissolves exactly as the picture does.
+        <div key={`caption-prev-${previous.snapshotId}`} data-testid="caption-prev" style={captionLayer}>
+          <Caption entry={previous} dials={dials} picture={picture} width={width} height={height} feed={feed} />
+        </div>
+      )}
       {arrive.kind === 'dip' && showPrevious && (
         <div key={`dip-${entry.snapshotId}`} data-testid="dip" style={{
           ...layer, background: '#000', animation: `solo2-dip ${arrive.fadeS / 2}s linear both`,
@@ -115,7 +128,12 @@ export function Solo2Frame({ entry, run, previous, stage, plan, dials, width, he
           ))}
         </div>
       </div>
-      <Caption entry={up} dials={dials} picture={picture} width={width} height={height} feed={feed} />
+      {/* keyed like the stack, so the words arrive with the picture and once
+          per dwell; inside the dwell only the clock moves. */}
+      <div key={`caption-${entry.snapshotId}`} data-testid="caption-layer" style={{ ...captionLayer, animation: inAnimation }}>
+        <Caption entry={up} dials={dials} picture={picture} width={width} height={height} feed={feed}
+          step={shown > 0 ? { from: sequence[shown - 1], fadeS: stepFade } : null} />
+      </div>
       {(dials.showScores || dials.showRank || dials.showTally) && (
         <div style={{
           position: 'absolute', right: 24 * scale, bottom: 20 * scale, color: '#fff',

@@ -94,3 +94,15 @@ it('names the screen before the title when the prefix dial is on, and only then'
   rerender(<SoloFrame entry={e} previous={null} fadeS={0} dials={D} width={1920} height={1080} />);
   expect(screen.getByTestId('caption-title')).not.toHaveTextContent(/Sunrise|Sunset/);
 });
+
+it('the caption crossfades on the picture’s dial, and cuts with it at zero', () => {
+  const prev = { ...e, snapshotId: 0, imageUrl: 'u0', title: 'Zadar › East' };
+  const { rerender } = render(<SoloFrame entry={e} previous={prev} fadeS={3} dials={D} width={1920} height={1080} />);
+  expect(screen.getByTestId('caption-layer')).toHaveStyle({ animation: 'solo-fade-in 3s ease' });
+  expect(screen.getByTestId('caption-prev')).toHaveTextContent('Zadar');
+
+  // At a cut there is nothing to dissolve, so the old words are never drawn.
+  rerender(<SoloFrame entry={e} previous={prev} fadeS={0} dials={D} width={1920} height={1080} />);
+  expect(screen.queryByTestId('caption-prev')).toBeNull();
+  expect(screen.getByTestId('caption-layer').style.animation).toBe('');
+});

@@ -120,3 +120,67 @@ it('the lead pushes the frame in by progress and lands the next frame still', ()
     dials={{ ...D, leadS: 4, leadScale: 1.04 }} width={100} height={50} />);
   expect(screen.getByTestId('push')).toHaveStyle({ transform: 'scale(1.0000)', transition: 'none' });
 });
+
+it('the caption arrives on the picture’s transition: the same animation, and the outgoing words underneath', () => {
+  const prev = { ...e, snapshotId: 0, webcamId: 99, imageUrl: 'u0', title: 'Old pier' };
+  const one = { index: 0, leadProgress: 0 };
+  const { rerender } = render(<Solo2Frame entry={e} run={[e]} previous={prev} stage={one} plan={plan}
+    dials={{ ...D, transition: 'crossfade', fadeS: 2 }} width={1920} height={1080} />);
+  expect(screen.getByTestId('caption-layer')).toHaveStyle({ animation: 'solo2-fade-in 2s ease both' });
+  expect(screen.getByTestId('caption-layer').style.animation).toBe(screen.getByTestId('stack').style.animation);
+  expect(screen.getByText('Old pier')).toBeInTheDocument(); // the words being left behind
+
+  // A cut has nothing to dissolve: no outgoing caption, no animation.
+  rerender(<Solo2Frame entry={e} run={[e]} previous={prev} stage={one} plan={plan}
+    dials={{ ...D, transition: 'cut' }} width={1920} height={1080} />);
+  expect(screen.getByTestId('caption-layer').style.animation).toBe('');
+  expect(screen.queryByTestId('caption-prev')).toBeNull();
+});
+
+it('on a dip the veil covers the outgoing caption, and the new words fade in after it', () => {
+  const prev = { ...e, snapshotId: 0, webcamId: 99, imageUrl: 'u0' };
+  render(<Solo2Frame entry={e} run={[e]} previous={prev} stage={{ index: 0, leadProgress: 0 }} plan={plan}
+    dials={{ ...D, transition: 'dip', fadeS: 2 }} width={1920} height={1080} />);
+  const out = screen.getByTestId('caption-prev');
+  const veil = screen.getByTestId('dip');
+  const arriving = screen.getByTestId('caption-layer');
+  // Painted in this order, so the veil hides the old words rather than sitting behind them.
+  expect(out.compareDocumentPosition(veil) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  expect(veil.compareDocumentPosition(arriving) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  expect(arriving).toHaveStyle({ animation: 'solo2-fade-in 1s ease 1s both' });
+});
+
+it('inside a run only the clock moves: the old time fades out, the new one in, and the words are not remounted', () => {
+  // A real run is one camera, so every frame carries the same words.
+  const sameCam = run.map((f) => ({ ...f, title: 'Pier' }));
+  const { rerender } = render(<Solo2Frame entry={e} run={sameCam} previous={null} stage={{ index: 1, leadProgress: 0 }} plan={plan}
+    dials={{ ...D, sameCameraFadeS: 1 }} width={1920} height={1080} />);
+  expect(screen.getByTestId('caption-time')).toHaveTextContent('7:32 pm there');
+  expect(screen.getByTestId('caption-time')).toHaveStyle({ animation: 'solo-time-in 0.5s ease 0.5s both' });
+  expect(screen.getByTestId('caption-time-out')).toHaveTextContent('7:22 pm there');
+  expect(screen.getByTestId('caption-time-out')).toHaveStyle({ animation: 'solo-time-out 0.5s ease both' });
+
+  // Stepping again keeps the very same caption element: the title and the
+  // place hold still while the clock swaps under them.
+  const held = screen.getByTestId('caption-layer');
+  rerender(<Solo2Frame entry={e} run={sameCam} previous={null} stage={{ index: 2, leadProgress: 0 }} plan={plan}
+    dials={{ ...D, sameCameraFadeS: 1 }} width={1920} height={1080} />);
+  expect(screen.getByTestId('caption-layer')).toBe(held);
+  expect(screen.getByTestId('caption-time')).toHaveTextContent('7:42 pm there');
+  expect(screen.getByTestId('caption-time-out')).toHaveTextContent('7:32 pm there');
+});
+
+it('a run’s first frame has no clock to leave', () => {
+  render(<Solo2Frame entry={e} run={run} previous={null} stage={{ index: 0, leadProgress: 0 }} plan={plan}
+    dials={{ ...D, sameCameraFadeS: 1 }} width={1920} height={1080} />);
+  expect(screen.queryByTestId('caption-time-out')).toBeNull();
+  expect(screen.getByTestId('caption-time').style.animation).toBe('');
+});
+
+it('two frames of one minute say the same time, so nothing fades', () => {
+  const sameMinute = [{ ...e, snapshotId: 1, imageUrl: 'u1' }, e]; // both taken at AT
+  render(<Solo2Frame entry={e} run={sameMinute} previous={null} stage={{ index: 1, leadProgress: 0 }} plan={plan}
+    dials={{ ...D, sameCameraFadeS: 1 }} width={1920} height={1080} />);
+  expect(screen.queryByTestId('caption-time-out')).toBeNull();
+  expect(screen.getByTestId('caption-time').style.animation).toBe('');
+});

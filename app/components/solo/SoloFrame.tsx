@@ -12,8 +12,9 @@ const mono = 'ui-monospace, SFMono-Regular, Menlo, monospace';
  * One frame on the panel: full-bleed when the caption layout is overlay,
  * inset on black when it is inset (lib/solo/caption.ts says where). The
  * previous frame sits underneath so a fade dial above zero crossfades
- * instead of cutting; at zero the top layer is simply there. Overlays are
- * what the live dials say and nothing else.
+ * instead of cutting; at zero the top layer is simply there. The caption
+ * crossfades on the same dial, so the words never cut while the picture
+ * dissolves. Overlays are what the live dials say and nothing else.
  */
 export function SoloFrame({ entry, previous, fadeS, dials, width, height, feed }: {
   entry: EntryView;
@@ -30,6 +31,9 @@ export function SoloFrame({ entry, previous, fadeS, dials, width, height, feed }
     position: 'absolute', left: picture.left, top: picture.top, width: picture.width, height: picture.height, objectFit: 'cover',
   } as const;
   const scale = Math.max(1, Math.min(width, height) / 540); // score overlay text scales with the panel
+  // The caption is panel-relative, not picture-relative, so its layers span
+  // the panel rather than the picture box. Never a click target.
+  const captionLayer = { position: 'absolute', inset: 0, pointerEvents: 'none' } as const;
   return (
     <div style={{ position: 'relative', width, height, background: '#000', overflow: 'hidden' }}>
       {previous && (
@@ -49,7 +53,18 @@ export function SoloFrame({ entry, previous, fadeS, dials, width, height, feed }
         }}
       />
       <style>{'@keyframes solo-fade-in { from { opacity: 0 } to { opacity: 1 } }'}</style>
-      <Caption entry={entry} dials={dials} picture={picture} width={width} height={height} feed={feed} />
+      {previous && fadeS > 0 && (
+        // The words being left behind, under the arriving caption. Only while
+        // the dial fades: at a cut they would sit under identical text.
+        <div key={`caption-prev-${previous.snapshotId}`} data-testid="caption-prev" style={captionLayer}>
+          <Caption entry={previous} dials={dials} picture={picture} width={width} height={height} feed={feed} />
+        </div>
+      )}
+      <div key={`caption-${entry.snapshotId}`} data-testid="caption-layer" style={{
+        ...captionLayer, animation: fadeS > 0 ? `solo-fade-in ${fadeS}s ease` : undefined,
+      }}>
+        <Caption entry={entry} dials={dials} picture={picture} width={width} height={height} feed={feed} />
+      </div>
       {(dials.showScores || dials.showRank || dials.showTally) && (
         <div style={{
           position: 'absolute', right: 24 * scale, bottom: 20 * scale, color: '#fff',
