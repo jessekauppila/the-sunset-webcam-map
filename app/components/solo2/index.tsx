@@ -61,7 +61,7 @@ export function Solo2Kiosk(props: MosaicProps) {
 
   // The same capped run the server used to size this dwell (spec §4), so the
   // step rate on glass and the published end can never disagree.
-  const run = current ? runOf(current, glass.entries, dials.cameraRun, capFor(current, dials)) : [];
+  const run = current ? runOf(current, glass.entries, dials.cameraRun, capFor(current, dials, glass.entries, dials.cameraRun)) : [];
   const plan = fitPlan(dials, run.length);
   const stage = useStage(plan, dwell.startMs);
 
@@ -70,7 +70,7 @@ export function Solo2Kiosk(props: MosaicProps) {
   const nextId = nextEntry?.snapshotId ?? null;
   useEffect(() => {
     if (!nextEntry) return;
-    for (const f of runOf(nextEntry, glass.entries, dials.cameraRun, capFor(nextEntry, dials))) preload(f.imageUrl);
+    for (const f of runOf(nextEntry, glass.entries, dials.cameraRun, capFor(nextEntry, dials, glass.entries, dials.cameraRun))) preload(f.imageUrl);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nextId, dials.cameraRun]);
 

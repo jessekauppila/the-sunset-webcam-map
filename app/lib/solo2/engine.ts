@@ -54,7 +54,7 @@ export function next2<T extends RunEntry>(
 export function shown2<T extends RunEntry>(entries: T[], pick: T, d: Solo2Dials): T[] {
   // Capped per bin (spec §4). A frame the cap dropped never plays, so it is
   // never stamped shown either — the two must not disagree.
-  return runOf(pick, entries, d.cameraRun, capFor(pick, d));
+  return runOf(pick, entries, d.cameraRun, capFor(pick, d, entries, d.cameraRun));
 }
 
 /**

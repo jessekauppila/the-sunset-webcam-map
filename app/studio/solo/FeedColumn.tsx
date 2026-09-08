@@ -66,8 +66,11 @@ interface Box { entry: EntryView; run?: Run }
 const framesOf = (b: Box): EntryView[] => [...(b.run?.skipped ?? []), ...(b.run?.earlier ?? []), b.entry];
 
 const capDial = (bin: 'sunset' | 'non_sunset') => bin === 'sunset' ? 'runFramesSunset' : 'runFramesOther';
-const capLabelOf = (bin: 'sunset' | 'non_sunset', cap: number) =>
-  `${SOLO2_SETTINGS_SCHEMA.find((k) => k.key === capDial(bin))?.label ?? 'most frames'} · ${cap}`;
+// A ranked sunset's cap is its share of the dial, so the label says both.
+const capLabelOf = (bin: 'sunset' | 'non_sunset', cap: number, d: Solo2Dials) => {
+  const dial = SOLO2_SETTINGS_SCHEMA.find((k) => k.key === capDial(bin))?.label ?? 'most frames';
+  return bin === 'sunset' && d.runShape === 'rank' ? `${dial} · ${cap} of ${d.runFramesSunset} by rank` : `${dial} · ${cap}`;
+};
 
 const TAPE_OPEN_KEY = 'studio.tape.open';
 
@@ -133,12 +136,12 @@ export function FeedColumn({ feed, server, projected, liveDials, nowMs, version,
    */
   const runFor = (e: EntryView): Run | undefined => {
     if (!d2) return undefined;
-    const cap = capFor(e, d2);
+    const cap = capFor(e, d2, all, true);
     const played = runOf(e, all, true, cap);
     const playedIds = new Set(played.map((f) => f.snapshotId));
     const skipped = runOf(e, all, true).filter((f) => !playedIds.has(f.snapshotId));
     if (played.length <= 1 && skipped.length === 0) return undefined;
-    return { earlier: played.slice(0, -1), skipped, capLabel: capLabelOf(e.bin, cap), stepS: fitPlan(d2, played.length).stepS };
+    return { earlier: played.slice(0, -1), skipped, capLabel: capLabelOf(e.bin, cap, d2), stepS: fitPlan(d2, played.length).stepS };
   };
 
   // The queue: each draw with the run it plays.

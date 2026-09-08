@@ -1,4 +1,5 @@
 import type { BinEntry } from '@/app/lib/solo/types';
+import type { RunShape } from './types';
 
 /**
  * The camera run (camera-run spec §3): in solo2 a camera's frames are one
@@ -81,9 +82,46 @@ export function runOf<T extends RunEntry>(
   return [...earlier.slice(Math.max(0, earlier.length - keep)), entry];
 }
 
-/** The frame cap for this entry's bin (spec §4): sunsets get the longer run. */
-export function capFor(
-  e: Pick<BinEntry, 'bin'>, d: { runFramesSunset: number; runFramesOther: number },
+export interface CapDials {
+  runFramesSunset: number;
+  runFramesOther: number;
+  runShape?: RunShape;
+}
+
+/**
+ * Where this camera's best frame stands among the sunsets in the pool, 0 for
+ * the weakest present to 1 for the strongest. A lone sunset is the best
+ * available, so it ranks 1. Cameras are ranked, not frames: with the run
+ * dial on, a camera holding eighteen frames of one evening would otherwise
+ * fill the ranking with itself.
+ */
+export function qualityRank<T extends RunEntry>(e: T, entries: T[], cameraRun: boolean): number {
+  const q = (x: BinEntry) => x.quality ?? -1;
+  const peers = poolEntries(entries, cameraRun).filter((x) => x.bin === 'sunset');
+  const mine = poolEntries(entries.filter((x) => x.webcamId === e.webcamId), cameraRun)[0] ?? e;
+  if (peers.length <= 1) return 1;
+  const below = peers.filter((x) => x.webcamId !== mine.webcamId && q(x) < q(mine)).length;
+  return below / (peers.length - 1);
+}
+
+/**
+ * The frame cap for a draw of `e` (spec §4). A non-sunset always gets the
+ * non-sunset cap. A sunset gets the sunset cap when the shape is flat, and
+ * when it is by rank, a run between the two caps in proportion to where the
+ * camera stands among the sunsets present: the best sunset on offer plays
+ * the whole cap, the weakest plays no longer than a non-sunset, and the
+ * middle sits between. So the peak buys screen time and a grey sunset gives
+ * it back, and both are measured against what is actually available rather
+ * than a fixed number the model's scale could drift away from.
+ *
+ * Without `entries` there is nothing to rank against, and the cap is flat.
+ */
+export function capFor<T extends RunEntry>(
+  e: Pick<BinEntry, 'bin'> & Partial<T>, d: CapDials, entries?: T[], cameraRun = true,
 ): number {
-  return e.bin === 'sunset' ? d.runFramesSunset : d.runFramesOther;
+  if (e.bin !== 'sunset') return d.runFramesOther;
+  if (d.runShape !== 'rank' || !entries || e.webcamId === undefined) return d.runFramesSunset;
+  const lo = Math.min(d.runFramesOther, d.runFramesSunset);
+  const rank = qualityRank(e as T, entries, cameraRun);
+  return Math.round(lo + (d.runFramesSunset - lo) * rank);
 }

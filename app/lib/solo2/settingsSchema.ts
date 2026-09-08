@@ -1,7 +1,7 @@
 import type { NumberKnob, SettingsSchema, SettingsValues } from '@/app/lib/settings/schema';
 import { SOLO_SETTINGS_SCHEMA } from '@/app/lib/solo/settingsSchema';
 import { dialsFrom } from '@/app/lib/solo/settingsSchema';
-import type { ArrivalEase, Screens, Solo2Dials, Transition, VeilCovers, VeilStyle, VeilTint } from './types';
+import type { ArrivalEase, RunShape, Screens, Solo2Dials, Transition, VeilCovers, VeilStyle, VeilTint } from './types';
 
 export const SOLO2_NAMESPACE = 'solo2';
 
@@ -42,6 +42,11 @@ export const SOLO2_SETTINGS_SCHEMA: SettingsSchema = [
     key: 'runFramesOther', kind: 'number', min: 1, max: 20, step: 1, default: 3,
     label: 'most frames, non-sunset', section: 'glass',
     description: 'The same cap for non-sunsets, deliberately lower. At or below the threshold this buys PICTURES, not time: the dwell stays the dwell however many frames play, so a non-sunset can never hold the screen longer than a single still does. Above the threshold it starts stretching like a sunset.',
+  },
+  {
+    key: 'runShape', kind: 'enum', options: ['rank', 'flat'], default: 'rank',
+    label: 'sunset run length', section: 'glass',
+    description: 'rank: a sunset\u2019s run is measured against the other sunsets on offer. The best one present plays the whole sunset cap, the weakest plays no longer than a non-sunset, and the rest sit between, so a strong sunset buys screen time and a grey one gives it back. flat: every sunset may play the whole cap, whatever else is present.',
   },
   {
     key: 'leadS', kind: 'number', min: 0, max: 10, step: 0.5, default: 0,
@@ -126,6 +131,7 @@ export function dialsFrom2(values: SettingsValues): Solo2Dials {
     minStepS: values.minStepS as number,
     runFramesSunset: values.runFramesSunset as number,
     runFramesOther: values.runFramesOther as number,
+    runShape: values.runShape as RunShape,
     veilStyle: values.veilStyle as VeilStyle,
     veilTint: values.veilTint as VeilTint,
     burnLift: values.burnLift as number,
