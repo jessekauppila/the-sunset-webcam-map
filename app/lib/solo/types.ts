@@ -38,15 +38,9 @@ export interface BinEntry {
 export type CaptionLayout = 'overlay' | 'inset';
 export type CaptionAlign = 'picture' | 'center' | 'panel';
 /** The time part of the caption (solo2 spec §4.5). */
-export type TimeStyle = 'off' | '12h' | '12h-there' | '24h' | 'sun' | '12h-sun';
+export type TimeStyle = 'off' | '12h' | '12h-there' | '24h' | 'sun' | '12h-sun' | 'ago';
 /** The time on its own line, or after the place with a middle dot. */
 export type TimeLine = 'own' | 'inline';
-/**
- * Whether the glass's own clock is written beside the camera's, and what
- * shape it takes: "7:42 pm there · 10:42 am here" against "7:42 pm there
- * (10:42 am)". One instant read on two clocks, which is the point of it.
- */
-export type HereTime = 'off' | 'dot' | 'parens' | 'parens-bare' | 'dash' | 'comma';
 /** What to do with Windy's "City › Compass: Spot" titles. */
 export type TitleClean = 'raw' | 'comma' | 'dot' | 'compass' | 'spot';
 export type TitleWeight = '300' | '400' | '500' | '600';
@@ -77,8 +71,6 @@ export interface CaptionDials {
   placeGray: number;
   lineGap: number;
   timeStyle: TimeStyle;
-  /** The glass's own clock beside the camera's, and its shape; 'off' for neither. */
-  hereTime: HereTime;
   timeLine: TimeLine;
   /** Extra space above the time line, on top of lineGap; own-line time only. */
   timeGap: number;

@@ -3,7 +3,7 @@
 import type { CSSProperties } from 'react';
 import type { Feed, SoloDials } from '@/app/lib/solo/types';
 import {
-  FONT_STACKS, LINE_HEIGHT, captionBox, captionLines, captionScale, gray, lineGaps, localTimezone,
+  FONT_STACKS, LINE_HEIGHT, captionBox, captionLines, captionScale, gray, lineGaps,
   pairTimeSegments, splitTime, timeSegments,
   type CaptionEntry, type Rect,
 } from '@/app/lib/solo/caption';
@@ -19,7 +19,7 @@ const TIME_KEYFRAMES = `
  * the frame. Null when the place dial is off. Everything positional comes
  * from lib/solo/caption.ts, so this is layout only.
  */
-export function Caption({ entry, dials, picture, width, feed, step, hereTimezone }: {
+export function Caption({ entry, dials, picture, width, feed, step, now = Date.now() }: {
   entry: CaptionEntry;
   dials: SoloDials;
   /** Where the picture sits on the panel, from pictureRect. */
@@ -32,22 +32,23 @@ export function Caption({ entry, dials, picture, width, feed, step, hereTimezone
   /**
    * The frame the time is stepping from, inside a camera run. Every frame of
    * a run is the same camera, so the title and the place hold still and only
-   * the clock moves — and inside the clock, only the words that actually
-   * change. Those crossfade over `fadeS`, out and in together, the way the
-   * picture underneath dissolves; "pm there" and the rest of the shared tail
-   * never animate. Absent on a dwell's first frame, where the whole caption
-   * arrives with the picture instead.
+   * the time moves — and inside it, only the characters that actually change.
+   * Those crossfade over `fadeS`, out and in together, the way the picture
+   * underneath dissolves; the characters the two readings share at either end
+   * never animate, so a run counts down "38 minutes ago" to "28 minutes ago"
+   * by moving one digit. Absent on a dwell's first frame, where the whole
+   * caption arrives with the picture instead.
    */
   step?: { from: CaptionEntry; fadeS: number } | null;
   /**
-   * The zone the "my time" dial reads as here. Defaults to the zone this
-   * glass is set to, which is why a Pi on the wrong timezone writes the wrong
-   * here-clock; tests and the studio pass it explicitly.
+   * The wall clock the 'ago' style measures against. One value for the frame
+   * arriving and the frame it replaces, so the only thing between the two
+   * readings is how much older one picture is than the other — never a tick
+   * of the clock that would make the difference look larger than it is.
    */
-  hereTimezone?: string | null;
+  now?: number;
 }) {
-  const here = { style: dials.hereTime, timezone: hereTimezone === undefined ? localTimezone() : hereTimezone };
-  const lines = captionLines(entry, dials, feed, here.timezone);
+  const lines = captionLines(entry, dials, feed, now);
   if (!lines) return null;
   const s = captionScale(width);
   const box = captionBox(dials, picture, width);
@@ -75,7 +76,7 @@ export function Caption({ entry, dials, picture, width, feed, step, hereTimezone
   // the two ends of the fade are always the same format, then matched piece
   // for piece against the reading arriving.
   const leaving = step && step.fadeS > 0
-    ? timeSegments(dials.timeStyle, step.from.capturedAt, step.from.timezone, step.from.sunAltitudeDeg, here)
+    ? timeSegments(dials.timeStyle, step.from.capturedAt, step.from.timezone, step.from.sunAltitudeDeg, now)
     : null;
   const pairs = pairTimeSegments(leaving, lines.timeParts);
   // Two frames of the same minute say the same thing; nothing to fade.

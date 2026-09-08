@@ -21,7 +21,9 @@ const drawnTime = () => {
 /** The curve the default dials put on every layer of a dissolve. */
 const E = ARRIVAL_EASES.gentle;
 
-const D = dialsFrom2(schemaDefaults(SOLO2_SETTINGS_SCHEMA));
+// The caption's default time reading is now "13 minutes ago", which moves
+// with the wall clock; these tests are about the run, so they pin the clock.
+const D = { ...dialsFrom2(schemaDefaults(SOLO2_SETTINGS_SCHEMA)), timeStyle: '12h-there' as const };
 const AT = Date.UTC(2026, 8, 5, 2, 42); // 7:42 pm in Mazatlán
 const e = {
   snapshotId: 3, webcamId: 1, bin: 'sunset' as const, quality: 0.91, detection: 0.88, isNew: false, tally: 2, enteredAt: 0,

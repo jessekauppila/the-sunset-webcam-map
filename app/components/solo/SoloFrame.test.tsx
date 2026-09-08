@@ -4,7 +4,9 @@ import { SoloFrame } from './SoloFrame';
 import { dialsFrom, SOLO_SETTINGS_SCHEMA } from '@/app/lib/solo/settingsSchema';
 import { schemaDefaults } from '@/app/lib/settings/schema';
 
-const D = dialsFrom(schemaDefaults(SOLO_SETTINGS_SCHEMA));
+// The caption's default time reading is now "13 minutes ago", which moves
+// with the wall clock; these tests are about layout, so they pin the clock.
+const D = { ...dialsFrom(schemaDefaults(SOLO_SETTINGS_SCHEMA)), timeStyle: '12h-there' as const };
 const AT = Date.UTC(2026, 8, 5, 2, 42); // 7:42 pm in Mazatlán
 const e = {
   snapshotId: 1, webcamId: 1, bin: 'sunset' as const, quality: 0.91, detection: 0.88, isNew: false, tally: 2, enteredAt: 0,
