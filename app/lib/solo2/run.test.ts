@@ -131,8 +131,8 @@ describe('the run by rank: the peak buys screen time, a grey sunset gives it bac
   });
 });
 
-describe('the dwell spread: a grey frame gives back a little time, the best sunset takes a little more', () => {
-  const d = { dwellS: 13, dwellSpread: 25, runFramesSunset: 16, runFramesOther: 5, runShape: 'rank' as const };
+describe('the dwell boost and trim: a grey frame gives back a little time, the best sunset takes a little more', () => {
+  const d = { dwellS: 13, dwellBoost: 25, dwellTrim: 25, runFramesSunset: 16, runFramesOther: 5, runShape: 'rank' as const };
   const pool = [
     f(1, 1, 1000, { quality: 0.2 }),
     f(2, 2, 1000, { quality: 0.6 }),
@@ -145,9 +145,15 @@ describe('the dwell spread: a grey frame gives back a little time, the best suns
     expect(budgetS(pool[1], d, pool)).toBeCloseTo(13);
     expect(budgetS(pool[2], d, pool)).toBeCloseTo(16.25);
   });
-  it('0 spread is the dial for everyone', () => {
-    expect(budgetS(pool[3], { ...d, dwellSpread: 0 }, pool)).toBe(13);
-    expect(budgetS(pool[2], { ...d, dwellSpread: 0 }, pool)).toBe(13);
+  it('both at 0 is the dial for everyone', () => {
+    expect(budgetS(pool[3], { ...d, dwellBoost: 0, dwellTrim: 0 }, pool)).toBe(13);
+    expect(budgetS(pool[2], { ...d, dwellBoost: 0, dwellTrim: 0 }, pool)).toBe(13);
+  });
+  it('the two ends are set apart: a big boost does not shorten grey frames, and no trim leaves them at the dial', () => {
+    expect(budgetS(pool[2], { ...d, dwellBoost: 100, dwellTrim: 0 }, pool)).toBeCloseTo(26);
+    expect(budgetS(pool[3], { ...d, dwellBoost: 100, dwellTrim: 0 }, pool)).toBe(13);
+    expect(budgetS(pool[0], { ...d, dwellBoost: 100, dwellTrim: 0 }, pool)).toBe(13);
+    expect(budgetS(pool[1], { ...d, dwellBoost: 100, dwellTrim: 0 }, pool)).toBeCloseTo(19.5);
   });
   it('flat shape: every sunset is the strongest, non-sunsets still below', () => {
     expect(budgetS(pool[0], { ...d, runShape: 'flat' }, pool)).toBeCloseTo(16.25);
