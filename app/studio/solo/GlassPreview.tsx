@@ -9,7 +9,7 @@ import type { Feed, SoloDials } from '@/app/lib/solo/types';
 import { SOLO_VERSIONS, type SoloVersionSpec } from '@/app/lib/solo/versions';
 import type { Solo2Dials } from '@/app/lib/solo2/types';
 import { fitPlan } from '@/app/lib/solo2/plan';
-import { capFor, runOf } from '@/app/lib/solo2/run';
+import { budgetS, capFor, runOf } from '@/app/lib/solo2/run';
 import { useLoopingStage } from './useLoopingStage';
 import { useSoloPreview } from './useSoloPreview';
 
@@ -77,13 +77,14 @@ function PlayingScreen({ feed, server, projected, error, dials, panel, version }
   // The same capped run and the same budget rule the glass uses, so the
   // preview steps at the rate the glass will (dwell-budget spec §3, §4).
   const runFor = (e: EntryView) => (
-    solo2 ? runOf(e, server?.entries ?? [], d2.cameraRun, capFor(e, d2)) : []
+    solo2 ? runOf(e, server?.entries ?? [], d2.cameraRun, capFor(e, d2, server?.entries ?? [], d2.cameraRun)) : []
   );
   // The fades only for solo2: its dwell opens with an arrival segment
   // (dwell-budget spec §3.3); solo's does not, so its walker must not wait one out.
   const planFor = (e: EntryView | null) => fitPlan(
     {
-      dwellS: dials.dwellS, leadS: d2.leadS ?? 0, minStepS: d2.minStepS ?? dials.dwellS,
+      dwellS: solo2 && e ? budgetS(e, d2, server?.entries ?? [], d2.cameraRun) : dials.dwellS,
+      leadS: d2.leadS ?? 0, minStepS: d2.minStepS ?? dials.dwellS,
       ...(solo2 ? { transition: d2.transition, fadeS: d2.fadeS, sameCameraFadeS: d2.sameCameraFadeS } : {}),
     },
     Math.max(1, e ? runFor(e).length : 1),

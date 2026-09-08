@@ -1,4 +1,5 @@
 import type { BinEntry } from '@/app/lib/solo/types';
+import type { RunShape } from './types';
 
 /**
  * The camera run (camera-run spec §3): in solo2 a camera's frames are one
@@ -81,9 +82,78 @@ export function runOf<T extends RunEntry>(
   return [...earlier.slice(Math.max(0, earlier.length - keep)), entry];
 }
 
-/** The frame cap for this entry's bin (spec §4): sunsets get the longer run. */
-export function capFor(
-  e: Pick<BinEntry, 'bin'>, d: { runFramesSunset: number; runFramesOther: number },
+export interface CapDials {
+  runFramesSunset: number;
+  runFramesOther: number;
+  runShape?: RunShape;
+}
+
+/** Where a draw stands for the shaping rules: 1 for any sunset when the shape is flat, else its rank; 0 for a non-sunset. */
+function standing<T extends RunEntry>(e: Pick<BinEntry, 'bin'> & Partial<T>, d: CapDials, entries: T[] | undefined, cameraRun: boolean): number {
+  if (e.bin !== 'sunset') return 0;
+  if (d.runShape !== 'rank' || !entries || e.webcamId === undefined) return 1;
+  return qualityRank(e as T, entries, cameraRun);
+}
+
+/**
+ * The dwell budget for a draw of `e`, seconds (the `dwellS` the budget rule
+ * of the dwell-budget spec §3 then shares among the run's frames). The dial
+ * is the middle: a non-sunset and the weakest sunset present get the dial
+ * less the spread, the strongest sunset present gets the dial plus it, and
+ * sunsets between sit by rank. So a grey frame gives back a little screen
+ * time and the best sunset on offer takes a little more — the same shape as
+ * the frame cap, applied to the clock, so a lone frame with no run to
+ * lengthen still feels the difference.
+ */
+export function budgetS<T extends RunEntry>(
+  e: Pick<BinEntry, 'bin'> & Partial<T>, d: CapDials & { dwellS: number; dwellSpread?: number },
+  entries?: T[], cameraRun = true,
 ): number {
-  return e.bin === 'sunset' ? d.runFramesSunset : d.runFramesOther;
+  const spread = (d.dwellSpread ?? 0) / 100;
+  if (spread === 0) return d.dwellS;
+  const rank = e.bin === 'sunset' ? standing(e, d, entries, cameraRun) : 0;
+  return d.dwellS * (1 - spread + 2 * spread * rank);
+}
+
+/** `d` with its dwell replaced by the draw's budget, ready for fitPlan. */
+export function planDialsFor<T extends RunEntry, D extends CapDials & { dwellS: number; dwellSpread?: number }>(
+  e: Pick<BinEntry, 'bin'> & Partial<T>, d: D, entries?: T[], cameraRun = true,
+): D {
+  return { ...d, dwellS: budgetS(e, d, entries, cameraRun) };
+}
+
+/**
+ * Where this camera's best frame stands among the sunsets in the pool, 0 for
+ * the weakest present to 1 for the strongest. A lone sunset is the best
+ * available, so it ranks 1. Cameras are ranked, not frames: with the run
+ * dial on, a camera holding eighteen frames of one evening would otherwise
+ * fill the ranking with itself.
+ */
+export function qualityRank<T extends RunEntry>(e: T, entries: T[], cameraRun: boolean): number {
+  const q = (x: BinEntry) => x.quality ?? -1;
+  const peers = poolEntries(entries, cameraRun).filter((x) => x.bin === 'sunset');
+  const mine = poolEntries(entries.filter((x) => x.webcamId === e.webcamId), cameraRun)[0] ?? e;
+  if (peers.length <= 1) return 1;
+  const below = peers.filter((x) => x.webcamId !== mine.webcamId && q(x) < q(mine)).length;
+  return below / (peers.length - 1);
+}
+
+/**
+ * The frame cap for a draw of `e` (spec §4). A non-sunset always gets the
+ * non-sunset cap. A sunset gets the sunset cap when the shape is flat, and
+ * when it is by rank, a run between the two caps in proportion to where the
+ * camera stands among the sunsets present: the best sunset on offer plays
+ * the whole cap, the weakest plays no longer than a non-sunset, and the
+ * middle sits between. So the peak buys screen time and a grey sunset gives
+ * it back, and both are measured against what is actually available rather
+ * than a fixed number the model's scale could drift away from.
+ *
+ * Without `entries` there is nothing to rank against, and the cap is flat.
+ */
+export function capFor<T extends RunEntry>(
+  e: Pick<BinEntry, 'bin'> & Partial<T>, d: CapDials, entries?: T[], cameraRun = true,
+): number {
+  if (e.bin !== 'sunset') return d.runFramesOther;
+  const lo = Math.min(d.runFramesOther, d.runFramesSunset);
+  return Math.round(lo + (d.runFramesSunset - lo) * standing(e, d, entries, cameraRun));
 }

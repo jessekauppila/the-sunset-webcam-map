@@ -7,7 +7,7 @@ import { mergeSettings } from '@/app/lib/settings/schema';
 import { SOLO2_SETTINGS_SCHEMA, dialsFrom2 } from '@/app/lib/solo2/settingsSchema';
 import { withCaption } from '@/app/lib/solo/captionSchema';
 import { fitPlan } from '@/app/lib/solo2/plan';
-import { capFor, runOf } from '@/app/lib/solo2/run';
+import { capFor, planDialsFor, runOf } from '@/app/lib/solo2/run';
 import { useSoloGlass } from '@/app/components/solo/useSoloGlass';
 import { Solo2Frame } from './Solo2Frame';
 import { useStage } from './useStage';
@@ -61,8 +61,8 @@ export function Solo2Kiosk(props: MosaicProps) {
 
   // The same capped run the server used to size this dwell (spec §4), so the
   // step rate on glass and the published end can never disagree.
-  const run = current ? runOf(current, glass.entries, dials.cameraRun, capFor(current, dials)) : [];
-  const plan = fitPlan(dials, run.length);
+  const run = current ? runOf(current, glass.entries, dials.cameraRun, capFor(current, dials, glass.entries, dials.cameraRun)) : [];
+  const plan = fitPlan(current ? planDialsFor(current, dials, glass.entries, dials.cameraRun) : dials, run.length);
   const stage = useStage(plan, dwell.startMs);
 
   // Preload the projected next frame and its run, so the arrival is clean.
@@ -70,7 +70,7 @@ export function Solo2Kiosk(props: MosaicProps) {
   const nextId = nextEntry?.snapshotId ?? null;
   useEffect(() => {
     if (!nextEntry) return;
-    for (const f of runOf(nextEntry, glass.entries, dials.cameraRun, capFor(nextEntry, dials))) preload(f.imageUrl);
+    for (const f of runOf(nextEntry, glass.entries, dials.cameraRun, capFor(nextEntry, dials, glass.entries, dials.cameraRun))) preload(f.imageUrl);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nextId, dials.cameraRun]);
 

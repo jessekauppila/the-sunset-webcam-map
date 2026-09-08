@@ -1,5 +1,8 @@
 import type { SoloDials } from '@/app/lib/solo/types';
 
+/** How a sunset's run length is decided: one cap for every sunset, or by its rank among the sunsets present. */
+export type RunShape = 'flat' | 'rank';
+
 /** How one frame gives way to the next (spec §4.2). */
 export type Transition = 'cut' | 'crossfade' | 'dip';
 
@@ -53,6 +56,14 @@ export interface Solo2Dials extends SoloDials {
    * buys pictures, never screen time (spec §4.1).
    */
   runFramesOther: number;
+  /** Flat: every sunset may play the sunset cap. Rank: a sunset's run sits between the two caps by its rank among the sunsets present. */
+  runShape: RunShape;
+  /**
+   * How far a draw's dwell budget swings from the dial, percent. A non-sunset
+   * and the weakest sunset present get the dial less this; the strongest
+   * sunset present gets the dial plus it. 0 gives every draw the dial.
+   */
+  dwellSpread: number;
   /** What a camera change dips through; the sunset screen stays black under all of them. */
   veilStyle: VeilStyle;
   /** The tint a `light` sunrise dips through. Ignored by every other style. */

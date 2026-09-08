@@ -118,7 +118,7 @@ describe('replay', () => {
   });
 
   it('solo2 stretches the clock by each draw\u2019s own budget, not by the dial', () => {
-    const d2 = { ...dialsFrom2(schemaDefaults(SOLO2_SETTINGS_SCHEMA)), dwellS: 20, offsetS: 10, cameraRun: true };
+    const d2 = { ...dialsFrom2(schemaDefaults(SOLO2_SETTINGS_SCHEMA)), dwellS: 20, offsetS: 10, cameraRun: true, dwellSpread: 0 };
     // One camera with eight frames: past n* the budget floor stretches the dwell.
     const many = [1, 2, 3, 4, 5, 6, 7, 8].map((i) => sun(i, 0.9 - i * 0.01, { webcamId: 7, capturedAt: i }));
     const strip = replay({ feed: FEED, version: SOLO_VERSIONS.solo2, dials: d2, entries: many, priorDraws: [], fromMs: at(SLOT0), toMs: at(SLOT0) + 1 });
@@ -163,7 +163,7 @@ describe('replay', () => {
   });
 
   it('solo2 marks every frame of the camera run shown, and the strip carries them', () => {
-    const d2 = { ...dialsFrom2(schemaDefaults(SOLO2_SETTINGS_SCHEMA)), dwellS: 20, offsetS: 10, cameraRun: true };
+    const d2 = { ...dialsFrom2(schemaDefaults(SOLO2_SETTINGS_SCHEMA)), dwellS: 20, offsetS: 10, cameraRun: true, dwellSpread: 0 };
     const rows = [
       sun(1, 0.9, { webcamId: 7, capturedAt: 100 }), sun(3, 0.7, { webcamId: 7, capturedAt: 300 }),
       sun(2, 0.8, { webcamId: 8, capturedAt: 150 }),
