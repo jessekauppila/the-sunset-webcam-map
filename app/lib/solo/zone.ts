@@ -1,19 +1,16 @@
-import SunCalc from 'suncalc';
+import { solarPhaseAt, sunAltitudeDeg } from '@/app/lib/solarPhase';
 import type { Feed } from './types';
 
-const DEG_PER_RAD = 180 / Math.PI;
-const TEN_MINUTES_MS = 10 * 60 * 1000;
+export { sunAltitudeDeg };
 
-/** Solar altitude above the horizon at a place and moment, degrees. Negative below. */
-export function sunAltitudeDeg(at: Date, lat: number, lng: number): number {
-  return SunCalc.getPosition(at, lat, lng).altitude * DEG_PER_RAD;
-}
-
-/** Which feed a place belongs to right now: rising sun is sunrise, falling is sunset. */
+/**
+ * Which feed a place belongs to right now: rising sun is sunrise, falling is
+ * sunset. The test itself lives in `app/lib/solarPhase.ts`, because the same
+ * question is asked of an archived frame on the leaderboard. A `Feed` and a
+ * `SolarPhase` are the same two words, so this is a name, not a conversion.
+ */
 export function feedAt(at: Date, lat: number, lng: number): Feed {
-  const now = sunAltitudeDeg(at, lat, lng);
-  const later = sunAltitudeDeg(new Date(at.getTime() + TEN_MINUTES_MS), lat, lng);
-  return later > now ? 'sunrise' : 'sunset';
+  return solarPhaseAt(at, lat, lng);
 }
 
 /** The swept altitude band, from sweepGeometry's coverage span. */

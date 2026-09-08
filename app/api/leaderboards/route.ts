@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { sql } from '@/app/lib/db';
+import { solarPhaseOf, type SolarPhase } from '@/app/lib/solarPhase';
 
 export const dynamic = 'force-dynamic';
 
@@ -76,10 +77,25 @@ export interface LeaderboardEntry {
   aiModelVersionRegression: string | null;
   sortScore: number | string | null; // COALESCE(llm_quality, ai_regression_score) — the rank key
   firebaseUrl: string | null;
+  /** UTC. The column is naive, so the query converts it; see solarPhase.ts. */
   capturedAt: string;
   webcamId: number;
   webcamTitle: string | null;
   country: string;
+  lat: number | null;
+  lng: number | null;
+  /**
+   * Sunrise or sunset, computed from the sun's own position at this camera at
+   * this moment — the one label on this row that is not somebody's opinion.
+   * Null only when the camera has no usable coordinate or time.
+   *
+   * It is NOT the frame's admission ticket: a frame is on this board because
+   * Claude called it a sunset, and Claude answers yes to both questions on a
+   * sky that could be either. 6,590 of the 21,061 eligible frames are
+   * geometrically sunrises (2026-09-08). Labeling them honestly is this
+   * field's job; whether the board should carry them is a separate decision.
+   */
+  phase: SolarPhase | null;
 }
 
 function pick<T>(value: string | null, allowed: readonly T[], fallback: T): T {
@@ -122,10 +138,17 @@ export async function GET(request: Request) {
       s.ai_model_version_regression AS "aiModelVersionRegression",
       COALESCE(s.llm_quality, s.ai_regression_score) AS "sortScore",
       s.firebase_url AS "firebaseUrl",
-      s.captured_at AS "capturedAt",
+      -- captured_at is timestamp WITHOUT time zone holding UTC digits. Read
+      -- raw, the driver reinterprets those digits in the server's local zone
+      -- and every solar angle computed from them is hours off.
+      (s.captured_at AT TIME ZONE 'UTC') AS "capturedAt",
       s.webcam_id AS "webcamId",
       w.title AS "webcamTitle",
-      COALESCE(w.country, 'Unknown') AS country
+      COALESCE(w.country, 'Unknown') AS country,
+      -- NUMERIC through this driver is a string; cast so the solar math gets
+      -- numbers rather than silently comparing "47.606200" to a float.
+      w.lat::float8 AS "lat",
+      w.lng::float8 AS "lng"
     `;
     // Claude-primary with a real-model fallback. The fallback clause is inert
     // until ai_regression_score is backfilled (U3). Never reads junk ai_rating.
@@ -160,7 +183,14 @@ export async function GET(request: Request) {
       `;
     }
 
-    const rows = (await sql.query(queryText, params)) as LeaderboardEntry[];
+    const raw = (await sql.query(queryText, params)) as LeaderboardEntry[];
+    // The sun says which it is. Computed here, once, so every surface that
+    // renders a board entry reads the same answer instead of each deciding
+    // from whichever flag it happens to have.
+    const rows: LeaderboardEntry[] = raw.map((row) => ({
+      ...row,
+      phase: solarPhaseOf(row.capturedAt, row.lat, row.lng),
+    }));
 
     return NextResponse.json(
       { grouping, window, count: rows.length, entries: rows },
