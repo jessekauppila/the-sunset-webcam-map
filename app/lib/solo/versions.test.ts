@@ -36,7 +36,8 @@ describe('descriptors', () => {
     // the dial; step 3 changes solo2's function alone and every surface that
     // renders toward a dwell end follows without knowing about versions.
     for (const v of Object.values(SOLO_VERSIONS)) {
-      const d = v.dialsFrom(schemaDefaults(v.schema));
+      // solo2's spread swings the budget by rank; pinned so the dwell is the dial here.
+      const d = { ...v.dialsFrom(schemaDefaults(v.schema)), dwellSpread: 0 };
       // solo2's dwell opens with the camera change's own segment (dwell-budget
       // spec §3.3); solo's dials have no fades, so its arrival is 0.
       const expected = (d.dwellS + arrivalS(d)) * 1000;

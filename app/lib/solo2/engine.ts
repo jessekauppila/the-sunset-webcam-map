@@ -1,6 +1,6 @@
 import { afterShowing, choosePool, compareRecency, compareWithin, rankScore } from '@/app/lib/solo/engine';
 import type { BinEntry, Feed, ScreenState } from '@/app/lib/solo/types';
-import { capFor, poolEntries, runOf, type RunEntry } from './run';
+import { capFor, planDialsFor, poolEntries, runOf, type RunEntry } from './run';
 import { fitPlan } from './plan';
 import type { Role, Solo2Dials } from './types';
 
@@ -68,7 +68,8 @@ export function shown2<T extends RunEntry>(entries: T[], pick: T, d: Solo2Dials)
  * frame counts.
  */
 export function dwellMs2(entries: BinEntry[], pick: BinEntry, d: Solo2Dials): number {
-  return fitPlan(d, shown2(entries as RunEntry[], pick as RunEntry, d).length).dwellS * 1000;
+  const run = shown2(entries as RunEntry[], pick as RunEntry, d);
+  return fitPlan(planDialsFor(pick as RunEntry, d, entries as RunEntry[], d.cameraRun), run.length).dwellS * 1000;
 }
 
 /**

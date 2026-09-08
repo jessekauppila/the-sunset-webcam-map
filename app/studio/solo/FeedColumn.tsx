@@ -4,7 +4,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import type { EntryView, StateView } from '@/app/api/kiosk/solo/view';
 import type { Feed, SoloDials } from '@/app/lib/solo/types';
 import type { SoloVersionSpec } from '@/app/lib/solo/versions';
-import { cameraGroups, capFor, representative, runOf } from '@/app/lib/solo2/run';
+import { budgetS, cameraGroups, capFor, planDialsFor, representative, runOf } from '@/app/lib/solo2/run';
 import { fitPlan } from '@/app/lib/solo2/plan';
 import { SOLO2_SETTINGS_SCHEMA } from '@/app/lib/solo2/settingsSchema';
 import type { Solo2Dials } from '@/app/lib/solo2/types';
@@ -124,7 +124,8 @@ export function FeedColumn({ feed, server, projected, liveDials, nowMs, version,
   const roleOf = (i: number) => (showRoles && i > 0 ? projected.nextRoles[i - 1] : undefined);
   // solo2: a row is as tall as its time on glass, and a camera is one box.
   const d2 = version?.name === 'solo2' ? (projected.dials as Solo2Dials) : null;
-  const rowS = d2 ? d2.dwellS : undefined;
+  // A lone frame's box is as tall as its own budget, which the spread dial swings per draw.
+  const rowSFor = (e: EntryView) => (d2 ? budgetS(e, d2, all, !!d2.cameraRun) : undefined);
   const grouping = !!d2?.cameraRun;
   const all: EntryView[] = [...projected.bins.sunset, ...projected.bins.nonSunset, ...queue];
   /**
@@ -141,7 +142,7 @@ export function FeedColumn({ feed, server, projected, liveDials, nowMs, version,
     const playedIds = new Set(played.map((f) => f.snapshotId));
     const skipped = runOf(e, all, true).filter((f) => !playedIds.has(f.snapshotId));
     if (played.length <= 1 && skipped.length === 0) return undefined;
-    return { earlier: played.slice(0, -1), skipped, capLabel: capLabelOf(e.bin, cap, d2), stepS: fitPlan(d2, played.length).stepS };
+    return { earlier: played.slice(0, -1), skipped, capLabel: capLabelOf(e.bin, cap, d2), stepS: fitPlan(planDialsFor(e, d2, all, true), played.length).stepS };
   };
 
   // The queue: each draw with the run it plays.
@@ -188,7 +189,7 @@ export function FeedColumn({ feed, server, projected, liveDials, nowMs, version,
             <StageBox key={kind} kind={kind} color={color} count={rows.length}>
               {rows.map((b) => (
                 <EntryRow key={b.entry.snapshotId} entry={b.entry} feed={feed} place={bin} reason={reasonLine(b.entry.stage, b.entry, nowMs)}
-                  onClick={(x) => onSelect(x, feed, list)} run={b.run} rowS={rowS} />
+                  onClick={(x) => onSelect(x, feed, list)} run={b.run} rowS={rowSFor(b.entry)} />
               ))}
             </StageBox>
           );
@@ -244,7 +245,7 @@ export function FeedColumn({ feed, server, projected, liveDials, nowMs, version,
             return (
               <EntryRow key={`${e.snapshotId}-${i}`} entry={e} feed={feed} place="queue" onGlass={i === 0 && !!current}
                 reason={reasonLine(stage, e, nowMs)} repeat={repeat} role={roleOf(i)}
-                onClick={(x) => onSelect(x, feed, queueList)} run={b.run} rowS={rowS} />
+                onClick={(x) => onSelect(x, feed, queueList)} run={b.run} rowS={rowSFor(b.entry)} />
             );
           })}
         </Bin>

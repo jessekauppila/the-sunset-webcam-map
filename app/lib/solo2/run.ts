@@ -88,6 +88,40 @@ export interface CapDials {
   runShape?: RunShape;
 }
 
+/** Where a draw stands for the shaping rules: 1 for any sunset when the shape is flat, else its rank; 0 for a non-sunset. */
+function standing<T extends RunEntry>(e: Pick<BinEntry, 'bin'> & Partial<T>, d: CapDials, entries: T[] | undefined, cameraRun: boolean): number {
+  if (e.bin !== 'sunset') return 0;
+  if (d.runShape !== 'rank' || !entries || e.webcamId === undefined) return 1;
+  return qualityRank(e as T, entries, cameraRun);
+}
+
+/**
+ * The dwell budget for a draw of `e`, seconds (the `dwellS` the budget rule
+ * of the dwell-budget spec §3 then shares among the run's frames). The dial
+ * is the middle: a non-sunset and the weakest sunset present get the dial
+ * less the spread, the strongest sunset present gets the dial plus it, and
+ * sunsets between sit by rank. So a grey frame gives back a little screen
+ * time and the best sunset on offer takes a little more — the same shape as
+ * the frame cap, applied to the clock, so a lone frame with no run to
+ * lengthen still feels the difference.
+ */
+export function budgetS<T extends RunEntry>(
+  e: Pick<BinEntry, 'bin'> & Partial<T>, d: CapDials & { dwellS: number; dwellSpread?: number },
+  entries?: T[], cameraRun = true,
+): number {
+  const spread = (d.dwellSpread ?? 0) / 100;
+  if (spread === 0) return d.dwellS;
+  const rank = e.bin === 'sunset' ? standing(e, d, entries, cameraRun) : 0;
+  return d.dwellS * (1 - spread + 2 * spread * rank);
+}
+
+/** `d` with its dwell replaced by the draw's budget, ready for fitPlan. */
+export function planDialsFor<T extends RunEntry, D extends CapDials & { dwellS: number; dwellSpread?: number }>(
+  e: Pick<BinEntry, 'bin'> & Partial<T>, d: D, entries?: T[], cameraRun = true,
+): D {
+  return { ...d, dwellS: budgetS(e, d, entries, cameraRun) };
+}
+
 /**
  * Where this camera's best frame stands among the sunsets in the pool, 0 for
  * the weakest present to 1 for the strongest. A lone sunset is the best
@@ -120,8 +154,6 @@ export function capFor<T extends RunEntry>(
   e: Pick<BinEntry, 'bin'> & Partial<T>, d: CapDials, entries?: T[], cameraRun = true,
 ): number {
   if (e.bin !== 'sunset') return d.runFramesOther;
-  if (d.runShape !== 'rank' || !entries || e.webcamId === undefined) return d.runFramesSunset;
   const lo = Math.min(d.runFramesOther, d.runFramesSunset);
-  const rank = qualityRank(e as T, entries, cameraRun);
-  return Math.round(lo + (d.runFramesSunset - lo) * rank);
+  return Math.round(lo + (d.runFramesSunset - lo) * standing(e, d, entries, cameraRun));
 }

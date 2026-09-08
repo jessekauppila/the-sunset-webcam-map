@@ -49,6 +49,11 @@ export const SOLO2_SETTINGS_SCHEMA: SettingsSchema = [
     description: 'rank: a sunset\u2019s run is measured against the other sunsets on offer. The best one present plays the whole sunset cap, the weakest plays no longer than a non-sunset, and the rest sit between, so a strong sunset buys screen time and a grey one gives it back. flat: every sunset may play the whole cap, whatever else is present.',
   },
   {
+    key: 'dwellSpread', kind: 'number', min: 0, max: 50, step: 5, default: 25,
+    label: 'dwell spread (%)', section: 'glass',
+    description: 'How far a draw\u2019s dwell swings from the dial. A non-sunset, and the weakest sunset present, hold for the dial less this; the strongest sunset present holds for the dial plus it; the rest sit between by rank. At 13 s and 25% that is 9.75 s for a grey frame and 16.25 s for the best sunset on offer. A camera run\u2019s frames share the swung budget, so a strong sunset\u2019s timelapse is longer twice over. 0 gives every draw the dial.',
+  },
+  {
     key: 'leadS', kind: 'number', min: 0, max: 10, step: 0.5, default: 0,
     label: 'lead (s)', section: 'glass',
     description: 'For this long before each change, the frame on glass slowly pushes in. Stillness means now; motion means change is coming. 0 is off.',
@@ -132,6 +137,7 @@ export function dialsFrom2(values: SettingsValues): Solo2Dials {
     runFramesSunset: values.runFramesSunset as number,
     runFramesOther: values.runFramesOther as number,
     runShape: values.runShape as RunShape,
+    dwellSpread: values.dwellSpread as number,
     veilStyle: values.veilStyle as VeilStyle,
     veilTint: values.veilTint as VeilTint,
     burnLift: values.burnLift as number,

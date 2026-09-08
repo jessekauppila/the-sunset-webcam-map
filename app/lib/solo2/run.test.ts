@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { cameraGroups, poolEntries, qualityRank, representative, runOf, type RunEntry, capFor } from './run';
+import { budgetS, cameraGroups, planDialsFor, poolEntries, qualityRank, representative, runOf, type RunEntry, capFor } from './run';
 
 const f = (id: number, cam: number, capturedAt: number, extra: Partial<RunEntry> = {}): RunEntry => ({
   snapshotId: id, webcamId: cam, bin: 'sunset', quality: 0.5, detection: 0.8, isNew: false, tally: 0, enteredAt: id,
@@ -128,5 +128,34 @@ describe('the run by rank: the peak buys screen time, a grey sunset gives it bac
   it('with the camera run off, frames are ranked as themselves', () => {
     // Camera 3's 0.3 frame now competes on its own: below 0.4 and 0.6 and 0.9, above 0.2.
     expect(qualityRank(pool[2], pool, false)).toBeCloseTo(1 / 4);
+  });
+});
+
+describe('the dwell spread: a grey frame gives back a little time, the best sunset takes a little more', () => {
+  const d = { dwellS: 13, dwellSpread: 25, runFramesSunset: 16, runFramesOther: 5, runShape: 'rank' as const };
+  const pool = [
+    f(1, 1, 1000, { quality: 0.2 }),
+    f(2, 2, 1000, { quality: 0.6 }),
+    f(3, 3, 1000, { quality: 0.9 }),
+    f(4, 4, 1000, { bin: 'non_sunset', quality: null, detection: 0.4 }),
+  ];
+  it('the dial is the middle: non-sunset and weakest sunset below it, strongest above, by rank between', () => {
+    expect(budgetS(pool[3], d, pool)).toBeCloseTo(9.75);
+    expect(budgetS(pool[0], d, pool)).toBeCloseTo(9.75);
+    expect(budgetS(pool[1], d, pool)).toBeCloseTo(13);
+    expect(budgetS(pool[2], d, pool)).toBeCloseTo(16.25);
+  });
+  it('0 spread is the dial for everyone', () => {
+    expect(budgetS(pool[3], { ...d, dwellSpread: 0 }, pool)).toBe(13);
+    expect(budgetS(pool[2], { ...d, dwellSpread: 0 }, pool)).toBe(13);
+  });
+  it('flat shape: every sunset is the strongest, non-sunsets still below', () => {
+    expect(budgetS(pool[0], { ...d, runShape: 'flat' }, pool)).toBeCloseTo(16.25);
+    expect(budgetS(pool[3], { ...d, runShape: 'flat' }, pool)).toBeCloseTo(9.75);
+  });
+  it('planDialsFor hands fitPlan the swung budget and nothing else changed', () => {
+    const p = planDialsFor(pool[2], { ...d, minStepS: 4 }, pool);
+    expect(p.dwellS).toBeCloseTo(16.25);
+    expect(p.minStepS).toBe(4);
   });
 });
