@@ -54,6 +54,26 @@ it('a run counts down, and only the digit that moved fades', () => {
   expect(screen.getByTestId('caption-time-out')).toHaveStyle({ animation: 'solo-time-out 1s ease both' });
 });
 
+it('the words after the digit are one element, so they can travel together', () => {
+  // 10 minutes ago → 9 minutes ago loses a digit, so " minutes ago" has to end
+  // up further left. It glides there over the fade, which needs it in a box of
+  // its own to move; before this it was loose text that took its new place the
+  // instant the step landed, and that is what read as the line sliding.
+  const now = AT + 10 * MIN;
+  draw({ entry: { ...e, capturedAt: AT + 1 * MIN }, now, step: { from: e, fadeS: 1 } });
+  expect(drawnTime()).toBe('9 minutes ago');
+  expect(screen.getByTestId('caption-time-tail')).toHaveTextContent('minutes ago');
+});
+
+it('the step runs on the curve the dissolve it belongs to is running on', () => {
+  // One timing function for every layer of a change, the picture's included.
+  const now = AT + 38 * MIN;
+  const ease = 'cubic-bezier(0.4, 0, 0.6, 1)';
+  draw({ entry: { ...e, capturedAt: AT + 10 * MIN }, now, step: { from: e, fadeS: 1, ease } });
+  expect(screen.getByTestId('caption-time-head')).toHaveStyle({ animation: `solo-time-in 1s ${ease} both` });
+  expect(screen.getByTestId('caption-time-out')).toHaveStyle({ animation: `solo-time-out 1s ${ease} both` });
+});
+
 it('one wall clock for both readings, so a step shows the age gap and not a tick of the clock', () => {
   // Same frame twice: the two readings are identical and nothing animates,
   // which could only be true if both were measured against the same `now`.

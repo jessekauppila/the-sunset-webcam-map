@@ -298,11 +298,14 @@ it('inside a run only the clock moves, and inside the clock only the part that c
     dials={{ ...D, sameCameraFadeS: 1 }} width={1920} height={1080} />);
   expect(drawnTime()).toBe('7:32 pm there');
   // Only the minute's first digit animates: "7:" holds and so does "2 pm there".
+  // Both halves run on the same curve the picture beneath them is dissolving
+  // on — arrivalEase, not a hardcoded one — so no layer of the change arrives
+  // ahead of another.
   expect(screen.getByTestId('caption-time-head')).toHaveTextContent('3');
-  expect(screen.getByTestId('caption-time-head')).toHaveStyle({ animation: 'solo-time-in 1s ease both' });
+  expect(screen.getByTestId('caption-time-head')).toHaveStyle({ animation: `solo-time-in 1s ${ARRIVAL_EASES.gentle} both` });
   expect(screen.getByTestId('caption-time-out')).toHaveTextContent('2');
   // No delay on either: out and in run together, the way the picture dissolves.
-  expect(screen.getByTestId('caption-time-out')).toHaveStyle({ animation: 'solo-time-out 1s ease both' });
+  expect(screen.getByTestId('caption-time-out')).toHaveStyle({ animation: `solo-time-out 1s ${ARRIVAL_EASES.gentle} both` });
 
   // Stepping again keeps the very same caption element, and the tail with it:
   // the title, the place and "pm there" hold still while the clock swaps.

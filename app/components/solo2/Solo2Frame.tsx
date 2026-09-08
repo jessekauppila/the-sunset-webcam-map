@@ -197,7 +197,7 @@ export function Solo2Frame({ entry, run, previous, stage, plan, dials, width, he
           per dwell; inside the dwell only the clock moves. */}
       <div key={`caption-${dwellId}`} data-testid="caption-layer" style={{ ...captionLayer, animation: inAnimation }}>
         <Caption entry={up} dials={dials} picture={picture} width={width} height={height} feed={feed}
-          step={shown > 0 ? { from: sequence[shown - 1], fadeS: stepFade } : null} />
+          step={shown > 0 ? { from: sequence[shown - 1], fadeS: stepFade, ease } : null} />
       </div>
       {(dials.showScores || dials.showRank || dials.showTally) && (
         <div style={{
