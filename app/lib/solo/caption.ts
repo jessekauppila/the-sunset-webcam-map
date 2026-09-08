@@ -358,3 +358,23 @@ export const SOURCE_FRAME = { width: 400, height: 224 } as const;
 export function drawFactor(picture: Pick<Rect, 'width'>, source: { width: number } = SOURCE_FRAME): number {
   return picture.width / source.width;
 }
+
+/**
+ * How far the words after a changed stretch have to travel when the stretch
+ * changes width, in CSS pixels: positive when the reading shrinks and the
+ * words come back to the left.
+ *
+ * "10 minutes ago" → "9 minutes ago" moves one digit, and the twelve
+ * characters after it have to end up one digit further left. Landing them
+ * there the instant the step begins is the thing that read as a snap while
+ * the digit beside them was still crossfading: the fade was fine, the words
+ * beside it teleported. They glide instead, over the same duration and the
+ * same curve as the dissolve they belong to.
+ *
+ * Under half a pixel is nothing to move, and moving it would promote the
+ * words to their own layer for a distance no one can see.
+ */
+export function tailTravel(fromWidth: number, toWidth: number): number {
+  const travel = fromWidth - toWidth;
+  return Math.abs(travel) < 0.5 ? 0 : travel;
+}

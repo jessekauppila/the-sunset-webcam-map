@@ -1,10 +1,10 @@
 'use client';
 
-import type { CSSProperties } from 'react';
+import { Fragment, useLayoutEffect, useRef, type CSSProperties, type ReactNode } from 'react';
 import type { Feed, SoloDials } from '@/app/lib/solo/types';
 import {
   FONT_STACKS, LINE_HEIGHT, captionBox, captionLines, captionScale, gray, lineGaps,
-  pairTimeSegments, splitTime, timeSegments,
+  pairTimeSegments, splitTime, tailTravel, timeSegments,
   type CaptionEntry, type Rect,
 } from '@/app/lib/solo/caption';
 
@@ -12,6 +12,16 @@ const TIME_KEYFRAMES = `
 @keyframes solo-time-out { from { opacity: 1 } to { opacity: 0 } }
 @keyframes solo-time-in { from { opacity: 0 } to { opacity: 1 } }
 `;
+
+/** The three elements of one crossfading stretch, kept so the glide can measure it. */
+interface StretchNodes {
+  /** The slot the stretch swaps inside; its width is the arriving reading's. */
+  slot: HTMLElement | null;
+  /** The reading on its way out, absolutely placed, so its width is the leaving one's. */
+  out: HTMLElement | null;
+  /** Everything after the stretch, which travels when the two widths differ. */
+  tail: HTMLElement | null;
+}
 
 /**
  * The words under (or over) a solo frame, drawn from the caption dials. Shared
@@ -36,10 +46,20 @@ export function Caption({ entry, dials, picture, width, feed, step, now = Date.n
    * Those crossfade over `fadeS`, out and in together, the way the picture
    * underneath dissolves; the characters the two readings share at either end
    * never animate, so a run counts down "38 minutes ago" to "28 minutes ago"
-   * by moving one digit. Absent on a dwell's first frame, where the whole
+   * by moving one digit.
+   *
+   * When the two readings are not the same width — "10 minutes ago" losing a
+   * digit to "9 minutes ago" — the words after the digit glide to their new
+   * place across the same fade instead of arriving there at once, which is
+   * what used to read as the line sliding sideways.
+   *
+   * `ease` is the timing function of the dissolve this step belongs to. It is
+   * one value for every layer of a change, the picture's included: an eased
+   * arrival against a departure on another curve lands in a third of the time
+   * it left in (PR #160). Absent on a dwell's first frame, where the whole
    * caption arrives with the picture instead.
    */
-  step?: { from: CaptionEntry; fadeS: number } | null;
+  step?: { from: CaptionEntry; fadeS: number; ease?: string } | null;
   /**
    * The wall clock the 'ago' style measures against. One value for the frame
    * arriving and the frame it replaces, so the only thing between the two
@@ -48,8 +68,8 @@ export function Caption({ entry, dials, picture, width, feed, step, now = Date.n
    */
   now?: number;
 }) {
+  const stretches = useRef(new Map<number, StretchNodes>());
   const lines = captionLines(entry, dials, feed, now);
-  if (!lines) return null;
   const s = captionScale(width);
   const box = captionBox(dials, picture, width);
   const overlay = dials.captionLayout === 'overlay';
@@ -57,6 +77,43 @@ export function Caption({ entry, dials, picture, width, feed, step, now = Date.n
   // Margins, not a flex gap: the time line can be pushed further down than
   // the place line is, and captionHeight adds up the same two numbers.
   const gaps = lineGaps(dials);
+
+  // The reading the step is leaving, built with this caption's own dials so
+  // the two ends of the fade are always the same format, then matched piece
+  // for piece against the reading arriving.
+  const leaving = step && step.fadeS > 0 && lines
+    ? timeSegments(dials.timeStyle, step.from.capturedAt, step.from.timezone, step.from.sunAltitudeDeg, now)
+    : null;
+  const pairs = pairTimeSegments(leaving, lines?.timeParts ?? []);
+  // Two frames of the same minute say the same thing; nothing to fade.
+  const stepping = pairs.some((p) => p.fade && p.from !== p.to);
+  const fade = stepping && step ? step.fadeS : 0;
+  const ease = step?.ease ?? 'ease';
+
+  // Measured once the step is laid out, so the words that have to move start
+  // where they were and travel to where they now are. One width read and one
+  // transform written per changed stretch, and the transform is composited:
+  // animating the slot's width instead lays the whole line out again on every
+  // frame, which lands the words on whole pixels and steps rather than glides.
+  const stepKey = `${fade}|${ease}|${pairs.map((p) => `${p.from}›${p.to}`).join('|')}`;
+  useLayoutEffect(() => {
+    if (fade <= 0) return;
+    for (const { slot, out, tail } of stretches.current.values()) {
+      if (!slot || !out || !tail || typeof tail.animate !== 'function') continue;
+      const travel = tailTravel(out.getBoundingClientRect().width, slot.getBoundingClientRect().width);
+      if (!travel) continue;
+      // The glass steps every few seconds for days at a time, so each step
+      // clears the one before it rather than stacking finished animations on
+      // an element that never unmounts.
+      tail.getAnimations?.().forEach((a) => a.cancel());
+      tail.animate(
+        [{ transform: `translateX(${travel}px)` }, { transform: 'translateX(0px)' }],
+        { duration: fade * 1000, easing: ease, fill: 'backwards' },
+      );
+    }
+  }, [stepKey, fade, ease]);
+
+  if (!lines) return null;
 
   const block: CSSProperties = {
     position: 'absolute', left: box.left, top: box.top, bottom: box.bottom, width: box.width, maxWidth: box.maxWidth,
@@ -72,47 +129,58 @@ export function Caption({ entry, dials, picture, width, feed, step, now = Date.n
     fontSize: dials.timeSize * s, color: gray(dials.timeGray), fontVariantNumeric: 'tabular-nums',
   };
 
-  // The reading the step is leaving, built with this caption's own dials so
-  // the two ends of the fade are always the same format, then matched piece
-  // for piece against the reading arriving.
-  const leaving = step && step.fadeS > 0
-    ? timeSegments(dials.timeStyle, step.from.capturedAt, step.from.timezone, step.from.sunAltitudeDeg, now)
-    : null;
-  const pairs = pairTimeSegments(leaving, lines.timeParts);
-  // Two frames of the same minute say the same thing; nothing to fade.
-  const stepping = pairs.some((p) => p.fade && p.from !== p.to);
-  const fade = stepping && step ? step.fadeS : 0;
+  const keep = (i: number, part: keyof StretchNodes) => (node: HTMLElement | null) => {
+    const held = stretches.current.get(i) ?? { slot: null, out: null, tail: null };
+    held[part] = node;
+    if (held.slot || held.out || held.tail) stretches.current.set(i, held);
+    else stretches.current.delete(i);
+  };
+
+  /**
+   * The time line from piece `i` on. Each changed stretch nests everything
+   * after it inside its own tail, so a second stretch that also changes width
+   * travels its own distance on top of the first one's rather than having to
+   * know about it.
+   */
+  const piece = (i: number): ReactNode => {
+    if (i >= pairs.length) return null;
+    const p = pairs[i];
+    const rest = piece(i + 1);
+    // A piece that did not change, and every piece of punctuation, is written
+    // as it is: only what actually moved animates.
+    if (!p.fade || p.from === p.to) return <Fragment key={i}>{p.to}{rest}</Fragment>;
+    const split = splitTime(p.from, p.to);
+    return (
+      <Fragment key={i}>
+        {split.lead}
+        {/* The stretch crossfades in place: the outgoing reading rides on top
+            of the incoming one, which holds the slot's width. Each half is
+            keyed by its own text, so a step restarts the two animations
+            without remounting the line they sit in. */}
+        <span ref={keep(i, 'slot')} style={{ position: 'relative', display: 'inline-block' }}>
+          <span data-testid="caption-time-head" key={split.toMid} style={{
+            display: 'inline-block', animation: `solo-time-in ${fade}s ${ease} both`,
+          }}>
+            {split.toMid}
+          </span>
+          <span data-testid="caption-time-out" key={split.fromMid} aria-hidden ref={keep(i, 'out')} style={{
+            position: 'absolute', left: 0, top: 0, animation: `solo-time-out ${fade}s ${ease} both`,
+          }}>
+            {split.fromMid}
+          </span>
+        </span>
+        {split.tail || rest ? (
+          <span data-testid="caption-time-tail" ref={keep(i, 'tail')} style={{ display: 'inline-block' }}>
+            {split.tail}{rest}
+          </span>
+        ) : null}
+      </Fragment>
+    );
+  };
 
   const time = !lines.time ? null : (
     <span data-testid="caption-time" style={{ ...timeFace, whiteSpace: 'pre' }}>
-      {pairs.map((p, i) => {
-        // A piece that did not change, and every piece of punctuation, is
-        // written as it is: only what actually moved animates.
-        if (!p.fade || p.from === p.to) return <span key={i}>{p.to}</span>;
-        // The head crossfades in place: the outgoing reading rides on top of
-        // the incoming one, which holds the width so the tail beside it never
-        // moves. Each head is keyed by its own text, so a step restarts the
-        // two animations without remounting the line they sit in.
-        const split = splitTime(p.from, p.to);
-        return (
-          <span key={i}>
-            {split.lead}
-            <span style={{ position: 'relative', display: 'inline-block' }}>
-              <span data-testid="caption-time-head" key={split.toMid} style={{
-                display: 'inline-block', animation: `solo-time-in ${fade}s ease both`,
-              }}>
-                {split.toMid}
-              </span>
-              <span data-testid="caption-time-out" key={split.fromMid} aria-hidden style={{
-                position: 'absolute', left: 0, top: 0, animation: `solo-time-out ${fade}s ease both`,
-              }}>
-                {split.fromMid}
-              </span>
-            </span>
-            {split.tail}
-          </span>
-        );
-      })}
+      {piece(0)}
     </span>
   );
 

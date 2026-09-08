@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { captionBox, captionHeight, captionLines, displayTitle, drawFactor, formatAgo, formatTime, gray, lineGaps, pairTimeSegments, pictureRect, splitTime, timeSegments, timeText } from './caption';
+import { captionBox, captionHeight, captionLines, displayTitle, drawFactor, formatAgo, formatTime, gray, lineGaps, pairTimeSegments, pictureRect, splitTime, tailTravel, timeSegments, timeText } from './caption';
 
 // 02:42 UTC on 2026-09-05 is 7:42 pm the evening before in Mazatlán (UTC−7).
 const AT = Date.UTC(2026, 8, 5, 2, 42);
@@ -302,5 +302,27 @@ describe('drawFactor', () => {
     expect(drawFactor(pictureRect(d, 1920, 1080))).toBeCloseTo(4.18, 2);
     expect(drawFactor(pictureRect({ ...d, captionLayout: 'overlay' }, 2560, 1440))).toBeCloseTo(6.4, 2);
     expect(drawFactor({ width: 1000 }, { width: 500 })).toBe(2);
+  });
+});
+
+describe('tailTravel', () => {
+  it('moves the words left by what the number lost', () => {
+    // "10 minutes ago" → "9 minutes ago": the digits are 20px, then 11px, so
+    // the twelve characters after them end up 9px further left.
+    expect(tailTravel(20, 11)).toBe(9);
+  });
+
+  it('moves them right when the reading grows', () => {
+    expect(tailTravel(11, 20)).toBe(-9);
+  });
+
+  it('is nothing when the number keeps its width', () => {
+    // 38 → 28 in tabular figures: one digit swapped, same advance, so there is
+    // nothing for the words beside it to do.
+    expect(tailTravel(20, 20)).toBe(0);
+  });
+
+  it('ignores a sub-pixel difference rather than promoting a layer for it', () => {
+    expect(tailTravel(20.2, 20)).toBe(0);
   });
 });
