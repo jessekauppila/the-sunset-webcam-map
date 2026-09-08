@@ -36,6 +36,8 @@ interface Entry {
   webcamId: number;
   webcamTitle: string | null;
   country: string;
+  /** Sunrise or sunset from the sun's position, computed by the route. */
+  phase: 'sunrise' | 'sunset' | null;
 }
 
 const fetcher = (url: string) =>
@@ -86,7 +88,12 @@ function entryToWebcam(e: Entry): WindyWebcam {
     images: { current: { preview: e.firebaseUrl ?? '' } },
     location: { country: e.country, longitude: 0, latitude: 0 },
     categories: [],
-    phase: e.llmIsSunrise ? 'sunrise' : 'sunset',
+    // The sun's position at this camera at this moment, from the route — not
+    // Claude's llm_is_sunrise flag, which used to decide this word. That flag
+    // is a judgment about the picture and it says yes to both questions on a
+    // sky that could be either, so a genuine sunrise on this board announced
+    // itself as one only by accident and a genuine sunset could too.
+    phase: e.phase,
     // Claude (third judge) — real fields, no longer faked into model slots.
     llmQuality,
     llmIsSunset: e.llmIsSunset,

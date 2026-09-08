@@ -106,4 +106,57 @@ describe('GET /api/leaderboards', () => {
     expect(text).not.toMatch(/s\.webcam_id = /i);
     expect(params).toEqual([60]);
   });
+
+  // Kasane: Chobe Savanna Lodge, the camera whose board entry announced itself
+  // as a sunrise. Coordinates and capture times are the real archive rows.
+  const kasane = (over: Record<string, unknown>) => ({
+    id: 82891,
+    llmQuality: '0.820',
+    llmIsSunset: true,
+    llmIsSunrise: true,
+    firebaseUrl: 'https://storage.googleapis.com/f.jpg',
+    webcamId: 2926965,
+    webcamTitle: 'Kasane: Chobe Savanna Lodge - Chobe National Park',
+    country: 'Botswana',
+    lat: -17.8306,
+    lng: 25.05327,
+    ...over,
+  });
+
+  it('reads captured_at as UTC — a naive column read raw is hours off', async () => {
+    await GET(req());
+    const [text] = sqlQueryMock.mock.calls[0];
+    expect(text).toMatch(/\(s\.captured_at AT TIME ZONE 'UTC'\) AS "capturedAt"/i);
+  });
+
+  it('selects the coordinates the phase is computed from, as numbers', async () => {
+    await GET(req());
+    const [text] = sqlQueryMock.mock.calls[0];
+    expect(text).toMatch(/w\.lat::float8 AS "lat"/i);
+    expect(text).toMatch(/w\.lng::float8 AS "lng"/i);
+  });
+
+  it('stamps phase from the sun, not from Claude — a climbing sun is a sunrise', async () => {
+    // Claude says sunrise AND sunset here, which is why the frame is on a
+    // sunset board at all. The sun was on the horizon and climbing.
+    sqlQueryMock.mockResolvedValue([kasane({ capturedAt: '2026-03-14T04:27:24.354Z' })]);
+    const body = await (await GET(req())).json();
+    expect(body.entries[0].phase).toBe('sunrise');
+  });
+
+  it('calls a falling sun a sunset even when Claude called it a sunrise', async () => {
+    sqlQueryMock.mockResolvedValue([
+      kasane({ capturedAt: '2026-03-14T15:44:35.470Z', llmIsSunrise: true }),
+    ]);
+    const body = await (await GET(req())).json();
+    expect(body.entries[0].phase).toBe('sunset');
+  });
+
+  it('leaves phase null when the row has no coordinate to compute from', async () => {
+    sqlQueryMock.mockResolvedValue([
+      kasane({ capturedAt: '2026-03-14T04:27:24.354Z', lat: null, lng: null }),
+    ]);
+    const body = await (await GET(req())).json();
+    expect(body.entries[0].phase).toBeNull();
+  });
 });
