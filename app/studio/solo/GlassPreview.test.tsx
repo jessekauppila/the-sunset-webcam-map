@@ -30,7 +30,7 @@ beforeAll(() => {
 
 it('draws each screen\'s current frame at the panel\'s true pixels with the studio dials, and says when a screen has nothing', () => {
   render(<GlassPreview screens={[{ feed: 'sunrise', server, projected: null }, { feed: 'sunset', server: null, projected: null }]}
-    dials={{ ...D, titleClean: 'spot' }} panel={{ width: 1920, height: 1080 }} />);
+    dials={{ ...D, titleClean: 'spot', timeStyle: '12h-there' }} panel={{ width: 1920, height: 1080 }} />);
   expect(screen.getByTestId('caption-title')).toHaveTextContent('Northern Lights webcam');
   expect(screen.getByTestId('caption-place')).toHaveTextContent('Porjus, Norrbotten County, Sweden');
   expect(screen.getByTestId('caption-time')).toHaveTextContent('8:46 pm there');

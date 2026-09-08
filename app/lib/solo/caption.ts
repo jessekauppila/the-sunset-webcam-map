@@ -1,4 +1,4 @@
-import type { Feed, HereTime, SoloDials, TimeStyle, TitleClean, CaptionFont } from './types';
+import type { Feed, SoloDials, TimeStyle, TitleClean, CaptionFont } from './types';
 
 /**
  * The caption under (or over) a solo frame: what it says and where it sits.
@@ -51,48 +51,44 @@ export interface TimeSegment {
   fade: boolean;
 }
 
-/** Where the glass is, and how it wants its own clock written. */
-export interface HereClock {
-  style: HereTime;
-  /** IANA name of the glass's own zone; null when it cannot be resolved. */
-  timezone: string | null;
-}
-
-/** The glass's own zone, or null where Intl cannot say (a test, an odd runtime). */
-export function localTimezone(): string | null {
-  try {
-    return Intl.DateTimeFormat().resolvedOptions().timeZone || null;
-  } catch {
-    return null;
-  }
+/**
+ * How long ago the picture was taken, in words. The point of it is that the
+ * sunset is happening somewhere else right now: a clock in a zone you do not
+ * live in has to be converted before it says anything, where "13 minutes ago"
+ * says it outright.
+ *
+ * Minutes up to an hour, then hours and minutes, then days and hours. Round
+ * amounts drop the smaller unit — "2 hours ago", not "2 hours 0 minutes ago".
+ * Anything under a minute, and any capture that reads as being in the future
+ * because two clocks disagree, is "just now".
+ */
+export function formatAgo(elapsedMs: number): string {
+  const minutes = Math.floor(elapsedMs / 60_000);
+  if (!Number.isFinite(minutes) || minutes < 1) return 'just now';
+  const unit = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
+  const pair = (big: number, bigWord: string, small: number, smallWord: string) =>
+    `${unit(big, bigWord)}${small ? ` ${unit(small, smallWord)}` : ''} ago`;
+  if (minutes < 60) return `${unit(minutes, 'minute')} ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return pair(hours, 'hour', minutes % 60, 'minute');
+  return pair(Math.floor(hours / 24), 'day', hours % 24, 'hour');
 }
 
 /**
- * How each shape attaches the here reading: what goes before it, whether it
- * says the word, and what closes it. Kept as data so the studio's dial and
- * the glass cannot drift apart about what a shape looks like.
+ * The time line for one style (solo2 spec §4.5), as segments, or empty when
+ * there is nothing to say (style off, or the data the style needs is missing).
+ * `now` is the wall clock the 'ago' style measures against.
  */
-const HERE_SHAPES: Record<Exclude<HereTime, 'off'>, { open: string; word: boolean; close: string }> = {
-  dot: { open: ' · ', word: true, close: '' },
-  parens: { open: ' (', word: true, close: ')' },
-  'parens-bare': { open: ' (', word: false, close: ')' },
-  dash: { open: ' — ', word: true, close: '' },
-  comma: { open: ', ', word: true, close: '' },
-};
-
-/**
- * The camera's half of the time line for one style (solo2 spec §4.5), as
- * segments, or empty when there is nothing to say (style off, or the data
- * the style needs is missing).
- */
-function thereSegments(
+export function timeSegments(
   style: TimeStyle, capturedAt: number, timezone: string | null, sunAltitudeDeg: number | null,
+  now: number = Date.now(),
 ): TimeSegment[] {
   const twelve = timezone ? clock(capturedAt, timezone, true) : null;
   const sunPart = sunAltitudeDeg == null || !Number.isFinite(sunAltitudeDeg) ? null : sun(sunAltitudeDeg);
   const one = (text: string | null): TimeSegment[] => (text ? [{ text, fade: true }] : []);
   switch (style) {
     case 'off': return [];
+    case 'ago': return one(formatAgo(now - capturedAt));
     case '12h': return one(twelve);
     case '12h-there': return one(twelve ? `${twelve} there` : null);
     case '24h': return one(timezone ? clock(capturedAt, timezone, false) : null);
@@ -102,32 +98,6 @@ function thereSegments(
       return parts.flatMap((text, i) => (i === 0 ? [{ text, fade: true }] : [{ text: ' · ', fade: false }, { text, fade: true }]));
     }
   }
-}
-
-/**
- * The whole time line as segments: the camera's reading, then the glass's own
- * clock on the same instant when the here dial asks for it.
- *
- * The here half is dropped when the two zones read the same clock — a camera
- * in your own zone would otherwise say the time twice — and when the there
- * half said nothing at all, since there is nothing for it to sit beside.
- */
-export function timeSegments(
-  style: TimeStyle, capturedAt: number, timezone: string | null, sunAltitudeDeg: number | null,
-  here?: HereClock,
-): TimeSegment[] {
-  const there = thereSegments(style, capturedAt, timezone, sunAltitudeDeg);
-  if (!here || here.style === 'off' || !here.timezone || there.length === 0) return there;
-  const mine = clock(capturedAt, here.timezone, true);
-  if (!mine) return there;
-  if (timezone && mine === clock(capturedAt, timezone, true)) return there; // same zone; it is one clock
-  const shape = HERE_SHAPES[here.style];
-  return [
-    ...there,
-    { text: shape.open, fade: false },
-    { text: shape.word ? `${mine} here` : mine, fade: true },
-    ...(shape.close ? [{ text: shape.close, fade: false }] : []),
-  ];
 }
 
 /** The segments written out, or '' when there are none. */
@@ -140,9 +110,9 @@ export const timeText = (segments: TimeSegment[]): string => segments.map((s) =>
  */
 export function formatTime(
   style: TimeStyle, capturedAt: number, timezone: string | null, sunAltitudeDeg: number | null,
-  here?: HereClock,
+  now?: number,
 ): string | null {
-  return timeText(timeSegments(style, capturedAt, timezone, sunAltitudeDeg, here)) || null;
+  return timeText(timeSegments(style, capturedAt, timezone, sunAltitudeDeg, now)) || null;
 }
 
 const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '');
@@ -191,16 +161,14 @@ export const FEED_PREFIX: Record<Feed, string> = { sunrise: 'Sunrise: ', sunset:
  * begins with its name (camera-run spec §6.2).
  */
 export function captionLines(
-  e: CaptionEntry, d: Pick<SoloDials, 'showPlace' | 'timeStyle' | 'hereTime' | 'titleClean' | 'feedPrefix'>,
-  feed?: Feed, hereTimezone?: string | null,
+  e: CaptionEntry, d: Pick<SoloDials, 'showPlace' | 'timeStyle' | 'titleClean' | 'feedPrefix'>,
+  feed?: Feed, now?: number,
 ): CaptionLines | null {
   if (!d.showPlace) return null;
   const t = displayTitle(e.title, d.titleClean);
   const prefix = d.feedPrefix && feed ? FEED_PREFIX[feed] : '';
   const place = [t.city, e.region, e.country].filter(Boolean).join(', ');
-  const timeParts = timeSegments(d.timeStyle, e.capturedAt, e.timezone, e.sunAltitudeDeg, {
-    style: d.hereTime, timezone: hereTimezone === undefined ? localTimezone() : hereTimezone,
-  });
+  const timeParts = timeSegments(d.timeStyle, e.capturedAt, e.timezone, e.sunAltitudeDeg, now);
   const time = timeText(timeParts);
   return { title: prefix + t.title, place, time, timeParts, sub: [place, time].filter(Boolean).join(' · ') };
 }

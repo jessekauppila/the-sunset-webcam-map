@@ -4,6 +4,15 @@ import { Caption } from './Caption';
 import { dialsFrom, SOLO_SETTINGS_SCHEMA } from '@/app/lib/solo/settingsSchema';
 import { schemaDefaults } from '@/app/lib/settings/schema';
 
+const D = dialsFrom(schemaDefaults(SOLO_SETTINGS_SCHEMA));
+const MIN = 60_000;
+const AT = Date.UTC(2026, 8, 5, 2, 42);
+const e = {
+  title: 'Split › West', region: 'Split-Dalmatia County', country: 'Croatia',
+  capturedAt: AT, timezone: 'America/Mazatlan', sunAltitudeDeg: null,
+};
+const PICTURE = { left: 0, top: 0, width: 1920, height: 940 };
+
 /**
  * The time line as it is actually drawn. Mid-crossfade the line also carries
  * the reading on its way out, which is aria-hidden and sits on top of the one
@@ -15,55 +24,44 @@ const drawnTime = () => {
   return el.textContent;
 };
 
-
-const D = dialsFrom(schemaDefaults(SOLO_SETTINGS_SCHEMA));
-const AT = Date.UTC(2026, 8, 5, 2, 42); // 7:42 pm in Mazatlán, 10:42 pm in New York
-const e = {
-  title: 'Split › West', region: 'Split-Dalmatia County', country: 'Croatia',
-  capturedAt: AT, timezone: 'America/Mazatlan', sunAltitudeDeg: null,
-};
-const PICTURE = { left: 0, top: 0, width: 1920, height: 940 };
 const draw = (props: Partial<Parameters<typeof Caption>[0]> = {}) =>
-  render(<Caption entry={e} dials={D} picture={PICTURE} width={1920} hereTimezone="America/New_York" {...props} />);
+  render(<Caption entry={e} dials={D} picture={PICTURE} width={1920} now={AT + 13 * MIN} {...props} />);
 
-it('the here dial writes the glass’s own clock beside the camera’s, in the shape it names', () => {
-  draw({ dials: { ...D, hereTime: 'parens' } });
-  expect(screen.getByTestId('caption-time')).toHaveTextContent('7:42 pm there (10:42 pm here)');
-});
-
-it('off leaves the camera’s clock alone', () => {
+it('the default time reading is how long ago the picture was taken', () => {
   draw();
-  expect(screen.getByTestId('caption-time')).toHaveTextContent('7:42 pm there');
+  expect(drawnTime()).toBe('13 minutes ago');
 });
 
-it('a step fades each reading against its own predecessor, so the words that held still do not animate', () => {
-  const from = { ...e, capturedAt: AT - 9 * 60_000 }; // 7:33 pm there, 10:33 pm here
-  draw({ dials: { ...D, hereTime: 'dot' }, step: { from, fadeS: 1 } });
-  expect(drawnTime()).toBe('7:42 pm there · 10:42 pm here');
-  // Two readings moved, so two stretches fade in and two fade out — and each
-  // reading holds its own ends rather than sharing one tail with the other.
-  // 7:33 → 7:42 and 10:33 → 10:42: the hour and the colon held, so only the
-  // minutes are on the move.
-  expect(screen.getAllByTestId('caption-time-head').map((n) => n.textContent)).toEqual(['42', '42']);
-  expect(screen.getAllByTestId('caption-time-out').map((n) => n.textContent)).toEqual(['33', '33']);
-  for (const n of screen.getAllByTestId('caption-time-head')) {
-    expect(n).toHaveStyle({ animation: 'solo-time-in 1s ease both' });
-  }
+it('past an hour it reads hours and minutes', () => {
+  draw({ now: AT + 65 * MIN });
+  expect(drawnTime()).toBe('1 hour 5 minutes ago');
 });
 
-it('the separator between them is never asked to fade', () => {
-  const from = { ...e, capturedAt: AT - 9 * 60_000 };
-  draw({ dials: { ...D, hereTime: 'dot' }, step: { from, fadeS: 1 } });
-  const dots = screen.getAllByTestId('caption-time-out').map((n) => n.textContent);
-  expect(dots.join('')).not.toContain('·');
+it('it needs no timezone, so a camera that has none still says when', () => {
+  draw({ entry: { ...e, timezone: null } });
+  expect(drawnTime()).toBe('13 minutes ago');
 });
 
-it('two frames of the same minute say the same thing, so nothing animates', () => {
-  draw({ dials: { ...D, hereTime: 'dot' }, step: { from: { ...e, capturedAt: AT + 5_000 }, fadeS: 1 } });
+it('a run counts down, and only the digit that moved fades', () => {
+  // The frame arriving was taken ten minutes later than the one it replaces,
+  // so at one wall clock the reading goes 38 minutes ago → 28 minutes ago.
+  const now = AT + 38 * MIN;
+  draw({ entry: { ...e, capturedAt: AT + 10 * MIN }, now, step: { from: e, fadeS: 1 } });
+  expect(drawnTime()).toBe('28 minutes ago');
+  expect(screen.getByTestId('caption-time-head')).toHaveTextContent('2');
+  expect(screen.getByTestId('caption-time-head')).toHaveStyle({ animation: 'solo-time-in 1s ease both' });
+  expect(screen.getByTestId('caption-time-out')).toHaveTextContent('3');
+  expect(screen.getByTestId('caption-time-out')).toHaveStyle({ animation: 'solo-time-out 1s ease both' });
+});
+
+it('one wall clock for both readings, so a step shows the age gap and not a tick of the clock', () => {
+  // Same frame twice: the two readings are identical and nothing animates,
+  // which could only be true if both were measured against the same `now`.
+  draw({ step: { from: e, fadeS: 1 } });
   expect(screen.queryByTestId('caption-time-out')).toBeNull();
 });
 
-it('a camera in the glass’s own zone does not say the time twice', () => {
-  draw({ dials: { ...D, hereTime: 'dot' }, hereTimezone: 'America/Los_Angeles' });
-  expect(screen.getByTestId('caption-time')).toHaveTextContent('7:42 pm there');
+it('the clock styles still read the camera’s own time', () => {
+  draw({ dials: { ...D, timeStyle: '12h-there' } });
+  expect(drawnTime()).toBe('7:42 pm there');
 });

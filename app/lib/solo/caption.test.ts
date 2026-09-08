@@ -1,13 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { captionBox, captionHeight, captionLines, displayTitle, drawFactor, formatTime, gray, lineGaps, pairTimeSegments, pictureRect, splitTime, timeSegments } from './caption';
+import { captionBox, captionHeight, captionLines, displayTitle, drawFactor, formatAgo, formatTime, gray, lineGaps, pairTimeSegments, pictureRect, splitTime, timeSegments, timeText } from './caption';
 
 // 02:42 UTC on 2026-09-05 is 7:42 pm the evening before in Mazatlán (UTC−7).
 const AT = Date.UTC(2026, 8, 5, 2, 42);
 const TZ = 'America/Mazatlan';
-// The glass, three hours east of the camera: the same instant reads 10:42 pm.
-const HERE = 'America/New_York';
-// Los Angeles keeps the same offset as Mazatl\u00e1n, so it reads the same clock.
-const SAME = 'America/Los_Angeles';
+const MIN = 60_000;
 
 describe('formatTime', () => {
   it('renders each style', () => {
@@ -32,47 +29,49 @@ describe('formatTime', () => {
   });
 });
 
-describe('the glass\u2019s own clock beside the camera\u2019s', () => {
-  const here = (style: 'off' | 'dot' | 'parens' | 'parens-bare' | 'dash' | 'comma', timezone: string | null = HERE) =>
-    ({ style, timezone });
-
-  it('each shape attaches the here reading its own way', () => {
-    expect(formatTime('12h-there', AT, TZ, 1.23, here('dot'))).toBe('7:42 pm there \u00b7 10:42 pm here');
-    expect(formatTime('12h-there', AT, TZ, 1.23, here('parens'))).toBe('7:42 pm there (10:42 pm here)');
-    expect(formatTime('12h-there', AT, TZ, 1.23, here('parens-bare'))).toBe('7:42 pm there (10:42 pm)');
-    expect(formatTime('12h-there', AT, TZ, 1.23, here('dash'))).toBe('7:42 pm there \u2014 10:42 pm here');
-    expect(formatTime('12h-there', AT, TZ, 1.23, here('comma'))).toBe('7:42 pm there, 10:42 pm here');
+describe('formatAgo', () => {
+  it('counts minutes up to an hour', () => {
+    expect(formatAgo(13 * MIN)).toBe('13 minutes ago');
+    expect(formatAgo(1 * MIN)).toBe('1 minute ago');
+    expect(formatAgo(59 * MIN)).toBe('59 minutes ago');
   });
-
-  it('off, an unknown zone, and a time that says nothing all leave the line alone', () => {
-    expect(formatTime('12h-there', AT, TZ, 1.23, here('off'))).toBe('7:42 pm there');
-    expect(formatTime('12h-there', AT, TZ, 1.23, here('dot', null))).toBe('7:42 pm there');
-    expect(formatTime('12h-there', AT, TZ, 1.23, here('dot', 'Mars/Olympus'))).toBe('7:42 pm there');
-    expect(formatTime('off', AT, TZ, 1.23, here('dot'))).toBeNull();
-    // The camera has no zone, so its half said nothing; there is nothing to sit beside.
-    expect(formatTime('12h', AT, null, 1.23, here('dot'))).toBeNull();
+  it('then hours and minutes, dropping a round remainder', () => {
+    expect(formatAgo(65 * MIN)).toBe('1 hour 5 minutes ago');
+    expect(formatAgo(60 * MIN)).toBe('1 hour ago');
+    expect(formatAgo(120 * MIN)).toBe('2 hours ago');
+    expect(formatAgo(181 * MIN)).toBe('3 hours 1 minute ago');
   });
-
-  it('a camera in this glass\u2019s own zone does not say the time twice', () => {
-    expect(formatTime('12h-there', AT, TZ, 1.23, here('dot', SAME))).toBe('7:42 pm there');
+  it('then days and hours, for a camera that has gone quiet', () => {
+    expect(formatAgo(25 * 60 * MIN)).toBe('1 day 1 hour ago');
+    expect(formatAgo(48 * 60 * MIN)).toBe('2 days ago');
   });
-
-  it('it attaches to whatever the style said, the sun included', () => {
-    expect(formatTime('sun', AT, TZ, 1.23, here('parens'))).toBe('sun 1.2\u00b0 above the horizon (10:42 pm here)');
+  it('under a minute, and a capture that reads as being in the future, are both just now', () => {
+    expect(formatAgo(59_000)).toBe('just now');
+    expect(formatAgo(0)).toBe('just now');
+    expect(formatAgo(-5 * MIN)).toBe('just now');
   });
+});
 
-  it('the punctuation is its own piece, so only the readings can fade', () => {
-    expect(timeSegments('12h-there', AT, TZ, null, here('parens'))).toEqual([
-      { text: '7:42 pm there', fade: true },
-      { text: ' (', fade: false },
-      { text: '10:42 pm here', fade: true },
-      { text: ')', fade: false },
-    ]);
-    expect(timeSegments('12h-sun', AT, TZ, -2.15)).toEqual([
-      { text: '7:42 pm', fade: true },
-      { text: ' \u00b7 ', fade: false },
-      { text: 'sun 2.1\u00b0 below the horizon', fade: true },
-    ]);
+describe('the ago style', () => {
+  it('measures the picture against the wall clock it is given', () => {
+    expect(formatTime('ago', AT, TZ, 1.23, AT + 13 * MIN)).toBe('13 minutes ago');
+    expect(formatTime('ago', AT, null, null, AT + 65 * MIN)).toBe('1 hour 5 minutes ago');
+  });
+  it('needs neither a zone nor a sun angle, so it always says something', () => {
+    expect(timeSegments('ago', AT, null, null, AT + MIN)).toEqual([{ text: '1 minute ago', fade: true }]);
+  });
+  it('a run counts down, and only the digit that moved is asked to fade', () => {
+    const now = AT + 38 * MIN;
+    const from = timeSegments('ago', AT, TZ, null, now);
+    const to = timeSegments('ago', AT + 10 * MIN, TZ, null, now);
+    expect(timeText(from)).toBe('38 minutes ago');
+    expect(timeText(to)).toBe('28 minutes ago');
+    const [pair] = pairTimeSegments(from, to);
+    expect(splitTime(pair.from, pair.to)).toEqual({ lead: '', fromMid: '3', toMid: '2', tail: '8 minutes ago' });
+  });
+  it('an hour reading holds the hour still and moves the minute', () => {
+    expect(splitTime('1 hour 5 minutes ago', '1 hour 4 minutes ago'))
+      .toEqual({ lead: '1 hour ', fromMid: '5', toMid: '4', tail: ' minutes ago' });
   });
 });
 
@@ -135,7 +134,7 @@ describe('displayTitle', () => {
 
 describe('captionLines', () => {
   const e = { title: 'Porjus › North-west: Northern Lights webcam', region: 'Norrbotten County', country: 'Sweden', capturedAt: AT, timezone: TZ, sunAltitudeDeg: 1.2 };
-  const d = { showPlace: true, timeStyle: '12h-there' as const, hereTime: 'off' as const, titleClean: 'compass' as const };
+  const d = { showPlace: true, timeStyle: '12h-there' as const, titleClean: 'compass' as const };
   it('gives the cleaned title, the place, the time, and the two joined', () => {
     expect(captionLines(e, d)).toEqual({
       title: 'Porjus: Northern Lights webcam', place: 'Norrbotten County, Sweden', time: '7:42 pm there',
@@ -143,11 +142,10 @@ describe('captionLines', () => {
       sub: 'Norrbotten County, Sweden · 7:42 pm there',
     });
   });
-  it('writes the glass\u2019s own clock beside the camera\u2019s when the here dial asks, and passes the pieces on', () => {
-    const lines = captionLines(e, { ...d, hereTime: 'parens' }, undefined, HERE)!;
-    expect(lines.time).toBe('7:42 pm there (10:42 pm here)');
-    expect(lines.timeParts.map((p) => p.text)).toEqual(['7:42 pm there', ' (', '10:42 pm here', ')']);
-    expect(lines.sub).toBe('Norrbotten County, Sweden \u00b7 7:42 pm there (10:42 pm here)');
+  it('the ago style reads against the wall clock the caller passes', () => {
+    const lines = captionLines(e, { ...d, timeStyle: 'ago' }, undefined, AT + 13 * MIN)!;
+    expect(lines.time).toBe('13 minutes ago');
+    expect(lines.sub).toBe('Norrbotten County, Sweden · 13 minutes ago');
   });
   it('names the screen before the title when the prefix dial is on and a feed is given', () => {
     expect(captionLines(e, { ...d, feedPrefix: true }, 'sunset')!.title).toBe('Sunset: Porjus: Northern Lights webcam');

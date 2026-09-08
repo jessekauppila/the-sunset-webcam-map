@@ -1,7 +1,7 @@
 import { mergeSettings } from '@/app/lib/settings/schema';
 import type { SettingsSchema, SettingsValues } from '@/app/lib/settings/schema';
 import type {
-  CaptionAlign, CaptionDials, CaptionFont, CaptionLayout, HereTime, TimeLine, TimeStyle, TitleClean, TitleWeight,
+  CaptionAlign, CaptionDials, CaptionFont, CaptionLayout, TimeLine, TimeStyle, TitleClean, TitleWeight,
 } from './types';
 
 /** The rail section every caption knob sits in. */
@@ -93,14 +93,9 @@ export const CAPTION_SCHEMA: SettingsSchema = [
     description: 'Extra space above every caption line after the first.',
   },
   {
-    key: 'timeStyle', kind: 'enum', options: ['off', '12h', '12h-there', '24h', 'sun', '12h-sun'], default: '12h-there',
+    key: 'timeStyle', kind: 'enum', options: ['off', 'ago', '12h', '12h-there', '24h', 'sun', '12h-sun'], default: 'ago',
     label: 'time', section: CAPTION_SECTION,
-    description: 'The local clock at the camera when the picture was taken (12h → "7:42 pm", 12h-there → "7:42 pm there", 24h → "19:42"), the sun\'s height ("sun 1.2° above the horizon"), or both.',
-  },
-  {
-    key: 'hereTime', kind: 'enum', options: ['off', 'dot', 'parens', 'parens-bare', 'dash', 'comma'], default: 'off',
-    label: 'my time too', section: CAPTION_SECTION,
-    description: 'Write the glass\u2019s own clock beside the camera\u2019s, on the same instant, so the pair says one moment read on two clocks. Against a camera reading "7:42 pm there": dot \u2192 "\u00b7 10:42 am here", parens \u2192 "(10:42 am here)", parens-bare \u2192 "(10:42 am)", dash \u2192 "\u2014 10:42 am here", comma \u2192 ", 10:42 am here". Nothing when the time is off, or when the camera is in this glass\u2019s own zone and the two clocks would read the same.',
+    description: 'ago → how long since the picture was taken ("13 minutes ago", "1 hour 5 minutes ago"). It says the sunset is happening somewhere else right now without asking anyone to convert a clock, and inside a camera run it counts down. The rest read the camera\'s own clock at the moment of the picture (12h → "7:42 pm", 12h-there → "7:42 pm there", 24h → "19:42"), the sun\'s height ("sun 1.2° above the horizon"), or both.',
   },
   {
     key: 'timeLine', kind: 'enum', options: ['own', 'inline'], default: 'own',
@@ -192,7 +187,6 @@ export function captionDialsFrom(values: SettingsValues): CaptionDials {
     placeGray: values.placeGray as number,
     lineGap: values.lineGap as number,
     timeStyle: values.timeStyle as TimeStyle,
-    hereTime: values.hereTime as HereTime,
     timeLine: values.timeLine as TimeLine,
     timeGap: values.timeGap as number,
     timeSize: values.timeSize as number,
