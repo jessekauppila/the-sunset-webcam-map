@@ -95,28 +95,32 @@ function standing<T extends RunEntry>(e: Pick<BinEntry, 'bin'> & Partial<T>, d: 
   return qualityRank(e as T, entries, cameraRun);
 }
 
+/** The two ends the budget swings between, as dial fields; both optional so older callers read as the dial. */
+export interface BudgetDials { dwellS: number; dwellBoost?: number; dwellTrim?: number }
+
 /**
  * The dwell budget for a draw of `e`, seconds (the `dwellS` the budget rule
- * of the dwell-budget spec §3 then shares among the run's frames). The dial
- * is the middle: a non-sunset and the weakest sunset present get the dial
- * less the spread, the strongest sunset present gets the dial plus it, and
- * sunsets between sit by rank. So a grey frame gives back a little screen
- * time and the best sunset on offer takes a little more — the same shape as
- * the frame cap, applied to the clock, so a lone frame with no run to
- * lengthen still feels the difference.
+ * of the dwell-budget spec §3 then shares among the run's frames). A
+ * non-sunset, and the weakest sunset present, hold the dial less the trim;
+ * the strongest sunset present holds the dial plus the boost; sunsets
+ * between sit by rank. Two dials rather than one spread so the top and the
+ * bottom can be set apart: how long the best may run and how short a grey
+ * frame may get are different worries. The same shape as the frame cap,
+ * applied to the clock, so a lone frame with no run to lengthen still
+ * feels the difference.
  */
 export function budgetS<T extends RunEntry>(
-  e: Pick<BinEntry, 'bin'> & Partial<T>, d: CapDials & { dwellS: number; dwellSpread?: number },
-  entries?: T[], cameraRun = true,
+  e: Pick<BinEntry, 'bin'> & Partial<T>, d: CapDials & BudgetDials, entries?: T[], cameraRun = true,
 ): number {
-  const spread = (d.dwellSpread ?? 0) / 100;
-  if (spread === 0) return d.dwellS;
+  const boost = (d.dwellBoost ?? 0) / 100;
+  const trim = (d.dwellTrim ?? 0) / 100;
+  if (boost === 0 && trim === 0) return d.dwellS;
   const rank = e.bin === 'sunset' ? standing(e, d, entries, cameraRun) : 0;
-  return d.dwellS * (1 - spread + 2 * spread * rank);
+  return d.dwellS * (1 - trim + (trim + boost) * rank);
 }
 
 /** `d` with its dwell replaced by the draw's budget, ready for fitPlan. */
-export function planDialsFor<T extends RunEntry, D extends CapDials & { dwellS: number; dwellSpread?: number }>(
+export function planDialsFor<T extends RunEntry, D extends CapDials & BudgetDials>(
   e: Pick<BinEntry, 'bin'> & Partial<T>, d: D, entries?: T[], cameraRun = true,
 ): D {
   return { ...d, dwellS: budgetS(e, d, entries, cameraRun) };
