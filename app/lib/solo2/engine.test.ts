@@ -16,7 +16,7 @@ import type { Solo2Dials } from './types';
 
 // The spread swings each draw's budget by rank; these tests are about the
 // budget rule itself, so they pin it to the dial.
-const D: Solo2Dials = { ...dialsFrom2(schemaDefaults(SOLO2_SETTINGS_SCHEMA)), dwellSpread: 0 };
+const D: Solo2Dials = { ...dialsFrom2(schemaDefaults(SOLO2_SETTINGS_SCHEMA)), dwellBoost: 0, dwellTrim: 0 };
 const S0: ScreenState = { lastSnapshotId: null, sunsetStreak: 0 };
 
 function sun(id: number, q: number, extra: Partial<BinEntry> = {}): BinEntry {
@@ -162,7 +162,7 @@ describe('the camera run', () => {
 
 describe('dwellMs2: the budget rule over the frames actually played', () => {
   // The spread swings the budget by rank; this suite is about the rule, so it pins the dial.
-  const D2 = { ...dialsFrom2(schemaDefaults(SOLO2_SETTINGS_SCHEMA)), cameraRun: true, dwellSpread: 0 };
+  const D2 = { ...dialsFrom2(schemaDefaults(SOLO2_SETTINGS_SCHEMA)), cameraRun: true, dwellBoost: 0, dwellTrim: 0 };
   // The camera change's own segment at the default fades (dwell-budget spec
   // §3.3): every dwell is this much longer than the frames' budget.
   const ARRIVAL = 1_500;
