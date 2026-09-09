@@ -332,7 +332,10 @@ export async function GET(req: Request) {
       // and silently poison the corpus this panel exists to produce. The
       // disagreement itself is not lost — model_disagreement_kind is written
       // independently, and the Hard Examples queue filters on that column, not
-      // on intake_reason.
+      // on intake_reason. Below 'run', a frame that would have been saved
+      // anyway is NOT part of the unbiased arm, so the gated reasons win and
+      // 'trickle' marks only frames nothing else caught. 'kiosk_bin' likewise
+      // marks only frames the bins alone brought in.
       const intakeReason:
         | 'disagreement' | 'high_rated' | 'trickle' | 'all_rated' | 'kiosk_bin' | 'run' =
         isRunPanel

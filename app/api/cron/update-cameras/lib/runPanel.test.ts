@@ -52,4 +52,10 @@ describe('loadRunPanel', () => {
 
     expect(panel.has(700)).toBe(true);
   });
+
+  it('fails closed (empty set, no throw) when the query rejects', async () => {
+    sqlMock.mockRejectedValueOnce(new Error('connection refused'));
+
+    await expect(loadRunPanel()).resolves.toEqual(new Set());
+  });
 });

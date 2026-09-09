@@ -248,6 +248,7 @@ beforeEach(() => {
   });
   insertWindyDisagreementSnapshotMock.mockReset().mockReturnValue(999);
   isFlagEnabledMock.mockReset().mockResolvedValue(false);
+  loadRunPanelMock.mockReset().mockResolvedValue(new Set<number>());
   sweepHoldMock.mockReset();
   toggles.high = false;
   toggles.all = false;
@@ -568,6 +569,24 @@ describe('GET /api/cron/update-cameras', () => {
     await GET(makeReq());
     expect(insertWindyDisagreementSnapshotMock.mock.calls[0][0]).toMatchObject({
       intakeReason: 'high_rated',
+    });
+  });
+
+  it('stamps run FIRST even when the same frame also disagrees, without losing the disagreement', async () => {
+    // The most counter-intuitive rule in the precedence chain: a panel camera's
+    // frame is kept regardless of score, so it must never read as model-selected.
+    // But the disagreement itself must still land — model_disagreement_kind is
+    // what the Hard Examples queue actually filters on, independent of
+    // intake_reason. Both assertions below defend that invariant together.
+    loadRunPanelMock.mockResolvedValue(new Set([700]));
+    computeDisagreementKindMock.mockReturnValueOnce(
+      'binary_negative_regression_high',
+    );
+    await GET(makeReq());
+    expect(insertWindyDisagreementSnapshotMock).toHaveBeenCalledTimes(1);
+    expect(insertWindyDisagreementSnapshotMock.mock.calls[0][0]).toMatchObject({
+      intakeReason: 'run',
+      disagreementKind: 'binary_negative_regression_high',
     });
   });
 
