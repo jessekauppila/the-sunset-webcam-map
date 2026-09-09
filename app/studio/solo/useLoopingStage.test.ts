@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useLoopingStage } from './useLoopingStage';
-import { fitPlan } from '@/app/lib/solo2/plan';
+import { fitPlan, type Stage } from '@/app/lib/solo2/plan';
 
 const plan = fitPlan({ dwellS: 6, leadS: 0, minStepS: 1 }, 3); // 2 s a frame, above the floor so the budget divides
 const NOW = 100_000;
@@ -51,5 +51,25 @@ describe('useLoopingStage', () => {
   it('still holds it far past the dwell, however late the walker is', () => {
     const { result } = renderHook(() => useLoopingStage(plan, NOW - 60_000));
     expect(result.current.index).toBe(2);
+  });
+});
+
+describe('useLoopingStage across a change of dwell', () => {
+  /**
+   * The preview paints the render that brings a new dwell. Correcting the
+   * stage in an effect afterwards is a frame too late: the old dwell's index
+   * against the new run is the run's NEWEST picture, which flashed at the
+   * head of the run before it snapped back to the oldest (2026-09-09).
+   */
+  it('reads the new dwell during the render that brings it, not after the paint', () => {
+    const seen: Stage[] = [];
+    const { rerender } = renderHook(
+      (p: { start: number }) => { const s = useLoopingStage(plan, p.start); seen.push(s); return s; },
+      { initialProps: { start: NOW - 4_000 } },
+    );
+    expect(seen[seen.length - 1].index).toBe(2);
+    seen.length = 0;
+    rerender({ start: NOW });
+    expect(seen[0].index).toBe(0);
   });
 });

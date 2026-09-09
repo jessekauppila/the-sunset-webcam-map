@@ -40,13 +40,25 @@ function stageOf(startMs: number | null, plan: DwellPlan): Stage {
  * longer wraps at all — see `stageOf`.
  */
 export function useLoopingStage(plan: DwellPlan, startMs: number | null, tickMs = 250): Stage {
-  const [stage, setStage] = useState<Stage>(() => stageOf(startMs, plan));
+  const [state, setState] = useState<{ startMs: number | null; stage: Stage }>(
+    () => ({ startMs, stage: stageOf(startMs, plan) }),
+  );
+  // The new dwell is read HERE, in the render that brings it, because an
+  // effect runs after the browser has painted: a stage kept only in state
+  // paints the previous dwell's index against the new run, which clamps to
+  // the run's newest picture and flashes a later frame at the head of the
+  // run (2026-09-09). Same fix, same reason, as the glass's `useStage`.
+  let stage = state.stage;
+  if (state.startMs !== startMs) {
+    stage = stageOf(startMs, plan);
+    setState({ startMs, stage });
+  }
   const { dwellS, frames, stepS, lastStepS, leadS, arrivalS, exitS } = plan;
   useEffect(() => {
     const p = { dwellS, frames, stepS, lastStepS, leadS, arrivalS, exitS };
-    const read = () => setStage((prev) => {
+    const read = () => setState((prev) => {
       const nextStage = stageOf(startMs, p);
-      return same(prev, nextStage) ? prev : nextStage;
+      return prev.startMs === startMs && same(prev.stage, nextStage) ? prev : { startMs, stage: nextStage };
     });
     read();
     const t = setInterval(read, tickMs);
