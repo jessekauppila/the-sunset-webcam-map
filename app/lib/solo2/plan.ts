@@ -9,9 +9,9 @@ export interface DwellPlan {
   /** Each frame's even share of the frames' budget. */
   stepS: number;
   /**
-   * The last frame's step. Equal to `stepS` whenever its dissolve-in and the
-   * exit fit inside one step; longer only when they do not, so the last
-   * picture is never burning down before it has finished arriving.
+   * The last frame's step: a whole `stepS` of its own, plus the exit. The
+   * burn is ADDED to it rather than taken out of it, so the last picture
+   * holds as still, and for as long, as every other frame of the run.
    */
   lastStepS: number;
   leadS: number;
@@ -26,16 +26,16 @@ export interface DwellPlan {
    */
   arrivalS: number;
   /**
-   * The burn-out at the END of the dwell, inside the last frame's step: the
+   * The burn-out at the END of the dwell, AFTER the last frame's step: the
    * seconds the last picture spends going down into the veil before the next
    * dwell rises out of it. 0 unless the change is a dip.
    *
-   * Charged here rather than to the next dwell's arrival because the picture
-   * on glass during it is THIS dwell's. Until 2026-09-08 the whole change was
-   * reserved at the front of the incoming dwell, so the outgoing one's last
-   * frame held a full still step and only then began to burn: at a 6 s change
-   * and a 4 s step, ten seconds between the last new picture of a run and the
-   * first of the next, against four through the middle of the run.
+   * Charged to this dwell rather than to the next one's arrival because the
+   * picture on glass during it is THIS dwell's. Until 2026-09-08 the whole
+   * change was reserved at the front of the incoming dwell, so the outgoing
+   * one's last frame held a full still step and only then began to burn: at a
+   * 6 s change and a 4 s step, ten seconds between the last new picture of a
+   * run and the first of the next, against four through the middle.
    */
   exitS: number;
 }
@@ -79,13 +79,18 @@ export function exitS(d: FadeDials): number {
 }
 
 /**
- * The last frame's step: a whole step when its dissolve-in and the exit fit,
- * else stretched to hold both. A lone frame has no dissolve-in — it arrives
- * on the camera change — so only the exit has to fit.
+ * The last frame's step: a whole step, plus the exit on the end of it.
+ *
+ * The burn is added rather than absorbed. Absorbing it — `max(stepS,
+ * dissolveIn + exit)` until 2026-09-08 — spent the last frame's still time on
+ * the burn: at the live dials (4 s step, 2 s dissolve, 6 s change) the last
+ * picture of every run finished arriving at the instant it began to leave and
+ * was never once still, and shortening the change to 3 s handed back half a
+ * second of it, which read on glass as a flash. The sunrise screen showed it
+ * worst, where an `exposure` veil blows the picture out to white.
  */
-function lastStepFor(stepS: number, n: number, exit: number, sameCameraFadeS: number | undefined): number {
-  const dissolveIn = n > 1 ? stepFadeS(sameCameraFadeS ?? 0, { stepS }) : 0;
-  return Math.max(stepS, dissolveIn + exit);
+function lastStepFor(stepS: number, exit: number): number {
+  return stepS + exit;
 }
 
 /**
@@ -93,7 +98,7 @@ function lastStepFor(stepS: number, n: number, exit: number, sameCameraFadeS: nu
  * frames share, floored at `minStepS`, and the arrival sits in front of it:
  *
  *     perFrame = max(minStepS, dwellS / n)
- *     total    = arrivalS + perFrame * (n - 1) + lastStepS
+ *     total    = arrivalS + perFrame * n + exitS
  *
  * At or below `n* = floor(dwellS / minStepS)` frames the budget is merely
  * divided more finely and the total stays `dwellS` — one image holds the
@@ -101,10 +106,9 @@ function lastStepFor(stepS: number, n: number, exit: number, sameCameraFadeS: nu
  * the frames shrinking, which is the whole point: a run is a timelapse and a
  * timelapse has one step, so eight frames run 4 s each for 32 s.
  *
- * The exit lives INSIDE the last frame's step (see `exitS`), so at a change
- * no longer than the step the last picture costs no more time than any other.
- * `lastStepS` grows past `stepS` only when the exit and the dissolve-in
- * cannot both fit.
+ * The change's two halves sit OUTSIDE the frames' budget, one at each end:
+ * the rise in front, the burn behind. No frame ever spends its own step
+ * arriving or leaving, so every picture in a run holds equally still.
  *
  * `plan.dwellS` is therefore the total this dwell occupies, not the dial.
  * The lead is capped at that total.
@@ -114,7 +118,7 @@ export function fitPlan(d: PlanDials, frames: number): DwellPlan {
   const stepS = Math.max(d.minStepS, d.dwellS / n);
   const arrival = arrivalS(d);
   const exit = exitS(d);
-  const lastStepS = lastStepFor(stepS, n, exit, d.sameCameraFadeS);
+  const lastStepS = lastStepFor(stepS, exit);
   const totalS = arrival + stepS * (n - 1) + lastStepS;
   return { dwellS: totalS, frames: n, stepS, lastStepS, leadS: Math.min(totalS, Math.max(0, d.leadS)), arrivalS: arrival, exitS: exit };
 }
@@ -140,20 +144,11 @@ export function planOf(totalS: number, frames: number, d: PlanDials): DwellPlan 
   const total = Math.max(0, totalS);
   const arrival = Math.min(arrivalS(d), total);
   const exit = Math.min(exitS(d), total - arrival);
-  const runS = total - arrival;
-  // The frames share the run evenly unless the last one needs more than its
-  // share to hold its dissolve-in plus the exit, in which case it takes what
-  // it needs and the others share the rest. The last step depends on the
-  // step (through the dissolve cap) and the step on the last step, so this
-  // settles by iteration; it converges in two passes because each pass can
-  // only lower the step, and the cap is monotonic in it.
-  let stepS = runS / n;
-  let lastStepS = lastStepFor(stepS, n, exit, d.sameCameraFadeS);
-  for (let i = 0; i < 3 && n > 1 && lastStepS > stepS + 1e-9; i++) {
-    stepS = Math.max(0, (runS - lastStepS) / (n - 1));
-    lastStepS = lastStepFor(stepS, n, exit, d.sameCameraFadeS);
-  }
-  if (n === 1) { stepS = runS; lastStepS = runS; }
+  // Both halves of the change come off the top; what is left is the frames'
+  // own, shared evenly, and the burn goes back on the end of the last one.
+  const runS = total - arrival - exit;
+  const stepS = runS / n;
+  const lastStepS = lastStepFor(stepS, exit);
   return {
     dwellS: total,
     frames: n,
@@ -223,17 +218,18 @@ export function stageAt(elapsedMs: number, p: DwellPlan): Stage {
 }
 
 /**
- * The line the studio prints: `4 frames × 5 s`, `1 frame · 20 s`, `· last 5 s`
- * when the last frame holds longer than the others, `· lead 4 s` when the lead
- * is on, `· arrival 1.5 s` when there is one, `· exit 3 s` when the change is a
- * dip and the last picture burns down inside its step.
+ * The line the studio prints: `4 frames × 5 s`, `1 frame · 20 s`, `· lead 4 s`
+ * when the lead is on, `· arrival 1.5 s` when there is one, `· exit 3 s` when
+ * the change is a dip and the last picture burns down after its step.
+ *
+ * The last frame's step is not named: it is always the step plus the exit now,
+ * so naming it would only repeat the exit back.
  */
 export function describePlan(p: DwellPlan): string {
   const s = (n: number) => `${Number(n.toFixed(1))} s`;
-  const frames = p.frames === 1 ? `1 frame · ${s(p.dwellS - p.arrivalS)}` : `${p.frames} frames × ${s(p.stepS)}`;
-  const last = p.frames > 1 && p.lastStepS > p.stepS + 0.05 ? ` · last ${s(p.lastStepS)}` : '';
+  const frames = p.frames === 1 ? `1 frame · ${s(p.stepS)}` : `${p.frames} frames × ${s(p.stepS)}`;
   const lead = p.leadS > 0 ? ` · lead ${s(p.leadS)}` : '';
   const arrival = p.arrivalS > 0 ? ` · arrival ${s(p.arrivalS)}` : '';
   const exit = p.exitS > 0 ? ` · exit ${s(p.exitS)}` : '';
-  return `${frames}${last}${lead}${arrival}${exit}`;
+  return `${frames}${lead}${arrival}${exit}`;
 }

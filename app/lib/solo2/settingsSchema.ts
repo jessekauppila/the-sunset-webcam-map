@@ -74,7 +74,7 @@ export const SOLO2_SETTINGS_SCHEMA: SettingsSchema = [
     label: 'camera change', section: 'arrival',
     description: 'The gesture, for both screens. cut: the new picture simply replaces the old. crossfade: the old picture fades out while the new one fades in on top of it. dip: the old picture fades away into a veil, then the new one fades up out of it. Only `dip` reads the veil dial below — the other two are already not ending in darkness.',
   },
-  { ...(solo('fadeS') as NumberKnob), default: 1.5, section: 'arrival', label: 'camera change (s)', description: 'How long a crossfade takes, or a dip (down plus up). Ignored by cut. A crossfade is charged to the front of the arriving dwell. A dip is split: the down half is the leaving dwell\'s exit, burned inside its last frame\'s step, and the up half is the arriving dwell\'s front. So at a dip no longer than the shortest frame, the last picture of a run costs no more time than any other — watch the dwell line on the Play tab.' },
+  { ...(solo('fadeS') as NumberKnob), default: 1.5, section: 'arrival', label: 'camera change (s)', description: 'How long a crossfade takes, or a dip (down plus up). Ignored by cut. A crossfade is charged to the front of the arriving dwell. A dip is split: the down half is the leaving dwell\'s exit and the up half is the arriving dwell\'s front. Both sit OUTSIDE the frames, so no picture ever spends its own time arriving or leaving. That makes this dial the gap at a camera change too: one frame\'s time plus this, against one frame\'s time through the middle of a run — watch the dwell line on the Play tab.' },
   {
     key: 'veilStyle', kind: 'enum', options: ['black', 'crossfade', 'lift', 'exposure'], default: 'black',
     label: 'sunrise change', section: 'arrival',

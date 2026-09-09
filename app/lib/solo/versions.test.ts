@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { arrivalS } from '@/app/lib/solo2/plan';
+import { arrivalS, exitS } from '@/app/lib/solo2/plan';
 import { schemaDefaults } from '@/app/lib/settings/schema';
 import { project } from './engine';
 import { SOLO_VERSIONS, resolveSoloVersion } from './versions';
@@ -38,9 +38,10 @@ describe('descriptors', () => {
     for (const v of Object.values(SOLO_VERSIONS)) {
       // solo2's spread swings the budget by rank; pinned so the dwell is the dial here.
       const d = { ...v.dialsFrom(schemaDefaults(v.schema)), dwellBoost: 0, dwellTrim: 0 };
-      // solo2's dwell opens with the camera change's own segment (dwell-budget
-      // spec §3.3); solo's dials have no fades, so its arrival is 0.
-      const expected = (d.dwellS + arrivalS(d)) * 1000;
+      // solo2's dwell carries the camera change's own segments outside the
+      // frames' budget (dwell-budget spec §3.3): the rise in front and the
+      // burn behind. solo's dials have no fades, so both are 0.
+      const expected = (d.dwellS + arrivalS(d) + exitS(d)) * 1000;
       expect(v.dwellMs(entries, entries[0], d)).toBe(expected);
       // Pure: same answer for a different pick, and no mutation of the input.
       expect(v.dwellMs(entries, entries[2], d)).toBe(expected);

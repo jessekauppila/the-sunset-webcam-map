@@ -17,8 +17,9 @@ const mono = 'ui-monospace, SFMono-Regular, Menlo, monospace';
 export function DwellBudget({ dials, frames = 1 }: { dials: PlanDials; frames?: number }) {
   const plan = fitPlan(dials, frames);
   const n = stretchThreshold(dials);
-  // The frames' budget alone: the arrival is on top of the dial by design, not a stretch.
-  const stretched = plan.dwellS - plan.arrivalS > dials.dwellS + 0.001;
+  // The frames' budget alone: both halves of the camera change sit on top of
+  // the dial by design — the rise in front, the burn behind — not a stretch.
+  const stretched = plan.dwellS - plan.arrivalS - plan.exitS > dials.dwellS + 0.001;
   const s = (v: number) => `${Number(v.toFixed(1))} s`;
   return (
     <div data-testid="dwell-budget" title="How the dwell splits for the camera on glass. Below the threshold the frames divide the dwell and it does not move; above it the frames hold at the floor and the dwell stretches." style={{
