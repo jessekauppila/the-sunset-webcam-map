@@ -831,13 +831,16 @@ Do not reorder. The migration must land before the code that writes `'run'`, bec
 - [ ] Pre-flight the constraint swap: `scripts/apply-migration.mjs` sends one statement per request, so if the ADD CONSTRAINT fails after the DROP succeeds, `webcam_snapshots` is left with no `intake_reason` check at all. Run `SELECT DISTINCT intake_reason FROM webcam_snapshots;` and confirm every value returned appears in the migration's new CHECK list before running with `--apply`.
 - [ ] Apply the migration: `node scripts/apply-migration.mjs database/migrations/20260908_run_panel.sql --apply`
 - [ ] Confirm: `npm run migrate:status` exits 0
+- [ ] **Build the MERGE RESULT before merging, not this branch alone.** `main` will have moved during show week. `git merge --no-commit origin/main`, then `npm run build` and `npm run test` on the combined tree, then merge. A zero-file-overlap merge has broken `main` twice on this repo via type coupling; the branch passing on its own proves nothing about the result. See `docs/solutions/workflow-issues/merged-is-a-claim-about-a-branch.md`.
 - [ ] Merge the PR, let the Vercel build go Ready
+- [ ] Confirm it actually reached `main`: `git merge-base --is-ancestor <merge sha> origin/main`. "Merged" is a claim about a branch.
 - [ ] Confirm the inventory script's phase-splitting fix is in place (`scripts/run-inventory.mjs` derives morning/evening from local solar hour, not the stored `phase` column). Without it, the report reads 0 uniform runs regardless of whether capture is working and looks like a failure.
 - [ ] Seed the panel: `node scripts/seed-run-panel.mjs` then re-run with `--apply`
 - [ ] Enable capture: `node scripts/set-runtime-flag.mjs run_panel_capture on --apply`
 - [ ] Confirm the disagreement arm is off: `node scripts/set-runtime-flag.mjs` lists `disagreement_intake = false`. Flip it on only in the week before a planned labeling sitting, and off again after.
 - [ ] Next morning, confirm the corpus is growing: `node scripts/run-inventory.mjs`, `uniform_runs` above 0
-- [ ] Watch cost for a week against the ~$0.44/day baseline in `scripts/usage-report.mjs`. The panel adds roughly 540 frames per evening, well under the ~32k per week `disagreement` already takes, so a visible jump means something is wrong with panel size, not with the estimate.
+- [ ] Watch cost for a week against the ~$0.44/day baseline in `scripts/usage-report.mjs`. Net intake should go DOWN, not up: the panel adds ~1,080 frames/day across both solar events, while switching the disagreement arm off removes ~5,000/day. A rise means the disagreement flag did not actually take effect — check it with `node scripts/set-runtime-flag.mjs` before touching panel size.
+- [ ] Remove the worktree once the PR is merged: `scripts/wt.sh rm feat/run-crossings` from the main checkout. **Check first that no other session is working in it** — a second Claude session was committing to this worktree on 2026-09-08.
 
 ## Phase 2, not in this plan
 
