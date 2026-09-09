@@ -11,7 +11,8 @@ import type { Solo2Dials } from '@/app/lib/solo2/types';
 import type { Stage } from '@/app/lib/solo/stages';
 import { EntryRow, type Run } from './EntryRow';
 import { reasonLine } from './reason';
-import { Tape } from './Tape';
+import { Tape, type TapeDials } from './Tape';
+import { arrivalLook } from '@/app/lib/solo2/veil';
 
 const mono = 'ui-monospace, SFMono-Regular, Menlo, monospace';
 const LABEL: Record<Feed, string> = { sunrise: 'Sunrise · left screen', sunset: 'Sunset · right screen' };
@@ -72,6 +73,21 @@ const capLabelOf = (bin: 'sunset' | 'non_sunset', cap: number, d: Solo2Dials) =>
   return bin === 'sunset' && d.runShape === 'rank' ? `${dial} · ${cap} of ${d.runFramesSunset} by rank` : `${dial} · ${cap}`;
 };
 
+/**
+ * What the tape needs to draw each seam as the glass will play it. solo's
+ * dials have no transition and crossfade; solo2's say what the change is, and
+ * `arrivalLook` says what this screen's dip goes through (null: it crossfades).
+ */
+function tapeDials(d: SoloDials, feed: Feed): TapeDials {
+  const d2 = d as Partial<Solo2Dials>;
+  if (d2.transition === undefined) return { dwellS: d.dwellS, fadeS: d.fadeS };
+  const look = d2.veilStyle !== undefined ? arrivalLook(feed, d2 as Solo2Dials) : null;
+  return {
+    dwellS: d.dwellS, fadeS: d.fadeS, transition: d2.transition, sameCameraFadeS: d2.sameCameraFadeS,
+    veil: look ? look.veilColor : '#000000',
+  };
+}
+
 const TAPE_OPEN_KEY = 'studio.tape.open';
 
 /** The tape's open/closed state, remembered per browser so a closed tape stays closed across reloads. */
@@ -98,7 +114,7 @@ function useTapeOpen(): [boolean, () => void] {
  * the bins. The screen itself is drawn above, by GlassPreview, so nothing
  * here repeats the picture.
  */
-export function FeedColumn({ feed, server, projected, liveDials, nowMs, version, onSelect }: {
+export function FeedColumn({ feed, server, projected, liveDials, nowMs, version, onSelect, tapeZoom, onTapeZoom }: {
   feed: Feed;
   server: StateView;
   projected: StateView;
@@ -107,6 +123,9 @@ export function FeedColumn({ feed, server, projected, liveDials, nowMs, version,
   version?: SoloVersionSpec;
   /** The clicked frame, its screen, and the frames of its column in order, so a pop-up can step through them. */
   onSelect: (entry: EntryView, feed: Feed, list: EntryView[]) => void;
+  /** The tape's zoom, owned by the panel so both screens' tapes zoom together. */
+  tapeZoom?: number;
+  onTapeZoom?: (zoom: number) => void;
 }) {
   // The server's published end, not a boundary derived here (spec §5.1). A
   // dwell's length is engine state, so a countdown computed from the dwell
@@ -221,8 +240,8 @@ export function FeedColumn({ feed, server, projected, liveDials, nowMs, version,
         <Tape past={server.tape} current={current?.entry ?? null} currentSince={current?.shownSince ?? null}
           currentEndsAt={current?.endsAtMs ?? null} next={projected.next}
           nextSequences={queueBoxes.slice(current ? 1 : 0).map((b) => b.run)}
-          pastDials={{ dwellS: liveDials.dwellS, fadeS: liveDials.fadeS }} nextDials={{ dwellS: projected.dials.dwellS, fadeS: projected.dials.fadeS }}
-          onSelect={(e) => onSelect(e, feed, tapeList)} />
+          pastDials={tapeDials(liveDials, feed)} nextDials={tapeDials(projected.dials, feed)}
+          onSelect={(e) => onSelect(e, feed, tapeList)} zoom={tapeZoom} onZoom={onTapeZoom} />
       )}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1.15fr', gap: 6 }}>
         {column('sunset', '#7ee2ac', 'Sunset bin',
