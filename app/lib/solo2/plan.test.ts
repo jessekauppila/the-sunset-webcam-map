@@ -53,15 +53,16 @@ describe('the arrival segment: the camera change is added before frame 1, not ch
   });
 
   it('sits on top of the budget: the frames still divide dwellS, and the dwell is arrivalS longer', () => {
-    expect(fitPlan({ ...D, ...F }, 5)).toEqual({ dwellS: 21.5, frames: 5, stepS: 4, lastStepS: 4, leadS: 4, arrivalS: 1.5, exitS: 0.75 });
-    expect(fitPlan({ ...D, ...F }, 1)).toEqual({ dwellS: 21.5, frames: 1, stepS: 20, lastStepS: 20, leadS: 4, arrivalS: 1.5, exitS: 0.75 });
+    // 1.5 s arrival + 5 × 4 s + 0.75 s exit; the last frame's step carries the burn on its end.
+    expect(fitPlan({ ...D, ...F }, 5)).toEqual({ dwellS: 22.25, frames: 5, stepS: 4, lastStepS: 4.75, leadS: 4, arrivalS: 1.5, exitS: 0.75 });
+    expect(fitPlan({ ...D, ...F }, 1)).toEqual({ dwellS: 22.25, frames: 1, stepS: 20, lastStepS: 20.75, leadS: 4, arrivalS: 1.5, exitS: 0.75 });
     // A stretched run stretches from the same base.
-    expect(fitPlan({ ...D, ...F }, 8)).toEqual({ dwellS: 33.5, frames: 8, stepS: 4, lastStepS: 4, leadS: 4, arrivalS: 1.5, exitS: 0.75 });
+    expect(fitPlan({ ...D, ...F }, 8)).toEqual({ dwellS: 34.25, frames: 8, stepS: 4, lastStepS: 4.75, leadS: 4, arrivalS: 1.5, exitS: 0.75 });
   });
 
   it('does not move the stretch threshold: the frames\' budget is still dwellS', () => {
-    for (let frames = 1; frames <= 5; frames++) expect(fitPlan({ ...D, ...F }, frames).dwellS).toBeCloseTo(21.5, 6);
-    expect(fitPlan({ ...D, ...F }, 6).dwellS).toBeCloseTo(25.5, 6);
+    for (let frames = 1; frames <= 5; frames++) expect(fitPlan({ ...D, ...F }, frames).dwellS).toBeCloseTo(22.25, 6);
+    expect(fitPlan({ ...D, ...F }, 6).dwellS).toBeCloseTo(26.25, 6);
   });
 
   it('the stage clock waits out the arrival, so frame 1 holds a whole step once it is up', () => {
@@ -76,10 +77,10 @@ describe('the arrival segment: the camera change is added before frame 1, not ch
   });
 
   it('the lead still measures back from the end of the whole dwell', () => {
-    const p = fitPlan({ ...D, ...F }, 4); // dwell 21.5 s, lead over 17.5–21.5
-    expect(stageAt(17_499, p).leadProgress).toBe(0);
-    expect(stageAt(19_500, p).leadProgress).toBe(0.5);
-    expect(stageAt(21_500, p).leadProgress).toBe(1);
+    const p = fitPlan({ ...D, ...F }, 4); // dwell 22.25 s, lead over 18.25–22.25
+    expect(stageAt(18_249, p).leadProgress).toBe(0);
+    expect(stageAt(20_250, p).leadProgress).toBe(0.5);
+    expect(stageAt(22_250, p).leadProgress).toBe(1);
   });
 
   it('the studio line names it', () => {
@@ -158,20 +159,20 @@ describe('planOf: the budget rule run backward from a pinned total', () => {
     expect(p.dwellS).toBe(22);
     expect(p.frames).toBe(4);
     expect(p.arrivalS).toBe(3); // the rise half of the dip
-    expect(p.exitS).toBe(3); // the burn half, inside the last step
-    expect(p.stepS).toBe(4.75); // (22 - 3) / 4
-    expect(p.lastStepS).toBe(4.75); // the exit fits inside an even share
+    expect(p.exitS).toBe(3); // the burn half, on the end of the last step
+    expect(p.stepS).toBe(4); // (22 - 3 - 3) / 4
+    expect(p.lastStepS).toBe(7); // its own step, then the burn
   });
 
-  it('gives the last frame more than an even share when its dissolve-in and the exit will not fit one', () => {
-    // 3 s exit, 2 s dissolve-in, 4 s share: the last frame needs 5, the others
-    // give it up. 3 + 4×3 + 5 = 20 — what fitPlan sizes at the live dials.
+  it('gives the last frame a whole step of its own and then the burn', () => {
+    // 3 s rise, four 4 s frames, 3 s burn: 3 + 4×4 + 3 = 22 — what fitPlan
+    // sizes at the live dials, and the last frame holds its 4 s like the rest.
     const dials = { ...D, minStepS: 4, transition: 'dip' as const, fadeS: 6, sameCameraFadeS: 2 };
     const forward = fitPlan({ ...dials, dwellS: 12 }, 4);
-    expect(forward).toMatchObject({ dwellS: 20, stepS: 4, lastStepS: 5, arrivalS: 3, exitS: 3 });
-    const back = planOf(20, 4, dials);
+    expect(forward).toMatchObject({ dwellS: 22, stepS: 4, lastStepS: 7, arrivalS: 3, exitS: 3 });
+    const back = planOf(22, 4, dials);
     expect(back.stepS).toBeCloseTo(4, 6);
-    expect(back.lastStepS).toBeCloseTo(5, 6);
+    expect(back.lastStepS).toBeCloseTo(7, 6);
   });
 
   it('is the inverse of fitPlan: what fitPlan sized, planOf takes apart again', () => {
@@ -186,7 +187,7 @@ describe('planOf: the budget rule run backward from a pinned total', () => {
     // frames at 20 s. The draw pinned 62 s, so each frame gets 18.67 s.
     const p = planOf(62, 3, { ...D, transition: 'dip', fadeS: 6 });
     expect(p.dwellS).toBe(62);
-    expect(p.stepS).toBeCloseTo(19.667, 3); // (62 - 3) / 3
+    expect(p.stepS).toBeCloseTo(18.667, 3); // (62 - 3 - 3) / 3
   });
 
   it('never leaves a step of zero, whatever a degenerate span asks for', () => {
@@ -218,31 +219,83 @@ describe('the exit: a dip is charged half to the dwell it leaves', () => {
     expect(exitS({})).toBe(0);
   });
 
-  it('shortens the whole dwell by the half that now belongs to the leaving side', () => {
-    // Before: 6 + 4×4 = 22. Now: 3 + 4×3 + max(4, 2 + 3) = 20.
-    expect(fitPlan(live, 4).dwellS).toBe(20);
-    // At a change no longer than the step it fits inside the last frame and costs nothing.
-    expect(fitPlan({ ...live, fadeS: 4 }, 4)).toMatchObject({ dwellS: 18, stepS: 4, lastStepS: 4, arrivalS: 2, exitS: 2 });
+  it('moves half the change to the leaving side without changing what the change costs', () => {
+    // The dwell is the same length either way — 6 s of change is 6 s of change
+    // — but the half that shows the OLD picture now runs while the old picture
+    // is still on glass, instead of after the new dwell has already begun.
+    expect(fitPlan(live, 4)).toMatchObject({ dwellS: 22, stepS: 4, lastStepS: 7, arrivalS: 3, exitS: 3 });
+    expect(fitPlan({ ...live, fadeS: 4 }, 4)).toMatchObject({ dwellS: 20, stepS: 4, lastStepS: 6, arrivalS: 2, exitS: 2 });
   });
 
-  it('a lone frame has no dissolve-in, so only the exit has to fit', () => {
-    // Budget 13 shares nothing; 13 > 3, so the frame holds 13 and burns over its last 3.
-    expect(fitPlan(live, 1)).toMatchObject({ dwellS: 16, stepS: 13, lastStepS: 13, exitS: 3 });
+  it('a lone frame holds its whole step and then burns', () => {
+    // Budget 13 shares nothing, so the frame holds 13 and the burn follows it.
+    expect(fitPlan(live, 1)).toMatchObject({ dwellS: 19, stepS: 13, lastStepS: 16, exitS: 3 });
   });
 
   it('stageAt reports the exit over the last exitS, and the run index stays on the last frame through it', () => {
-    const p = fitPlan(live, 4); // 3 arrival, 4 4 4, last 5 (2 in + 3 burn): burn 17–20
-    expect(stageAt(16_999, p).exitProgress).toBe(0);
-    expect(stageAt(17_000, p).exitProgress).toBe(0);
-    expect(stageAt(18_500, p).exitProgress).toBe(0.5);
-    expect(stageAt(20_000, p).exitProgress).toBe(1);
-    expect(stageAt(18_500, p).index).toBe(3);
+    const p = fitPlan(live, 4); // 3 arrival, 4 4 4 4, then the burn: 19–22
+    expect(stageAt(18_999, p).exitProgress).toBe(0);
+    expect(stageAt(19_000, p).exitProgress).toBe(0);
+    expect(stageAt(20_500, p).exitProgress).toBe(0.5);
+    expect(stageAt(22_000, p).exitProgress).toBe(1);
+    expect(stageAt(20_500, p).index).toBe(3);
     // No exit, no progress.
     expect(stageAt(19_000, fitPlan({ ...live, transition: 'crossfade' }, 4)).exitProgress).toBe(0);
   });
 
-  it('the studio line says so, and names the longer last frame', () => {
-    expect(describePlan(fitPlan(live, 4))).toBe('4 frames × 4 s · last 5 s · arrival 3 s · exit 3 s');
+  it('the studio line says so', () => {
+    expect(describePlan(fitPlan(live, 4))).toBe('4 frames × 4 s · arrival 3 s · exit 3 s');
     expect(describePlan(fitPlan({ ...live, fadeS: 4 }, 4))).toBe('4 frames × 4 s · arrival 2 s · exit 2 s');
+  });
+});
+
+describe('the change is added at the ends, never taken out of a frame', () => {
+  // Reported 2026-09-08: "we're flashing the initial image ... the initial
+  // image dissolves really quickly", worst on the sunrise screen, where the
+  // `exposure` veil blows the picture out to white rather than down to black.
+  // The frame being flashed is the run's LAST: the exit burn was charged
+  // INSIDE its step, so the burn ate the still time. At the 6 s change the
+  // last frame finished dissolving in at the instant the burn began and was
+  // never once still — an entire picture concealed; shortening the change to
+  // 3 s handed back half a second of it, which is the flash.
+  const live = { dwellS: 13, leadS: 0, minStepS: 4, transition: 'dip' as const, sameCameraFadeS: 2 };
+
+  /** The seconds frame `i` holds with nothing moving over it: its step, less its dissolve-in and any burn. */
+  const stillS = (p: ReturnType<typeof fitPlan>, i: number, sameCameraFadeS: number) => {
+    const dissolveIn = i === 0 ? 0 : stepFadeS(sameCameraFadeS, p); // frame 1 arrives on the camera change
+    const start = p.arrivalS + p.stepS * i;
+    const end = i === p.frames - 1 ? p.dwellS - p.exitS : start + p.stepS;
+    return end - start - dissolveIn;
+  };
+
+  it.each([3, 6])('holds the last frame as long as the middle ones, at a %s s change', (fadeS) => {
+    const p = fitPlan({ ...live, fadeS }, 4);
+    expect(stillS(p, 3, live.sameCameraFadeS)).toBeCloseTo(stillS(p, 1, live.sameCameraFadeS), 6);
+    expect(stillS(p, 3, live.sameCameraFadeS)).toBeCloseTo(2, 6);
+  });
+
+  it('adds the exit to the last frame rather than absorbing it', () => {
+    const p = fitPlan({ ...live, fadeS: 3 }, 4);
+    expect(p.lastStepS).toBeCloseTo(p.stepS + p.exitS, 6);
+    // arrival 2 + 4 frames × 4 + exit 1.5
+    expect(p.dwellS).toBeCloseTo(19.5, 6);
+  });
+
+  it('planOf takes the same total apart the same way', () => {
+    const dials = { ...live, fadeS: 3 };
+    const forward = fitPlan(dials, 4);
+    expect(planOf(forward.dwellS, 4, dials)).toEqual(forward);
+    const back = planOf(19.5, 4, dials);
+    expect(back.stepS).toBeCloseTo(4, 6);
+    expect(back.lastStepS).toBeCloseTo(5.5, 6);
+  });
+
+  it('starts the burn the moment the last frame has held its step', () => {
+    const p = fitPlan({ ...live, fadeS: 3 }, 4); // arrival 2, steps 4 4 4, last 4 + 1.5 burn
+    expect(stageAt(17_999, p).exitProgress).toBe(0);
+    expect(stageAt(18_000, p).exitProgress).toBe(0);
+    expect(stageAt(18_750, p).exitProgress).toBeCloseTo(0.5, 6);
+    expect(stageAt(19_500, p).exitProgress).toBe(1);
+    expect(stageAt(18_750, p).index).toBe(3);
   });
 });

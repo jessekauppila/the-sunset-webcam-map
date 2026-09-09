@@ -139,7 +139,8 @@ total    = arrivalS + perFrame × n
 The run's clock — `stageAt` — starts when the arrival ends, so frame 1 is up
 throughout the arrival and then holds a whole step, like every frame after it.
 The last frame holds its whole step too, and then leaves under the next
-dwell's veil; nothing at the back needed to change.
+dwell's veil; nothing at the back needed to change — see §3.4, where it turned
+out something did.
 
 Three consequences:
 
@@ -157,6 +158,49 @@ Three consequences:
 - **solo has no arrival.** Its dials carry no camera-change fade, so
   `arrivalS` is 0 and its dwell is exactly the dial, as before. A version
   gains an arrival only by having the fade dials.
+
+### 3.4 The exit segment (added 2026-09-08, corrected the same day)
+
+A dip is two halves. Reserving the whole change at the front of the ARRIVING
+dwell meant the leaving dwell's last frame held a full still step and only
+then began to burn: at a 6 s change and a 4 s step, ten seconds between the
+last new picture of a run and the first of the next, against four through the
+middle. So the burn moved to the dwell it belongs to — the picture on glass
+during it is that dwell's last frame:
+
+```
+exitS = transition == dip ? fadeS / 2 : 0
+```
+
+**The correction.** The first cut charged the burn INSIDE the last frame's
+step — `lastStepS = max(stepS, dissolveIn + exit)` — which spent the last
+frame's still time on the burn instead of adding to it. At the live dials
+(4 s step, 2 s dissolve, 6 s change) the last picture of every run finished
+dissolving in at the instant the burn began and was **never once still**: an
+entire picture concealed. Shortening the change to 3 s handed back half a
+second of it, and Jesse reported it as a flash — worst on the sunrise screen,
+where an `exposure` veil blows the picture out to white rather than down to
+black.
+
+The rule is therefore symmetric with §3.3, and is the whole of it:
+
+```
+arrivalS = max(transition == cut ? 0 : riseS, sameCameraFadeS)
+exitS    = transition == dip ? fadeS / 2 : 0
+lastStep = perFrame + exitS
+total    = arrivalS + perFrame × n + exitS
+```
+
+**No frame ever spends its own step arriving or leaving.** The change's two
+halves sit outside the frames' budget, one at each end, so every picture in a
+run holds equally still — which is what the budget rule of §3 promises and
+what a timelapse has to look like.
+
+The cost is honest and visible: at a `fadeS` of `c` and a step of `s`, the
+boundary between two runs is `s + c` from the last new picture to the first
+of the next, against `s` through the middle. That gap is the change's length,
+and the only dial that shortens it is `fadeS`. Absorbing the burn hid the
+gap by deleting a picture, which is not a trade worth making.
 
 ## 4. Frame caps, per bin
 
