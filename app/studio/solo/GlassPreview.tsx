@@ -128,7 +128,7 @@ function PlayingScreen({ feed, server, projected, error, dials, panel, version }
         {dwell.entry ? (
           <StudioPanelFrame panel={panel} edge={PANEL_EDGE}>
             {solo2 ? (
-              <Solo2Frame entry={dwell.entry} run={run} previous={dwell.previous} stage={stage} plan={plan} dials={d2} dwellKey={dwell.startMs}
+              <Solo2Frame entry={dwell.entry} run={run} previous={dwell.previous} next={order[dwell.index + 1] ?? null} stage={stage} plan={plan} dials={d2} dwellKey={dwell.startMs}
                 width={panel.width} height={panel.height} feed={feed} />
             ) : (
               // No key: SoloFrame's fade is a mount animation on an <img> keyed

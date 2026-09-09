@@ -1,6 +1,6 @@
 import { it, expect, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
-import { Tape, THUMB_H } from './Tape';
+import { cleanup, render, screen, fireEvent } from '@testing-library/react';
+import { Tape, THUMB_H, seamBetween } from './Tape';
 import { PX_PER_S } from './timeScale';
 import type { EntryView, TapeEntry } from '@/app/api/kiosk/solo/view';
 
@@ -22,7 +22,7 @@ it('lays out past, current, seam, and projected in order, outlined by bin', () =
     pastDials={D} nextDials={D} onSelect={vi.fn()} />);
   const strip = screen.getByTestId('tape');
   const ids = [...strip.querySelectorAll('[data-testid^="tape-"]')].map((n) => n.getAttribute('data-testid'));
-  expect(ids).toEqual(['tape-scale', 'tape-past-1-10', 'tape-past-2-11', 'tape-past-1-12',
+  expect(ids).toEqual(['tape-scale', 'tape-scale-label', 'tape-past-1-10', 'tape-past-2-11', 'tape-past-1-12',
     'tape-current', 'tape-playhead', 'tape-seam', 'tape-next-0', 'tape-next-1']);
   expect(screen.getByTestId('tape-past-1-10')).toHaveStyle({ borderLeftColor: '#7ee2ac' });
   expect(screen.getByTestId('tape-past-2-11')).toHaveStyle({ borderLeftColor: '#c3cad6' });
@@ -197,4 +197,90 @@ it('the fade X is not a click target: it straddles the blocks either side of it'
   render(<Tape past={past} current={entry(3)} currentSince={since} currentEndsAt={since + 20_000} next={[entry(4)]}
     pastDials={{ dwellS: 20, fadeS: 6 }} nextDials={{ dwellS: 20, fadeS: 6 }} onSelect={vi.fn()} />);
   expect(screen.getByTestId('tape-fade-0')).toHaveStyle({ pointerEvents: 'none' });
+});
+
+describe('the seam is what the glass will play there (2026-09-08)', () => {
+  // Until now the tape drew "crossfade N s: both pictures on glass" on every
+  // cut from `fadeS` alone. At the live `dip` that was a 6 s overlap on every
+  // seam where the real overlap was none — the operator's own instrument
+  // reporting a thing the glass does not do.
+  const dip = { dwellS: 20, fadeS: 6, transition: 'dip' as const, sameCameraFadeS: 2, veil: '#000000' };
+
+  it('a dip is a bar in the veil, and says there is no overlap', () => {
+    render(<Tape past={past} current={entry(3)} currentSince={since} currentEndsAt={since + 20_000} next={[entry(4)]}
+      pastDials={dip} nextDials={dip} onSelect={vi.fn()} />);
+    const seam = screen.getByTestId('tape-fade-0');
+    expect(seam.getAttribute('data-seam')).toBe('dip');
+    expect(seam.getAttribute('title')).toMatch(/^dip 6 s: .*No overlap/);
+    expect(seam).toHaveStyle({ width: `${6 * PX_PER_S}px` });
+    // The sunrise screen's dip goes through its own veil colour.
+    cleanup();
+    render(<Tape past={past} current={entry(3)} currentSince={since} next={[]} pastDials={{ ...dip, veil: '#ffffff' }} nextDials={dip} onSelect={vi.fn()} />);
+    expect(screen.getByTestId('tape-fade-0').style.background).toMatch(/#ffffff/);
+  });
+
+  it('a later frame of the same camera dissolves over the same-camera dial, whatever the change is', () => {
+    // past[0] and past[2] are both camera 101; past[1] is 102, current (3) is 103.
+    render(<Tape past={[drawn(1, 10, 0), drawn(5, 11, 20_000)]} current={entry(3)} currentSince={since} next={[]}
+      pastDials={dip} nextDials={dip} onSelect={vi.fn()} />);
+    // draw 1 (cam 101) → draw 5 (cam 105): a dip. Give draw 5 camera 101 instead:
+    cleanup();
+    const later = { ...drawn(5, 11, 20_000), webcamId: 101 };
+    render(<Tape past={[drawn(1, 10, 0), later]} current={entry(3)} currentSince={since} next={[]}
+      pastDials={dip} nextDials={dip} onSelect={vi.fn()} />);
+    const seam = screen.getByTestId('tape-fade-0');
+    expect(seam.getAttribute('data-seam')).toBe('dissolve');
+    expect(seam.getAttribute('title')).toMatch(/same camera · dissolve 2 s: both pictures on glass/);
+    expect(seam).toHaveStyle({ width: `${2 * PX_PER_S}px` });
+  });
+
+  it('a cut draws nothing at the seam', () => {
+    render(<Tape past={past} current={entry(3)} currentSince={since} next={[entry(4)]}
+      pastDials={{ ...dip, transition: 'cut' }} nextDials={{ ...dip, transition: 'cut' }} onSelect={vi.fn()} />);
+    expect(screen.queryAllByTestId(/^tape-fade-/)).toHaveLength(0);
+  });
+
+  it('a dip on a screen with no veil is a crossfade, as it is on the glass', () => {
+    render(<Tape past={past} current={entry(3)} currentSince={since} next={[]}
+      pastDials={{ ...dip, veil: null }} nextDials={dip} onSelect={vi.fn()} />);
+    expect(screen.getByTestId('tape-fade-0').getAttribute('data-seam')).toBe('crossfade');
+  });
+
+  it('seamBetween is pure and says the same thing', () => {
+    expect(seamBetween({ webcamId: 1 }, { webcamId: 2 }, dip)).toEqual({ kind: 'dip', seconds: 6, veil: '#000000' });
+    expect(seamBetween({ webcamId: 1 }, { webcamId: 1 }, dip)).toEqual({ kind: 'dissolve', seconds: 2, veil: null });
+    expect(seamBetween({ webcamId: 1 }, { webcamId: 1 }, { ...dip, sameCameraFadeS: 0 })).toEqual({ kind: 'cut', seconds: 0, veil: null });
+    expect(seamBetween(null, { webcamId: 2 }, { dwellS: 20, fadeS: 2 })).toEqual({ kind: 'crossfade', seconds: 2, veil: null });
+  });
+});
+
+describe('zoom', () => {
+  it('scales every block and the seam markers, and says so in the sticky cell', () => {
+    render(<Tape past={past} current={entry(3)} currentSince={since} currentEndsAt={since + 20_000} next={[entry(4)]}
+      pastDials={{ dwellS: 20, fadeS: 2 }} nextDials={{ dwellS: 20, fadeS: 2 }} onSelect={vi.fn()} zoom={2} onZoom={vi.fn()} />);
+    expect(screen.getByTestId('tape-scale-label')).toHaveTextContent(`${PX_PER_S * 2} px/s`);
+    expect(screen.getByTestId('tape-past-1-10')).toHaveStyle({ width: `${20 * PX_PER_S * 2}px`, height: `${THUMB_H * 2}px` });
+    expect(screen.getByTestId('tape-current')).toHaveStyle({ width: `${20 * PX_PER_S * 2}px` });
+    expect(screen.getByTestId('tape-next-0')).toHaveStyle({ width: `${20 * PX_PER_S * 2}px` });
+    expect(screen.getByTestId('tape-fade-0')).toHaveStyle({ width: `${2 * PX_PER_S * 2}px` });
+  });
+
+  it('− and + step through the zoom levels and stop at the ends', () => {
+    const onZoom = vi.fn();
+    const { rerender } = render(<Tape past={[]} current={entry(3)} next={[]} pastDials={D} nextDials={D} onSelect={vi.fn()} zoom={1} onZoom={onZoom} />);
+    fireEvent.click(screen.getByTestId('tape-zoom-in'));
+    expect(onZoom).toHaveBeenLastCalledWith(2);
+    fireEvent.click(screen.getByTestId('tape-zoom-out'));
+    expect(onZoom).toHaveBeenLastCalledWith(0.5);
+    rerender(<Tape past={[]} current={entry(3)} next={[]} pastDials={D} nextDials={D} onSelect={vi.fn()} zoom={4} onZoom={onZoom} />);
+    expect(screen.getByTestId('tape-zoom-in')).toBeDisabled();
+    rerender(<Tape past={[]} current={entry(3)} next={[]} pastDials={D} nextDials={D} onSelect={vi.fn()} zoom={0.5} onZoom={onZoom} />);
+    expect(screen.getByTestId('tape-zoom-out')).toBeDisabled();
+  });
+
+  it('without a handler the cell shows the scale and no buttons', () => {
+    render(<Tape past={[]} current={entry(3)} next={[]} pastDials={D} nextDials={D} onSelect={vi.fn()} />);
+    expect(screen.getByTestId('tape-scale-label')).toHaveTextContent(`${PX_PER_S} px/s`);
+    expect(screen.queryByTestId('tape-zoom-in')).toBeNull();
+  });
 });

@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react';
 import { stageAt, type DwellPlan, type Stage } from '@/app/lib/solo2/plan';
 
-const same = (a: Stage, b: Stage) => a.index === b.index && a.leadProgress === b.leadProgress;
+const same = (a: Stage, b: Stage) =>
+  a.index === b.index && a.leadProgress === b.leadProgress && a.exitProgress === b.exitProgress;
 
 /**
  * Where a dwell that began at `startMs` is now. Clamped at the dwell, never
@@ -40,9 +41,9 @@ function stageOf(startMs: number | null, plan: DwellPlan): Stage {
  */
 export function useLoopingStage(plan: DwellPlan, startMs: number | null, tickMs = 250): Stage {
   const [stage, setStage] = useState<Stage>(() => stageOf(startMs, plan));
-  const { dwellS, frames, stepS, leadS, arrivalS } = plan;
+  const { dwellS, frames, stepS, lastStepS, leadS, arrivalS, exitS } = plan;
   useEffect(() => {
-    const p = { dwellS, frames, stepS, leadS, arrivalS };
+    const p = { dwellS, frames, stepS, lastStepS, leadS, arrivalS, exitS };
     const read = () => setStage((prev) => {
       const nextStage = stageOf(startMs, p);
       return same(prev, nextStage) ? prev : nextStage;
@@ -50,6 +51,6 @@ export function useLoopingStage(plan: DwellPlan, startMs: number | null, tickMs 
     read();
     const t = setInterval(read, tickMs);
     return () => clearInterval(t);
-  }, [startMs, tickMs, dwellS, frames, stepS, leadS, arrivalS]);
+  }, [startMs, tickMs, dwellS, frames, stepS, lastStepS, leadS, arrivalS, exitS]);
   return stage;
 }
