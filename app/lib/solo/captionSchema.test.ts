@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
-  CAPTION_SCHEMA, CAPTION_SECTION, captionDialsFrom, linkedCaptionGroup, linkedCaptionValues, withCaption,
+  CAPTION_BANDS, CAPTION_SCHEMA, CAPTION_SECTION, captionDialsFrom, linkedCaptionGroup,
+  linkedCaptionValues, withCaption,
 } from './captionSchema';
 import { mergeSettings, schemaDefaults } from '@/app/lib/settings/schema';
 
@@ -99,5 +100,24 @@ describe('withCaption', () => {
     expect(withCaption(own).pictureHeight).toBe(87);
     expect(withCaption({ ...own, pictureHeight: 92 }, {}).pictureHeight).toBe(87);
     expect(withCaption({ ...own, pictureHeight: 92 }, { pictureHeight: 70 }).pictureHeight).toBe(70);
+  });
+});
+
+describe('CAPTION_BANDS', () => {
+  it('every caption knob is in exactly one band, so none can be dropped from the rail', () => {
+    const ids = CAPTION_BANDS.map((b) => b.id) as readonly string[];
+    for (const k of CAPTION_SCHEMA) {
+      expect(k.band, `${k.key} has no band`).toBeDefined();
+      expect(ids, `${k.key} is in an unknown band`).toContain(k.band);
+    }
+  });
+  it('the three lines come first, because they are what gets turned on the day', () => {
+    expect(CAPTION_BANDS.map((b) => b.id).slice(0, 3)).toEqual(['time', 'name', 'region']);
+  });
+  it('each line keeps its own size, brightness and spacing together', () => {
+    const inBand = (id: string) => CAPTION_SCHEMA.filter((k) => k.band === id).map((k) => k.key);
+    expect(inBand('time')).toEqual(expect.arrayContaining(['timeSize', 'timeGray', 'timeGap']));
+    expect(inBand('name')).toEqual(expect.arrayContaining(['titleSize', 'titleGray', 'titleGap']));
+    expect(inBand('region')).toEqual(expect.arrayContaining(['placeSize', 'placeGray', 'placeGap']));
   });
 });

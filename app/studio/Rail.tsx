@@ -5,7 +5,7 @@ import type { StudioSettingsApi } from './useStudioSettings';
 import type { StudioSurface } from './surfaces';
 import { SHARED_NAMESPACE } from '@/app/lib/settings/sharedSchema';
 import {
-  CAPTION_SCHEMA, CAPTION_SECTION, linkedCaptionGroup, linkedCaptionValues, withCaption,
+  CAPTION_BANDS, CAPTION_SCHEMA, CAPTION_SECTION, linkedCaptionGroup, linkedCaptionValues, withCaption,
   type LinkedCaptionGroup,
 } from '@/app/lib/solo/captionSchema';
 import { SOURCE_FRAME, drawFactor, pictureRect } from '@/app/lib/solo/caption';
@@ -241,6 +241,25 @@ function GroupHeader({ title, color, hint, section, onReset, asSummary = false, 
  * time. It is editing state only — it lives for as long as the page does and
  * nothing about it is stored or deployed.
  */
+/**
+ * A sub-heading inside the caption group. Quieter than a GroupHeader and
+ * with no reset of its own: the band is a way of reading the list, not a
+ * section the settings store knows about.
+ */
+function BandHeader({ label, hint }: { label: string; hint: string }) {
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 6,
+      margin: '12px 0 2px', padding: '0 4px 3px',
+      borderBottom: '1px solid #1d2432',
+      fontSize: 10, letterSpacing: '0.11em', textTransform: 'uppercase', color: '#8b95a7',
+    }}>
+      {label}
+      <Hint text={hint} />
+    </div>
+  );
+}
+
 function CaptionLinks({ linked, onToggle }: {
   linked: Record<LinkedCaptionGroup, boolean>;
   onToggle: (group: LinkedCaptionGroup, on: boolean) => void;
@@ -402,9 +421,18 @@ export function Rail({ api, surface, tab, onTab, runFrames = 1, children }: {
           <GroupHeader {...CAPTION_GROUP} section={CAPTION_SECTION}
             onReset={() => api.resetSection(SHARED_NAMESPACE, CAPTION_SECTION)} />
           <CaptionLinks linked={linked} onToggle={(g, on) => setLinked((l) => ({ ...l, [g]: on }))} />
-          {CAPTION_SCHEMA.map((k) => knob(k, {
-            ns: SHARED_NAMESPACE, values: shared, diff: sharedDiff, onChange: setCaptionKnob,
-          }))}
+          {CAPTION_BANDS.map((band) => {
+            const knobs = CAPTION_SCHEMA.filter((k) => k.band === band.id);
+            if (!knobs.length) return null;
+            return (
+              <div key={band.id} data-testid={`caption-band-${band.id}`}>
+                <BandHeader label={band.label} hint={band.hint} />
+                {knobs.map((k) => knob(k, {
+                  ns: SHARED_NAMESPACE, values: shared, diff: sharedDiff, onChange: setCaptionKnob,
+                }))}
+              </div>
+            );
+          })}
         </section>
       )}
       <div style={{ marginTop: 'auto', paddingTop: 10 }}>{children}</div>
