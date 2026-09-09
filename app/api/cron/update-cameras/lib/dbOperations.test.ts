@@ -170,6 +170,28 @@ describe('insertWindyDisagreementSnapshot', () => {
     const values = sqlMock.mock.calls[0].slice(1);
     expect(values).toContain('run');
   });
+
+  it('accepts a sunrise-phase frame for the same panel capture', async () => {
+    // The panel is not sunset-only. This test exists so that a later change
+    // adding a phase gate to the persist path fails loudly here.
+    sqlMock.mockResolvedValue([{ id: 4243 }]);
+
+    const id = await insertWindyDisagreementSnapshot({
+      webcamId: 700,
+      phase: 'sunrise',
+      firebaseUrl: 'https://storage.googleapis.com/y.jpg',
+      firebasePath: 'y.jpg',
+      aiRating: 2.5,
+      aiRegressionScore: 0.375,
+      aiModelVersionRegression: 'v5',
+      scoringPath: 'onnx',
+      disagreementKind: null,
+      intakeReason: 'run',
+    });
+
+    expect(id).toBe(4243);
+    expect(sqlMock.mock.calls[0].slice(1)).toContain('run');
+  });
 });
 
 describe('upsertTerminatorState', () => {
