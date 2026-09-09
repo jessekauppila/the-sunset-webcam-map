@@ -1,7 +1,8 @@
 import { mergeSettings } from '@/app/lib/settings/schema';
 import type { SettingsSchema, SettingsValues } from '@/app/lib/settings/schema';
 import type {
-  CaptionAlign, CaptionDials, CaptionFont, CaptionLayout, TimeLine, TimeStyle, TitleClean, TitleWeight,
+  CaptionAlign, CaptionDials, CaptionFont, CaptionLayout, LineOrder, TimeLine, TimeStyle,
+  TitleClean, TitleWeight,
 } from './types';
 
 /** The rail section every caption knob sits in. */
@@ -48,14 +49,24 @@ export const CAPTION_SCHEMA: SettingsSchema = [
     description: 'Space between the bottom of the picture and the caption.',
   },
   {
-    key: 'feedPrefix', kind: 'boolean', default: true,
+    key: 'feedPrefix', kind: 'boolean', default: false,
     label: 'screen name', section: CAPTION_SECTION,
     description: 'Begin the title with the screen\'s name: "Sunrise: " on the left screen, "Sunset: " on the right.',
   },
   {
-    key: 'font', kind: 'enum', options: ['system', 'geist', 'sans', 'serif', 'mono'], default: 'system',
+    key: 'font', kind: 'enum', options: ['atkinson', 'system', 'geist', 'sans', 'serif', 'mono'], default: 'atkinson',
     label: 'font', section: CAPTION_SECTION,
-    description: 'system: whatever the Pi has. geist: the site\'s face. sans: Source Sans 3. serif: Source Serif 4. mono: Geist Mono.',
+    description: 'atkinson: Atkinson Hyperlegible Next, drawn for low vision — no two letters confusable and the counters stay open, which is what holds a dim caption together across a room. system: whatever the Pi has. geist: the site\'s face. sans: Source Sans 3. serif: Source Serif 4. mono: Geist Mono.',
+  },
+  {
+    key: 'lineOrder', kind: 'enum', options: ['time-first', 'name-first'], default: 'time-first',
+    label: 'order', section: CAPTION_SECTION,
+    description: 'time-first puts how recent the frame is above the camera name. The claim the piece makes is that a sun is going down somewhere right now, so the recency is the headline and the place is the answer to the question it provokes.',
+  },
+  {
+    key: 'captionTrack', kind: 'number', min: -20, max: 60, step: 2, default: 6,
+    label: 'letter spacing', section: CAPTION_SECTION,
+    description: 'Thousandths of an em, for the whole block. Pale letters on black spread optically: the counters fill in and words start to read as a bar at distance. A little positive tracking resists that, and is worth more here than it would be on paper.',
   },
   {
     key: 'titleClean', kind: 'enum', options: ['compass', 'raw', 'comma', 'dot', 'spot'], default: 'compass',
@@ -63,39 +74,44 @@ export const CAPTION_SCHEMA: SettingsSchema = [
     description: 'Windy titles read "City › Compass: Spot". compass drops the "› Compass" part; comma / dot keep it with a quieter separator; spot shows only the spot name and moves the city down to the place line; raw shows the title as sent.',
   },
   {
-    key: 'titleSize', kind: 'number', min: 10, max: 60, step: 1, default: 21,
+    key: 'titleSize', kind: 'number', min: 10, max: 60, step: 1, default: 30,
     label: 'title size (px)', section: CAPTION_SECTION,
     description: 'The camera name.',
   },
   {
     key: 'titleWeight', kind: 'enum', options: ['300', '400', '500', '600'], default: '300',
-    label: 'title weight', section: CAPTION_SECTION,
-    description: '300 light, 400 regular, 500 medium, 600 semibold.',
+    label: 'thickness', section: CAPTION_SECTION,
+    description: 'Stroke weight for every caption line. As brightness falls the eye loses the fine parts of a letter first, so a thin weight at high grey gives out sooner than a normal weight at low grey — and the normal weight is the quieter of the two over a picture. 300 light, 400 regular, 500 medium, 600 semibold.',
   },
   {
-    key: 'titleGray', kind: 'number', min: 0, max: 100, step: 1, default: 71,
+    key: 'titleGray', kind: 'number', min: 0, max: 100, step: 1, default: 20,
     label: 'title gray (%)', section: CAPTION_SECTION,
     description: '100 is white.',
   },
   {
-    key: 'placeSize', kind: 'number', min: 8, max: 40, step: 1, default: 17,
+    key: 'placeSize', kind: 'number', min: 8, max: 60, step: 1, default: 22,
     label: 'place size (px)', section: CAPTION_SECTION,
     description: 'The region and country line.',
   },
   {
-    key: 'placeGray', kind: 'number', min: 0, max: 100, step: 1, default: 57,
+    key: 'placeGray', kind: 'number', min: 0, max: 100, step: 1, default: 20,
     label: 'place gray (%)', section: CAPTION_SECTION,
     description: '100 is white.',
   },
   {
-    key: 'lineGap', kind: 'number', min: 0, max: 24, step: 1, default: 0,
-    label: 'line gap (px)', section: CAPTION_SECTION,
-    description: 'Extra space above every caption line after the first.',
+    key: 'titleGap', kind: 'number', min: 0, max: 140, step: 1, default: 30,
+    label: 'space above the name', section: CAPTION_SECTION,
+    description: 'Glass pixels above the camera name, ignored when the name is the first line. Space costs no ink, so it is the cheapest way to say the time and the place are different kinds of fact.',
   },
   {
-    key: 'timeStyle', kind: 'enum', options: ['off', 'ago', '12h', '12h-there', '24h', 'sun', '12h-sun'], default: 'ago',
+    key: 'placeGap', kind: 'number', min: 0, max: 140, step: 1, default: 0,
+    label: 'space above the region', section: CAPTION_SECTION,
+    description: 'Glass pixels above the region line, ignored when the region is the first line. Zero binds it to the name as one block.',
+  },
+  {
+    key: 'timeStyle', kind: 'enum', options: ['sun-past', 'off', 'ago', '12h', '12h-there', '24h', 'sun', '12h-sun'], default: 'sun-past',
     label: 'time', section: CAPTION_SECTION,
-    description: 'ago → how long since the picture was taken ("13 minutes ago", "1 hour 5 minutes ago"). It says the sunset is happening somewhere else right now without asking anyone to convert a clock, and inside a camera run it counts down. The rest read the camera\'s own clock at the moment of the picture (12h → "7:42 pm", 12h-there → "7:42 pm there", 24h → "19:42"), the sun\'s height ("sun 1.2° above the horizon"), or both.',
+    description: 'sun-past → names the crossing once it has happened ("Sunset 20 minutes ago"), and says how old the picture is before then. Only the past tense is printed: a ridge or a bank of cloud takes the sun away earlier than the almanac says but never later, so an elapsed time is safe over any picture while a countdown gets contradicted by the one it captions. ago → how long since the picture was taken ("13 minutes ago", "1 hour 5 minutes ago"). It says the sunset is happening somewhere else right now without asking anyone to convert a clock, and inside a camera run it counts down. The rest read the camera\'s own clock at the moment of the picture (12h → "7:42 pm", 12h-there → "7:42 pm there", 24h → "19:42"), the sun\'s height ("sun 1.2° above the horizon"), or both.',
   },
   {
     key: 'timeLine', kind: 'enum', options: ['own', 'inline'], default: 'own',
@@ -103,17 +119,17 @@ export const CAPTION_SCHEMA: SettingsSchema = [
     description: 'own: the time on its own line under the place. inline: after the place with a middle dot.',
   },
   {
-    key: 'timeGap', kind: 'number', min: 0, max: 240, step: 1, default: 0,
-    label: 'time gap (px)', section: CAPTION_SECTION,
+    key: 'timeGap', kind: 'number', min: 0, max: 140, step: 1, default: 0,
+    label: 'space above the time', section: CAPTION_SECTION,
     description: 'Extra space above the time line only, on top of the line gap, so the time can sit apart from the title and the place instead of evenly under them. It reaches a quarter of the panel, far enough to drop the time clear of the pair above it; past what the panel can hold the time leaves the panel, and the preview\u2019s amber edge shows where that is. Nothing when the time is inline.',
   },
   {
-    key: 'timeSize', kind: 'number', min: 8, max: 32, step: 1, default: 12,
+    key: 'timeSize', kind: 'number', min: 8, max: 60, step: 1, default: 30,
     label: 'time size (px)', section: CAPTION_SECTION,
     description: 'The time line.',
   },
   {
-    key: 'timeGray', kind: 'number', min: 0, max: 90, step: 1, default: 46,
+    key: 'timeGray', kind: 'number', min: 0, max: 90, step: 1, default: 20,
     label: 'time gray (%)', section: CAPTION_SECTION,
     description: '100 would be white; keep it quieter than the place.',
   },
@@ -180,12 +196,15 @@ export function captionDialsFrom(values: SettingsValues): CaptionDials {
     font: values.font as CaptionFont,
     feedPrefix: values.feedPrefix as boolean,
     titleClean: values.titleClean as TitleClean,
+    lineOrder: values.lineOrder as LineOrder,
+    captionTrack: values.captionTrack as number,
     titleSize: values.titleSize as number,
     titleWeight: values.titleWeight as TitleWeight,
     titleGray: values.titleGray as number,
     placeSize: values.placeSize as number,
     placeGray: values.placeGray as number,
-    lineGap: values.lineGap as number,
+    titleGap: values.titleGap as number,
+    placeGap: values.placeGap as number,
     timeStyle: values.timeStyle as TimeStyle,
     timeLine: values.timeLine as TimeLine,
     timeGap: values.timeGap as number,

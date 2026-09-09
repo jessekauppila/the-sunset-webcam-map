@@ -17,10 +17,11 @@ describe('SOLO_SETTINGS_SCHEMA', () => {
       showPlace: true, showScores: false, showRank: false, showTally: false,
       // the caption as dialled in on 2026-09-05, at its defaults because no shared values were laid over
       captionLayout: 'inset', pictureHeight: 87, pictureShift: 0, captionAlign: 'picture', captionGap: 18,
-      font: 'system', feedPrefix: true, titleClean: 'compass',
-      titleSize: 21, titleWeight: '300', titleGray: 71,
-      placeSize: 17, placeGray: 57, lineGap: 0,
-      timeStyle: 'ago', timeLine: 'own', timeGap: 0, timeSize: 12, timeGray: 46,
+      font: 'atkinson', feedPrefix: false, titleClean: 'compass',
+      lineOrder: 'time-first', captionTrack: 6,
+      titleSize: 30, titleWeight: '300', titleGray: 20,
+      placeSize: 22, placeGray: 20, titleGap: 30, placeGap: 0,
+      timeStyle: 'sun-past', timeLine: 'own', timeGap: 0, timeSize: 30, timeGray: 20,
     });
   });
 

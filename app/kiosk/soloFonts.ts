@@ -1,4 +1,4 @@
-import { Source_Sans_3, Source_Serif_4 } from 'next/font/google';
+import { Atkinson_Hyperlegible_Next, Source_Sans_3, Source_Serif_4 } from 'next/font/google';
 
 /**
  * The two faces the caption's font dial can pick beyond the system face and
@@ -12,5 +12,8 @@ import { Source_Sans_3, Source_Serif_4 } from 'next/font/google';
  */
 const sans = Source_Sans_3({ subsets: ['latin'], variable: '--solo-font-sans', display: 'swap' });
 const serif = Source_Serif_4({ subsets: ['latin'], variable: '--solo-font-serif', display: 'swap' });
+// Drawn for low vision: no two letters confusable and the counters stay
+// open, which is what holds a dim caption together at a distance.
+const atkinson = Atkinson_Hyperlegible_Next({ subsets: ['latin'], variable: '--solo-font-atkinson', display: 'swap' });
 
-export const soloFontClassName = `${sans.variable} ${serif.variable}`;
+export const soloFontClassName = `${sans.variable} ${serif.variable} ${atkinson.variable}`;

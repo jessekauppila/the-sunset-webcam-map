@@ -34,7 +34,7 @@ describe('solo2 settings schema', () => {
     const d = dialsFrom2(schemaDefaults(SOLO2_SETTINGS_SCHEMA));
     expect(d).toMatchObject({
       leadS: 0, leadScale: 1.03, cameraRun: true,
-      timeStyle: 'ago', valleys: 0, screens: 'together',
+      timeStyle: 'sun-past', valleys: 0, screens: 'together',
     });
     expect('prelude' in d).toBe(false);
     // Decided 2026-09-05: a camera change dips through black, the same camera dissolves.

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { captionBox, captionHeight, captionLines, displayTitle, drawFactor, formatAgo, formatTime, gray, lineGaps, pairTimeSegments, pictureRect, splitTime, tailTravel, timeSegments, timeText } from './caption';
+import { captionBox, captionHeight, captionLines, displayTitle, drawFactor, formatAgo, formatTime, gray, captionSequence, pairTimeSegments, pictureRect, splitTime, tailTravel, timeSegments, timeText } from './caption';
 
 // 02:42 UTC on 2026-09-05 is 7:42 pm the evening before in Mazatlán (UTC−7).
 const AT = Date.UTC(2026, 8, 5, 2, 42);
@@ -226,31 +226,45 @@ describe('splitTime', () => {
   });
 });
 
-describe('lineGaps', () => {
-  it('the time carries the line gap plus its own, so it can sit apart from the two lines above it', () => {
-    expect(lineGaps({ lineGap: 0, timeGap: 0 })).toEqual({ place: 0, time: 0 });
-    expect(lineGaps({ lineGap: 4, timeGap: 0 })).toEqual({ place: 4, time: 4 });
-    expect(lineGaps({ lineGap: 4, timeGap: 12 })).toEqual({ place: 4, time: 16 });
+describe('captionSequence', () => {
+  const d = { lineOrder: 'name-first' as const, titleGap: 4, placeGap: 6, timeGap: 12 };
+  it('draws name, region, time and gives the first line no space above it', () => {
+    expect(captionSequence(d)).toEqual([
+      { key: 'title', gap: 0 }, { key: 'place', gap: 6 }, { key: 'time', gap: 12 },
+    ]);
+  });
+  it('flipping the order carries each gap with its own line', () => {
+    expect(captionSequence({ ...d, lineOrder: 'time-first' })).toEqual([
+      { key: 'time', gap: 0 }, { key: 'title', gap: 4 }, { key: 'place', gap: 6 },
+    ]);
   });
 });
 
 describe('captionHeight', () => {
-  const d = { titleSize: 21, placeSize: 17, timeSize: 12, lineGap: 0, timeGap: 0, timeLine: 'own' as const };
+  const d = {
+    titleSize: 21, placeSize: 17, timeSize: 12,
+    lineOrder: 'name-first' as const, titleGap: 0, placeGap: 0, timeGap: 0, timeLine: 'own' as const,
+  };
   const lines = { place: 'Norrbotten County, Sweden', time: '7:42 pm there' };
   it('adds the lines that will exist at the glass line heights, plus the gaps between them, at scale', () => {
     // title 21 × 1.15 + place 17 × 1.3 + time 12 × 1.3
     expect(captionHeight(d, lines, 1)).toBeCloseTo(61.85);
     expect(captionHeight(d, { place: '', time: '' }, 1)).toBeCloseTo(21 * 1.15);
     expect(captionHeight(d, { place: '', time: '7:42 pm' }, 1)).toBeCloseTo(21 * 1.15 + 12 * 1.3);
-    expect(captionHeight({ ...d, lineGap: 4 }, lines, 1)).toBeCloseTo(61.85 + 8);
+    expect(captionHeight({ ...d, placeGap: 4, timeGap: 4 }, lines, 1)).toBeCloseTo(61.85 + 8);
     expect(captionHeight(d, lines, 0.5)).toBeCloseTo(61.85 / 2);
   });
-  it('the time gap pushes the time line down and the block grows by exactly that much', () => {
+  it('each line carries its own gap, so the region can sit tight while the time stands clear', () => {
     expect(captionHeight({ ...d, timeGap: 10 }, lines, 1)).toBeCloseTo(61.85 + 10);
-    expect(captionHeight({ ...d, lineGap: 4, timeGap: 10 }, lines, 1)).toBeCloseTo(61.85 + 8 + 10);
-    // with no place line the time is still the line that carries the extra gap
+    expect(captionHeight({ ...d, placeGap: 4, timeGap: 14 }, lines, 1)).toBeCloseTo(61.85 + 4 + 14);
+    // with no place line the time is still the line that carries its gap
     expect(captionHeight({ ...d, timeGap: 10 }, { place: '', time: '7:42 pm' }, 1)).toBeCloseTo(21 * 1.15 + 12 * 1.3 + 10);
     expect(captionHeight({ ...d, timeGap: 10 }, lines, 0.5)).toBeCloseTo((61.85 + 10) / 2);
+  });
+  it('the first line has no space above it, whichever line leads', () => {
+    const flipped = { ...d, lineOrder: 'time-first' as const, titleGap: 30, placeGap: 0, timeGap: 99 };
+    // time leads so its 99 is dropped; only the name's 30 is added
+    expect(captionHeight(flipped, lines, 1)).toBeCloseTo(61.85 + 30);
   });
   it('an inline time shares the place line, and makes one when there is no place', () => {
     expect(captionHeight({ ...d, timeLine: 'inline' }, lines, 1)).toBeCloseTo(21 * 1.15 + 17 * 1.3);
@@ -260,6 +274,7 @@ describe('captionHeight', () => {
     expect(captionHeight({ ...d, timeLine: 'inline', timeGap: 30 }, lines, 1)).toBeCloseTo(21 * 1.15 + 17 * 1.3);
   });
 });
+
 
 describe('captionBox', () => {
   const pic = pictureRect({ captionLayout: 'inset', pictureHeight: 87, pictureShift: 0 }, 1920, 1080); // 125, 70, 1671 × 940

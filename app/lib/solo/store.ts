@@ -3,7 +3,7 @@ import tzLookup from 'tz-lookup';
 import { sql } from '@/app/lib/db';
 import type { BinEntry, BinKind, Feed } from './types';
 import type { SoloVersionName } from './versions';
-import { sunAltitudeDeg } from './zone';
+import { sunAltitudeDeg, sunEventAt } from './zone';
 
 /**
  * Every SQL touch of kiosk_bin_entries and kiosk_screen_state (spec §5).
@@ -25,6 +25,10 @@ export interface StoredEntry extends BinEntry {
   timezone: string | null;
   /** Solar altitude at the camera when the picture was taken, degrees. */
   sunAltitudeDeg: number | null;
+  /** When the sun crossed the horizon there that day, ms; absent inside the polar circles. */
+  sunEventAt?: number | null;
+  /** Which crossing that was, so the caption can name it. */
+  sunPhase?: Feed | null;
   firstShownAt: number | null;
   lastShownAt: number | null;
   /** Which draw it was last shown on — rest's currency (spec §6.1). */
@@ -80,6 +84,8 @@ function toEntry(feed: Feed, r: EntryRow): StoredEntry {
   const lat = num(r.lat);
   const lng = num(r.lng);
   const capturedAt = parseUtcText(r.captured_at);
+  const placed = Number.isFinite(capturedAt) && Number.isFinite(lat) && Number.isFinite(lng);
+  const event = placed ? sunEventAt(new Date(capturedAt), lat, lng) : null;
   return {
     feed,
     snapshotId: num(r.snapshot_id),
@@ -102,8 +108,9 @@ function toEntry(feed: Feed, r: EntryRow): StoredEntry {
     lng,
     capturedAt,
     timezone: zoneOf(lat, lng),
-    sunAltitudeDeg: Number.isFinite(capturedAt) && Number.isFinite(lat) && Number.isFinite(lng)
-      ? sunAltitudeDeg(new Date(capturedAt), lat, lng) : null,
+    sunAltitudeDeg: placed ? sunAltitudeDeg(new Date(capturedAt), lat, lng) : null,
+    sunEventAt: event?.at ?? null,
+    sunPhase: event?.phase ?? null,
   };
 }
 

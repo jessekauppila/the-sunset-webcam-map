@@ -36,6 +36,10 @@ export interface ViewEntry extends BinEntry {
   timezone: string | null;
   /** Solar altitude at the camera when the picture was taken, degrees; null when unknown. */
   sunAltitudeDeg: number | null;
+  /** When the sun crossed the horizon there that day, ms; absent in polar summer. */
+  sunEventAt?: number | null;
+  /** Which crossing that was, so the caption can name it. */
+  sunPhase?: Feed | null;
 }
 
 export function toViewEntry(e: StoredEntry): ViewEntry {
@@ -44,6 +48,7 @@ export function toViewEntry(e: StoredEntry): ViewEntry {
     detection: e.detection, isNew: e.isNew, tally: e.tally, enteredAt: e.enteredAt, lastShownAt: e.lastShownAt,
     imageUrl: e.imageUrl, title: e.title, city: e.city, region: e.region, country: e.country,
     capturedAt: e.capturedAt, timezone: e.timezone, sunAltitudeDeg: e.sunAltitudeDeg,
+    sunEventAt: e.sunEventAt, sunPhase: e.sunPhase,
   };
 }
 

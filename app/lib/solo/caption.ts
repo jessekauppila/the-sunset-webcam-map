@@ -17,6 +17,10 @@ export interface CaptionEntry {
   capturedAt: number;
   timezone: string | null;
   sunAltitudeDeg: number | null;
+  /** When the sun crossed the horizon there that day, ms; null in polar summer. */
+  sunEventAt?: number | null;
+  /** Which crossing it was, so the caption can name it. */
+  sunPhase?: Feed | null;
 }
 
 function clock(capturedAt: number, timezone: string, hour12: boolean): string | null {
@@ -81,7 +85,7 @@ export function formatAgo(elapsedMs: number): string {
  */
 export function timeSegments(
   style: TimeStyle, capturedAt: number, timezone: string | null, sunAltitudeDeg: number | null,
-  now: number = Date.now(),
+  now: number = Date.now(), event: { at: number; phase: Feed } | null = null,
 ): TimeSegment[] {
   const twelve = timezone ? clock(capturedAt, timezone, true) : null;
   const sunPart = sunAltitudeDeg == null || !Number.isFinite(sunAltitudeDeg) ? null : sun(sunAltitudeDeg);
@@ -89,6 +93,16 @@ export function timeSegments(
   switch (style) {
     case 'off': return [];
     case 'ago': return one(formatAgo(now - capturedAt));
+    // Only ever the past tense. A ridge or a cloud bank can take the sun
+    // away earlier than the almanac says but never later, so an elapsed
+    // time is safe to print over any picture while a countdown is not.
+    // Before the crossing there is nothing safe to say about the sun, so
+    // the line falls back to how old the picture is.
+    case 'sun-past': {
+      if (!event || capturedAt < event.at) return one(formatAgo(now - capturedAt));
+      const word = event.phase === 'sunrise' ? 'Sunrise' : 'Sunset';
+      return one(`${word} ${formatAgo(capturedAt - event.at)}`);
+    }
     case '12h': return one(twelve);
     case '12h-there': return one(twelve ? `${twelve} there` : null);
     case '24h': return one(timezone ? clock(capturedAt, timezone, false) : null);
@@ -110,9 +124,14 @@ export const timeText = (segments: TimeSegment[]): string => segments.map((s) =>
  */
 export function formatTime(
   style: TimeStyle, capturedAt: number, timezone: string | null, sunAltitudeDeg: number | null,
-  now?: number,
+  now?: number, event: { at: number; phase: Feed } | null = null,
 ): string | null {
-  return timeText(timeSegments(style, capturedAt, timezone, sunAltitudeDeg, now)) || null;
+  return timeText(timeSegments(style, capturedAt, timezone, sunAltitudeDeg, now, event)) || null;
+}
+
+/** The sun crossing an entry carries, in the shape timeSegments wants. */
+export function sunEventOf(e: CaptionEntry): { at: number; phase: Feed } | null {
+  return e.sunEventAt != null && e.sunPhase ? { at: e.sunEventAt, phase: e.sunPhase } : null;
 }
 
 const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '');
@@ -168,7 +187,7 @@ export function captionLines(
   const t = displayTitle(e.title, d.titleClean);
   const prefix = d.feedPrefix && feed ? FEED_PREFIX[feed] : '';
   const place = [t.city, e.region, e.country].filter(Boolean).join(', ');
-  const timeParts = timeSegments(d.timeStyle, e.capturedAt, e.timezone, e.sunAltitudeDeg, now);
+  const timeParts = timeSegments(d.timeStyle, e.capturedAt, e.timezone, e.sunAltitudeDeg, now, sunEventOf(e));
   const time = timeText(timeParts);
   return { title: prefix + t.title, place, time, timeParts, sub: [place, time].filter(Boolean).join(' · ') };
 }
@@ -271,17 +290,30 @@ export interface CaptionBox {
 /** Line heights the caption draws with, as multiples of each line's font size. Caption.tsx uses these. */
 export const LINE_HEIGHT = { title: 1.15, place: 1.3, time: 1.3 } as const;
 
+/** The three caption lines, named. */
+export type LineKey = 'title' | 'place' | 'time';
+
+const GAP_KEY = { title: 'titleGap', place: 'placeGap', time: 'timeGap' } as const;
+const SIZE_KEY = { title: 'titleSize', place: 'placeSize', time: 'timeSize' } as const;
+
 /**
- * The space above each caption line, in glass pixels: nothing above the first
- * line, `lineGap` above any line after it, and `timeGap` on top of that above
- * the time when the time has a line of its own. Caption.tsx draws these as
- * margins and captionHeight adds them up, so the two always agree about how
- * far the block reaches.
+ * The lines in the order they are drawn, each with the space above it in
+ * glass pixels. Every line owns its own gap, so the region can sit tight
+ * under the name while the time stands well clear of both — which one
+ * shared gap plus a bonus for the time could not express.
+ *
+ * The first line has no space above it whichever line that is, so flipping
+ * the order moves the gaps with the lines rather than leaving a hole at the
+ * top of the block. Caption.tsx draws these as margins and captionHeight
+ * adds them up, so the two always agree about how far the block reaches.
  */
-export function lineGaps(
-  d: Pick<SoloDials, 'lineGap' | 'timeGap'>,
-): { place: number; time: number } {
-  return { place: d.lineGap, time: d.lineGap + d.timeGap };
+export function captionSequence(
+  d: Pick<SoloDials, 'lineOrder' | 'titleGap' | 'placeGap' | 'timeGap'>,
+): { key: LineKey; gap: number }[] {
+  const order: LineKey[] = d.lineOrder === 'time-first'
+    ? ['time', 'title', 'place']
+    : ['title', 'place', 'time'];
+  return order.map((key, i) => ({ key, gap: i === 0 ? 0 : d[GAP_KEY[key]] }));
 }
 
 /**
@@ -291,14 +323,22 @@ export function lineGaps(
  * Caption draws with, plus the gap above each line after the first.
  */
 export function captionHeight(
-  d: Pick<SoloDials, 'titleSize' | 'placeSize' | 'timeSize' | 'lineGap' | 'timeGap' | 'timeLine'>,
+  d: Pick<SoloDials, 'titleSize' | 'placeSize' | 'timeSize' | 'lineOrder'
+    | 'titleGap' | 'placeGap' | 'timeGap' | 'timeLine'>,
   lines: Pick<CaptionLines, 'place' | 'time'>, s: number,
 ): number {
-  const inline = d.timeLine === 'inline';
-  const gaps = lineGaps(d);
-  let total = d.titleSize * LINE_HEIGHT.title;
-  if (lines.place || (inline && lines.time)) total += gaps.place + d.placeSize * LINE_HEIGHT.place;
-  if (!inline && lines.time) total += gaps.time + d.timeSize * LINE_HEIGHT.time;
+  const inline = d.timeLine === 'inline' && d.lineOrder === 'name-first';
+  let total = 0;
+  let first = true;
+  for (const { key, gap } of captionSequence(d)) {
+    // The time folded onto the place line adds no line of its own, and the
+    // place line survives an empty place when it is carrying that time.
+    if (key === 'time' && inline) continue;
+    if (key === 'place' && !lines.place && !(inline && lines.time)) continue;
+    if (key === 'time' && !lines.time) continue;
+    total += (first ? 0 : gap) + d[SIZE_KEY[key]] * LINE_HEIGHT[key];
+    first = false;
+  }
   return total * s;
 }
 
@@ -343,6 +383,7 @@ export const FONT_STACKS: Record<CaptionFont, string> = {
   sans: 'var(--solo-font-sans), "Source Sans 3", system-ui, sans-serif',
   serif: 'var(--solo-font-serif), "Source Serif 4", Georgia, "Times New Roman", serif',
   mono: 'var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, monospace',
+  atkinson: 'var(--solo-font-atkinson), "Atkinson Hyperlegible Next", system-ui, sans-serif',
 };
 
 /**

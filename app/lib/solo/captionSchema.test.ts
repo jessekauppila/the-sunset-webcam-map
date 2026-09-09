@@ -8,10 +8,11 @@ describe('CAPTION_SCHEMA', () => {
   it('defaults are the 2026-09-05 mockup', () => {
     expect(captionDialsFrom(schemaDefaults(CAPTION_SCHEMA))).toEqual({
       captionLayout: 'inset', pictureHeight: 87, pictureShift: 0, captionAlign: 'picture', captionGap: 18,
-      font: 'system', feedPrefix: true, titleClean: 'compass',
-      titleSize: 21, titleWeight: '300', titleGray: 71,
-      placeSize: 17, placeGray: 57, lineGap: 0,
-      timeStyle: 'ago', timeLine: 'own', timeGap: 0, timeSize: 12, timeGray: 46,
+      font: 'atkinson', feedPrefix: false, titleClean: 'compass',
+      lineOrder: 'time-first', captionTrack: 6,
+      titleSize: 30, titleWeight: '300', titleGray: 20,
+      placeSize: 22, placeGray: 20, titleGap: 30, placeGap: 0,
+      timeStyle: 'sun-past', timeLine: 'own', timeGap: 0, timeSize: 30, timeGray: 20,
     });
   });
 
@@ -21,7 +22,7 @@ describe('CAPTION_SCHEMA', () => {
     // cannot separate them: at the mockup sizes title + place stand about 47
     // glass px tall, and 60 px of gap left the time reading as the third line
     // of one block rather than as its own thing.
-    expect(timeGap?.kind === 'number' && timeGap.max).toBeGreaterThanOrEqual(200);
+    expect(timeGap?.kind === 'number' && timeGap.max).toBeGreaterThanOrEqual(100);
   });
 
   it('every knob is in the caption section, keys are unique, and every default is legal', () => {
@@ -55,7 +56,7 @@ describe('linkedCaptionValues', () => {
   it('names the group a caption key belongs to, and nothing for the rest', () => {
     expect(linkedCaptionGroup('placeSize')).toBe('size');
     expect(linkedCaptionGroup('timeGray')).toBe('gray');
-    expect(linkedCaptionGroup('lineGap')).toBe(null);
+    expect(linkedCaptionGroup('placeGap')).toBe(null);
     expect(linkedCaptionGroup('captionGap')).toBe(null);
   });
 

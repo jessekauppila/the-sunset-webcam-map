@@ -6,7 +6,9 @@ import { dialsFrom, SOLO_SETTINGS_SCHEMA } from '@/app/lib/solo/settingsSchema';
 import { schemaDefaults } from '@/app/lib/settings/schema';
 import type { StateView } from '@/app/api/kiosk/solo/view';
 
-const D = dialsFrom(schemaDefaults(SOLO_SETTINGS_SCHEMA));
+// The prefix is off by default now that the time line names the crossing;
+// this test is about the dial still naming each screen when it is on.
+const D = { ...dialsFrom(schemaDefaults(SOLO_SETTINGS_SCHEMA)), feedPrefix: true };
 const entry = {
   snapshotId: 7, webcamId: 1, bin: 'sunset' as const, quality: 0.9, detection: 0.9, isNew: false, tally: 1, enteredAt: 0,
   imageUrl: 'u7', title: 'Porjus › North-west: Northern Lights webcam', city: 'Porjus', region: 'Norrbotten County', country: 'Sweden',
