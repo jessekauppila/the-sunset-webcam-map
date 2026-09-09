@@ -4,7 +4,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import type { EntryView, StateView } from '@/app/api/kiosk/solo/view';
 import type { Feed, SoloDials } from '@/app/lib/solo/types';
 import type { SoloVersionSpec } from '@/app/lib/solo/versions';
-import { budgetS, cameraGroups, capFor, planDialsFor, representative, runOf } from '@/app/lib/solo2/run';
+import { budgetS, cameraGroups, capFor, planDialsFor, representative, runOf, standsFor } from '@/app/lib/solo2/run';
 import { fitPlan } from '@/app/lib/solo2/plan';
 import { SOLO2_SETTINGS_SCHEMA } from '@/app/lib/solo2/settingsSchema';
 import type { Solo2Dials } from '@/app/lib/solo2/types';
@@ -142,7 +142,11 @@ export function FeedColumn({ feed, server, projected, liveDials, nowMs, version,
     const playedIds = new Set(played.map((f) => f.snapshotId));
     const skipped = runOf(e, all, true).filter((f) => !playedIds.has(f.snapshotId));
     if (played.length <= 1 && skipped.length === 0) return undefined;
-    return { earlier: played.slice(0, -1), skipped, capLabel: capLabelOf(e.bin, cap, d2), stepS: fitPlan(planDialsFor(e, d2, all, true), played.length).stepS };
+    // The label names the dial the cap actually came from, so it reads the bin
+    // off the camera exactly as `capFor` does. Off the drawn frame it could
+    // announce the non-sunset dial beside a sixteen-frame sunset run.
+    const capBin = standsFor(e, all, true).bin ?? e.bin;
+    return { earlier: played.slice(0, -1), skipped, capLabel: capLabelOf(capBin, cap, d2), stepS: fitPlan(planDialsFor(e, d2, all, true), played.length).stepS };
   };
 
   // The queue: each draw with the run it plays.
