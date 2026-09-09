@@ -10,6 +10,18 @@
 // duplication exists because a .mjs script cannot import a .ts module; change
 // both or neither.
 //
+// Phase is derived from geometry (local solar hour before/after noon), NOT
+// read from the stored `webcam_snapshots.phase` column. That column is
+// hardcoded to 'sunset' at the cron's write site
+// (app/api/cron/update-cameras/route.ts) even though the scoring loop covers
+// cameras on both terminator arcs, so a panel camera's morning frames are
+// also stamped 'sunset'. Filtering on the column would merge a camera's
+// morning and evening frames into one ~13-hour group and the span_min filter
+// below would then drop it, reporting 0 uniform runs while capture works
+// fine. This mirrors app/lib/solarPhase.ts's rule (see PR #180: the stored
+// phase disagrees with geometry on ~17% of frames) in SQL, since the script
+// cannot import that TypeScript module.
+//
 //   node scripts/run-inventory.mjs
 //   node scripts/run-inventory.mjs --days 30
 import { neon } from '@neondatabase/serverless';
@@ -29,32 +41,33 @@ const DAYS = daysArg === -1 ? 45 : Number(process.argv[daysArg + 1]);
 
 const runs = await sql`
   WITH framed AS (
-    SELECT s.id, s.webcam_id, s.phase, s.intake_reason,
+    SELECT s.id, s.webcam_id, s.intake_reason,
            s.captured_at,
-           ((s.captured_at AT TIME ZONE 'UTC'
-             + make_interval(mins => (w.lng / 15.0 * 60)::int)))::date AS solar_day
+           (s.captured_at AT TIME ZONE 'UTC'
+             + make_interval(mins => (w.lng / 15.0 * 60)::int)) AS local_solar_at
     FROM webcam_snapshots s
     JOIN webcams w ON w.id = s.webcam_id
     WHERE s.captured_at > now() - make_interval(days => ${DAYS}::int)
-      AND s.phase = 'sunset'
       AND w.lng IS NOT NULL
   ),
   grouped AS (
-    SELECT webcam_id, solar_day,
+    SELECT webcam_id,
+           local_solar_at::date AS solar_day,
+           extract(hour FROM local_solar_at) < 12 AS is_morning,
            count(*)::int AS frames,
            count(*) FILTER (WHERE intake_reason = 'run')::int AS run_frames,
            extract(epoch FROM (max(captured_at) - min(captured_at))) / 60 AS span_min
-    FROM framed GROUP BY webcam_id, solar_day
+    FROM framed GROUP BY webcam_id, solar_day, is_morning
   )
   SELECT
-    count(*) FILTER (WHERE frames >= 6 AND span_min BETWEEN 30 AND 150)::int AS labelable_runs,
-    count(*) FILTER (WHERE frames >= 6 AND span_min BETWEEN 30 AND 150
+    count(*) FILTER (WHERE NOT is_morning AND frames >= 6 AND span_min BETWEEN 30 AND 150)::int AS labelable_runs,
+    count(*) FILTER (WHERE NOT is_morning AND frames >= 6 AND span_min BETWEEN 30 AND 150
                        AND run_frames = frames)::int AS uniform_runs,
     count(DISTINCT webcam_id) FILTER (WHERE run_frames > 0)::int AS panel_cameras_seen,
-    round(avg(frames) FILTER (WHERE run_frames = frames)::numeric, 1) AS avg_frames_uniform
+    round(avg(frames) FILTER (WHERE NOT is_morning AND run_frames = frames)::numeric, 1) AS avg_frames_uniform
   FROM grouped
 `;
-console.log(`window: last ${DAYS} days, sunset phase`);
+console.log(`window: last ${DAYS} days, evening groups only (phase derived from local solar hour, not the stored column)`);
 console.table(runs);
 
 const mix = await sql`

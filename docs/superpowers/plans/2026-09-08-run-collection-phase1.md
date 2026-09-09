@@ -685,9 +685,11 @@ git commit -m "feat(run-capture): run inventory report separates uniform runs fr
 
 Do not reorder. The migration must land before the code that writes `'run'`, because the cron swallows its own write errors and a constraint violation would lose frames silently rather than loudly.
 
+- [ ] Pre-flight the constraint swap: `scripts/apply-migration.mjs` sends one statement per request, so if the ADD CONSTRAINT fails after the DROP succeeds, `webcam_snapshots` is left with no `intake_reason` check at all. Run `SELECT DISTINCT intake_reason FROM webcam_snapshots;` and confirm every value returned appears in the migration's new CHECK list before running with `--apply`.
 - [ ] Apply the migration: `node scripts/apply-migration.mjs database/migrations/20260908_run_panel.sql --apply`
 - [ ] Confirm: `npm run migrate:status` exits 0
 - [ ] Merge the PR, let the Vercel build go Ready
+- [ ] Confirm the inventory script's phase-splitting fix is in place (`scripts/run-inventory.mjs` derives morning/evening from local solar hour, not the stored `phase` column). Without it, the report reads 0 uniform runs regardless of whether capture is working and looks like a failure.
 - [ ] Seed the panel: `node scripts/seed-run-panel.mjs` then re-run with `--apply`
 - [ ] Enable capture: `node scripts/set-runtime-flag.mjs run_panel_capture on --apply`
 - [ ] Next morning, confirm the corpus is growing: `node scripts/run-inventory.mjs`, `uniform_runs` above 0

@@ -98,4 +98,13 @@ describe('GET /api/snapshots/cleanup', () => {
     const q = strings.join('?').toLowerCase();
     expect(q).toMatch(/llm_quality\s+is\s+null/i);
   });
+
+  it("excludes run-panel frames (intake_reason = 'run') — the unbiased corpus this panel exists to collect", async () => {
+    cleanupEnabledMock.value = true;
+    sqlMock.mockResolvedValueOnce([]); // SELECT returns nothing
+    await GET(makeReq());
+    const [strings] = sqlMock.mock.calls[0];
+    const q = strings.join('?');
+    expect(q).toMatch(/intake_reason\s+is\s+distinct\s+from\s+'run'/i);
+  });
 });

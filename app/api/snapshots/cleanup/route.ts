@@ -76,7 +76,12 @@ async function cleanup(request: Request) {
     //      guts old scenes. It is precisely the ORDINARY frames — no
     //      disagreement, no Claude score, no high model score — that make a
     //      scene worth replaying, and every other rule here would drop them.
-    //   6. It carries a GOLD label. manual_labels is the table the two-scale
+    //   6. It arrived as a run-panel frame (intake_reason = 'run'). These are
+    //      whole-evening captures kept specifically because they are
+    //      ordinary — no disagreement, no Claude score, no high model score —
+    //      so every other rule here would otherwise select exactly the
+    //      unbiased frames the run panel exists to collect.
+    //   7. It carries a GOLD label. manual_labels is the table the two-scale
     //      model program actually trains on, and a label names a frame by id.
     //      Rule 2 covers the public star table only, so a low-scoring frame
     //      the operator labeled by hand — a trickle frame out of the random
@@ -88,6 +93,7 @@ async function cleanup(request: Request) {
       WHERE captured_at < NOW() - INTERVAL '7 days'
         AND model_disagreement_kind IS NULL
         AND intake_reason IS DISTINCT FROM 'scene_capture'
+        AND intake_reason IS DISTINCT FROM 'run'
         AND llm_quality IS NULL
         AND (ai_rating IS NULL OR ai_rating < ${AI_SNAPSHOT_MIN_RATING_THRESHOLD})
         AND id NOT IN (

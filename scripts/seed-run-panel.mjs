@@ -25,6 +25,12 @@ const sql = neon(loadDatabaseUrl());
 const apply = process.argv.includes('--apply');
 const sizeArg = process.argv.indexOf('--size');
 const SIZE = sizeArg === -1 ? 60 : Number(process.argv[sizeArg + 1]);
+if (!Number.isInteger(SIZE) || SIZE <= 0) {
+  console.error(
+    `--size must be a positive integer, got ${JSON.stringify(process.argv[sizeArg + 1])}`,
+  );
+  process.exit(1);
+}
 // 24 buckets of 15 degrees: one per hour of local solar time.
 const BUCKETS = 24;
 
