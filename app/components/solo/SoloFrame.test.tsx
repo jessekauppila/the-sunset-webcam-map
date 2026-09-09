@@ -6,7 +6,17 @@ import { schemaDefaults } from '@/app/lib/settings/schema';
 
 // The caption's default time reading is now "13 minutes ago", which moves
 // with the wall clock; these tests are about layout, so they pin the clock.
-const D = { ...dialsFrom(schemaDefaults(SOLO_SETTINGS_SCHEMA)), timeStyle: '12h-there' as const };
+// Layout tests, so the clock is pinned; and they were written for the
+// name-first arrangement, which is now a dial rather than the default. The
+// time-first default has its own test at the foot of this file.
+const D = {
+  ...dialsFrom(schemaDefaults(SOLO_SETTINGS_SCHEMA)),
+  timeStyle: '12h-there' as const,
+  lineOrder: 'name-first' as const,
+  titleSize: 21, titleGray: 71, placeSize: 17, placeGray: 57, timeSize: 12, timeGray: 46,
+  titleGap: 0, placeGap: 0, timeGap: 0, captionTrack: 0, font: 'system' as const,
+  feedPrefix: true,
+};
 const AT = Date.UTC(2026, 8, 5, 2, 42); // 7:42 pm in Mazatlán
 const e = {
   snapshotId: 1, webcamId: 1, bin: 'sunset' as const, quality: 0.91, detection: 0.88, isNew: false, tally: 2, enteredAt: 0,
@@ -37,16 +47,16 @@ it('caption sizes are glass pixels: the dialled px on a 1920 panel, and the gray
 
 it('the line gap spaces every line after the first; the time gap pushes the time further down still', () => {
   const { rerender } = render(<SoloFrame entry={e} previous={null} fadeS={0}
-    dials={{ ...D, lineGap: 6, timeGap: 0 }} width={1920} height={1080} />);
+    dials={{ ...D, placeGap: 6, timeGap: 6 }} width={1920} height={1080} />);
   expect(screen.getByTestId('caption-place')).toHaveStyle({ marginTop: '6px' });
   expect(screen.getByTestId('caption-time-line')).toHaveStyle({ marginTop: '6px' });
   rerender(<SoloFrame entry={e} previous={null} fadeS={0}
-    dials={{ ...D, lineGap: 6, timeGap: 14 }} width={1920} height={1080} />);
+    dials={{ ...D, placeGap: 6, timeGap: 20 }} width={1920} height={1080} />);
   expect(screen.getByTestId('caption-place')).toHaveStyle({ marginTop: '6px' });
   expect(screen.getByTestId('caption-time-line')).toHaveStyle({ marginTop: '20px' });
   // glass pixels like every other caption size: half the panel, half the gaps
   rerender(<SoloFrame entry={e} previous={null} fadeS={0}
-    dials={{ ...D, lineGap: 6, timeGap: 14 }} width={960} height={540} />);
+    dials={{ ...D, placeGap: 6, timeGap: 20 }} width={960} height={540} />);
   expect(screen.getByTestId('caption-time-line')).toHaveStyle({ marginTop: '10px' });
 });
 
@@ -146,4 +156,15 @@ it('the caption crossfades on the picture’s dial, and cuts with it at zero', (
   rerender(<SoloFrame entry={e} previous={prev} fadeS={0} dials={D} width={1920} height={1080} />);
   expect(screen.queryByTestId('caption-prev')).toBeNull();
   expect(screen.getByTestId('caption-layer').style.animation).toBe('');
+});
+
+it('by default the time leads: it is the first caption line, the name follows after its gap', () => {
+  const dials = dialsFrom(schemaDefaults(SOLO_SETTINGS_SCHEMA));
+  render(<SoloFrame entry={e} previous={null} fadeS={0} dials={dials} width={1920} height={1080} />);
+  const caption = screen.getByTestId('caption');
+  const order = Array.from(caption.children).map((c) => c.getAttribute('data-testid'));
+  expect(order).toEqual(['caption-time-line', 'caption-title', 'caption-place']);
+  // the leading line never carries space above it; the name carries its own
+  expect(screen.getByTestId('caption-time-line')).toHaveStyle({ marginTop: '0px' });
+  expect(screen.getByTestId('caption-title')).toHaveStyle({ marginTop: `${dials.titleGap}px` });
 });

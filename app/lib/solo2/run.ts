@@ -95,6 +95,36 @@ function standing<T extends RunEntry>(e: Pick<BinEntry, 'bin'> & Partial<T>, d: 
   return qualityRank(e as T, entries, cameraRun);
 }
 
+/**
+ * The entry the shaping rules must read for `e`: with the camera run on, the
+ * camera's representative — the very entry `next2` chose the camera by.
+ *
+ * The rules see one synthetic entry per camera (`poolEntries`), and
+ * `representative` stamps it with the BEST frame's bin and quality, so a
+ * camera qualifies as a sunset if any of its frames is one. But `next2` then
+ * returns the raw newest frame, because a draw has to name a real snapshot.
+ * Reading the bin off that frame meant a camera was CHOSEN on its best picture
+ * and SIZED on its newest: one snapshot landing the wrong side of the
+ * detection threshold dropped the run from up to sixteen frames to five and the
+ * budget to the dial less the trim. Measured 2026-09-08, 30 of 38 draws logged
+ * non-sunset were of cameras still holding sunset frames — Stromness had 13 of
+ * 23 and ran five.
+ *
+ * Resolving it here rather than at the call sites is deliberate: six surfaces
+ * call `capFor`/`budgetS`, and a rule each of them has to remember is a rule
+ * that drifts.
+ *
+ * Falls back to `e` when the run is off, when there is nothing to group
+ * against, or when `e` carries no camera — the same three guards `standing`
+ * already uses to decide there is nothing to rank.
+ */
+export function standsFor<T extends RunEntry>(
+  e: Pick<BinEntry, 'bin'> & Partial<T>, entries: T[] | undefined, cameraRun: boolean,
+): Pick<BinEntry, 'bin'> & Partial<T> {
+  if (!cameraRun || !entries || e.webcamId === undefined) return e;
+  return poolEntries(entries.filter((x) => x.webcamId === e.webcamId), cameraRun)[0] ?? e;
+}
+
 /** The two ends the budget swings between, as dial fields; both optional so older callers read as the dial. */
 export interface BudgetDials { dwellS: number; dwellBoost?: number; dwellTrim?: number }
 
@@ -108,6 +138,8 @@ export interface BudgetDials { dwellS: number; dwellBoost?: number; dwellTrim?: 
  * frame may get are different worries. The same shape as the frame cap,
  * applied to the clock, so a lone frame with no run to lengthen still
  * feels the difference.
+ *
+ * Read off the camera, not off the drawn frame (`standsFor`).
  */
 export function budgetS<T extends RunEntry>(
   e: Pick<BinEntry, 'bin'> & Partial<T>, d: CapDials & BudgetDials, entries?: T[], cameraRun = true,
@@ -115,7 +147,8 @@ export function budgetS<T extends RunEntry>(
   const boost = (d.dwellBoost ?? 0) / 100;
   const trim = (d.dwellTrim ?? 0) / 100;
   if (boost === 0 && trim === 0) return d.dwellS;
-  const rank = e.bin === 'sunset' ? standing(e, d, entries, cameraRun) : 0;
+  const stands = standsFor(e, entries, cameraRun);
+  const rank = stands.bin === 'sunset' ? standing(stands, d, entries, cameraRun) : 0;
   return d.dwellS * (1 - trim + (trim + boost) * rank);
 }
 
@@ -153,11 +186,15 @@ export function qualityRank<T extends RunEntry>(e: T, entries: T[], cameraRun: b
  * than a fixed number the model's scale could drift away from.
  *
  * Without `entries` there is nothing to rank against, and the cap is flat.
+ *
+ * The bin is read off the camera, not off the drawn frame (`standsFor`): a run
+ * is a camera's frames, so the cap on it is a fact about the camera.
  */
 export function capFor<T extends RunEntry>(
   e: Pick<BinEntry, 'bin'> & Partial<T>, d: CapDials, entries?: T[], cameraRun = true,
 ): number {
-  if (e.bin !== 'sunset') return d.runFramesOther;
+  const stands = standsFor(e, entries, cameraRun);
+  if (stands.bin !== 'sunset') return d.runFramesOther;
   const lo = Math.min(d.runFramesOther, d.runFramesSunset);
-  return Math.round(lo + (d.runFramesSunset - lo) * standing(e, d, entries, cameraRun));
+  return Math.round(lo + (d.runFramesSunset - lo) * standing(stands, d, entries, cameraRun));
 }

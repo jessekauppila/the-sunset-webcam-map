@@ -3,9 +3,9 @@
 import { Fragment, useLayoutEffect, useRef, type CSSProperties, type ReactNode } from 'react';
 import type { Feed, SoloDials } from '@/app/lib/solo/types';
 import {
-  FONT_STACKS, LINE_HEIGHT, captionBox, captionLines, captionScale, gray, lineGaps,
-  pairTimeSegments, splitTime, tailTravel, timeSegments,
-  type CaptionEntry, type Rect,
+  FONT_STACKS, LINE_HEIGHT, captionBox, captionLines, captionScale, captionSequence, gray,
+  pairTimeSegments, splitTime, sunEventOf, tailTravel, timeSegments,
+  type CaptionEntry, type LineKey, type Rect,
 } from '@/app/lib/solo/caption';
 
 const TIME_KEYFRAMES = `
@@ -73,16 +73,20 @@ export function Caption({ entry, dials, picture, width, feed, step, now = Date.n
   const s = captionScale(width);
   const box = captionBox(dials, picture, width);
   const overlay = dials.captionLayout === 'overlay';
-  const inline = dials.timeLine === 'inline';
-  // Margins, not a flex gap: the time line can be pushed further down than
-  // the place line is, and captionHeight adds up the same two numbers.
-  const gaps = lineGaps(dials);
+  // Folding the time onto the place line only makes sense while the name
+  // leads; when the time is the headline it always has a line of its own.
+  const inline = dials.timeLine === 'inline' && dials.lineOrder === 'name-first';
+  // Margins, not a flex gap: every line owns the space above it, so the
+  // region can sit tight under the name while the time stands clear of
+  // both. captionHeight walks the same sequence and adds the same numbers.
+  const sequence = captionSequence(dials);
 
   // The reading the step is leaving, built with this caption's own dials so
   // the two ends of the fade are always the same format, then matched piece
   // for piece against the reading arriving.
   const leaving = step && step.fadeS > 0 && lines
-    ? timeSegments(dials.timeStyle, step.from.capturedAt, step.from.timezone, step.from.sunAltitudeDeg, now)
+    ? timeSegments(dials.timeStyle, step.from.capturedAt, step.from.timezone, step.from.sunAltitudeDeg,
+      now, sunEventOf(step.from))
     : null;
   const pairs = pairTimeSegments(leaving, lines?.timeParts ?? []);
   // Two frames of the same minute say the same thing; nothing to fade.
@@ -119,6 +123,7 @@ export function Caption({ entry, dials, picture, width, feed, step, now = Date.n
     position: 'absolute', left: box.left, top: box.top, bottom: box.bottom, width: box.width, maxWidth: box.maxWidth,
     textAlign: box.textAlign, display: 'flex', flexDirection: 'column',
     fontFamily: FONT_STACKS[dials.font], whiteSpace: 'nowrap',
+    letterSpacing: `${dials.captionTrack / 1000}em`,
     textShadow: overlay ? '0 1px 4px #000' : undefined,
   };
   const line: CSSProperties = { overflow: 'hidden', textOverflow: 'ellipsis' };
@@ -184,27 +189,51 @@ export function Caption({ entry, dials, picture, width, feed, step, now = Date.n
     </span>
   );
 
+  /* Drawn in the order the dials ask for, so flipping the order moves each
+     line's own space with it rather than leaving a hole at the top. */
+  const draw = (key: LineKey, gap: number) => {
+    const margin = gap * s;
+    if (key === 'title') {
+      return (
+        <div key={key} data-testid="caption-title" style={{
+          ...line, marginTop: margin, fontSize: dials.titleSize * s,
+          fontWeight: Number(dials.titleWeight), color: gray(dials.titleGray),
+          lineHeight: LINE_HEIGHT.title,
+        }}>
+          {lines.title}
+        </div>
+      );
+    }
+    if (key === 'place') {
+      if (!lines.place && !(inline && time)) return null;
+      return (
+        <div key={key} data-testid="caption-place" style={{
+          ...line, marginTop: margin, fontSize: dials.placeSize * s,
+          fontWeight: Number(dials.titleWeight), color: gray(dials.placeGray),
+          lineHeight: LINE_HEIGHT.place,
+        }}>
+          {lines.place}
+          {inline && time && lines.place ? <span style={{ color: gray(dials.timeGray) }}> · </span> : null}
+          {inline ? time : null}
+        </div>
+      );
+    }
+    if (inline || !time) return null;
+    return (
+      <div key={key} data-testid="caption-time-line" style={{
+        ...line, marginTop: margin, fontWeight: Number(dials.titleWeight),
+        lineHeight: LINE_HEIGHT.time,
+      }}>
+        {time}
+      </div>
+    );
+  };
+
   return (
     <>
       {stepping && <style>{TIME_KEYFRAMES}</style>}
       <div data-testid="caption" style={block}>
-        <div data-testid="caption-title" style={{
-          ...line, fontSize: dials.titleSize * s, fontWeight: Number(dials.titleWeight), color: gray(dials.titleGray), lineHeight: LINE_HEIGHT.title,
-        }}>
-          {lines.title}
-        </div>
-        {(lines.place || (inline && time)) && (
-          <div data-testid="caption-place" style={{ ...line, marginTop: gaps.place * s, fontSize: dials.placeSize * s, color: gray(dials.placeGray), lineHeight: LINE_HEIGHT.place }}>
-            {lines.place}
-            {inline && time && lines.place ? <span style={{ color: gray(dials.timeGray) }}> · </span> : null}
-            {inline ? time : null}
-          </div>
-        )}
-        {!inline && time && (
-          <div data-testid="caption-time-line" style={{ ...line, marginTop: gaps.time * s, lineHeight: LINE_HEIGHT.time }}>
-            {time}
-          </div>
-        )}
+        {sequence.map(({ key, gap }) => draw(key, gap))}
       </div>
     </>
   );

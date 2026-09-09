@@ -38,13 +38,15 @@ export interface BinEntry {
 export type CaptionLayout = 'overlay' | 'inset';
 export type CaptionAlign = 'picture' | 'center' | 'panel';
 /** The time part of the caption (solo2 spec §4.5). */
-export type TimeStyle = 'off' | '12h' | '12h-there' | '24h' | 'sun' | '12h-sun' | 'ago';
+export type TimeStyle = 'off' | '12h' | '12h-there' | '24h' | 'sun' | '12h-sun' | 'ago' | 'sun-past';
 /** The time on its own line, or after the place with a middle dot. */
 export type TimeLine = 'own' | 'inline';
 /** What to do with Windy's "City › Compass: Spot" titles. */
 export type TitleClean = 'raw' | 'comma' | 'dot' | 'compass' | 'spot';
 export type TitleWeight = '300' | '400' | '500' | '600';
-export type CaptionFont = 'system' | 'geist' | 'sans' | 'serif' | 'mono';
+export type CaptionFont = 'system' | 'geist' | 'sans' | 'serif' | 'mono' | 'atkinson';
+/** Which end of the block the time sits at. */
+export type LineOrder = 'name-first' | 'time-first';
 
 /**
  * The caption group — the picture's frame and the words beneath it. These
@@ -64,15 +66,23 @@ export interface CaptionDials {
   /** "Sunrise: " / "Sunset: " before the title, naming the screen. */
   feedPrefix: boolean;
   titleClean: TitleClean;
+  /** Which end of the block the time sits at. */
+  lineOrder: LineOrder;
+  /** Letter spacing for the whole block, thousandths of an em. */
+  captionTrack: number;
   titleSize: number;
+  /** Stroke weight for every caption line, not the title alone. */
   titleWeight: TitleWeight;
   titleGray: number;
+  /** Space above the name line, when it is not the first line. */
+  titleGap: number;
   placeSize: number;
   placeGray: number;
-  lineGap: number;
+  /** Space above the region line, when it is not the first line. */
+  placeGap: number;
   timeStyle: TimeStyle;
   timeLine: TimeLine;
-  /** Extra space above the time line, on top of lineGap; own-line time only. */
+  /** Space above the time line, when it is not the first line. */
   timeGap: number;
   timeSize: number;
   timeGray: number;
