@@ -57,6 +57,7 @@ import {
   updateWebcamAiFields,
   insertWindyDisagreementSnapshot,
 } from './lib/dbOperations';
+import { loadRunPanel } from './lib/runPanel';
 import { computeDisagreementKind, scoreImage } from './lib/aiScoring';
 import { decideBin, enterBins, maintainBins, type Admission } from './lib/binAdmission';
 import { getLiveSettingsCached } from '@/app/lib/settings/liveSettings';
@@ -188,6 +189,9 @@ export async function GET(req: Request) {
   for (const w of sunsetList) feedByExternalId.set(String(w.webcamId), 'sunset');
   const admissions: Admission[] = [];
 
+  // One query per tick, not per frame. Empty when the flag is off.
+  const runPanel = await loadRunPanel();
+
   // Get mapping of external IDs to internal IDs
   const externalIds = windyAll.map((w) => String(w.webcamId));
   const idByExternal = await getWebcamIdMap(externalIds);
@@ -309,28 +313,39 @@ export async function GET(req: Request) {
       // Drawn independently per frame — no seed, because the point is that
       // nothing about the frame influences whether it is kept.
       const isTrickle = Math.random() < SAVE_RANDOM_TRICKLE_RATE;
+      // Whole-evening capture: this camera's frames are kept regardless of
+      // score, which is the entire point — the model-gated reasons drop the
+      // N-to-1 crossing, and that crossing is what run labeling needs.
+      const isRunPanel = runPanel.has(webcamId);
       const binKind = decideBin(scored);
       const binFeed = feedByExternalId.get(externalId) ?? null;
       const shouldPersist =
         disagreementKind !== null ||
         isHighRated ||
         isTrickle ||
+        isRunPanel ||
         SAVE_ALL_RATED_SNAPSHOTS ||
         (binKind !== null && binFeed !== null);
-      // Precedence matters for the analysis, not for the write: a frame that
-      // would have been saved anyway is NOT part of the unbiased arm, so the
-      // gated reasons win and 'trickle' marks only frames nothing else caught.
-      // 'kiosk_bin' likewise marks only frames the bins alone brought in.
-      const intakeReason: 'disagreement' | 'high_rated' | 'trickle' | 'all_rated' | 'kiosk_bin' =
-        disagreementKind !== null
-          ? 'disagreement'
-          : isHighRated
-            ? 'high_rated'
-            : isTrickle
-              ? 'trickle'
-              : SAVE_ALL_RATED_SNAPSHOTS
-                ? 'all_rated'
-                : 'kiosk_bin';
+      // Precedence matters for the analysis, not for the write. 'run' is FIRST:
+      // a panel frame would have been kept whatever it scored, so stamping it
+      // 'disagreement' would make a uniformly sampled frame look model-selected
+      // and silently poison the corpus this panel exists to produce. The
+      // disagreement itself is not lost — model_disagreement_kind is written
+      // independently, and the Hard Examples queue filters on that column, not
+      // on intake_reason.
+      const intakeReason:
+        | 'disagreement' | 'high_rated' | 'trickle' | 'all_rated' | 'kiosk_bin' | 'run' =
+        isRunPanel
+          ? 'run'
+          : disagreementKind !== null
+            ? 'disagreement'
+            : isHighRated
+              ? 'high_rated'
+              : isTrickle
+                ? 'trickle'
+                : SAVE_ALL_RATED_SNAPSHOTS
+                  ? 'all_rated'
+                  : 'kiosk_bin';
       if (shouldPersist) {
         try {
           const capturedAt = new Date();

@@ -73,6 +73,12 @@ vi.mock('./lib/dbOperations', () => ({
   insertWindyDisagreementSnapshot: (...a: unknown[]) =>
     insertWindyDisagreementSnapshotMock(...a),
 }));
+// Empty set matches loadRunPanel's real "capture off" behavior, so this file
+// exercises the same isRunPanel === false path production takes by default.
+const loadRunPanelMock = vi.fn(async () => new Set<number>());
+vi.mock('./lib/runPanel', () => ({
+  loadRunPanel: (...a: unknown[]) => loadRunPanelMock(...a),
+}));
 const maintainBinsMock = vi.fn(async () => ({ leftZone: 0, expired: 0 }));
 vi.mock('./lib/binAdmission', () => ({
   decideBin: () => null,

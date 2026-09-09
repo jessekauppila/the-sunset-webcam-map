@@ -149,6 +149,27 @@ describe('insertWindyDisagreementSnapshot', () => {
     // Three explicit nulls: score, is_sunset, model version.
     expect(values.filter((v) => v === null).length).toBeGreaterThanOrEqual(3);
   });
+
+  it('accepts the run intake reason for whole-evening panel capture', async () => {
+    sqlMock.mockResolvedValue([{ id: 4242 }]);
+
+    const id = await insertWindyDisagreementSnapshot({
+      webcamId: 700,
+      phase: 'sunset',
+      firebaseUrl: 'https://storage.googleapis.com/x.jpg',
+      firebasePath: 'x.jpg',
+      aiRating: 2.5,
+      aiRegressionScore: 0.375,
+      aiModelVersionRegression: 'v5',
+      scoringPath: 'onnx',
+      disagreementKind: null,
+      intakeReason: 'run',
+    });
+
+    expect(id).toBe(4242);
+    const values = sqlMock.mock.calls[0].slice(1);
+    expect(values).toContain('run');
+  });
 });
 
 describe('upsertTerminatorState', () => {
