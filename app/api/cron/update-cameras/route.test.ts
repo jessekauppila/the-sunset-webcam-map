@@ -113,7 +113,8 @@ vi.mock('./lib/providerUsage', () => ({
 vi.mock('@/app/lib/db', () => ({ sql: vi.fn() }));
 vi.mock('@/app/lib/runtimeFlags', () => ({
   SWEEP_FORCE_DAY_RING: 'sweep_force_day_ring',
-  isFlagEnabled: () => isFlagEnabledMock(),
+  DISAGREEMENT_INTAKE: 'disagreement_intake',
+  isFlagEnabled: (key: string) => isFlagEnabledMock(key),
 }));
 
 const upsertSweepStatsMock = vi.fn();
@@ -257,6 +258,16 @@ beforeEach(() => {
 
 function makeReq(): Request {
   return new Request('http://test/api/cron/update-cameras');
+}
+
+// Seeded OFF in production (2026-09-08): tests that exercise the
+// disagreement-persist path must opt in explicitly, matching the flag's
+// real default rather than a blanket isFlagEnabledMock.mockResolvedValue(true)
+// that would also flip the unrelated SWEEP_FORCE_DAY_RING switch.
+function enableDisagreementIntake(): void {
+  isFlagEnabledMock.mockImplementation(async (key: string) =>
+    key === 'disagreement_intake',
+  );
 }
 
 describe('GET /api/cron/update-cameras', () => {
@@ -472,6 +483,8 @@ describe('GET /api/cron/update-cameras', () => {
 
   it('persists a Windy snapshot when computeDisagreementKind flags the score', async () => {
     // Mock the disagreement helper to return a non-null kind for this tick.
+    // The disagreement_intake flag must be on for this arm to persist.
+    enableDisagreementIntake();
     computeDisagreementKindMock.mockReturnValueOnce(
       'binary_negative_regression_high',
     );
@@ -487,6 +500,7 @@ describe('GET /api/cron/update-cameras', () => {
   });
 
   it('passes the binary head evidence through to the persisted snapshot', async () => {
+    enableDisagreementIntake();
     computeDisagreementKindMock.mockReturnValueOnce(
       'binary_negative_regression_high',
     );
@@ -588,6 +602,36 @@ describe('GET /api/cron/update-cameras', () => {
       intakeReason: 'run',
       disagreementKind: 'binary_negative_regression_high',
     });
+  });
+
+  it('does not persist a frame for disagreement alone when the intake flag is off', async () => {
+    // Default beforeEach already resolves isFlagEnabledMock to false for
+    // every key, matching the flag's real seeded-off default, but this is
+    // asserted explicitly so a future default flip fails loudly here.
+    computeDisagreementKindMock.mockReturnValueOnce(
+      'binary_negative_regression_high',
+    );
+    await GET(makeReq());
+    expect(insertWindyDisagreementSnapshotMock).not.toHaveBeenCalled();
+  });
+
+  it('still records the disagreement kind, under a different intake reason, when a frame disagrees but the intake flag is off', async () => {
+    // The precise failure this invariant guards against: a frame that enters
+    // via trickle and happens to disagree must NOT be stamped 'disagreement'
+    // when disagreement_intake is off, or the unbiased control arm stops
+    // being separable. model_disagreement_kind is still written regardless,
+    // because the Hard Examples queue filters on that column.
+    toggles.trickleRate = 1; // draw always hits
+    computeDisagreementKindMock.mockReturnValueOnce(
+      'binary_negative_regression_high',
+    );
+    await GET(makeReq());
+    expect(insertWindyDisagreementSnapshotMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        intakeReason: 'trickle',
+        disagreementKind: 'binary_negative_regression_high',
+      }),
+    );
   });
 
   it('samples at roughly the configured rate, independent of score', async () => {

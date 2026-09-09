@@ -34,7 +34,11 @@ import {
   TERMINATOR_RETENTION_GRACE_MS,
   TERMINATOR_SWEEP_FAILED_HOLD_RATIO,
 } from '@/app/lib/masterConfig';
-import { isFlagEnabled, SWEEP_FORCE_DAY_RING } from '@/app/lib/runtimeFlags';
+import {
+  isFlagEnabled,
+  SWEEP_FORCE_DAY_RING,
+  DISAGREEMENT_INTAKE,
+} from '@/app/lib/runtimeFlags';
 import { classifyCustomCamerasForTick } from './lib/customClassification';
 import { verifyCronAuth } from './lib/auth';
 import { dedupeCoords, fetchCoordsCounted } from './lib/windyApi';
@@ -192,6 +196,11 @@ export async function GET(req: Request) {
   // One query per tick, not per frame. Empty when the flag is off.
   const runPanel = await loadRunPanel();
 
+  // Hard-example mining, switchable without a redeploy. Off since 2026-09-08:
+  // 32,013 banked frames, none labeled. isFlagEnabled fails closed, and closed
+  // means "do not collect", so a database blip costs nothing.
+  const disagreementIntake = await isFlagEnabled(DISAGREEMENT_INTAKE);
+
   // Get mapping of external IDs to internal IDs
   const externalIds = windyAll.map((w) => String(w.webcamId));
   const idByExternal = await getWebcamIdMap(externalIds);
@@ -317,10 +326,17 @@ export async function GET(req: Request) {
       // score, which is the entire point — the model-gated reasons drop the
       // N-to-1 crossing, and that crossing is what run labeling needs.
       const isRunPanel = runPanel.has(webcamId);
+      // The disagreement is always COMPUTED and always recorded on the row via
+      // model_disagreement_kind, which is what the Hard Examples queue reads.
+      // Only whether it is a reason to KEEP the frame is switchable. Gated by
+      // the SAME boolean the precedence chain below uses, so a frame that
+      // enters via some other arm (e.g. trickle) and happens to disagree never
+      // gets mislabeled 'disagreement' just because the mining arm is on.
+      const disagreementPersisted = disagreementKind !== null && disagreementIntake;
       const binKind = decideBin(scored);
       const binFeed = feedByExternalId.get(externalId) ?? null;
       const shouldPersist =
-        disagreementKind !== null ||
+        disagreementPersisted ||
         isHighRated ||
         isTrickle ||
         isRunPanel ||
@@ -340,7 +356,7 @@ export async function GET(req: Request) {
         | 'disagreement' | 'high_rated' | 'trickle' | 'all_rated' | 'kiosk_bin' | 'run' =
         isRunPanel
           ? 'run'
-          : disagreementKind !== null
+          : disagreementPersisted
             ? 'disagreement'
             : isHighRated
               ? 'high_rated'

@@ -38,3 +38,16 @@ VALUES (
   'Keep every scored frame for cameras in run_panel, stamped intake_reason=run. ~9 frames per camera-evening.'
 )
 ON CONFLICT (key) DO NOTHING;
+
+-- The disagreement arm has banked 32,013 frames, zero of them ever labeled,
+-- at ~5,000/day. Labeling stopped 2026-08-30 with the ceiling verdict, and the
+-- backlog is ~11 sittings deep. Seeded OFF: flip it on a week before a sitting
+-- so hard examples are re-mined against the then-current model, since a hard
+-- example is model-relative and goes stale when the model changes.
+INSERT INTO runtime_flags (key, enabled, note)
+VALUES (
+  'disagreement_intake',
+  false,
+  'Persist a Windy frame because the two heads disagree. OFF: 32,013 unlabeled frames already banked. model_disagreement_kind is still written on rows that persist for other reasons, so the Hard Examples queue is unaffected.'
+)
+ON CONFLICT (key) DO NOTHING;
