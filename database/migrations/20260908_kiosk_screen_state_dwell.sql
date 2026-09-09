@@ -1,0 +1,34 @@
+-- Pin the dwell to the draw that made it.
+--
+-- Until now the screen row stored only WHEN a frame went on glass, and every
+-- reader worked out the rest for itself: the state view recomputed the
+-- dwell's length from the live pool on every fetch, and the solo2 glass
+-- recomputed the run the same way on every render. Both inputs move. The
+-- sunset pool took an admission in all 60 of the last 60 minutes and shed 42
+-- entries in one of them, and the frame cap is a rank among that pool, so a
+-- refetch mid-dwell could lengthen the dwell and slide the run's window.
+-- Because the window is anchored at the newest frame, a wider cap PREPENDS
+-- older frames, and the clock-driven index then pointed at a different
+-- picture: the glass stepped backwards and the caption's "minutes ago" jumped
+-- up instead of counting down (reported 2026-09-08).
+--
+--   dwell_ms            how long this dwell occupies the glass, decided once
+--                       by the engine at commit. shown_since + dwell_ms is
+--                       the published end.
+--   shown_snapshot_ids  the frames this dwell plays, in play order, the drawn
+--                       frame last. The same array logDraw stamps on
+--                       kiosk_draws, kept here too so the glass never depends
+--                       on the best-effort draw log.
+--
+-- Rows written before this keep NULLs and every reader falls back to the old
+-- recompute, so an unapplied migration costs the fix, not the glass.
+--
+-- Forward-only, idempotent. APPLY BEFORE MERGING the code: commitAdvance
+-- writes these in the same upsert that moves the screen, and that write is
+-- NOT wrapped in a try/catch — a missing column would fail the advance and
+-- freeze both screens.
+--   node scripts/apply-migration.mjs database/migrations/20260908_kiosk_screen_state_dwell.sql
+--   node scripts/apply-migration.mjs database/migrations/20260908_kiosk_screen_state_dwell.sql --apply
+
+ALTER TABLE kiosk_screen_state ADD COLUMN IF NOT EXISTS dwell_ms           INTEGER;
+ALTER TABLE kiosk_screen_state ADD COLUMN IF NOT EXISTS shown_snapshot_ids BIGINT[];

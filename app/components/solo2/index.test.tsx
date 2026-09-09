@@ -12,9 +12,13 @@ const entries = [entry(1, 100), entry(2, 200), entry(3, 300), entry(9, 250, 8)];
 // The server always stamps shown-since for a frame on glass, and publishes
 // the dwell's end as an instant beside it (spec §5.1). A client never works
 // a start backwards from an end and a dial, which a budget makes wrong.
+//
+// An empty `shownSnapshotIds` is a screen row from before the dwell was
+// pinned, so these fixtures exercise the fallback derivation. The pinned path
+// has its own tests at the foot of this file.
 const glass = { current: entry(3, 300), shownSince: 0 as number | null, next: null, slot: 1,
   endsAtMs: 20_000 as number | null, boundaryMs: 20_000, error: null, queueLength: 1,
-  nextEntries: [], entries };
+  nextEntries: [], entries, shownSnapshotIds: [] as number[] };
 vi.mock('@/app/components/solo/useSoloGlass', () => ({ useSoloGlass: vi.fn(() => glass) }));
 import { useSoloGlass } from '@/app/components/solo/useSoloGlass';
 const mocked = vi.mocked(useSoloGlass);
@@ -83,4 +87,54 @@ it('a follower whose published end moves without a new frame keeps its dwell clo
   mocked.mockImplementation(() => ({ ...glass, endsAtMs: 40_000, boundaryMs: 40_000 }));
   rerender(<Solo2Kiosk webcams={[]} width={100} height={50} feed="sunset" />);
   expect(screen.getByTestId('top')).toHaveAttribute('src', 'u3'); // not back to u1
+});
+
+// The pinned dwell (2026-09-08). The draw decides the run and the span; the
+// glass plays them. Before this, both were re-derived from `entries` on every
+// render, and `entries` is refetched every minute from a pool that changes
+// every minute.
+const PINNED = [1, 2, 3];
+const pinned = { ...glass, shownSnapshotIds: PINNED, shownSince: 0, endsAtMs: 20_000, boundaryMs: 20_000 };
+
+it('plays the frames the draw pinned, in the order it pinned them', () => {
+  // 20 s span, 1.5 s arrival, 3 frames: 6.17 s each. 8.5 s in is frame 2.
+  vi.setSystemTime(new Date(8_500));
+  mocked.mockImplementation(() => pinned);
+  render(<Solo2Kiosk webcams={[]} width={100} height={50} feed="sunset" />);
+  expect(screen.getByTestId('top')).toHaveAttribute('src', 'u2');
+});
+
+it('steps across the pinned span, not the span a dial would compute', () => {
+  mocked.mockImplementation(() => ({ ...pinned, endsAtMs: 62_000, boundaryMs: 62_000 }));
+  // 62 s span, 1.5 s arrival, 3 frames: 20.17 s each. 8.5 s in is still frame 1.
+  vi.setSystemTime(new Date(8_500));
+  render(<Solo2Kiosk webcams={[]} width={100} height={50} feed="sunset" />);
+  expect(screen.getByTestId('top')).toHaveAttribute('src', 'u1');
+});
+
+it('does not step backwards when the pool grows under a running dwell', () => {
+  // The bug of 2026-09-08. A re-derivation reads the frame cap as a rank
+  // among the sunsets present, and `runOf` anchors its window at the NEWEST
+  // frame — so a wider cap prepends older frames and every index shifts. Here
+  // camera 8 weakens, which lifts camera 7 to the top of the ranking and
+  // would widen its run from three frames to four, putting u0 at the front.
+  vi.setSystemTime(new Date(8_500));
+  mocked.mockImplementation(() => pinned);
+  const { rerender } = render(<Solo2Kiosk webcams={[]} width={100} height={50} feed="sunset" />);
+  expect(screen.getByTestId('top')).toHaveAttribute('src', 'u2');
+
+  const grown = [entry(0, 50), entry(1, 100), entry(2, 200), entry(3, 300), { ...entry(9, 250, 8), quality: 0.1 }];
+  mocked.mockImplementation(() => ({ ...pinned, entries: grown }));
+  rerender(<Solo2Kiosk webcams={[]} width={100} height={50} feed="sunset" />);
+  // Same picture, same second: the run is fact from the draw, not a re-read.
+  expect(screen.getByTestId('top')).toHaveAttribute('src', 'u2');
+});
+
+it('a frame the pool dropped mid-dwell costs its picture, never the step rate', () => {
+  // u2 is gone from the pool but keeps its place in the timing, so the frames
+  // that remain still change on the beat the published end was sized for.
+  vi.setSystemTime(new Date(14_000)); // frame 3 of 3
+  mocked.mockImplementation(() => ({ ...pinned, entries: [entry(1, 100), entry(3, 300)] }));
+  render(<Solo2Kiosk webcams={[]} width={100} height={50} feed="sunset" />);
+  expect(screen.getByTestId('top')).toHaveAttribute('src', 'u3');
 });

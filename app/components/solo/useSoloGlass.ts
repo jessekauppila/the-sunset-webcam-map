@@ -15,6 +15,17 @@ export interface SoloGlass {
   shownSince: number | null;
   /** When this dwell ends, ms since epoch, as the server computed it (spec §5.1). Null before the first state arrives. */
   endsAtMs: number | null;
+  /**
+   * The frames this dwell plays, in play order, the drawn frame last, as the
+   * DRAW pinned them. Empty before the first state arrives.
+   *
+   * A renderer must play this list rather than re-deriving a run from
+   * `entries`. That pool is refetched every minute and changes every minute,
+   * and a run's window is anchored at its newest frame, so a re-derivation
+   * mid-dwell prepends older frames and shifts every index under a clock that
+   * has already started.
+   */
+  shownSnapshotIds: number[];
   next: EntryView | null;
   slot: number;
   boundaryMs: number;
@@ -22,7 +33,7 @@ export interface SoloGlass {
   queueLength: number;
   /** The whole projected queue, for preloading beyond the first. */
   nextEntries: EntryView[];
-  /** Every active entry, so a renderer can derive a prelude (solo2). */
+  /** Every active entry: the queue's frames, and the fallback when a dwell predates the pin. */
   entries: ViewEntry[];
 }
 
@@ -145,6 +156,7 @@ export function useSoloGlass({ feed, drive, dozing, version = 'solo' }: {
     current: view?.current?.entry ?? null,
     shownSince: view?.current?.shownSince ?? null,
     endsAtMs,
+    shownSnapshotIds: view?.current?.shownSnapshotIds ?? [],
     next: view?.next[0] ?? null,
     slot: screenSlot ?? 0,
     boundaryMs: endsAtMs ?? Date.now(),

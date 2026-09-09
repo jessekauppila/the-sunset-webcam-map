@@ -184,3 +184,43 @@ describe('buildStateView with a version', () => {
     expect(v.nextRoles).toEqual(v.next.map(() => 'peak'));
   });
 });
+
+describe('buildStateView: the dwell is read from the draw, not recomputed', () => {
+  // 2026-09-08: the end was recomputed from the live pool on every fetch, so
+  // it moved while the frame was still on glass and the queue's projection
+  // moved with it. The draw pins both; the view publishes what it pinned.
+  const entries = [stored(1, 'sunset', 0.9), stored(2, 'sunset', 0.8)];
+  const shownSince = 1_700_000_000_000;
+  const build = (screen: Parameters<typeof buildStateView>[0]['screen']) =>
+    buildStateView({ feed: 'sunset', dials: D, entries, screen, nowMs: 1_000_000, admitted: { sunset: 0, nonSunset: 0 }, zone: ZONE });
+
+  it('prefers the pinned length over anything the dials would say now', () => {
+    const v = build({ feed: 'sunset', currentSnapshotId: 1, shownSince, slot: 9, sunsetStreak: 0, dwellMs: 22_000 });
+    expect(v.current?.endsAtMs).toBe(shownSince + 22_000);
+    expect(v.current?.endsAtMs).not.toBe(shownSince + D.dwellS * 1000);
+  });
+
+  it('publishes the frames the draw pinned, so the glass plays fact', () => {
+    const v = build({ feed: 'sunset', currentSnapshotId: 1, shownSince, slot: 9, sunsetStreak: 0, shownSnapshotIds: [2, 1] });
+    expect(v.current?.shownSnapshotIds).toEqual([2, 1]);
+  });
+
+  it('falls back to the recompute for a row written before the pin', () => {
+    const v = build({ feed: 'sunset', currentSnapshotId: 1, shownSince, slot: 9, sunsetStreak: 0 });
+    expect(v.current?.endsAtMs).toBe(shownSince + D.dwellS * 1000);
+    expect(v.current?.shownSnapshotIds).toEqual([1]); // solo shows the pick alone
+  });
+
+  it('the countdown and the queue both start from the pinned end, never two numbers', () => {
+    const v = build({ feed: 'sunset', currentSnapshotId: 1, shownSince, slot: 9, sunsetStreak: 0, dwellMs: 22_000 });
+    expect(v.schedule.nextBoundaryMs).toBe(v.current?.endsAtMs);
+  });
+
+  it('marks every pinned frame as on glass, not the ones a fresh run would pick', () => {
+    const v = build({ feed: 'sunset', currentSnapshotId: 1, shownSince, slot: 9, sunsetStreak: 0, shownSnapshotIds: [2, 1] });
+    const stage = (id: number) => [...v.bins.sunset, ...v.bins.nonSunset, ...v.next, v.current!.entry]
+      .find((e) => e.snapshotId === id)?.stage;
+    expect(stage(2)).toEqual({ kind: 'onGlass' });
+    expect(stage(1)).toEqual({ kind: 'onGlass' });
+  });
+});

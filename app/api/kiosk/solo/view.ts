@@ -81,8 +81,19 @@ export interface StateView {
      * The server owns WHEN a dwell ends because its length is a function of
      * engine state; a client owns only how far along it is. Null when the
      * screen has no shown-since to measure from.
+     *
+     * Read from what the draw pinned, not recomputed. The pool this dwell was
+     * measured against changes every minute, so recomputing moved the end
+     * while the frame was still on glass.
      */
     endsAtMs: number | null;
+    /**
+     * The frames this dwell plays, in play order, the drawn frame last, as
+     * the draw pinned them. A solo2 run; `[entry]` for solo. The glass renders
+     * exactly this list, so what steps on glass and what the published end was
+     * sized for are one decision rather than two derivations that can differ.
+     */
+    shownSnapshotIds: number[];
   } | null;
   next: EntryView[];
   /** Parallel to `next`: what each draw is inside its bar. All peaks for solo. */
@@ -138,12 +149,27 @@ export function buildStateView(input: {
   const firstSlot = (screen?.slot ?? -1) + 1;
   // Project past the queue so every eligible frame gets a draw position (stages spec §3.1).
   const eligibleCount = entries.filter((e) => isEligible(e, dials)).length;
+  /**
+   * This dwell's length, as the draw decided it. The recompute is the
+   * fallback for a screen row written before the dwell was pinned, and for
+   * any caller that supplies no screen row at all (the studio replaying its
+   * own dials). It must never be preferred: the pool it would measure
+   * against is not the pool the draw saw.
+   */
+  const dwellMs = currentEntry
+    ? screen?.dwellMs ?? version.dwellMs(entries, currentEntry, dials)
+    : null;
+  /** Likewise the frames it plays, pinned at the draw. */
+  const currentRunIds = currentEntry
+    ? screen?.shownSnapshotIds ?? version.shown(entries, currentEntry, dials).map((e) => e.snapshotId)
+    : [];
+  const endsAtMs = currentEntry && screen?.shownSince != null && dwellMs != null
+    ? screen.shownSince + dwellMs
+    : null;
   // The first projected draw goes on glass when the current dwell ends; with
   // nothing on glass, now. The projection's timestamps are then real, which
   // a slot counter can no longer supply on its own (spec §5).
-  const projectionStartMs = currentEntry && screen?.shownSince != null
-    ? screen.shownSince + version.dwellMs(entries, currentEntry, dials)
-    : nowMs;
+  const projectionStartMs = endsAtMs ?? nowMs;
   const draws = version.project(entries, dials, state, eligibleCount + NEXT_COUNT, firstSlot, feed, projectionStartMs);
   const next = draws.slice(0, NEXT_COUNT);
   const stages = assignStages({ entries, dials, state, firstSlot, draws, queueDepth: NEXT_COUNT });
@@ -160,7 +186,9 @@ export function buildStateView(input: {
       stages.set(f.snapshotId, stage);
     }
   }
-  if (currentEntry) for (const f of version.shown(entries, currentEntry, dials)) stages.set(f.snapshotId, { kind: 'onGlass' });
+  // The frames on glass are the ones the draw pinned, not the ones a fresh
+  // derivation would pick now: the studio must mark what is actually up.
+  for (const id of currentRunIds) stages.set(id, { kind: 'onGlass' });
   const view = (e: ViewEntry): EntryView => ({
     ...e,
     eligible: isEligible(e, dials),
@@ -179,9 +207,8 @@ export function buildStateView(input: {
         entry: view(currentEntry),
         shownSince: screen?.shownSince ?? null,
         slot: screen?.slot ?? null,
-        endsAtMs: screen?.shownSince != null
-          ? screen.shownSince + version.dwellMs(entries, currentEntry, dials)
-          : null,
+        endsAtMs,
+        shownSnapshotIds: currentRunIds,
       }
       : null,
     next: next.map((e) => view(byId.get(e.snapshotId)!)),
@@ -194,9 +221,7 @@ export function buildStateView(input: {
       slot: screen?.slot ?? 0,
       // The server's own published end, so every countdown on every surface
       // reads one number rather than each deriving its own (spec §5.1).
-      nextBoundaryMs: screen?.shownSince != null && currentEntry
-        ? screen.shownSince + version.dwellMs(entries, currentEntry, dials)
-        : nowMs,
+      nextBoundaryMs: endsAtMs ?? nowMs,
     },
     lastPull: { admitted: input.admitted },
     entries,

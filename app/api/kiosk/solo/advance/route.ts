@@ -67,7 +67,11 @@ export async function POST(request: Request) {
     if (pick) {
       const after = afterShowing(pick, state);
       const shown = version.shown(entries, pick, dials);
-      advanced = await commitAdvance(feed, slot, pick, after.sunsetStreak, shown, version.name);
+      // Decided ONCE, here, against the pool this draw actually saw, and
+      // stored alongside the start instant. Every surface reads it back
+      // rather than working it out again from a pool that has since moved.
+      const dwellMs = version.dwellMs(entries, pick, dials);
+      advanced = await commitAdvance(feed, slot, pick, after.sunsetStreak, shown, version.name, dwellMs);
       if (advanced) {
         for (const f of shown) {
           const stored = entries.find((e) => e.snapshotId === f.snapshotId)!;
@@ -75,7 +79,10 @@ export async function POST(request: Request) {
           stored.isNew = false;
           stored.lastShownAt = nowMs;
         }
-        screen = { feed, currentSnapshotId: pick.snapshotId, shownSince: nowMs, slot, sunsetStreak: after.sunsetStreak };
+        screen = {
+          feed, currentSnapshotId: pick.snapshotId, shownSince: nowMs, slot, sunsetStreak: after.sunsetStreak,
+          dwellMs, shownSnapshotIds: shown.map((e) => e.snapshotId),
+        };
       }
     }
   }

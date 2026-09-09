@@ -244,15 +244,34 @@ export interface ScreenRow {
   shownSince: number | null;
   slot: number | null;
   sunsetStreak: number;
+  /**
+   * How long this dwell occupies the glass, ms, as the engine decided it at
+   * the draw. Null for rows written before the dwell migration.
+   *
+   * Stored rather than recomputed because a dwell's length is a function of
+   * the pool AT THE DRAW, and the pool moves every minute. Recomputing it on
+   * each fetch let the published end drift while the frame was still up.
+   */
+  dwellMs?: number | null;
+  /**
+   * The frames this dwell plays, in play order, the drawn frame last: the
+   * same array the draw log stamps, kept on the screen row so the glass reads
+   * fact rather than re-deriving a run from a pool that has since changed.
+   *
+   * Optional alongside `dwellMs` for the same reason: a row from before the
+   * migration has neither, and every reader falls back to the old recompute.
+   */
+  shownSnapshotIds?: number[] | null;
 }
 
 export async function getScreenState(feed: Feed): Promise<ScreenRow | null> {
   const rows = (await sql`
-    select feed, current_snapshot_id, shown_since, slot, sunset_streak
+    select feed, current_snapshot_id, shown_since, slot, sunset_streak, dwell_ms, shown_snapshot_ids
     from kiosk_screen_state where feed = ${feed}
   `) as unknown as {
     feed: Feed; current_snapshot_id: string | number | null; shown_since: string | null;
     slot: string | number | null; sunset_streak: string | number;
+    dwell_ms: string | number | null; shown_snapshot_ids: (string | number)[] | null;
   }[];
   const r = rows[0];
   if (!r) return null;
@@ -262,6 +281,8 @@ export async function getScreenState(feed: Feed): Promise<ScreenRow | null> {
     shownSince: ms(r.shown_since),
     slot: r.slot == null ? null : num(r.slot),
     sunsetStreak: num(r.sunset_streak),
+    dwellMs: r.dwell_ms == null ? null : num(r.dwell_ms),
+    shownSnapshotIds: r.shown_snapshot_ids == null ? null : r.shown_snapshot_ids.map(num),
   };
 }
 
@@ -274,6 +295,12 @@ export async function getScreenState(feed: Feed): Promise<ScreenRow | null> {
 /**
  * Move the screen to `entry` for `slot`, once per slot, and mark `shown`
  * (the frames the dwell plays; `entry` alone for solo) as on glass.
+ *
+ * `dwellMs` is how long the engine says this dwell lasts. It is written into
+ * the same row, in the same statement, as the instant the dwell starts, so
+ * the pair can never be assembled from two different moments — which is what
+ * happened while the end was recomputed on each fetch from a pool that had
+ * moved on. The frames are stored beside it for the same reason.
  */
 export async function commitAdvance(
   feed: Feed,
@@ -282,15 +309,20 @@ export async function commitAdvance(
   sunsetStreak: number,
   shown: BinEntry[] = [entry],
   version: SoloVersionName = 'solo',
+  dwellMs: number | null = null,
 ): Promise<boolean> {
+  const shownIds = shown.map((e) => e.snapshotId);
   const rows = (await sql`
-    insert into kiosk_screen_state (feed, current_snapshot_id, shown_since, slot, sunset_streak, updated_at)
-    values (${feed}, ${entry.snapshotId}, now(), ${slot}, ${sunsetStreak}, now())
+    insert into kiosk_screen_state (feed, current_snapshot_id, shown_since, slot, sunset_streak, dwell_ms, shown_snapshot_ids, updated_at)
+    values (${feed}, ${entry.snapshotId}, now(), ${slot}, ${sunsetStreak},
+            ${dwellMs == null ? null : Math.round(dwellMs)}, ${shownIds}::bigint[], now())
     on conflict (feed) do update
       set current_snapshot_id = excluded.current_snapshot_id,
           shown_since = excluded.shown_since,
           slot = excluded.slot,
           sunset_streak = excluded.sunset_streak,
+          dwell_ms = excluded.dwell_ms,
+          shown_snapshot_ids = excluded.shown_snapshot_ids,
           updated_at = now()
       where kiosk_screen_state.slot is distinct from excluded.slot
     returning feed
@@ -306,7 +338,7 @@ export async function commitAdvance(
         -- in this one operation (spec §6.1.1). Two counters that agree is the
         -- failure that would not announce itself.
         last_shown_slot = ${slot}
-    where feed = ${feed} and snapshot_id = any(${shown.map((e) => e.snapshotId)}::bigint[])
+    where feed = ${feed} and snapshot_id = any(${shownIds}::bigint[])
   `;
   await logDraw(feed, slot, entry, version, shown);
   return true;
