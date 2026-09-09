@@ -261,3 +261,65 @@ and no network:
 
 The rendering and the fetching are checked by looking at the output, which is
 the point of a hand-posted stage.
+
+## 13. The run panel, after the show
+
+Written 2026-09-08, after this spec and the run-crossing labeling design
+(`2026-09-08-run-crossing-labeling-design.md`, branch `feat/run-crossings`,
+draft PR #183) were both drafted the same day. They share a supply problem and
+neither noticed the other until now.
+
+### What that spec measured, and what it costs this one
+
+Archive runs are model-selected subsequences, not whole events. Inside 6+ frame
+sunset runs over 45 days, 4,864 frames were retained because the two model
+heads disagreed and only 66 came from the random trickle arm. A frame enters
+the archive mostly where the model was confused.
+
+The consequence for §4 of this spec is precise and worth stating plainly: the
+carousels this bank assembles are built from the frames the model found
+difficult, and the calm opening and the fading close of an event are exactly
+what intake drops. This does not contradict the 10.3-minute median gap measured
+in §2, because that gap is measured over retained frames only. The cadence
+inside a kept stretch is dense. The ends are clipped.
+
+**This does not block stage one.** Nobody swiping a carousel knows that its
+first frame is not the true beginning. Build the bank as specified, on archive
+series, and post the pre-show feed from it.
+
+### What changes afterward
+
+The run panel keeps every scored frame for 60 cameras in both solar windows,
+stamped `intake_reason = 'run'`, behind a runtime flag. It is held until after
+the show on Friday 2026-09-12 because it edits the `update-cameras` cron. Two
+revisions follow from it, and both are revisions rather than rewrites.
+
+1. **A second source.** Select on `intake_reason = 'run'` and a run is already
+   whole, with no gap-clustering and no holes. Keep the archive path in §4 as
+   well; see the tension below.
+2. **A better trim than the score peak.** §4 trims to 10 frames centred on the
+   highest `ai_regression_score`. The crossing marks give a hand-placed
+   `sky_in` and `sky_out`, which is where the watchable part actually starts
+   and stops, and a hand-placed `peak`. Prefer marks where a run has them and
+   fall back to the score otherwise. This arrives with Leg 1, which has no plan
+   yet and needs runs to accumulate first, so it is later than the panel.
+
+### Both phases, and why this spec had a stake in it
+
+The run panel was originally framed around the sunset window. It now retains
+both phases, and this feed is one of the three reasons recorded in that spec's
+Leg 0: §9 here alternates sunrise and sunset down the feed, so sunset-only
+capture would fund half a feed. Decided 2026-09-08.
+
+### The tension, named so it is not discovered later
+
+§5 caps the bank at one series per camera, because three of the top eight
+sunrise series were the same North Dakota camera and a feed of three cameras is
+not a feed. The run panel points the other way on purpose: it is fixed with
+slow rotation, because the labeling experiment wants the *same* camera under
+different skies.
+
+At two posts a day a 60-camera panel starts repeating cameras in about a month.
+So the panel is an additional source for this bank, never a replacement for the
+archive path. If the feed ever outgrows both, the fix is to widen the panel for
+its own reasons, not to relax the per-camera cap here.
