@@ -74,7 +74,7 @@ export const SOLO2_SETTINGS_SCHEMA: SettingsSchema = [
     label: 'camera change', section: 'arrival',
     description: 'The gesture, for both screens. cut: the new picture simply replaces the old. crossfade: the old picture fades out while the new one fades in on top of it. dip: the old picture fades away into a veil, then the new one fades up out of it. Only `dip` reads the veil dial below — the other two are already not ending in darkness.',
   },
-  { ...(solo('fadeS') as NumberKnob), default: 1.5, section: 'arrival', label: 'camera change (s)', description: 'How long a crossfade takes, or a dip (down plus up). Ignored by cut. This also sets the arrival segment at the front of every dwell, so a long change makes every dwell longer — watch the dwell line on the Play tab.' },
+  { ...(solo('fadeS') as NumberKnob), default: 1.5, section: 'arrival', label: 'camera change (s)', description: 'How long a crossfade takes, or a dip (down plus up). Ignored by cut. A crossfade is charged to the front of the arriving dwell. A dip is split: the down half is the leaving dwell\'s exit, burned inside its last frame\'s step, and the up half is the arriving dwell\'s front. So at a dip no longer than the shortest frame, the last picture of a run costs no more time than any other — watch the dwell line on the Play tab.' },
   {
     key: 'veilStyle', kind: 'enum', options: ['black', 'crossfade', 'lift', 'exposure'], default: 'black',
     label: 'sunrise change', section: 'arrival',
@@ -98,7 +98,7 @@ export const SOLO2_SETTINGS_SCHEMA: SettingsSchema = [
   {
     key: 'sameCameraFadeS', kind: 'number', min: 0, max: 5, step: 0.5, default: 1.5,
     label: 'same camera (s)', section: 'arrival',
-    description: 'How long one frame of a camera takes to dissolve into the next inside the run, and on a change to a later frame of the camera on glass. Never through black. 0 is a cut.',
+    description: 'How long one frame of a camera takes to dissolve into the next inside the run, and on a change to a later frame of the camera on glass. Never through black. 0 is a cut. Capped at half a step inside a run, so at a 4 s shortest frame nothing above 2 reaches the glass: raise the shortest frame first.',
   },
   {
     key: 'arrivalEase', kind: 'enum', options: ['linear', 'gentle', 'soft'], default: 'gentle',

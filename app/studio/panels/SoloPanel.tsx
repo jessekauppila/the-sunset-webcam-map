@@ -5,6 +5,7 @@ import type { EntryView, StateView } from '@/app/api/kiosk/solo/view';
 import type { Feed, SoloDials } from '@/app/lib/solo/types';
 import type { SoloVersionSpec } from '@/app/lib/solo/versions';
 import { FeedColumn } from '../solo/FeedColumn';
+import { useTapeZoom } from '../solo/Tape';
 import { FrameModal } from '../solo/FrameModal';
 
 const mono = 'ui-monospace, SFMono-Regular, Menlo, monospace';
@@ -40,6 +41,8 @@ export function SoloPanel({ version, liveDials, nowMs: fixedNowMs, sunrise, suns
   const [selected, setSelected] = useState<Selected | null>(null);
   const [selfNowMs, setSelfNowMs] = useState(() => Date.now());
   const nowMs = fixedNowMs ?? selfNowMs;
+  // One zoom for both tapes: they sit side by side and read as one instrument.
+  const [tapeZoom, setTapeZoom] = useTapeZoom();
 
   useEffect(() => {
     if (fixedNowMs !== undefined) return;
@@ -53,7 +56,7 @@ export function SoloPanel({ version, liveDials, nowMs: fixedNowMs, sunrise, suns
         const s = feed === 'sunrise' ? sunrise : sunset;
         return s.server && s.projected ? (
           <FeedColumn key={feed} feed={feed} server={s.server} projected={s.projected} liveDials={liveDials}
-            nowMs={nowMs} version={version}
+            nowMs={nowMs} version={version} tapeZoom={tapeZoom} onTapeZoom={setTapeZoom}
             onSelect={(entry, f, list) => setSelected({ list, index: Math.max(0, list.findIndex((x) => x.snapshotId === entry.snapshotId)), feed: f })} />
         ) : (
           <div key={feed} style={{ color: '#4b5568', fontFamily: mono, fontSize: 12 }}>{s.error ?? `loading ${feed}…`}</div>

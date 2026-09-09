@@ -55,7 +55,7 @@ export function arrival(
  * frame — and inside a run, where every frame is the same camera, the title
  * and the place hold still while only the clock steps.
  */
-export function Solo2Frame({ entry, run, previous, stage, plan, dials, width, height, feed, dwellKey }: {
+export function Solo2Frame({ entry, run, previous, next, stage, plan, dials, width, height, feed, dwellKey }: {
   /** The drawn frame: the run's last. */
   entry: EntryView;
   /**
@@ -69,6 +69,14 @@ export function Solo2Frame({ entry, run, previous, stage, plan, dials, width, he
   /** What the dwell plays, oldest first, `entry` last (run.ts `runOf`). */
   run: RunFrame[];
   previous: ViewEntry | null;
+  /**
+   * The camera expected to follow, when the caller knows it. A dip burns this
+   * dwell's last picture down at its exit so the next can rise out of the veil
+   * — but a later frame of the SAME camera arrives by dissolve, never through
+   * the veil, so it must not be burned down before it. Unknown reads as a
+   * change of camera.
+   */
+  next?: { webcamId: number } | null;
   stage: Stage;
   plan: DwellPlan;
   dials: Solo2Dials;
@@ -116,9 +124,14 @@ export function Solo2Frame({ entry, run, previous, stage, plan, dials, width, he
   // in (PR #160). Every curve `arrivalEase` offers is symmetric, so this
   // single value can go on all of them.
   const ease = look.ease;
+  // A dip is two halves, and this dwell only plays the second. The first —
+  // the previous picture burning down into the veil — was the previous
+  // dwell's exit, run on its own clock over the last seconds of its last
+  // frame (plan.ts `exitS`). So the veil is already closed when this dwell
+  // mounts, and the new picture rises out of it at once, over half the dial.
   const inAnimation =
     arrive.kind === 'crossfade' ? `solo2-fade-in ${arrive.fadeS}s ${ease} both`
-    : arrive.kind === 'dip' ? `solo2-fade-in ${arrive.fadeS / 2}s ${ease} ${arrive.fadeS / 2}s both`
+    : arrive.kind === 'dip' ? `solo2-fade-in ${arrive.fadeS / 2}s ${ease} both`
     : undefined;
   // The outgoing caption's half of that dissolve. A picture needs none — the
   // arriving frame is opaque and covers the one beneath it — but a caption is
@@ -128,18 +141,36 @@ export function Solo2Frame({ entry, run, previous, stage, plan, dials, width, he
   // no veil colour showed two clocks at once. It leaves over the same span the
   // picture takes to cover it: the whole fade on a crossfade, the closing half
   // on a dip, held at the end by `both`.
+  // On a dip the old words already left with the old picture, at the previous
+  // dwell's exit, so there is nothing to animate here: they sit hidden.
   const outAnimation =
     arrive.kind === 'crossfade' ? `solo2-fade-out ${arrive.fadeS}s ${ease} both`
-    : arrive.kind === 'dip' ? `solo2-fade-out ${arrive.fadeS / 2}s ${ease} both`
     : undefined;
   // The picture moves toward the veil rather than merely being covered by it:
   // up into white on a sunrise, down into black on a sunset. That is what
   // separates an exposure from a dip through a coloured card. Only on a dip,
-  // and only when the lift asks for something.
+  // and only when the lift asks for something. The burn-out half happened at
+  // the previous dwell's exit, so the previous picture sits at the lift and
+  // the new one comes back from it.
   const burning = arrive.kind === 'dip' && look.lift !== 1;
-  const burnOut = burning ? `solo2-burn-out ${arrive.fadeS / 2}s ${ease} both` : undefined;
-  const burnIn = burning ? `solo2-burn-in ${arrive.fadeS / 2}s ${ease} ${arrive.fadeS / 2}s both` : undefined;
-  const liftVar = burning ? ({ '--solo2-lift': String(look.lift) } as React.CSSProperties) : undefined;
+  const burnIn = burning ? `solo2-burn-in ${arrive.fadeS / 2}s ${ease} both` : undefined;
+  const liftVar = look.lift !== 1 ? ({ '--solo2-lift': String(look.lift) } as React.CSSProperties) : undefined;
+  const burnedStill = burning ? ({ filter: `brightness(${look.lift})` } as React.CSSProperties) : undefined;
+
+  // The exit (plan.ts `exitS`): over the last seconds of the last frame this
+  // picture burns down into the veil, on this dwell's own clock, so the next
+  // dwell finds the veil closed and only has to rise. Skipped when the next
+  // draw is a later frame of this same camera, which arrives by dissolve and
+  // must find the picture still lit. The caller says what it expects next;
+  // if the pool moves and a different camera arrives after all, that dwell
+  // opens on a closed veil without the burn — a hard step to the veil colour
+  // rather than a ramp, brief and rare.
+  const sameCameraNext = !!next && next.webcamId === entry.webcamId;
+  const exiting = plan.exitS > 0 && stage.exitProgress > 0 && dials.transition === 'dip'
+    && look.veilColor !== null && !sameCameraNext;
+  const exitBurn = exiting && look.lift !== 1 ? `solo2-burn-out ${plan.exitS}s ${ease} both` : undefined;
+  const exitVeil = exiting ? `solo2-dip ${plan.exitS}s ${ease} both` : undefined;
+  const exitWords = exiting ? `solo2-fade-out ${plan.exitS}s ${ease} both` : undefined;
 
   // The lead: a slow push over the last seconds, driven by the clock stage
   // so a late tab is in sync. No transition when the progress is 0, so a
@@ -158,20 +189,23 @@ export function Solo2Frame({ entry, run, previous, stage, plan, dials, width, he
       {showPrevious && (
         // eslint-disable-next-line @next/next/no-img-element
         <img key={`prev-${previous.snapshotId}`} src={previous.imageUrl} alt="" role="presentation" data-testid="prev"
-          style={{ ...pictureLayer, ...liftVar, animation: burnOut }} />
+          style={{ ...pictureLayer, ...burnedStill }} />
       )}
       {showPrevious && (
         // The words being left behind, under the veil and under the arriving
-        // caption, so the caption dissolves exactly as the picture does.
+        // caption, so the caption dissolves exactly as the picture does. On a
+        // dip they already left at the previous dwell's exit, so they hide.
         <div key={`caption-prev-${previous.snapshotId}`} data-testid="caption-prev"
-          style={{ ...captionLayer, animation: outAnimation }}>
+          style={{ ...captionLayer, animation: outAnimation, opacity: arrive.kind === 'dip' ? 0 : undefined }}>
           <Caption entry={previous} dials={dials} picture={picture} width={width} height={height} feed={feed} />
         </div>
       )}
       {arrive.kind === 'dip' && showPrevious && look.veilColor && (
+        // Already closed: the previous dwell raised it at its exit. This dwell
+        // only rises out of it, above.
         <div key={`dip-${dwellId}`} data-testid="dip" style={{
           ...(look.covers === 'panel' ? layer : pictureLayer),
-          background: look.veilColor, animation: `solo2-dip ${arrive.fadeS / 2}s ${ease} both`,
+          background: look.veilColor, opacity: 1,
         }} />
       )}
       {/* keyed by the drawn frame so the arrival runs once per dwell; the stage only changes opacities inside */}
@@ -179,25 +213,32 @@ export function Solo2Frame({ entry, run, previous, stage, plan, dials, width, he
         ...pictureLayer, ...liftVar,
         animation: [inAnimation, burnIn].filter(Boolean).join(', ') || undefined,
       }}>
-        <div style={pushStyle} data-testid="push">
-          {sequence.map((f, i) => (
-            <div key={f.snapshotId} data-testid={`seq-${i}`} style={{
-              ...layer, opacity: i <= shown ? 1 : 0,
-              // The same curve as the camera change: a step inside a run is a
-              // dissolve too, and Jesse asked for both to stop snapping.
-              transition: i > 0 && stepFade > 0 ? `opacity ${stepFade}s ${ease}` : 'none',
-            }}>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={f.imageUrl} alt="" role="presentation" data-testid={i === shown ? 'top' : undefined} style={layer} />
-            </div>
-          ))}
+        {/* Its own layer, so starting the exit burn cannot restart the arrival above it. */}
+        <div style={{ ...layer, animation: exitBurn }} data-testid="exit-burn">
+          <div style={pushStyle} data-testid="push">
+            {sequence.map((f, i) => (
+              <div key={f.snapshotId} data-testid={`seq-${i}`} style={{
+                ...layer, opacity: i <= shown ? 1 : 0,
+                // The same curve as the camera change: a step inside a run is a
+                // dissolve too, and Jesse asked for both to stop snapping.
+                transition: i > 0 && stepFade > 0 ? `opacity ${stepFade}s ${ease}` : 'none',
+              }}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={f.imageUrl} alt="" role="presentation" data-testid={i === shown ? 'top' : undefined} style={layer} />
+              </div>
+            ))}
+          </div>
         </div>
       </div>
       {/* keyed like the stack, so the words arrive with the picture and once
           per dwell; inside the dwell only the clock moves. */}
       <div key={`caption-${dwellId}`} data-testid="caption-layer" style={{ ...captionLayer, animation: inAnimation }}>
-        <Caption entry={up} dials={dials} picture={picture} width={width} height={height} feed={feed}
-          step={shown > 0 ? { from: sequence[shown - 1], fadeS: stepFade, ease } : null} />
+        {/* The words leave with the picture at the exit, on the same ramp; a
+            veil that covers only the picture would otherwise leave them lit. */}
+        <div style={{ ...captionLayer, animation: exitWords }} data-testid="exit-words">
+          <Caption entry={up} dials={dials} picture={picture} width={width} height={height} feed={feed}
+            step={shown > 0 ? { from: sequence[shown - 1], fadeS: stepFade, ease } : null} />
+        </div>
       </div>
       {(dials.showScores || dials.showRank || dials.showTally) && (
         <div style={{
@@ -210,6 +251,15 @@ export function Solo2Frame({ entry, run, previous, stage, plan, dials, width, he
             <div>{scoreLine(up)}</div>
           )}
         </div>
+      )}
+      {exiting && (
+        // The veil closing over everything above, on this dwell's clock. Keyed
+        // to the dwell so it mounts once when the exit begins and goes with the
+        // dwell; the next one opens on its own veil, already at 1.
+        <div key={`exit-${dwellId}`} data-testid="exit-veil" style={{
+          ...(look.covers === 'panel' ? layer : pictureLayer),
+          background: look.veilColor ?? '#000', animation: exitVeil, pointerEvents: 'none',
+        }} />
       )}
     </div>
   );
