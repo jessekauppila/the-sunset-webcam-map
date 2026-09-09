@@ -708,6 +708,122 @@ git commit -m "feat(run-capture): run inventory report separates uniform runs fr
 
 ---
 
+### Task 7: Flag off the disagreement intake
+
+**Files:**
+- Modify: `database/migrations/20260908_run_panel.sql` — seed a second flag
+- Modify: `app/api/cron/update-cameras/route.ts` — gate the persist trigger and the attribution
+- Test: `app/api/cron/update-cameras/route.test.ts`
+
+**Why.** The disagreement arm has banked **32,013 frames and zero of them have ever been labeled.** It runs at roughly 5,000 frames a day and more than doubled the archive in a month. Labeling effectively stopped on 2026-08-30, when the ceiling verdict cancelled the labeling push, and the existing backlog is about eleven full sittings deep at the historic peak rate. The arm is mining fuel for a program that measurement declared finished.
+
+It is worth keeping the *capability*, because hard examples are model-relative: the banked ones were mined by the currently shipping pair and go stale the moment the model changes. So this is a flag, not a deletion. Flip it on a week before a labeling sitting and it refills against whatever model is current then.
+
+**Two things that must NOT change.** Both are easy to break and neither is optional.
+
+1. **`model_disagreement_kind` is still computed and still written** on every row that persists for some other reason. The Hard Examples queue filters on that column, not on `intake_reason`, so the queue keeps working on the backlog *and* keeps receiving genuinely fresh hard examples for free from the unbiased arms.
+2. **The `'disagreement'` arm of the precedence chain must be gated by the same boolean as the persist trigger.** Otherwise a frame that enters via `trickle` and happens to disagree gets stamped `'disagreement'`, which destroys the separability of the unbiased control arm — the exact property `intake_reason` exists to protect.
+
+**Interfaces:**
+- Consumes: `isFlagEnabled` from `@/app/lib/runtimeFlags`, already imported in `route.ts:37`.
+- Produces: no new exports.
+
+- [ ] **Step 1: Seed the flag in the existing migration**
+
+Append to `database/migrations/20260908_run_panel.sql`:
+
+```sql
+-- The disagreement arm has banked 32,013 frames, zero of them ever labeled,
+-- at ~5,000/day. Labeling stopped 2026-08-30 with the ceiling verdict, and the
+-- backlog is ~11 sittings deep. Seeded OFF: flip it on a week before a sitting
+-- so hard examples are re-mined against the then-current model, since a hard
+-- example is model-relative and goes stale when the model changes.
+INSERT INTO runtime_flags (key, enabled, note)
+VALUES (
+  'disagreement_intake',
+  false,
+  'Persist a Windy frame because the two heads disagree. OFF: 32,013 unlabeled frames already banked. model_disagreement_kind is still written on rows that persist for other reasons, so the Hard Examples queue is unaffected.'
+)
+ON CONFLICT (key) DO NOTHING;
+```
+
+- [ ] **Step 2: Write the failing tests**
+
+Add to `app/api/cron/update-cameras/route.test.ts`, alongside the existing panel-precedence test:
+
+```typescript
+  it('does not persist a frame for disagreement alone when the intake flag is off', async () => {
+    isFlagEnabledMock.mockImplementation(async (key: string) =>
+      key === 'disagreement_intake' ? false : false,
+    );
+    computeDisagreementKindMock.mockReturnValue('binary_negative_regression_high');
+    loadRunPanelMock.mockResolvedValue(new Set<number>());
+
+    await GET(authedRequest());
+
+    expect(insertWindyDisagreementSnapshotMock).not.toHaveBeenCalled();
+  });
+
+  it('still records the disagreement kind on a frame the panel brought in', async () => {
+    isFlagEnabledMock.mockImplementation(async () => false);
+    computeDisagreementKindMock.mockReturnValue('binary_negative_regression_high');
+    loadRunPanelMock.mockResolvedValue(new Set<number>([700]));
+
+    await GET(authedRequest());
+
+    expect(insertWindyDisagreementSnapshotMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        intakeReason: 'run',
+        disagreementKind: 'binary_negative_regression_high',
+      }),
+    );
+  });
+```
+
+Match the file's existing helpers for building an authorized request and for the mock names; the names above are indicative, the existing file is authoritative.
+
+- [ ] **Step 3: Run the tests to verify they fail**
+
+Run: `npx vitest run app/api/cron/update-cameras/route.test.ts`
+Expected: FAIL — the frame is still persisted, because nothing gates the trigger yet.
+
+- [ ] **Step 4: Read the flag once per tick**
+
+In `route.ts`, beside the existing `const runPanel = await loadRunPanel();`:
+
+```typescript
+  // Hard-example mining, switchable without a redeploy. Off since 2026-09-08:
+  // 32,013 banked frames, none labeled. isFlagEnabled fails closed, and closed
+  // means "do not collect", so a database blip costs nothing.
+  const disagreementIntake = await isFlagEnabled('disagreement_intake');
+```
+
+- [ ] **Step 5: Gate the trigger and the attribution together**
+
+Replace the persist decision and the first two arms of the precedence chain:
+
+```typescript
+      // The disagreement is always COMPUTED and always recorded on the row via
+      // model_disagreement_kind, which is what the Hard Examples queue reads.
+      // Only whether it is a reason to KEEP the frame is switchable.
+      const disagreementPersisted = disagreementKind !== null && disagreementIntake;
+```
+
+Use `disagreementPersisted` — not `disagreementKind !== null` — in both `shouldPersist` and the `'disagreement'` arm of the `intakeReason` ternary. Leave `'run'` first. Leave `disagreementKind` itself passed to `insertWindyDisagreementSnapshot` exactly as it is now.
+
+- [ ] **Step 6: Run the tests to verify they pass, then the full suite**
+
+Run: `npx vitest run app/api/cron/update-cameras/`, then `npm run test`, then `npm run build`.
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add database/migrations/20260908_run_panel.sql app/api/cron/update-cameras/route.ts app/api/cron/update-cameras/route.test.ts
+git commit -m "feat(intake): make the disagreement arm switchable, seeded off"
+```
+
+---
+
 ## Operator checklist — after 2026-09-12, in this order
 
 Do not reorder. The migration must land before the code that writes `'run'`, because the cron swallows its own write errors and a constraint violation would lose frames silently rather than loudly.
@@ -719,6 +835,7 @@ Do not reorder. The migration must land before the code that writes `'run'`, bec
 - [ ] Confirm the inventory script's phase-splitting fix is in place (`scripts/run-inventory.mjs` derives morning/evening from local solar hour, not the stored `phase` column). Without it, the report reads 0 uniform runs regardless of whether capture is working and looks like a failure.
 - [ ] Seed the panel: `node scripts/seed-run-panel.mjs` then re-run with `--apply`
 - [ ] Enable capture: `node scripts/set-runtime-flag.mjs run_panel_capture on --apply`
+- [ ] Confirm the disagreement arm is off: `node scripts/set-runtime-flag.mjs` lists `disagreement_intake = false`. Flip it on only in the week before a planned labeling sitting, and off again after.
 - [ ] Next morning, confirm the corpus is growing: `node scripts/run-inventory.mjs`, `uniform_runs` above 0
 - [ ] Watch cost for a week against the ~$0.44/day baseline in `scripts/usage-report.mjs`. The panel adds roughly 540 frames per evening, well under the ~32k per week `disagreement` already takes, so a visible jump means something is wrong with panel size, not with the estimate.
 
