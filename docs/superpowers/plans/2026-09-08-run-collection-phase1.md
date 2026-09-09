@@ -26,6 +26,7 @@
 - **Never write derived labels into `manual_labels`.** Out of scope here, but it governs Phase 2 and is repeated so it is not lost.
 - `beforeEach` bodies use braces, never a concise arrow returning `mockReset()` — a returned mock value is called as Vitest teardown.
 - Panel size is **60 cameras** unless the operator says otherwise.
+- Camera coordinates on `webcams` are **`lat` and `lng`, both `double precision`** — verified 2026-09-08. There is no `longitude` column.
 
 ## Scope
 
@@ -517,12 +518,12 @@ const SIZE = sizeArg === -1 ? 60 : Number(process.argv[sizeArg + 1]);
 const BUCKETS = 24;
 
 const candidates = await sql`
-  SELECT w.id, w.longitude, count(*)::int AS confirmed_sunsets
+  SELECT w.id, w.lng, count(*)::int AS confirmed_sunsets
   FROM manual_labels m
   JOIN webcam_snapshots s ON s.id = m.image_id AND m.source = 'webcam'
   JOIN webcams w ON w.id = s.webcam_id
-  WHERE m.is_sunset AND w.longitude IS NOT NULL
-  GROUP BY w.id, w.longitude
+  WHERE m.is_sunset AND w.lng IS NOT NULL
+  GROUP BY w.id, w.lng
   HAVING count(*) >= 3
   ORDER BY count(*) DESC
 `;
@@ -530,7 +531,7 @@ const candidates = await sql`
 // Round-robin across longitude buckets so the panel is not all one meridian.
 const byBucket = new Map();
 for (const c of candidates) {
-  const b = Math.floor(((Number(c.longitude) + 180) % 360) / (360 / BUCKETS));
+  const b = Math.floor(((Number(c.lng) + 180) % 360) / (360 / BUCKETS));
   if (!byBucket.has(b)) byBucket.set(b, []);
   byBucket.get(b).push(c);
 }
@@ -552,7 +553,7 @@ while (picked.length < SIZE && !exhausted) {
 console.log(`candidates: ${candidates.length}, buckets used: ${byBucket.size}`);
 console.log(`picked ${picked.length} of a requested ${SIZE}:`);
 for (const p of picked) {
-  console.log(`  webcam ${p.id}  lng ${Number(p.longitude).toFixed(1)}  ${p.confirmed_sunsets} confirmed sunsets`);
+  console.log(`  webcam ${p.id}  lng ${Number(p.lng).toFixed(1)}  ${p.confirmed_sunsets} confirmed sunsets`);
 }
 
 if (!apply) {
@@ -563,7 +564,7 @@ if (!apply) {
 for (const p of picked) {
   await sql`
     INSERT INTO run_panel (webcam_id, note)
-    VALUES (${Number(p.id)}, ${`seeded 2026-09-08: ${p.confirmed_sunsets} confirmed sunsets, lng ${Number(p.longitude).toFixed(1)}`})
+    VALUES (${Number(p.id)}, ${`seeded 2026-09-08: ${p.confirmed_sunsets} confirmed sunsets, lng ${Number(p.lng).toFixed(1)}`})
     ON CONFLICT (webcam_id) DO NOTHING
   `;
 }
@@ -631,12 +632,12 @@ const runs = await sql`
     SELECT s.id, s.webcam_id, s.phase, s.intake_reason,
            s.captured_at,
            ((s.captured_at AT TIME ZONE 'UTC'
-             + make_interval(mins => (w.longitude / 15.0 * 60)::int)))::date AS solar_day
+             + make_interval(mins => (w.lng / 15.0 * 60)::int)))::date AS solar_day
     FROM webcam_snapshots s
     JOIN webcams w ON w.id = s.webcam_id
     WHERE s.captured_at > now() - make_interval(days => ${DAYS}::int)
       AND s.phase = 'sunset'
-      AND w.longitude IS NOT NULL
+      AND w.lng IS NOT NULL
   ),
   grouped AS (
     SELECT webcam_id, solar_day,
