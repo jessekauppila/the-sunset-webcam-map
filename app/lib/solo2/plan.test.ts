@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { arrivalS, describePlan, fitPlan, stageAt, stepFadeS, stretchThreshold } from './plan';
+import { arrivalS, describePlan, fitPlan, planOf, stageAt, stepFadeS, stretchThreshold } from './plan';
 
 const D = { dwellS: 20, leadS: 4, minStepS: 4 };
 
@@ -147,5 +147,43 @@ describe('stepFadeS', () => {
   it('a dial at zero is still a cut, and a negative one cannot go below zero', () => {
     expect(stepFadeS(0, { stepS: 5 })).toBe(0);
     expect(stepFadeS(-2, { stepS: 5 })).toBe(0);
+  });
+});
+
+describe('planOf: the budget rule run backward from a pinned total', () => {
+  it('spreads the pinned span across the frames, after the arrival', () => {
+    const p = planOf(22, 4, { ...D, transition: 'dip', fadeS: 6 });
+    expect(p.dwellS).toBe(22);
+    expect(p.frames).toBe(4);
+    expect(p.arrivalS).toBe(6);
+    expect(p.stepS).toBe(4); // (22 - 6) / 4
+  });
+
+  it('is the inverse of fitPlan: what fitPlan sized, planOf takes apart again', () => {
+    const dials = { ...D, transition: 'dip' as const, fadeS: 6 };
+    const forward = fitPlan(dials, 4);
+    const back = planOf(forward.dwellS, 4, dials);
+    expect(back).toEqual(forward);
+  });
+
+  it('ignores the dwell dial: the pinned span is the whole authority', () => {
+    // The dial says 20 s and the floor says 4 s a frame, which would size 3
+    // frames at 20 s. The draw pinned 62 s, so each frame gets 18.67 s.
+    const p = planOf(62, 3, { ...D, transition: 'dip', fadeS: 6 });
+    expect(p.dwellS).toBe(62);
+    expect(p.stepS).toBeCloseTo(18.667, 3);
+  });
+
+  it('never leaves a step of zero, whatever a degenerate span asks for', () => {
+    // stageAt divides by the step; a zero would make the frame index NaN and
+    // the glass render nothing.
+    const p = planOf(0, 3, { ...D, transition: 'dip', fadeS: 6 });
+    expect(p.stepS).toBeGreaterThan(0);
+    expect(p.arrivalS).toBe(0); // clamped to the total, so the step stays positive
+    expect(stageAt(1000, p).index).toBe(2);
+  });
+
+  it('caps the lead at the pinned span', () => {
+    expect(planOf(3, 1, { ...D, leadS: 9 }).leadS).toBe(3);
   });
 });

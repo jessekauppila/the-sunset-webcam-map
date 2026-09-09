@@ -176,3 +176,25 @@ it('a projected dwell shows the frames the cap cut as dim stubs before the run, 
   // The run's own frames still add up to the dwell: 2 × 5 s + the chosen one's 10 s.
   expect(screen.getByTestId('tape-next-0')).toHaveStyle({ width: `${20 * PX_PER_S - 2 * 5 * PX_PER_S}px` });
 });
+
+it('a run\'s earlier frames open like any other block', () => {
+  // They were rendered without a handler, which `Thumb` turns into a disabled
+  // button. They are also the blocks an operator most needs to open: a 6 px
+  // sliver of sky identifies nothing (reported 2026-09-08).
+  const onSelect = vi.fn();
+  const earlier = [entry(7), entry(8)];
+  render(<Tape past={[]} current={entry(3)} next={[entry(4)]} nextSequences={[{ earlier, stepS: 1.5 }]}
+    pastDials={D} nextDials={D} onSelect={onSelect} />);
+  const pre = screen.getByTestId('tape-next-0-pre-7');
+  expect(pre).not.toBeDisabled();
+  fireEvent.click(pre);
+  expect(onSelect).toHaveBeenCalledWith(expect.objectContaining({ snapshotId: 7 }));
+});
+
+it('the fade X is not a click target: it straddles the blocks either side of it', () => {
+  // At the live 6 s fade it lies over 12 px of both neighbours, and while it
+  // took pointer events it swallowed clicks meant for them.
+  render(<Tape past={past} current={entry(3)} currentSince={since} currentEndsAt={since + 20_000} next={[entry(4)]}
+    pastDials={{ dwellS: 20, fadeS: 6 }} nextDials={{ dwellS: 20, fadeS: 6 }} onSelect={vi.fn()} />);
+  expect(screen.getByTestId('tape-fade-0')).toHaveStyle({ pointerEvents: 'none' });
+});

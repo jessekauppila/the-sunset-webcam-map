@@ -6,7 +6,7 @@ import type { EntryView } from '@/app/api/kiosk/solo/view';
 import { mergeSettings } from '@/app/lib/settings/schema';
 import { SOLO2_SETTINGS_SCHEMA, dialsFrom2 } from '@/app/lib/solo2/settingsSchema';
 import { withCaption } from '@/app/lib/solo/captionSchema';
-import { fitPlan } from '@/app/lib/solo2/plan';
+import { fitPlan, planOf } from '@/app/lib/solo2/plan';
 import { capFor, planDialsFor, runOf } from '@/app/lib/solo2/run';
 import { useSoloGlass } from '@/app/components/solo/useSoloGlass';
 import { Solo2Frame } from './Solo2Frame';
@@ -59,10 +59,37 @@ export function Solo2Kiosk(props: MosaicProps) {
   }
   const previous = dwell.previous;
 
-  // The same capped run the server used to size this dwell (spec §4), so the
-  // step rate on glass and the published end can never disagree.
-  const run = current ? runOf(current, glass.entries, dials.cameraRun, capFor(current, dials, glass.entries, dials.cameraRun)) : [];
-  const plan = fitPlan(current ? planDialsFor(current, dials, glass.entries, dials.cameraRun) : dials, run.length);
+  /**
+   * The run and the plan are READ, not re-derived: the draw pinned both, and
+   * the server publishes them as `shownSnapshotIds` and `endsAtMs`.
+   *
+   * This used to call `runOf`/`fitPlan` over `glass.entries` on every render.
+   * That pool is refetched every minute and changes every minute, the frame
+   * cap is a rank within it, and `runOf` anchors its window at the newest
+   * frame — so a wider cap PREPENDED older frames while the dwell's clock was
+   * already running, and the clock-driven index landed on a different picture.
+   * On glass that read as the run stepping backwards and the caption's
+   * "minutes ago" counting up (reported 2026-09-08).
+   *
+   * The fallback is the old derivation, reached only for a screen row written
+   * before the dwell was pinned.
+   */
+  const byId = new Map(glass.entries.map((e) => [e.snapshotId, e]));
+  const pinnedIds = glass.shownSnapshotIds;
+  // A frame the pool dropped mid-dwell cannot be drawn, but it keeps its place
+  // in the timing: `plan.frames` stays the pinned count, so the step rate is
+  // unchanged and only the missing picture is skipped.
+  const pinnedRun = pinnedIds.map((id) => byId.get(id)).filter((e): e is EntryView => !!e);
+  const pinnedTotalS = glass.endsAtMs != null && glass.shownSince != null
+    ? (glass.endsAtMs - glass.shownSince) / 1000
+    : null;
+  const pinned = pinnedRun.length > 0 && pinnedTotalS != null && pinnedTotalS > 0;
+  const run = pinned
+    ? pinnedRun
+    : current ? runOf(current, glass.entries, dials.cameraRun, capFor(current, dials, glass.entries, dials.cameraRun)) : [];
+  const plan = pinned
+    ? planOf(pinnedTotalS, pinnedIds.length, dials)
+    : fitPlan(current ? planDialsFor(current, dials, glass.entries, dials.cameraRun) : dials, run.length);
   const stage = useStage(plan, dwell.startMs);
 
   // Preload the projected next frame and its run, so the arrival is clean.

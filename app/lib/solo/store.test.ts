@@ -95,6 +95,45 @@ describe('screen state', () => {
     sqlMock.mockResolvedValueOnce([]);
     expect(await getScreenState('sunset')).toBeNull();
   });
+  it('getScreenState reads the pinned dwell, mapping Neon strings to numbers', async () => {
+    sqlMock.mockResolvedValueOnce([{
+      feed: 'sunset', current_snapshot_id: '9', shown_since: '2026-09-08T23:49:47Z', slot: '42', sunset_streak: '3',
+      dwell_ms: '22000', shown_snapshot_ids: ['7', '8', '9'],
+    }]);
+    expect(await getScreenState('sunset')).toMatchObject({ dwellMs: 22_000, shownSnapshotIds: [7, 8, 9] });
+  });
+  it('getScreenState leaves a pre-migration row unpinned, so readers fall back', async () => {
+    sqlMock.mockResolvedValueOnce([{
+      feed: 'sunset', current_snapshot_id: '9', shown_since: null, slot: '42', sunset_streak: '0',
+      dwell_ms: null, shown_snapshot_ids: null,
+    }]);
+    expect(await getScreenState('sunset')).toMatchObject({ dwellMs: null, shownSnapshotIds: null });
+  });
+  it('commitAdvance pins the dwell beside the instant it starts, in one statement', async () => {
+    sqlMock.mockResolvedValueOnce([{ feed: 'sunset' }]).mockResolvedValueOnce([]).mockResolvedValueOnce([]);
+    const e = (id: number) => ({ snapshotId: id, webcamId: 3, bin: 'sunset' as const, quality: 0.9, detection: 0.8, isNew: true, tally: 0, enteredAt: 0 });
+    await commitAdvance('sunset', 42, e(9), 1, [e(7), e(8), e(9)], 'solo2', 22_000);
+    const upsert = (sqlMock.mock.calls[0][0] as TemplateStringsArray).join('?');
+    // The same row and the same write as shown_since. A start and a length
+    // assembled from two different moments is the drift this column exists to
+    // stop, so they must not be separable.
+    expect(upsert).toMatch(/shown_since = excluded\.shown_since/);
+    expect(upsert).toMatch(/dwell_ms = excluded\.dwell_ms/);
+    expect(upsert).toMatch(/shown_snapshot_ids = excluded\.shown_snapshot_ids/);
+    expect(sqlMock.mock.calls[0].slice(1)).toEqual(['sunset', 9, 42, 1, 22_000, [7, 8, 9]]);
+  });
+  it('commitAdvance rounds a fractional dwell: the column is an integer', async () => {
+    sqlMock.mockResolvedValueOnce([{ feed: 'sunset' }]).mockResolvedValueOnce([]).mockResolvedValueOnce([]);
+    const e = { snapshotId: 7, webcamId: 3, bin: 'sunset' as const, quality: 0.9, detection: 0.8, isNew: true, tally: 0, enteredAt: 0 };
+    await commitAdvance('sunset', 42, e, 1, [e], 'solo2', 21_666.667);
+    expect(sqlMock.mock.calls[0].slice(1)).toEqual(['sunset', 7, 42, 1, 21_667, [7]]);
+  });
+  it('commitAdvance leaves the dwell unpinned when no length is supplied', async () => {
+    sqlMock.mockResolvedValueOnce([{ feed: 'sunset' }]).mockResolvedValueOnce([]).mockResolvedValueOnce([]);
+    const e = { snapshotId: 7, webcamId: 3, bin: 'sunset' as const, quality: 0.9, detection: 0.8, isNew: true, tally: 0, enteredAt: 0 };
+    await commitAdvance('sunset', 42, e, 1);
+    expect(sqlMock.mock.calls[0].slice(1)).toEqual(['sunset', 7, 42, 1, null, [7]]);
+  });
   it('commitAdvance is a no-op when the slot was already committed', async () => {
     sqlMock.mockResolvedValueOnce([]); // upsert returned nothing: slot unchanged
     const ok = await commitAdvance('sunset', 42, { snapshotId: 7, webcamId: 3, bin: 'sunset', quality: 0.9, detection: 0.8, isNew: true, tally: 0, enteredAt: 0 }, 1);

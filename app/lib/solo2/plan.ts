@@ -61,6 +61,35 @@ export function fitPlan(d: PlanDials, frames: number): DwellPlan {
 }
 
 /**
+ * The plan for a dwell whose total is already DECIDED — the span the server
+ * pinned at the draw and published as `endsAtMs`.
+ *
+ * `fitPlan` runs the budget rule forward, from a dial to a total. This runs it
+ * backward, from a total to a step, and it is what any surface rendering a
+ * live dwell should use. The difference matters because the forward rule reads
+ * the pool, and the pool moves: recomputing mid-dwell re-sized the step and the
+ * frame count under a clock that had already started, which stepped the run to
+ * a different picture and made the caption's "minutes ago" jump upward instead
+ * of counting down (reported 2026-09-08).
+ *
+ * The arrival still comes from the dials, since it is the fade's own length and
+ * not a function of the pool. It is clamped to the total so a short pinned
+ * dwell cannot leave a negative step.
+ */
+export function planOf(totalS: number, frames: number, d: PlanDials): DwellPlan {
+  const n = Math.max(1, Math.floor(frames));
+  const total = Math.max(0, totalS);
+  const arrival = Math.min(arrivalS(d), total);
+  return {
+    dwellS: total,
+    frames: n,
+    stepS: Math.max(0.001, (total - arrival) / n),
+    leadS: Math.min(total, Math.max(0, d.leadS)),
+    arrivalS: arrival,
+  };
+}
+
+/**
  * The frame count at which the dwell starts stretching (spec §3.1). Printed
  * beside the dials so an operator can see whether a cap will ever move the
  * clock: at or below this, a cap buys pictures rather than time.

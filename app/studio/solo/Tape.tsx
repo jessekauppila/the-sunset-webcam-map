@@ -55,12 +55,20 @@ function Thumb({ testId, src, color, width, dashed = false, dim = false, ring = 
   );
 }
 
-/** The Final Cut "X": the seconds during which both pictures are on glass. */
+/**
+ * The Final Cut "X": the seconds during which both pictures are on glass.
+ *
+ * It straddles the cut by half its width each way, so at the live 6 s fade it
+ * lies over 12 px of both neighbours. Never a click target: it paints above
+ * them, and while it took pointer events it swallowed clicks along the edges
+ * of the very blocks an operator was reaching for.
+ */
 function Fade({ testId, seconds }: { testId: string; seconds: number }) {
   const width = Math.max(4, seconds * PX_PER_S);
   return (
     <div data-testid={testId} title={`crossfade ${secs(seconds)}: both pictures on glass`} style={{
       flex: 'none', width, height: THUMB_H, marginLeft: -width / 2, marginRight: -width / 2, position: 'relative', zIndex: 1,
+      pointerEvents: 'none',
       background: 'linear-gradient(135deg, rgba(245,163,68,0) 0%, rgba(245,163,68,0.55) 50%, rgba(245,163,68,0) 100%)',
       borderLeft: '1px solid rgba(245,163,68,0.8)', borderRight: '1px solid rgba(245,163,68,0.8)', boxSizing: 'border-box',
     }} />
@@ -241,9 +249,13 @@ export function Tape({ past, current, currentSince, currentEndsAt, next, nextSeq
             <Thumb key={`cut-${f.snapshotId}`} testId={`tape-next-${i}-cut-${f.snapshotId}`} src={f.imageUrl} width={CUT_STUB_PX} color="#2a3242" dashed dim
               title={`not played · ${f.title} · over the ${seq.capLabel ?? 'most-frames cap'}`} onClick={() => onSelect(f)} />
           ))}
+          {/* Clickable like every other block. Without a handler `Thumb`
+              disables the button, and these are the frames an operator most
+              wants to open: the run's earlier pictures are the ones they
+              cannot identify from a 6 px sliver. */}
           {seq.earlier.map((f) => (
             <Thumb key={f.snapshotId} testId={`tape-next-${i}-pre-${f.snapshotId}`} src={f.imageUrl} width={stepPx} color="#2a3242" dashed
-              title={`run · ${f.title} · ${secs(seq.stepS)}`} />
+              title={`run · ${f.title} · ${secs(seq.stepS)}`} onClick={() => onSelect(f)} />
           ))}
           <Thumb testId={`tape-next-${i}`} src={e.imageUrl} width={mainWidth} color={COLOR[e.bin]} dashed
             repeat={repeatOf(e.snapshotId)} title={title} onClick={() => onSelect(e)} />
