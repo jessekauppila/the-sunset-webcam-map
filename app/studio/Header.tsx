@@ -20,6 +20,17 @@ const red = '#e5484d';
 const DISCARD_TITLE =
   "Copy the glass's dials back into the studio, discarding undeployed edits";
 
+/**
+ * What a stale tab means, said where the operator is looking when it bites.
+ * The preview and the glass draw a composition from the same components, so
+ * the only way they can disagree is that one of them is running older code —
+ * and the tab nobody ever reloads is this one.
+ */
+const STALE_BUILD_TITLE =
+  'This tab is running an older build than the site is serving, so its ' +
+  'preview can disagree with the glass and its rail can be missing dials ' +
+  'that exist. Reload to catch up; dial values are already saved.';
+
 /** What a dropped key means, in the one place that now reports them. */
 const DROPPED_TITLE =
   'The server stored every other value but discarded these. An ' +
@@ -190,6 +201,29 @@ export function Header({
         }}
       >
         {parts.join(' · ')}
+        {api.staleBuild && (
+          <>
+            {' · '}
+            <button
+              type="button"
+              data-testid="status-stale-build"
+              title={STALE_BUILD_TITLE}
+              onClick={() => window.location.reload()}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                padding: 0,
+                fontFamily: mono,
+                fontSize: 11,
+                color: red,
+                fontWeight: 700,
+                cursor: 'pointer',
+              }}
+            >
+              ⚠ new build — reload
+            </button>
+          </>
+        )}
         {api.droppedKeys.length > 0 && (
           <>
             {' · '}

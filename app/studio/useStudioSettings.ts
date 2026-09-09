@@ -16,6 +16,7 @@ import {
 import { schemaFor, KNOWN_NAMESPACES } from '@/app/lib/settings/knownSchemas';
 import type { ProfileSettings } from '@/app/lib/settings/store';
 import type { DeployRow, DroppedDeployKey } from '@/app/lib/settings/deploys';
+import { BUILD_ID, isStaleBuild } from '@/app/lib/buildStamp';
 
 const DEBOUNCE_MS = 400;
 const SETTINGS_URL = '/api/kiosk/settings';
@@ -25,6 +26,8 @@ interface SettingsResponse {
   studio: ProfileSettings;
   live: ProfileSettings;
   lastPollAt: string | null;
+  /** The build the deployment answering this poll was compiled from (buildStamp.ts). */
+  build?: string;
 }
 
 export interface StudioSettingsApi {
@@ -59,6 +62,14 @@ export interface StudioSettingsApi {
   lastDeployRecorded: boolean | null;
   deployedAtMs: number | null; // Date.now() at last successful deploy this session
   droppedKeys: DroppedKey[]; // keys the last PATCH per namespace could not store
+  /**
+   * Whether this tab is running an older build than the deployment it is
+   * talking to. A studio left open across a deploy goes on drawing the old
+   * preview with the old dial set, and then disagrees with the glass about a
+   * composition they share every line of code for — which reads as a bug and
+   * is not one. False until a poll says otherwise, and always false in dev.
+   */
+  staleBuild: boolean;
 }
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
@@ -387,5 +398,6 @@ export function useStudioSettings(): StudioSettingsApi {
     lastDeployRecorded,
     deployedAtMs,
     droppedKeys,
+    staleBuild: isStaleBuild(BUILD_ID, data?.build),
   };
 }

@@ -1,5 +1,6 @@
 // @vitest-environment node
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { BUILD_ID } from '@/app/lib/buildStamp';
 import { NextResponse } from 'next/server';
 
 const requireOwnerMock = vi.fn();
@@ -89,6 +90,9 @@ describe('GET /api/kiosk/settings', () => {
       studio: { namespaces: { v1: { floorPx: 150 } }, revision: 1 },
       live: { namespaces: { v1: { floorPx: 100 } }, revision: 0 },
       lastPollAt: '2026-08-30T12:00:00Z',
+      // Which deployment answered, so a studio tab can tell it has fallen
+      // behind the build it is talking to (buildStamp.ts).
+      build: BUILD_ID,
     });
   });
 });

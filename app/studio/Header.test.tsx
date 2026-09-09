@@ -16,7 +16,7 @@ function api(over: Partial<StudioSettingsApi> = {}): StudioSettingsApi {
     setKnob: vi.fn(), resetSection: vi.fn(), applyNamespace: () => [],
     diffByNamespace: { shared: ['activeVersion'] }, diffCount: 3,
     deploy: async () => {}, revert: vi.fn(async () => {}), saveTake: async () => null, deployedAtMs: null, droppedKeys: [],
-    deploys: [], loadDeploy: async () => [], relabelDeploy: async () => {}, lastDeployRecorded: null,
+    deploys: [], loadDeploy: async () => [], relabelDeploy: async () => {}, lastDeployRecorded: null, staleBuild: false,
     ...over,
   };
 }
@@ -52,6 +52,23 @@ describe('Header', () => {
     render(<Header api={api({ diffCount: 0, diffByNamespace: {}, droppedKeys: [{ key: 'x', reason: 'unknown' }, { key: 'y', reason: 'invalid' }] })} nowMs={NOW} />);
     expect(screen.getByTestId('status-line')).toHaveTextContent('dials match glass');
     expect(screen.getByTestId('status-dropped')).toHaveTextContent('2 dropped');
+  });
+  // The preview and the glass draw from the same components, so the only way
+  // they can disagree about a composition is that this tab is running older
+  // code than the site is serving. Saying so here is what stops that reading
+  // as a bug in the caption.
+  it('says nothing about the build while the tab is current', () => {
+    render(<Header api={api()} nowMs={NOW} />);
+    expect(screen.queryByTestId('status-stale-build')).toBeNull();
+  });
+  it('offers a reload when the tab is behind the deployment it is talking to', () => {
+    render(<Header api={api({ staleBuild: true })} nowMs={NOW} />);
+    const chip = screen.getByTestId('status-stale-build');
+    expect(chip).toHaveTextContent('new build');
+    const reload = vi.fn();
+    Object.defineProperty(window, 'location', { configurable: true, value: { ...window.location, reload } });
+    fireEvent.click(chip);
+    expect(reload).toHaveBeenCalled();
   });
   it('renders deploy, the nav toggle in its slot and the extra slot, all unshrinkable, with the status line the only flexible member', () => {
     render(<Header api={api()} nowMs={NOW} extra={<button>save take</button>} />);

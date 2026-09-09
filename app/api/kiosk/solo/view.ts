@@ -111,6 +111,14 @@ export interface StateView {
   zone: Zone;
   /** The last draws on this screen, oldest first (stages-and-tape spec §4). Empty until the log is migrated. */
   tape: TapeEntry[];
+  /**
+   * The build the deployment answering this poll was compiled from
+   * (buildStamp.ts). The glass compares it against the one its own chunks
+   * carry and reloads when they part, which is the only thing that moves a
+   * kiosk tab onto new code. Optional because the route stamps it rather than
+   * the projection, so every other caller of buildStateView omits it.
+   */
+  build?: string;
 }
 
 const scoreOf = (e: ViewEntry) => (e.bin === 'sunset' ? e.quality ?? -1 : e.detection);
