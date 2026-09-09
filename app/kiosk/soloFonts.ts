@@ -14,6 +14,18 @@ const sans = Source_Sans_3({ subsets: ['latin'], variable: '--solo-font-sans', d
 const serif = Source_Serif_4({ subsets: ['latin'], variable: '--solo-font-serif', display: 'swap' });
 // Drawn for low vision: no two letters confusable and the counters stay
 // open, which is what holds a dim caption together at a distance.
-const atkinson = Atkinson_Hyperlegible_Next({ subsets: ['latin'], variable: '--solo-font-atkinson', display: 'swap' });
+// next/font has no metric overrides for this family, so it cannot compute a
+// size-adjusted fallback and says so at build time. The kiosk holds one page
+// for days, so the swap happens once — but on a caption pinned under a
+// picture, once is enough to see. `adjustFontFallback: false` takes the
+// guess out, and the explicit fallback keeps the shape close until the real
+// face lands.
+const atkinson = Atkinson_Hyperlegible_Next({
+  subsets: ['latin'],
+  variable: '--solo-font-atkinson',
+  display: 'swap',
+  adjustFontFallback: false,
+  fallback: ['system-ui', 'Segoe UI', 'Noto Sans', 'DejaVu Sans', 'sans-serif'],
+});
 
 export const soloFontClassName = `${sans.variable} ${serif.variable} ${atkinson.variable}`;
