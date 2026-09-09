@@ -27,7 +27,7 @@ function api(over: Partial<StudioSettingsApi> = {}): StudioSettingsApi {
     effective: () => ({}), setKnob: vi.fn(), resetSection: vi.fn(), applyNamespace: () => [],
     diffByNamespace: {}, diffCount: 1,
     deploy: async () => {}, revert: async () => {}, saveTake: vi.fn(async () => null), deployedAtMs: null, droppedKeys: [],
-    deploys, loadDeploy: vi.fn(async () => []), relabelDeploy: vi.fn(async () => {}), lastDeployRecorded: null,
+    deploys, loadDeploy: vi.fn(async () => []), relabelDeploy: vi.fn(async () => {}), lastDeployRecorded: null, staleBuild: false,
     ...over,
   };
 }

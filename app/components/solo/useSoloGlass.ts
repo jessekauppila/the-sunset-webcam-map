@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { EntryView, StateView, ViewEntry } from '@/app/api/kiosk/solo/view';
 import type { Feed } from '@/app/lib/solo/types';
 import type { SoloVersionName } from '@/app/lib/solo/versions';
+import { useBuildReload } from '@/app/components/useBuildReload';
 
 export const STATE_REFRESH_MS = 60_000;
 /** The least time between two fires of the dwell timer, so a failed advance retries rather than spins. */
@@ -151,6 +152,12 @@ export function useSoloGlass({ feed, drive, dozing, version = 'solo' }: {
     }, wait);
     return () => clearTimeout(t);
   }, [feed, version, endsAtMs, screenSlot, tick]);
+
+  // The glass is the one surface nobody reloads by hand, so it reloads itself
+  // when the deployment answering this poll has moved past the build it is
+  // running. Settings already reach the Pi within a minute; this is the code
+  // half of the same promise.
+  useBuildReload(view?.build ?? null);
 
   return {
     current: view?.current?.entry ?? null,

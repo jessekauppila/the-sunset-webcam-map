@@ -1,6 +1,20 @@
 import type { NextConfig } from 'next';
 
+/**
+ * The commit this build was compiled from, inlined into every bundle — client
+ * chunks and server routes alike — so a page can tell whether it is still the
+ * one production is serving. See app/lib/buildStamp.ts for why it is read at
+ * build time rather than from the runtime environment.
+ *
+ * Vercel sets VERCEL_GIT_COMMIT_SHA in the build container. Locally there is
+ * nothing to name, and 'dev' switches the comparison off entirely.
+ */
+const BUILD_ID = process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 12) || 'dev';
+
 const nextConfig: NextConfig = {
+  env: {
+    NEXT_PUBLIC_BUILD_ID: BUILD_ID,
+  },
   images: {
     remotePatterns: [
       {

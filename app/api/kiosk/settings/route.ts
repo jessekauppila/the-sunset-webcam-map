@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireOwner } from '@/app/lib/owner';
+import { BUILD_ID } from '@/app/lib/buildStamp';
 import { getProfileSettings, putStudioNamespace } from '@/app/lib/settings/store';
 import { getKioskLastPoll } from '@/app/lib/cache';
 import { droppedKeys, sanitizeValues, stripDefaults } from '@/app/lib/settings/schema';
@@ -22,7 +23,7 @@ export async function GET() {
     getProfileSettings('live'),
     getKioskLastPoll(),
   ]);
-  return NextResponse.json({ studio, live, lastPollAt });
+  return NextResponse.json({ studio, live, lastPollAt, build: BUILD_ID });
 }
 
 export async function PATCH(request: Request) {

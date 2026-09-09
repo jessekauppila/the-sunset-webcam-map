@@ -54,7 +54,7 @@ function api(): StudioSettingsApi {
     setKnob: vi.fn(), resetSection: vi.fn(), applyNamespace: () => [],
     diffByNamespace: {}, diffCount: 0,
     deploy: async () => {}, revert: async () => {}, saveTake: async () => null, deployedAtMs: null, droppedKeys: [],
-    deploys: [], loadDeploy: async () => [], relabelDeploy: async () => {}, lastDeployRecorded: null,
+    deploys: [], loadDeploy: async () => [], relabelDeploy: async () => {}, lastDeployRecorded: null, staleBuild: false,
   };
 }
 
