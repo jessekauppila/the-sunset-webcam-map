@@ -6,6 +6,13 @@ export interface KnobBase {
   label: string;
   description: string;
   section: string; // folder name in the rail: 'sizing' | 'arrangement' | 'overlays' | 'glass' | ...
+  /**
+   * Optional sub-heading within a section, for a group whose knobs read
+   * better split by what they act on than listed by property. The caption
+   * uses it to gather each line's own size, brightness and spacing under
+   * that line's name.
+   */
+  band?: string;
 }
 
 export interface NumberKnob extends KnobBase {

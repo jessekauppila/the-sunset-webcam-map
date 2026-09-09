@@ -37,10 +37,12 @@ it('asks the glass hook for solo2, drives by default, follows in a preview', () 
   expect(useSoloGlass).toHaveBeenLastCalledWith(expect.objectContaining({ drive: false, dozing: true }));
 });
 
-it('late in the dwell, draws the drawn frame with its caption and the screen name', () => {
+it('late in the dwell, draws the drawn frame with its caption', () => {
   render(<Solo2Kiosk webcams={[]} width={100} height={50} feed="sunset" />);
   expect(screen.getByTestId('top')).toHaveAttribute('src', 'u3');
-  expect(screen.getByTestId('caption-title')).toHaveTextContent('Sunset: t3');
+  // The screen name no longer prefixes the title: the time line names the
+  // crossing instead, and only once it has actually happened.
+  expect(screen.getByTestId('caption-title')).toHaveTextContent('t3');
 });
 
 it('at the start of the dwell, the camera run begins at its oldest frame', () => {
