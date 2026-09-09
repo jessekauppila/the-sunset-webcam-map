@@ -9,7 +9,7 @@
 > evenings of run data is cheap; a broken cron during show week is not.
 > Runbook: `docs/superpowers/plans/2026-09-03-opening-night-runbook.md`.
 
-**Goal:** Start collecting uniform, whole-evening frame runs from a bounded panel of cameras, so that run-crossing labeling has an unbiased corpus to work on.
+**Goal:** Start collecting uniform, whole-event frame runs from a bounded panel of cameras, so that run-crossing labeling has an unbiased corpus to work on. A run is one camera and one solar event, so a panel camera yields two runs a day, a sunrise and a sunset. "Evening" below is shorthand for either. Both phases are retained; the spec's Leg 0 says why.
 
 **Architecture:** A `run_panel` table names the cameras. A `runtime_flags` row switches collection on without a redeploy. The `update-cameras` cron persists every scored frame for a panel camera and stamps it `intake_reason = 'run'`, which takes highest precedence so a panel frame is never misattributed to a model-gated reason. A pure `runKey` function gives a run its identity from local solar time rather than a fixed UTC offset.
 
@@ -83,7 +83,7 @@ INSERT INTO runtime_flags (key, enabled, note)
 VALUES (
   'run_panel_capture',
   false,
-  'Keep every scored frame for cameras in run_panel, stamped intake_reason=run. ~9 frames per camera-evening.'
+  'Keep every scored frame for cameras in run_panel, stamped intake_reason=run. Both phases: ~9 frames per camera-event, two events a day.'
 )
 ON CONFLICT (key) DO NOTHING;
 ```
@@ -363,6 +363,28 @@ Append to `app/api/cron/update-cameras/lib/dbOperations.test.ts`, inside the exi
     const values = sqlMock.mock.calls[0].slice(1);
     expect(values).toContain('run');
   });
+
+  it('accepts a sunrise-phase frame for the same panel capture', async () => {
+    // The panel is not sunset-only. This test exists so that a later change
+    // adding a phase gate to the persist path fails loudly here.
+    sqlMock.mockResolvedValue([{ id: 4243 }]);
+
+    const id = await insertWindyDisagreementSnapshot({
+      webcamId: 700,
+      phase: 'sunrise',
+      firebaseUrl: 'https://storage.googleapis.com/y.jpg',
+      firebasePath: 'y.jpg',
+      aiRating: 2.5,
+      aiRegressionScore: 0.375,
+      aiModelVersionRegression: 'v5',
+      scoringPath: 'onnx',
+      disagreementKind: null,
+      intakeReason: 'run',
+    });
+
+    expect(id).toBe(4243);
+    expect(sqlMock.mock.calls[0].slice(1)).toContain('run');
+  });
 ```
 
 - [ ] **Step 2: Run the test to verify it fails**
@@ -415,9 +437,14 @@ Then, immediately before the loop that iterates webcams (the same place `feedByE
 In `app/api/cron/update-cameras/route.ts`, after the `const isTrickle = ...` line at :311, add:
 
 ```typescript
-      // Whole-evening capture: this camera's frames are kept regardless of
+      // Whole-event capture: this camera's frames are kept regardless of
       // score, which is the entire point — the model-gated reasons drop the
       // N-to-1 crossing, and that crossing is what run labeling needs.
+      //
+      // Deliberately NOT gated on phase. Sunrise runs teach the same two
+      // boundaries, the corpus is short of them, and the gate is one Set
+      // lookup either way. Do not add a phase condition here without reading
+      // Leg 0 of the spec first.
       const isRunPanel = runPanel.has(webcamId);
 ```
 

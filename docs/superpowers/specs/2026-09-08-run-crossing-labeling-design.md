@@ -99,15 +99,34 @@ So the archive funds the experiment, and new collection funds the labels.
 ## Leg 0 — collect uniform runs
 
 Add an intake reason `run`. A bounded panel of cameras retains **every scored
-frame in the sunset window** on every evening, regardless of model score.
+frame in both solar windows** on every day, regardless of model score.
+
+**Both phases, not sunset only.** A run is one camera and one solar event, so a
+panel camera produces two runs a day: a sunrise and a sunset. Three reasons,
+and the first is the one that decides it.
+
+- The two boundaries this whole design exists to sharpen, `is_sunset` and
+  `rating >= 4`, are not sunset-specific. A sunrise crossing teaches them the
+  same thing, and the corpus is measurably short of sunrise: the leaderboard
+  fix of 2026-09-08 found the Best Sunsets top hundred was half sunrises, which
+  is what a phase-blind archive looks like from the outside.
+- The panel runs in reverse through a sunrise, so the same camera under the
+  same framing supplies a rising arc and a falling one. That is a stronger
+  anchor pair than two sunsets, and it costs one boolean.
+- The Instagram prelude bank wants alternating sunrise and sunset carousels and
+  has no other source of whole, unclipped runs. Sunset-only capture funds half
+  a feed.
 
 - **Panel size: 60 cameras.** At the 10-minute cron cadence and a ~90 minute
-  window that is roughly 9 frames per camera-evening, so ~540 frames/evening
-  and ~16k/month. Current `disagreement` intake alone ran ~32k frames in seven
-  days, so the panel is under 10% of what the archive already takes.
-- **Panel selection:** cameras with the most operator-confirmed sunsets and
+  window that is roughly 9 frames per camera-event. Two events a day is ~1,080
+  frames/day and ~32k/month. Current `disagreement` intake alone ran ~32k
+  frames in seven days, so the panel is still under a quarter of what the
+  archive already takes, and the flag turns it off without a deploy.
+- **Panel selection:** cameras with the most operator-confirmed events and
   stable framing, spread across longitude so runs land at different UTC hours.
   Seeded once from `manual_labels`, stored explicitly, not recomputed per tick.
+  The seed reads `manual_labels.is_sunset`, which is the operator saying a sky
+  event happened, not a phase. Sunrise-good cameras are already in it.
 - **Fixed panel, slow rotation.** The anchor-pair value comes from the *same*
   camera under different skies. Camera diversity is already abundant elsewhere
   in the corpus.
@@ -116,6 +135,24 @@ frame in the sunset window** on every evening, regardless of model score.
 
 `intake_reason = 'run'` keeps these frames separable forever, which is the
 whole point of that column.
+
+**The capture gate is camera membership, never phase.** Nothing in the persist
+path asks which event this is, so retaining both phases is the absence of a
+filter rather than a second code path. Two things follow, and both are easy to
+get wrong later:
+
+- `webcam_snapshots.phase` is stamped `'sunset'` unconditionally at
+  `app/api/cron/update-cameras/route.ts:340`, and the reason is structural, not
+  laziness: Windy scoring runs earlier in the tick than the sunrise/sunset
+  classification step, so at write time the phase is genuinely not known yet.
+  That column is therefore wrong on roughly half the panel's rows. Nothing here
+  reads it and nothing here should — run identity comes from geometry via
+  `solarPhaseAt`, which is also the standing finding that the stored phase is
+  17% wrong anyway. Left alone deliberately. Fixing it means reordering the
+  cron, which is a separate decision with its own blast radius.
+- "Evening" throughout the plan is shorthand for one solar event. `runKey` is
+  already keyed on camera, phase and local solar date, and already has a test
+  keeping a camera's sunrise and sunset apart on the same day.
 
 ### Timing
 
