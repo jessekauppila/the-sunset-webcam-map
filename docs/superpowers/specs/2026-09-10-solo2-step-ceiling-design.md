@@ -1,7 +1,7 @@
 # solo2 — the step ceiling: a run moves at a timelapse rate, and the budget's remainder rests on the newest frame
 
 **Date:** 2026-09-10
-**Issue:** #198 () — the spine for the build; this doc is its design.
+**Issue:** #198 (`speced`) — the spine for the build; this doc is its design.
 **Status:** designed, **not built**, and deliberately not built this week. The
 show is Friday 2026-09-12 and today is the freeze. Nothing here touches the
 glass before it.
