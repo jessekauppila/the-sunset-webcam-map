@@ -129,6 +129,35 @@ failure table: `docs/ops/pushing-an-update-to-the-glass.md`.
 Work the pipeline in order before assuming a code bug: pixel stats → EXIF →
 boots/config → `snap-now.sh` on the device.
 
+## Ideas and unbuilt work go to GitHub issues
+
+**An idea that is not being built right now is an issue, not a doc.** Before
+this rule the backlog lived in "open: …" tails on memory entries, in loose root
+`.md` files, and in spec docs with no PR — so nothing had one list and the
+memory index outgrew its size limit trying to be one.
+
+Three labels, and only these:
+
+- `idea` — captured, not designed. One paragraph. Costs 30 seconds.
+- `speced` — has a design doc and could be picked up as-is.
+- `open-question` — a decision to make, not work to do.
+
+The lifecycle, and where brainstorming fits:
+
+1. An idea shows up mid-session → `gh issue create --label idea` immediately.
+   Do **not** design it. The point is to stop losing it, not to start it.
+2. It gets picked up → the `superpowers:brainstorming` skill runs *on that
+   issue*, and writes its spec to `docs/superpowers/specs/` as it always has.
+3. Paste the spec path into the issue, relabel `speced`.
+4. The PR body says `Closes #N`.
+
+Issues do not replace specs or plans. The issue is the spine and carries the
+stable id from first mention to merge; `docs/superpowers/specs/` and
+`docs/superpowers/plans/` still hold the thinking. Keep this file conventions
+only, and **stop using `MEMORY.md` as a board** — a memory entry records what a
+future session needs to understand a thing, and the issue tracks whether it is
+done.
+
 ## Where knowledge lives
 
 `docs/solutions/` holds accumulated lessons, filed by category
@@ -143,3 +172,7 @@ orienting or naming things.
 
 The repo root has accumulated a lot of loose planning `.md` files — treat
 `docs/` as authoritative over root-level notes.
+
+Docs are what is *known*; `gh issue list` is what is *open*. If you want to
+know whether something got built, that is the issue list, not a doc and not a
+memory entry.
