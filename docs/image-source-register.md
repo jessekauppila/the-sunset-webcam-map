@@ -67,6 +67,83 @@ Two things to get right per source:
 
 ---
 
+## Equalizing the inputs — the names, and where we actually stand
+
+The pattern for making many sources look like one thing is **Adapter**: one
+wrapper per source, all presenting the same interface. The architecture around
+it is **ports and adapters**, also called **hexagonal architecture** — the core
+declares a port, each vendor gets an adapter into it. The shared target shape is
+a **canonical data model**.
+
+The most precise name for the concern, though, is **anti-corruption layer**
+(Evans, domain-driven design): a translation layer at the boundary whose whole
+job is to stop an external system's model from leaking into yours.
+
+**The goal is NOT "make every source look like the Windy inputs."** That framing
+is the failure mode. Windy should be one adapter among many, not the shape every
+other source has to impersonate.
+
+### The canonical unit is a Snapshot, and the schema already knew
+
+`webcam_snapshots` is keyed by `webcam_id`, carries no source column of its own,
+and is written by the Windy cron, custom cameras, the scene archive, and the
+manual-label route alike. It inherits origin from `webcams.source`. That is a
+correct, source-agnostic canonical model, and it has been right all along.
+
+**The persistence layer got this right. The type layer never did.** Measured
+2026-09-09:
+
+| | |
+|---|---|
+| Files importing `WindyWebcam` | 73 |
+| Total references | 335 |
+| Files importing the vendor-neutral `Webcam` type in `app/lib/types.ts` | **0** |
+
+That neutral type already exists, and its source union already lists
+`openweather`. A second source was contemplated once and the abstraction lost.
+
+Worse, the vendor type is not confined to ingest. It reaches the Gate, the
+quality signal, the tile loaders, every Mosaic Version, and the studio preview
+pool. The clearest evidence is `app/studio/solo/toWebcam.ts`, whose own comment
+says the label card speaks `WindyWebcam`, so an archived bin entry must be
+dressed up as a Windy record to be displayed. That file is the anti-corruption
+layer, built backwards.
+
+### The one blocker: the id is a number
+
+A Snapshot's identity is numeric in three places:
+
+1. `WindyWebcam.webcamId: number` (`app/lib/types.ts`)
+2. The tile maps, `Map<number, { img, webcam }>`, in every Version's
+   `useLoadedTiles`
+3. `insertSnapshotRecord(webcamId: number, …)` in `dbOperations.ts`
+
+Every id arriving from anywhere must therefore be an integer. FAA site
+identifiers are strings. So is every ArcGIS feature id, and so is the text
+`external_id` our own custom cameras already use. This field, not anything
+aesthetic, is what forces the issue.
+
+### Two jobs, and only one blocks the next source
+
+**The ingest job is small.** An adapter maps a source's response to a `webcams`
+row and a `webcam_snapshots` row. `webcams.source` is free text under
+`UNIQUE (source, external_id)`, so this needs no migration. FAA can be added
+this way without touching any of the 73 files, **provided the adapter mints an
+id the display can key on.** Make that minting a documented decision, not a
+workaround.
+
+**The display job is the real anti-corruption layer**, and it is not a
+pre-show refactor. The cheap version: define the neutral Snapshot type as
+exactly what the Gate, the quality signal, and the tile loaders actually read —
+far less than `WindyWebcam` carries — then have new code consume it and convert
+old call sites only when already inside them. Deleting `toWebcam.ts` is the
+signal it worked.
+
+Vocabulary for both jobs is now in `CONCEPTS.md` under **Snapshot** and
+**Source**.
+
+---
+
 ## Tier 1 — take these first
 
 ### 1. FAA WeatherCams
