@@ -137,6 +137,11 @@ boots/config → `snap-now.sh` on the device.
 (incl. `rating-rubric.md`), `docs/hardware/`, `docs/plans/`. Check there before
 re-deriving something.
 
+`docs/image-source-register.md` is the ranked list of places frames could come
+from besides Windy, with the cadence decision (10 minutes stays) and the seam a
+new `webcams.source` value plugs into. Read it before researching image sources
+again.
+
 `CONCEPTS.md` at the repo root is the shared domain vocabulary — the display
 chain (Feed, Pool, Gate, Mosaic, Composition, Tile, Glass, Dial) — relevant when
 orienting or naming things.
