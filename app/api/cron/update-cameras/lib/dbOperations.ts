@@ -336,8 +336,17 @@ export async function insertWindyDisagreementSnapshot(opts: {
   aiModelVersionBinary?: string;
   // Why this row entered the archive. 'trickle' is the unbiased control arm
   // (masterConfig SAVE_RANDOM_TRICKLE_RATE) and must stay separable from the
-  // model-gated reasons, or the arm is unrecoverable after the fact.
-  intakeReason?: 'disagreement' | 'high_rated' | 'trickle' | 'all_rated' | 'kiosk_bin';
+  // model-gated reasons, or the arm is unrecoverable after the fact. 'run' is
+  // whole-evening panel capture and outranks every other reason, because a
+  // panel frame was kept regardless of score and attributing it to a gated
+  // reason would misrepresent it as model-selected.
+  intakeReason?:
+    | 'disagreement'
+    | 'high_rated'
+    | 'trickle'
+    | 'all_rated'
+    | 'kiosk_bin'
+    | 'run';
 }): Promise<number> {
   const [row] = (await sql`
     insert into webcam_snapshots (
