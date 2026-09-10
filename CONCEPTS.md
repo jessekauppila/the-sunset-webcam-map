@@ -7,11 +7,11 @@ are fine. Glossary only, not a spec or catch-all.
 
 ## Relationships
 
-A Feed defines a Pool of candidate webcams. The Gate decides which members of
-that Pool are worth showing. A Mosaic arranges the survivors into a Composition
-of Tiles, and the Composition is what appears on the Glass. Dials are the
-positions that steer every step of that chain, and each Mosaic Version
-interprets its own Dials.
+A Feed defines a Pool of candidate webcams, each of which produces Snapshots.
+The Gate decides which of those Snapshots are worth showing. A Mosaic arranges
+the survivors into a Composition of Tiles, and the Composition is what appears
+on the Glass. Dials are the positions that steer every step of that chain, and
+each Mosaic Version interprets its own Dials.
 
 ## The display chain
 
@@ -32,6 +32,30 @@ Pool membership is defined by fixed geographic and solar-position bounds, not by
 the cameras that happen to be present. This distinction is load-bearing: a
 display axis derived from the Pool's *definition* stays still, while one derived
 from its *present members* moves every time any camera arrives or leaves.
+
+### Snapshot
+One camera's frame at one moment, together with everything the project knows
+about it: when it was captured, where the image is stored, and every score and
+label since attached to it.
+
+Snapshot is the unit the whole chain moves. The Gate judges a Snapshot, a Tile
+is a Snapshot placed in a Composition, and the leaderboard ranks Snapshots.
+
+Snapshot is deliberately source-agnostic, and `webcam_snapshots` is already
+built that way: it is keyed by `webcam_id` and carries no source column of its
+own, inheriting origin from `webcams.source`. A Windy preview, a custom
+camera's upload, and an archived scene frame are the same kind of thing.
+
+*Avoid:* treating a vendor's response type as the unit. `WindyWebcam` is one
+source's wire format, not a Snapshot.
+
+### Source
+Where Snapshots come from. A Source owns one adapter, which is the only code
+that knows that vendor's wire format, and it writes Snapshots keyed to a
+`webcams` row bearing its `source` value.
+
+Adding a Source must not change what anything downstream of the Gate reads.
+When it does, the adapter boundary has leaked.
 
 ### Gate
 The pass/fail judgement that decides whether a single webcam's current frame is
