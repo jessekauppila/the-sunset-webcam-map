@@ -34,7 +34,11 @@ import {
   TERMINATOR_RETENTION_GRACE_MS,
   TERMINATOR_SWEEP_FAILED_HOLD_RATIO,
 } from '@/app/lib/masterConfig';
-import { isFlagEnabled, SWEEP_FORCE_DAY_RING } from '@/app/lib/runtimeFlags';
+import {
+  isFlagEnabled,
+  SWEEP_FORCE_DAY_RING,
+  DISAGREEMENT_INTAKE,
+} from '@/app/lib/runtimeFlags';
 import { classifyCustomCamerasForTick } from './lib/customClassification';
 import { verifyCronAuth } from './lib/auth';
 import { dedupeCoords, fetchCoordsCounted } from './lib/windyApi';
@@ -57,6 +61,7 @@ import {
   updateWebcamAiFields,
   insertWindyDisagreementSnapshot,
 } from './lib/dbOperations';
+import { loadRunPanel } from './lib/runPanel';
 import { computeDisagreementKind, scoreImage } from './lib/aiScoring';
 import { decideBin, enterBins, maintainBins, type Admission } from './lib/binAdmission';
 import { getLiveSettingsCached } from '@/app/lib/settings/liveSettings';
@@ -188,6 +193,14 @@ export async function GET(req: Request) {
   for (const w of sunsetList) feedByExternalId.set(String(w.webcamId), 'sunset');
   const admissions: Admission[] = [];
 
+  // One query per tick, not per frame. Empty when the flag is off.
+  const runPanel = await loadRunPanel();
+
+  // Hard-example mining, switchable without a redeploy. Off since 2026-09-08:
+  // 32,013 banked frames, none labeled. isFlagEnabled fails closed, and closed
+  // means "do not collect", so a database blip costs nothing.
+  const disagreementIntake = await isFlagEnabled(DISAGREEMENT_INTAKE);
+
   // Get mapping of external IDs to internal IDs
   const externalIds = windyAll.map((w) => String(w.webcamId));
   const idByExternal = await getWebcamIdMap(externalIds);
@@ -309,28 +322,49 @@ export async function GET(req: Request) {
       // Drawn independently per frame — no seed, because the point is that
       // nothing about the frame influences whether it is kept.
       const isTrickle = Math.random() < SAVE_RANDOM_TRICKLE_RATE;
+      // Whole-evening capture: this camera's frames are kept regardless of
+      // score, which is the entire point — the model-gated reasons drop the
+      // N-to-1 crossing, and that crossing is what run labeling needs.
+      const isRunPanel = runPanel.has(webcamId);
+      // The disagreement is always COMPUTED and always recorded on the row via
+      // model_disagreement_kind, which is what the Hard Examples queue reads.
+      // Only whether it is a reason to KEEP the frame is switchable. Gated by
+      // the SAME boolean the precedence chain below uses, so a frame that
+      // enters via some other arm (e.g. trickle) and happens to disagree never
+      // gets mislabeled 'disagreement' just because the mining arm is on.
+      const disagreementPersisted = disagreementKind !== null && disagreementIntake;
       const binKind = decideBin(scored);
       const binFeed = feedByExternalId.get(externalId) ?? null;
       const shouldPersist =
-        disagreementKind !== null ||
+        disagreementPersisted ||
         isHighRated ||
         isTrickle ||
+        isRunPanel ||
         SAVE_ALL_RATED_SNAPSHOTS ||
         (binKind !== null && binFeed !== null);
-      // Precedence matters for the analysis, not for the write: a frame that
-      // would have been saved anyway is NOT part of the unbiased arm, so the
-      // gated reasons win and 'trickle' marks only frames nothing else caught.
-      // 'kiosk_bin' likewise marks only frames the bins alone brought in.
-      const intakeReason: 'disagreement' | 'high_rated' | 'trickle' | 'all_rated' | 'kiosk_bin' =
-        disagreementKind !== null
-          ? 'disagreement'
-          : isHighRated
-            ? 'high_rated'
-            : isTrickle
-              ? 'trickle'
-              : SAVE_ALL_RATED_SNAPSHOTS
-                ? 'all_rated'
-                : 'kiosk_bin';
+      // Precedence matters for the analysis, not for the write. 'run' is FIRST:
+      // a panel frame would have been kept whatever it scored, so stamping it
+      // 'disagreement' would make a uniformly sampled frame look model-selected
+      // and silently poison the corpus this panel exists to produce. The
+      // disagreement itself is not lost — model_disagreement_kind is written
+      // independently, and the Hard Examples queue filters on that column, not
+      // on intake_reason. Below 'run', a frame that would have been saved
+      // anyway is NOT part of the unbiased arm, so the gated reasons win and
+      // 'trickle' marks only frames nothing else caught. 'kiosk_bin' likewise
+      // marks only frames the bins alone brought in.
+      const intakeReason:
+        | 'disagreement' | 'high_rated' | 'trickle' | 'all_rated' | 'kiosk_bin' | 'run' =
+        isRunPanel
+          ? 'run'
+          : disagreementPersisted
+            ? 'disagreement'
+            : isHighRated
+              ? 'high_rated'
+              : isTrickle
+                ? 'trickle'
+                : SAVE_ALL_RATED_SNAPSHOTS
+                  ? 'all_rated'
+                  : 'kiosk_bin';
       if (shouldPersist) {
         try {
           const capturedAt = new Date();

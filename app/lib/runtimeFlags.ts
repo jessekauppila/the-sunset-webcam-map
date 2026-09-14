@@ -19,6 +19,16 @@ import { sql } from '@/app/lib/db';
 export const SWEEP_FORCE_DAY_RING = 'sweep_force_day_ring';
 
 /**
+ * Persist a Windy frame because the two model heads disagree (the Hard
+ * Examples mining arm). Off by default: 32,013 frames were already banked
+ * with zero labeled, and hard examples are model-relative, so flip this on
+ * only in the week before a labeling sitting. model_disagreement_kind is
+ * still computed and written on every persisted row regardless of this flag
+ * -- the Hard Examples queue filters on that column, not on intake_reason.
+ */
+export const DISAGREEMENT_INTAKE = 'disagreement_intake';
+
+/**
  * Read one flag. Fails CLOSED: any error, missing row, or non-boolean value
  * reads as off.
  *
