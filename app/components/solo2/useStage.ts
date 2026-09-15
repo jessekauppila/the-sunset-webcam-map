@@ -39,6 +39,6 @@ export function useStage(plan: DwellPlan, startMs: number, tickMs = 250): Stage 
     read();
     const t = setInterval(read, tickMs);
     return () => clearInterval(t);
-  }, [startMs, tickMs, dwellS, frames, stepS, lastStepS, leadS, arrivalS, beatS, changeBeats, restBeats, totalBeats]);
+  }, [startMs, tickMs, dwellS, frames, stepS, lastStepS, leadS, arrivalS, exitS, beatS, changeBeats, restBeats, totalBeats]);
   return stage;
 }
