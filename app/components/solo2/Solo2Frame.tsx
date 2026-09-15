@@ -121,9 +121,14 @@ export function Solo2Frame({ entry, run, previous, stage, plan, dials, width, he
   // and this one rises out of it over the second. So the rise waits half the
   // change. Until the beat the burn-down was the previous dwell's exit.
   const half = arrive.fadeS / 2;
+  // With no previous frame there is nothing to burn down — a kiosk reload or
+  // a studio preview mount — so the rise must not still wait out that half:
+  // it has no veil to rise out of, only black to sit on for no reason.
+  const delay = showPrevious ? half : 0;
+  const delayToken = delay > 0 ? ` ${delay}s` : '';
   const inAnimation =
     arrive.kind === 'crossfade' ? `solo2-fade-in ${arrive.fadeS}s ${ease} both`
-    : arrive.kind === 'dip' ? `solo2-fade-in ${half}s ${ease} ${half}s both`
+    : arrive.kind === 'dip' ? `solo2-fade-in ${half}s ${ease}${delayToken} both`
     : undefined;
   // The outgoing caption's half of that dissolve. A picture needs none — the
   // arriving frame is opaque and covers the one beneath it — but a caption is
@@ -142,7 +147,7 @@ export function Solo2Frame({ entry, run, previous, stage, plan, dials, width, he
   // separates an exposure from a dip through a coloured card. Only on a dip,
   // and only when the lift asks for something.
   const burning = arrive.kind === 'dip' && look.lift !== 1;
-  const burnIn = burning ? `solo2-burn-in ${half}s ${ease} ${half}s both` : undefined;
+  const burnIn = burning ? `solo2-burn-in ${half}s ${ease}${delayToken} both` : undefined;
   // The previous picture's half: it moves toward the veil as the veil closes.
   const burnOutPrev = burning ? `solo2-burn-out ${half}s ${ease} both` : undefined;
   const liftVar = look.lift !== 1 ? ({ '--solo2-lift': String(look.lift) } as React.CSSProperties) : undefined;

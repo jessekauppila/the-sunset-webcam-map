@@ -87,10 +87,9 @@ function PlayingScreen({ feed, server, projected, error, dials, panel, version }
       : { beatS: dials.dwellS, dwellBeats: 1, changeBeats: 0, leadS: 0 },
     Math.max(1, e ? runFor(e).length : 1),
   );
-  // Per frame, not once: the budget stretches a dwell past the dial whenever a
-  // run has more frames than the floor can divide it into, so a walker on the
-  // dial alone cut a stretched run short — the preview jumped to the next
-  // camera mid-timelapse while the glass played the run out.
+  // Per frame, not once: a dwell is whole beats, and `dwellS` is a function
+  // of the frame because a run of more frames takes more beats than one dial
+  // value alone can say.
   const dwell = useSoloPreview(order, (e) => planFor(e).dwellS, 250, solo2 ? (ms) => nearestTick(ms, d2.beatS) : (ms) => ms);
   const now = useNow();
 

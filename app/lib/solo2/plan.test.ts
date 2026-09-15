@@ -29,10 +29,13 @@ describe('fitPlan: whole beats', () => {
     expect(fitPlan({ ...D, beatS: 6 }, 5).stepS).toBe(6);
     expect(fitPlan({ ...D, beatS: 6 }, 5).dwellS).toBe(36); // 1 + 5 beats of 6 s
   });
-  it('at least one frame; whole beats even from odd inputs; the lead is capped at the dwell', () => {
+  it('at least one frame; whole beats even from odd inputs; the lead is capped at the last frame\'s own hold', () => {
     expect(fitPlan(D, 0).frames).toBe(1);
     expect(fitPlan({ ...D, dwellBeats: 2.7, changeBeats: 1.9 }, 1)).toMatchObject({ changeBeats: 1, restBeats: 1, totalBeats: 3 });
-    expect(fitPlan({ ...D, leadS: 30 }, 1).leadS).toBe(16);
+    // One frame: lastStepS = 4 × (1 + 2 rest) = 12, so a huge lead dial is capped there, not at the whole 16 s dwell.
+    expect(fitPlan({ ...D, leadS: 30 }, 1).leadS).toBe(12);
+    // Eight frames leaves no rest: lastStepS = 4 × (1 + 0) = 4.
+    expect(fitPlan({ ...D, leadS: 30 }, 8).leadS).toBe(4);
     expect(fitPlan({ ...D, leadS: -1 }, 1).leadS).toBe(0);
     expect(fitPlan({ ...D, leadS: 3 }, 1).leadS).toBe(3);
   });

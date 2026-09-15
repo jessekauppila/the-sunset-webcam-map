@@ -84,7 +84,7 @@ function tapeDials(d: SoloDials, feed: Feed): TapeDials {
   const look = d2.veilStyle !== undefined ? arrivalLook(feed, d2 as Solo2Dials) : null;
   return {
     dwellS: d.dwellS, fadeS: d.fadeS, transition: d2.transition, sameCameraFadeS: d2.sameCameraFadeS,
-    veil: look ? look.veilColor : '#000000', beatS: d2.beatS,
+    veil: look ? look.veilColor : '#000000', beatS: d2.beatS, dwellBeats: d2.dwellBeats, changeBeats: d2.changeBeats,
   };
 }
 

@@ -139,6 +139,14 @@ it('the defaults dip through black between cameras', () => {
   expect(screen.getByTestId('stack')).toHaveStyle({ animation: `solo2-fade-in 2s ${E} 2s both` });
 });
 
+it('a dip with nothing to burn down rises with no delay, so a reload or a preview mount never opens on black', () => {
+  // No previous frame: there is no veil to close over anything, so the rise
+  // must not still wait out the burn-down's half (2026-09-14).
+  render(<Solo2Frame entry={e} run={[e]} previous={null} stage={{ index: 0, leadProgress: 0 }} plan={plan} dials={D} width={100} height={50} />);
+  expect(screen.queryByTestId('dip')).toBeNull();
+  expect(screen.getByTestId('stack')).toHaveStyle({ animation: `solo2-fade-in 2s ${E} both` });
+});
+
 it('the lead pushes the frame in by progress and lands the next frame still', () => {
   const { rerender } = render(<Solo2Frame entry={e} run={[e]} previous={null} stage={{ index: 0, leadProgress: 0.5 }} plan={plan}
     dials={{ ...D, leadS: 4, leadScale: 1.04 }} width={100} height={50} />);

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { EntryView, TapeEntry } from '@/app/api/kiosk/solo/view';
 import type { BinKind } from '@/app/lib/solo/types';
+import { fitPlan } from '@/app/lib/solo2/plan';
 import type { Run } from './EntryRow';
 import { PX_PER_S, SCALE_NOTE } from './timeScale';
 
@@ -74,6 +75,10 @@ export interface TapeDials {
   veil?: string | null;
   /** The beat, seconds; when present the strip draws a tick grid at this spacing from the seam. */
   beatS?: number;
+  /** The still, in beats; with `beatS` and `changeBeats` present, a projected run's width comes from `fitPlan`, not the nominal still. */
+  dwellBeats?: number;
+  /** The change, in beats; see `dwellBeats`. */
+  changeBeats?: number;
 }
 
 const clock = (ms: number) => new Date(ms).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
@@ -194,8 +199,8 @@ function SeamMark({ testId, seam, px, height }: { testId: string; seam: Seam; px
 function Playhead({ sinceMs, endsAtMs, nowMs }: { sinceMs: number | null; endsAtMs: number | null; nowMs: number | null }) {
   if (sinceMs == null || endsAtMs == null || nowMs == null) return null;
   // The length comes from the server's published end, never from the dwell
-  // dial: a dwell is a budget its frames share, so the dial is only its
-  // nominal value and a run of eight stretches past it.
+  // dial: a dwell is whole beats — a change, one per frame, and a rest on the
+  // last — so a run of eight takes more beats than the dial alone says.
   const dwellS = (endsAtMs - sinceMs) / 1000;
   if (dwellS <= 0) return null;
   const elapsedS = Math.max(0, (nowMs - sinceMs) / 1000);
@@ -236,7 +241,8 @@ export function Tape({ past, current, currentSince, currentEndsAt, next, nextSeq
    * When the current dwell ends, ms since epoch, as published by the server
    * (StateView.current.endsAtMs). The playhead's travel and the last past
    * block's width both come from this rather than from the dwell dial, which
-   * is only a budget's nominal value once frames share it.
+   * is only its nominal value: a dwell is whole beats, a change, one per
+   * frame, and a rest on the last.
    */
   currentEndsAt?: number | null;
   next: EntryView[];
@@ -280,6 +286,17 @@ export function Tape({ past, current, currentSince, currentEndsAt, next, nextSeq
   };
   const dwellPx = (d: TapeDials) => Math.max(MIN_BLOCK_PX, d.dwellS * px);
   /**
+   * A projected block's width: on the beat, a run is `change + played + rest`
+   * beats, not the nominal still `dwellPx` reads — an eight-frame run spans
+   * far more than a one-frame one at the same dials. Falls back to `dwellPx`
+   * (the still alone) when the dials carry no beat fields, which is solo's case.
+   */
+  const projectedPx = (d: TapeDials, played: number) => {
+    if (d.beatS == null || d.dwellBeats == null || d.changeBeats == null) return dwellPx(d);
+    const plan = fitPlan({ beatS: d.beatS, dwellBeats: d.dwellBeats, changeBeats: d.changeBeats, leadS: 0, transition: d.transition }, played);
+    return Math.max(MIN_BLOCK_PX, plan.dwellS * px);
+  };
+  /**
    * The on-glass block is as wide as this dwell actually lasts, from the
    * server's published end, so a run of eight reads wider than a single
    * frame. Falls back to the nominal dial only when the end is unpublished.
@@ -305,10 +322,10 @@ export function Tape({ past, current, currentSince, currentEndsAt, next, nextSeq
 
   past.forEach((f, i) => {
     // Measured, never computed: the next draw's time, else the current
-    // frame's start. A dwell is a budget its frames share, so f.shownAt plus
-    // the dial would be wrong for any run past the floor's threshold, by up
-    // to 2.4x on runs already in the log. With nothing after it to measure
-    // against, the block falls back to one nominal dwell for width alone.
+    // frame's start. A dwell is whole beats — a change, one per frame, and a
+    // rest on the last — so f.shownAt plus the dial would be wrong for any
+    // run of more than one frame. With nothing after it to measure against,
+    // the block falls back to one nominal dwell for width alone.
     const endMs = i + 1 < past.length ? past[i + 1].shownAt : currentSince ?? null;
     const measured = endMs != null;
     const onGlassS = measured ? Math.max(0, (endMs - f.shownAt) / 1000) : pastDials.dwellS;
@@ -355,11 +372,17 @@ export function Tape({ past, current, currentSince, currentEndsAt, next, nextSeq
     seamAfter(i === 0 ? current : next[i - 1], e, nextDials);
     const seq = nextSequences?.[i];
     const stepPx = seq ? Math.max(6, seq.stepS * px) : 0;
-    const total = dwellPx(nextDials);
+    const played = (seq?.earlier.length ?? 0) + 1;
+    const total = projectedPx(nextDials, played);
     const mainWidth = Math.max(MIN_BLOCK_PX, total - (seq?.earlier.length ?? 0) * stepPx);
     // The peak of the group: the highest-quality frame among the run's earlier
-    // frames and the chosen one, ringed the same way the on-glass frame is.
-    const peakId = seq ? [...seq.earlier, e].reduce((a, b) => ((b.quality ?? -1) > (a.quality ?? -1) ? b : a)).snapshotId : null;
+    // frames and the chosen one, ringed the same way the on-glass frame is. A
+    // lone projected frame has no group to peak within — with no earlier
+    // frames it would always "win" against itself, ringing every ordinary
+    // single-frame draw.
+    const peakId = seq && seq.earlier.length > 0
+      ? [...seq.earlier, e].reduce((a, b) => ((b.quality ?? -1) > (a.quality ?? -1) ? b : a)).snapshotId
+      : null;
     const title = `draw ${i + 1} · ${e.title}${place(e) ? ` · ${place(e)}` : ''}`
       + (seq && seq.earlier.length > 0 ? ` · after ${seq.earlier.length} earlier frame${seq.earlier.length === 1 ? '' : 's'} of this camera, ${secs(seq.stepS)} each` : '');
     const cut = seq?.skipped ?? [];

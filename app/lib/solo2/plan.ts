@@ -36,7 +36,7 @@ export interface DwellPlan {
   leadS: number;
   /** The change beat at the front, seconds; frame 1's own beat begins when it ends. */
   arrivalS: number;
-  /** Always 0 (kept so older renderers read the same shape). */
+  /** Always 0: kept only so `Stage`-reading hooks keep one shape; may go once nothing reads it. */
   exitS: number;
   beatS: number;
   /** Beats of veil at the front; 0 for a cut. */
@@ -58,7 +58,7 @@ export interface PlanDials {
 }
 
 /** Beats of change at the front of a dwell: none for a cut, else the dial. */
-function changeBeatsOf(d: Pick<PlanDials, 'changeBeats' | 'transition'>): number {
+export function changeBeatsOf(d: Pick<PlanDials, 'changeBeats' | 'transition'>): number {
   if (d.transition === 'cut') return 0;
   return Math.max(0, Math.floor(d.changeBeats));
 }
@@ -79,12 +79,17 @@ export function fitPlan(d: PlanDials, frames: number): DwellPlan {
   const restBeats = Math.max(0, Math.floor(d.dwellBeats) - n);
   const totalBeats = changeBeats + n + restBeats;
   const dwellS = totalBeats * beatS;
+  const lastStepS = beatS * (1 + restBeats);
   return {
     dwellS,
     frames: n,
     stepS: beatS,
-    lastStepS: beatS * (1 + restBeats),
-    leadS: Math.min(dwellS, Math.max(0, d.leadS)),
+    lastStepS,
+    // Capped at the last frame's own hold, not the whole dwell: the lead is
+    // a push over the picture that is up, so it cannot run longer than that
+    // picture's own step even when earlier beats (the change, the rest)
+    // leave the dwell much longer (spec §2.4).
+    leadS: Math.min(lastStepS, Math.max(0, d.leadS)),
     arrivalS: changeBeats * beatS,
     exitS: 0,
     beatS,
@@ -101,12 +106,10 @@ export const DISSOLVE_SHARE = 0.5;
  * How long one frame of a run takes to dissolve into the next: the dial,
  * capped at a share of the step.
  *
- * The cap is what makes the two screens fade alike. A step is the dwell over
- * the run, so a camera with twelve frames at a 20 s dwell gets a 1.67 s step:
- * uncapped, the 1.5 s dial fills it and that screen never rests, while a
- * three-frame run dissolves for 1.5 s and then holds for 5. One dial, two
- * rhythms — reported 2026-09-06 as the sunset side fading at a different rate
- * from the sunrise side.
+ * The cap is what makes the two screens fade alike. A step is one beat, so
+ * the cap is half a beat, leaving a frame still for the other half — the
+ * dial can only shorten that hold, never erase it. Reported 2026-09-06 as
+ * the sunset side fading at a different rate from the sunrise side.
  */
 export function stepFadeS(sameCameraFadeS: number, p: Pick<DwellPlan, 'stepS'>): number {
   return Math.min(Math.max(0, sameCameraFadeS), p.stepS * DISSOLVE_SHARE);

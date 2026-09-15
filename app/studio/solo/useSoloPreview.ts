@@ -28,11 +28,8 @@ const empty = (startMs: number): PreviewDwell => ({ entry: null, previous: null,
  *
  * `dwellS` is a number when every frame holds for the same time, and a
  * function of the frame when they do not. solo2 needs the function: a dwell is
- * as long as the run it plays, and once a run has more frames than the step
- * floor can divide the budget into, the dwell STRETCHES past the dial
- * (`fitPlan`'s `plan.dwellS`). A single shared period cannot find that
- * boundary, so a stretched run was cut short here while the glass played it
- * whole.
+ * whole beats (`fitPlan`'s `plan.dwellS`), and a run of more frames simply
+ * takes more beats, so no single shared period fits every run the same way.
  *
  * `alignMs` snaps a dwell START onto a grid; solo2 passes the beat's nearest
  * tick so the preview changes frames on the ticks the glass does. It is never

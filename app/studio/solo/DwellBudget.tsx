@@ -17,7 +17,7 @@ export function DwellBudget({ dials, frames = 1 }: { dials: PlanDials; frames?: 
       fontFamily: mono, fontSize: 11, padding: '4px 4px 0', color: '#8b95a7',
     }}>
       {describePlan(plan)}
-      <div style={{ opacity: 0.7 }}>{`${Number(plan.dwellS.toFixed(1))} s · ends on a tick`}</div>
+      <div style={{ opacity: 0.7 }}>{`${Number(plan.dwellS.toFixed(1))} s at the still dial · ends on a tick`}</div>
     </div>
   );
 }

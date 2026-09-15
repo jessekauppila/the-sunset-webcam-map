@@ -1,5 +1,6 @@
 import { it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { ARRIVAL_EASES } from '@/app/lib/solo2/veil';
+import * as planModule from '@/app/lib/solo2/plan';
 import { render, screen } from '@testing-library/react';
 import { Solo2Kiosk } from './index';
 
@@ -150,4 +151,24 @@ it('a frame the pool dropped mid-dwell costs its picture, never the step rate', 
   mocked.mockImplementation(() => ({ ...pinned, entries: [entry(1, 100), entry(3, 300)] }));
   render(<Solo2Kiosk webcams={[]} width={100} height={50} feed="sunset" />);
   expect(screen.getByTestId('top')).toHaveAttribute('src', 'u3');
+});
+
+it('a pinned dwell reads its rest from the published span, not a re-rank of a moving pool', () => {
+  // One pinned frame, a 20 s span (5 beats at beatS 4): dwellBeats input =
+  // 5 − 1 change = 4, restBeats = 4 − 1 = 3, total = 1 + 1 + 3 = 5 beats × 4 s = 20 s.
+  const oneFrame = { ...glass, shownSnapshotIds: [3], shownSince: 0, endsAtMs: 20_000, boundaryMs: 20_000 };
+  mocked.mockImplementation(() => oneFrame);
+  const spy = vi.spyOn(planModule, 'fitPlan');
+  const { rerender } = render(<Solo2Kiosk webcams={[]} width={100} height={50} feed="sunset" />);
+  expect(spy.mock.results.at(-1)?.value.dwellS).toBe(20);
+  spy.mockClear();
+  // A state refresh returns a pool where camera 8 now outranks camera 7 —
+  // under the old re-derivation (`planDialsFor` ranked against `glass.entries`
+  // on every render) this would move `dwellBeats`/`restBeats` under a running
+  // clock even though the pinned frame count never changed (2026-09-14).
+  const stronger = [entry(1, 100), entry(2, 200), { ...entry(3, 300), quality: 0.9 }, { ...entry(9, 250, 8), quality: 0.99 }];
+  mocked.mockImplementation(() => ({ ...oneFrame, entries: stronger }));
+  rerender(<Solo2Kiosk webcams={[]} width={100} height={50} feed="sunset" />);
+  expect(spy.mock.results.at(-1)?.value.dwellS).toBe(20);
+  spy.mockRestore();
 });
