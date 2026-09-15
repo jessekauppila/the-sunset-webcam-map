@@ -70,6 +70,18 @@ export interface TapeEntry extends EntryView {
   shownAt: number;
 }
 
+/**
+ * What the advance did with a draw (rendezvous spec §3): pinned a landing of
+ * its own, fitted to the other screen's, kept the ending run going, or found
+ * no fit and drew plainly. Null for a version with no rendezvous.
+ *
+ * Named apart from rendezvous.ts's `Decision`, which is the engine's fuller
+ * answer (frames, dropped, the landing): this is only the word the response
+ * carries for the studio and the logs.
+ */
+export type AdvanceDecision =
+  'plain' | 'pin' | 'fit' | 'grow' | 'nofit · too soon' | 'nofit · nothing to add' | null;
+
 export interface StateView {
   feed: Feed;
   dials: SoloDials;

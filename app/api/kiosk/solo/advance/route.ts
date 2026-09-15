@@ -8,7 +8,7 @@ import type { Solo2Dials } from '@/app/lib/solo2/types';
 import { isFlagEnabled, SWEEP_FORCE_DAY_RING } from '@/app/lib/runtimeFlags';
 import { sweepGeometry } from '@/app/api/cron/update-cameras/lib/sweepGeometry';
 import { TERMINATOR_DAY_SIDE_OFFSETS_DEG } from '@/app/lib/masterConfig';
-import { buildStateView, parseFeed, toViewEntry } from '../view';
+import { buildStateView, parseFeed, toViewEntry, type AdvanceDecision } from '../view';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -62,19 +62,24 @@ export async function POST(request: Request) {
    * A dwell that has not ended is not drawn over (rendezvous spec, global
    * constraint): the kiosk fires at the end, so only a racing second tab or a
    * stale tab arrives early, and drawing then would cut a grown dwell short —
-   * the very dwell this screen lengthened to meet the other one. Half a beat
-   * of slack, because the request belonging to the ending tick may land just
-   * before it. solo has no beat, so its guard is the end exactly.
+   * the very dwell this screen lengthened to meet the other one.
+   *
+   * The slack is half a beat, and never less than a second: the request
+   * belonging to the ending tick may land just before it, and the kiosk's
+   * clock is not the server's. solo has no beat at all, so without the floor
+   * a tab running a few milliseconds fast would have EVERY advance refused
+   * and the row would stay parked rather than merely be early.
    */
   const ending = screenBefore?.shownSince != null && screenBefore.dwellMs != null
     ? screenBefore.shownSince + screenBefore.dwellMs
     : null;
-  const notYet = ending != null && nowMs < ending - beatMs / 2;
+  const slackMs = Math.max(beatMs / 2, 1_000);
+  const notYet = ending != null && nowMs < ending - slackMs;
   let advanced = false;
   /** True only on the keep-going answer: the ending dwell was lengthened and no new frame was drawn. */
   let grown = false;
   /** What the rendezvous decided, for the studio and the logs; null for a version that has no rendezvous. */
-  let decision: string | null = null;
+  let decision: AdvanceDecision = null;
   let screen = screenBefore;
   if (notYet) {
     // Nothing to decide: fall through to the state view with advanced=false,
@@ -95,21 +100,24 @@ export async function POST(request: Request) {
       let rendezvous = false;
       if (version.fitNext && version.dwellMsFor) {
         // The other screen's pinned landing, and only while it is still ahead
-        // of the clock: a landing already past is nothing to meet.
+        // of the tick this draw starts on — not of the request instant, which
+        // is a few hundred ms either side of it. A landing already past, or on
+        // the very tick we start, is nothing this draw can meet.
         const theirs = await getScreenState(feed === 'sunrise' ? 'sunset' : 'sunrise');
-        const otherPeak = theirs?.peakAtMs != null && theirs.peakAtMs > nowMs ? theirs.peakAtMs : null;
+        const otherPeak = theirs?.peakAtMs != null && theirs.peakAtMs > startMs ? theirs.peakAtMs : null;
         // The run ending on THIS screen, so a fit needing more room than the
         // climb has can ask that run to play on instead of holding anything.
-        const currentId = screenBefore?.currentSnapshotId ?? null;
-        const currentEntry = currentId != null ? entries.find((e) => e.snapshotId === currentId) : undefined;
-        const lastShownId = screenBefore?.shownSnapshotIds?.at(-1) ?? currentId;
+        // Found by the last frame PLAYED, not the frame drawn: a grown run
+        // ends on a frame the draw never named.
+        const lastShownId = screenBefore?.shownSnapshotIds?.at(-1) ?? screenBefore?.currentSnapshotId ?? null;
+        const endingEntry = lastShownId != null ? entries.find((e) => e.snapshotId === lastShownId) : undefined;
         const dec = version.fitNext(
           {
             t0Ms: startMs,
             pick,
             entries,
             role: version.roleAt(slot, feed, dials),
-            ending: currentEntry && lastShownId != null ? { webcamId: currentEntry.webcamId, lastShownId } : null,
+            ending: endingEntry ? { webcamId: endingEntry.webcamId, lastShownId: endingEntry.snapshotId } : null,
           },
           { peakAtMs: otherPeak },
           dials,

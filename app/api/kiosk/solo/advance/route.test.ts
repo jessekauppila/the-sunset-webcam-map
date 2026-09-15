@@ -174,6 +174,33 @@ describe('POST /api/kiosk/solo/advance', () => {
         expect.any(Array), 'solo', expect.any(Number), t0, null, false);
     });
   });
+  describe('the guard leaves slack for a clock that is not the server\'s', () => {
+    // The guard is half a beat of slack, floored at a second. solo has no
+    // beat, so the floor is the whole of its slack: without it a kiosk whose
+    // clock runs a few ms fast would have every advance refused and the row
+    // would never move at all.
+    const T = 1_000_000_000_000;
+    const row = (shownSince: number) => ({
+      feed: 'sunrise', currentSnapshotId: 2, shownSince, slot: 4, sunsetStreak: 0, dwellMs: 20_000,
+    });
+    it('solo still draws for an advance landing 500 ms before the stored end', async () => {
+      // The dwell ends at T + 500; 500 ms early is inside the 1 s floor.
+      getScreenState.mockResolvedValue(row(T - 19_500));
+      const body = await (await post({ feed: 'sunrise', slot: 5 })).json();
+      expect(body.advanced).toBe(true);
+      expect(commitAdvance).toHaveBeenCalled();
+    });
+    it('… but not for one landing 3 s before it', async () => {
+      // The dwell ends at T + 3_000: this is a stale or racing tab, and
+      // drawing now would cut the frame on glass short.
+      getScreenState.mockResolvedValue(row(T - 17_000));
+      const body = await (await post({ feed: 'sunrise', slot: 5 })).json();
+      expect(body.advanced).toBe(false);
+      expect(body.grown).toBe(false);
+      expect(commitAdvance).not.toHaveBeenCalled();
+      expect(body.current.endsAtMs).toBe(T + 3_000);
+    });
+  });
   describe('the rendezvous decides, guards, and keeps going (rendezvous spec §3)', () => {
     // A whole minute is a multiple of the 4 s beat, so this instant is a tick.
     const T0 = Date.UTC(2026, 8, 15, 2, 0, 0);
@@ -237,6 +264,18 @@ describe('POST /api/kiosk/solo/advance', () => {
       expect(body.current.rendezvous).toBe(false);
     });
 
+    it('reads their landing against the tick it starts on, not the instant the request landed', async () => {
+      // The request landed 300 ms before its tick, so the draw still starts at
+      // T0. Their landing (T0 − 100) is ahead of the request instant but behind
+      // that tick, so it is not something this draw can meet — it pins its own
+      // rather than measuring a fit against a landing already gone.
+      vi.setSystemTime(new Date(T0 - 300));
+      screens(null, other(T0 - 100));
+      const body = await (await post({ feed: 'sunset', slot: 0, version: 'solo2' })).json();
+      expect(body.decision).toBe('pin');
+      expect(body.current.peakAtMs).toBe(T0 + 5 * BEAT);
+    });
+
     it('fits to the other screen\'s landing by thinning its climb', async () => {
       // Their peak is 3 beats out, so after the 1 change beat only 2 beats
       // are free before mine must land: thinClimb([1, 2, 3, 4], 2) keeps the
@@ -280,6 +319,22 @@ describe('POST /api/kiosk/solo/advance', () => {
       expect(tallyOf(body)).toMatchObject({ 92: 1, 93: 1, 5: 0 });
     });
 
+    it('finds the ending camera by the frame that played, not by the drawn frame', async () => {
+      // The drawn frame is the camera's newest, and the cap can leave it
+      // unplayed; here it has also left the pool. The run that is ending is
+      // still camera 9's, and the last frame it PLAYED (91) is what says so,
+      // so the grow goes ahead instead of answering "nothing to add".
+      listActiveEntries.mockResolvedValue(pool(night, ending));
+      screens(
+        { feed: 'sunset', currentSnapshotId: 99, shownSince: T0 - 16_000, slot: 4, sunsetStreak: 0,
+          dwellMs: 16_000, shownSnapshotIds: [90, 91], peakAtMs: null, rendezvous: false },
+        other(T0 + 7 * BEAT),
+      );
+      const body = await (await post({ feed: 'sunset', slot: 5, version: 'solo2' })).json();
+      expect(body.decision).toBe('grow');
+      expect(growDwell).toHaveBeenCalledWith('sunset', 4, ids([92, 93]), 16_000 + 2 * BEAT);
+    });
+
     it('a refused grow changes nothing, rather than drawing instead', async () => {
       // growDwell answers false when the row moved under us (another tab drew).
       // Drawing the pick anyway would land it on the wrong tick, so the answer
@@ -319,13 +374,12 @@ describe('POST /api/kiosk/solo/advance', () => {
       expect(body.schedule.slot).toBe(4);
     });
 
-    it('pins nothing when the other screen\'s landing is already inside my change beat', async () => {
-      // The request landed 300 ms BEFORE the tick it belongs to, so the start
-      // is still T0 and their landing (T0) is still ahead of the clock — but
-      // 0 beats out is less than the 1 change beat, so nothing fits and the
-      // draw falls back to the full window with no landing of its own.
-      vi.setSystemTime(new Date(T0 - 300));
-      screens(null, other(T0));
+    it('pins nothing when the other screen\'s landing is inside my change beat', async () => {
+      // Their landing is half a beat out: ahead of my start, so it is read,
+      // but off the grid and inside the 1 change beat, so no number of frames
+      // can reach it. The draw falls back to the full window and pins nothing
+      // of its own — a landing it could not meet is not one to publish.
+      screens(null, other(T0 + BEAT / 2));
       const body = await (await post({ feed: 'sunset', slot: 0, version: 'solo2' })).json();
       expect(body.decision).toBe('nofit · too soon');
       expect(commitAdvance).toHaveBeenCalledWith('sunset', 0, expect.objectContaining({ snapshotId: 5 }), 1,
