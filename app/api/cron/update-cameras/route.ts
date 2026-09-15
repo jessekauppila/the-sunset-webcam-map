@@ -198,7 +198,15 @@ export async function GET(req: Request) {
         const key = sourceKey(cam.source, cam.externalId);
         idByKey.set(key, row.id);
         sourceWebcams.push(toWindyShape(cam));
-        if (before.get(cam.externalId)?.previewUrl === cam.imageUrl) {
+        // A source's change marker is its imageVersion (an ETag, for a source
+        // whose URL never changes) or else the URL itself (which carries the
+        // capture time for FAA). A camera the adapter could not version this
+        // tick compares its URL against a stored ETag, mismatches, and is
+        // fetched: a failed HEAD costs a download, never a dropped frame.
+        const stored = before.get(cam.externalId);
+        const storedMark = stored?.version ?? stored?.previewUrl;
+        const mark = cam.imageVersion ?? cam.imageUrl;
+        if (stored && storedMark === mark) {
           unchangedKeys.add(key);
           unchanged += 1;
         } else {

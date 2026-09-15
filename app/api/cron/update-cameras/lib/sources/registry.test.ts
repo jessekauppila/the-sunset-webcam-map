@@ -3,6 +3,7 @@ import { describe, it, expect, vi } from 'vitest';
 
 vi.mock('@/app/lib/runtimeFlags', () => ({
   SOURCE_FAA: 'source_faa',
+  SOURCE_DIGITRAFFIC: 'source_digitraffic',
   isFlagEnabled: vi.fn(async () => false),
 }));
 
@@ -16,8 +17,8 @@ function fakeSource(name: string, list: Source['listCameras']): Source {
 }
 
 describe('fetchEnabledSources', () => {
-  it('lists FAA as the first and only registered source', () => {
-    expect(SOURCES.map((s) => s.name)).toEqual(['faa']);
+  it('lists the sources in the register\'s order: FAA, then Digitraffic', () => {
+    expect(SOURCES.map((s) => s.name)).toEqual(['faa', 'digitraffic']);
   });
 
   it('does not call a source whose flag is off, and reports it disabled', async () => {

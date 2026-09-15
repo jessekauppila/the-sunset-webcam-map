@@ -1000,7 +1000,11 @@ export async function getCalibrationDigestSummary(): Promise<CalibrationDigestSu
 export async function upsertSourceCameras(cams: SourceCamera[]): Promise<void> {
   for (const c of cams) {
     try {
-      const images = JSON.stringify({ current: { preview: c.imageUrl } });
+      // `version` is the source's own change marker (an ETag) for sources whose
+      // image URL never changes; absent for sources whose URL carries the time.
+      const images = JSON.stringify({
+        current: { preview: c.imageUrl, ...(c.imageVersion ? { version: c.imageVersion } : {}) },
+      });
       const urls = c.attribution ? JSON.stringify({ provider: c.attribution }) : null;
       const azimuthSource = c.azimuthDeg === null ? null : c.source;
       await sql`
@@ -1052,14 +1056,19 @@ export async function upsertSourceCameras(cams: SourceCamera[]): Promise<void> {
 export async function getSourceWebcamMap(
   source: string,
   externalIds: string[],
-): Promise<Map<string, { id: number; previewUrl: string | null }>> {
+): Promise<Map<string, { id: number; previewUrl: string | null; version: string | null }>> {
   if (externalIds.length === 0) return new Map();
   const rows = (await sql`
-    select id, external_id, images->'current'->>'preview' as preview_url
+    select id, external_id,
+           images->'current'->>'preview' as preview_url,
+           images->'current'->>'version' as version
     from webcams
     where source = ${source} and external_id = any(${externalIds})
-  `) as { id: number; external_id: string; preview_url: string | null }[];
-  return new Map(rows.map((r) => [r.external_id, { id: r.id, previewUrl: r.preview_url }]));
+  `) as { id: number; external_id: string; preview_url: string | null; version: string | null }[];
+  return new Map(rows.map((r) => [
+    r.external_id,
+    { id: r.id, previewUrl: r.preview_url, version: r.version ?? null },
+  ]));
 }
 
 export interface SourceDigestRow {

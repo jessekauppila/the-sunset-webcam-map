@@ -1,5 +1,6 @@
 import { isFlagEnabled } from '@/app/lib/runtimeFlags';
 import { faaSource } from './faa';
+import { digitrafficSource } from './digitraffic';
 import { emptyListResult, type Source, type SourceListOptions, type SourceListResult } from './types';
 
 /**
@@ -7,7 +8,7 @@ import { emptyListResult, type Source, type SourceListOptions, type SourceListRe
  * Adding a source is one adapter file and one line here; turning it on is a
  * runtime flag, so nothing here needs a deploy to come back down.
  */
-export const SOURCES: readonly Source[] = [faaSource];
+export const SOURCES: readonly Source[] = [faaSource, digitrafficSource];
 
 export interface SourceTick extends SourceListResult {
   name: string;

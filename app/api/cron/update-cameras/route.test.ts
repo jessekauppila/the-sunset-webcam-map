@@ -976,3 +976,65 @@ describe('sources behind the port', () => {
     expect(scoreMock).toHaveBeenCalledTimes(1);
   });
 });
+
+// A source whose image URL never changes (Digitraffic) carries an imageVersion
+// (the image's ETag) instead; the tick compares that against what it stored.
+describe('sources with a stable image URL and an imageVersion', () => {
+  const dtCam = {
+    source: 'digitraffic', externalId: 'C0150301', title: 'kt51 Inkoo 01',
+    lat: 60.05374, lng: 23.99616,
+    imageUrl: 'https://weathercam.digitraffic.fi/C0150301.jpg',
+    imageAt: null, azimuthDeg: null, hfovDeg: null,
+    country: 'FI', region: null, city: 'Inkoo',
+    attribution: 'Source: Fintraffic / digitraffic.fi, license CC 4.0 BY', operator: 'Fintraffic',
+    imageVersion: '"etag-2"',
+  };
+  const tick = (cameras: unknown[]) => ({
+    name: 'digitraffic', enabled: true, cameras, attempted: 2, failed: 0, failedByStatus: {}, skipped: {}, elapsedMs: 3,
+  });
+
+  it('keeps a camera in the pool without a download when its imageVersion is the stored one', async () => {
+    fetchSourcesMock.mockResolvedValue([tick([dtCam])]);
+    getSourceWebcamMapMock.mockResolvedValue(
+      new Map([['C0150301', { id: '901', previewUrl: dtCam.imageUrl, version: '"etag-2"' }]]),
+    );
+    classifyMock.mockImplementation((webcams: Array<{ webcamId: unknown }>) => ({ sunrise: webcams, sunset: [] }));
+
+    const res = await GET(makeReq());
+    const body = await res.json();
+
+    expect(downloadMock).not.toHaveBeenCalledWith(dtCam.imageUrl);
+    expect(scoreMock).toHaveBeenCalledTimes(1); // Windy only
+    const [rows] = upsertStateMock.mock.calls.find((c) => c[1] === 'sunrise')!;
+    expect(rows).toEqual(expect.arrayContaining([{ webcamId: '901' }]));
+    expect(body.sources.digitraffic).toMatchObject({ changed: 0, unchanged: 1 });
+  });
+
+  it('downloads a camera whose imageVersion moved even though its URL did not', async () => {
+    fetchSourcesMock.mockResolvedValue([tick([dtCam])]);
+    getSourceWebcamMapMock.mockResolvedValue(
+      new Map([['C0150301', { id: '901', previewUrl: dtCam.imageUrl, version: '"etag-1"' }]]),
+    );
+    classifyMock.mockImplementation((webcams: Array<{ webcamId: unknown }>) => ({ sunrise: webcams, sunset: [] }));
+
+    const res = await GET(makeReq());
+    const body = await res.json();
+
+    expect(downloadMock).toHaveBeenCalledWith(dtCam.imageUrl);
+    expect(scoreMock).toHaveBeenCalledTimes(2);
+    expect(body.sources.digitraffic).toMatchObject({ changed: 1, unchanged: 0 });
+  });
+
+  it('downloads a camera the adapter could not version this tick, rather than dropping it', async () => {
+    const { imageVersion: _v, ...unversioned } = dtCam;
+    void _v;
+    fetchSourcesMock.mockResolvedValue([tick([unversioned])]);
+    getSourceWebcamMapMock.mockResolvedValue(
+      new Map([['C0150301', { id: '901', previewUrl: dtCam.imageUrl, version: '"etag-1"' }]]),
+    );
+    const res = await GET(makeReq());
+    const body = await res.json();
+    expect(downloadMock).toHaveBeenCalledWith(dtCam.imageUrl);
+    expect(body.sources.digitraffic).toMatchObject({ changed: 1, unchanged: 0 });
+  });
+});

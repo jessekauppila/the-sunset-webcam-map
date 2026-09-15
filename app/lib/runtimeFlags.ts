@@ -55,3 +55,6 @@ export async function isFlagEnabled(key: string): Promise<boolean> {
  * app/api/cron/update-cameras/lib/sources/registry.ts reads these.
  */
 export const SOURCE_FAA = 'source_faa';
+
+/** Finland Digitraffic road weather cameras (issue #221). Seeded OFF. */
+export const SOURCE_DIGITRAFFIC = 'source_digitraffic';
