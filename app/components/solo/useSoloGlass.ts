@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import type { EntryView, StateView, ViewEntry } from '@/app/api/kiosk/solo/view';
+import type { AdvanceDecision, EntryView, StateView, ViewEntry } from '@/app/api/kiosk/solo/view';
 import type { Feed } from '@/app/lib/solo/types';
 import type { SoloVersionName } from '@/app/lib/solo/versions';
 import { useBuildReload } from '@/app/components/useBuildReload';
@@ -133,12 +133,19 @@ export function useSoloGlass({ feed, drive, dozing, version = 'solo' }: {
             body: JSON.stringify({ feed, slot, version }),
           });
           if (!res.ok) throw new Error(`advance ${res.status}`);
-          const v = (await res.json()) as StateView & { advanced: boolean };
-          // The server accepted the slot but the screen did not move (nothing
-          // eligible to draw). The pool only changes when the cron admits, so
-          // asking again before the next state refresh is asking the same
-          // question.
-          if (v.schedule.slot === screenSlot) notBeforeMs.current = Date.now() + STATE_REFRESH_MS;
+          const v = (await res.json()) as StateView & { advanced: boolean; grown: boolean; decision: AdvanceDecision };
+          // The server accepted the slot but the screen did not move. That
+          // covers three answers (rendezvous spec §3): nothing eligible to
+          // draw (the pool only changes when the cron admits, so asking again
+          // before the next state refresh is asking the same question — back
+          // off); grown (the published end moved later, same dwell); and
+          // guarded (the dwell had not ended, unchanged, its end still ahead).
+          // The latter two carry a future end of their own, so the timer
+          // re-arms on it above rather than backing off for a minute.
+          const endsAt = v.current?.endsAtMs ?? null;
+          if (v.schedule.slot === screenSlot && !v.grown && (endsAt == null || endsAt <= Date.now())) {
+            notBeforeMs.current = Date.now() + STATE_REFRESH_MS;
+          }
           setView(v);
           setError(null);
           if (v.next[0]) void preload(v.next[0].imageUrl);

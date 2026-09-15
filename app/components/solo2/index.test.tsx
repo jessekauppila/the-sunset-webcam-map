@@ -1,7 +1,7 @@
 import { it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { ARRIVAL_EASES } from '@/app/lib/solo2/veil';
 import * as planModule from '@/app/lib/solo2/plan';
-import { render, screen } from '@testing-library/react';
+import { render, screen, act } from '@testing-library/react';
 import { Solo2Kiosk } from './index';
 
 const entry = (id: number, capturedAt: number, webcamId = 7) => ({
@@ -171,4 +171,29 @@ it('a pinned dwell reads its rest from the published span, not a re-rank of a mo
   rerender(<Solo2Kiosk webcams={[]} width={100} height={50} feed="sunset" />);
   expect(spy.mock.results.at(-1)?.value.dwellS).toBe(20);
   spy.mockRestore();
+});
+
+// The grown dwell (rendezvous spec §3, task 8): the ending run plays more of
+// its own camera and the slot never moves, so `shownSince` — the dwell key —
+// is unchanged. The stack must not remount, and the plan re-fits from the
+// wider span so the step continues past the frames that were already up.
+it('a grown dwell keeps the stack mounted and steps into the added frames', () => {
+  const growable = [entry(1, 100), entry(2, 200), entry(3, 300), entry(4, 400), entry(5, 500)];
+  vi.setSystemTime(new Date(0));
+  const threePinned = {
+    ...glass, entries: growable, shownSnapshotIds: [1, 2, 3], shownSince: 0, endsAtMs: 16_000, boundaryMs: 16_000,
+  };
+  mocked.mockImplementation(() => threePinned);
+  const { rerender } = render(<Solo2Kiosk webcams={[]} width={100} height={50} feed="sunset" />);
+  const stackBefore = screen.getByTestId('stack');
+
+  // The grow: two more frames of the same run, the published end 8 s later,
+  // the slot and the dwell's start untouched.
+  const fivePinned = { ...threePinned, shownSnapshotIds: [1, 2, 3, 4, 5], endsAtMs: 24_000, boundaryMs: 24_000 };
+  mocked.mockImplementation(() => fivePinned);
+  rerender(<Solo2Kiosk webcams={[]} width={100} height={50} feed="sunset" />);
+  expect(screen.getByTestId('stack')).toBe(stackBefore); // no remount
+
+  act(() => { vi.advanceTimersByTime(17_000); });
+  expect(screen.getByTestId('top')).toHaveAttribute('src', 'u4'); // the 4th pinned frame, index 3
 });
