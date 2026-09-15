@@ -23,10 +23,18 @@ export type RendezvousDials = Pick<Solo2Dials,
 
 const q = (e: RunEntry) => (e.bin === 'sunset' && e.quality != null ? e.quality : -1);
 
-/** The best-rated sunset frame of a series, or null when it has none. Ties go to the earlier frame. */
+/** The room a cap leaves besides the one frame it always holds (the peak, or `runOf`'s chosen frame). */
+const roomOf = (cap: number) => Math.max(1, Math.floor(cap)) - 1;
+
+/**
+ * The best-rated sunset frame of a series, or null when it has none. Ties go
+ * to the earlier frame — scans in capture order regardless of the array's
+ * own order, so the guarantee holds for any caller, not just one that
+ * happens to pass a capture-sorted series.
+ */
 export function peakOf<T extends RunEntry>(series: T[]): T | null {
   let best: T | null = null;
-  for (const e of series) if (q(e) >= 0 && (best === null || q(e) > q(best))) best = e;
+  for (const e of series.slice().sort(compareCapture)) if (q(e) >= 0 && (best === null || q(e) > q(best))) best = e;
   return best;
 }
 
@@ -56,7 +64,7 @@ export function windowAround<T extends RunEntry>(series: T[], peak: T, cap: numb
   const p = sorted.findIndex((e) => e.snapshotId === peak.snapshotId);
   const climb = sorted.slice(0, Math.max(0, p));
   const after = sorted.slice(p + 1);
-  const room = Math.max(1, Math.floor(cap)) - 1;
+  const room = roomOf(cap);
   const b = Math.max(0, Math.min(climb.length, room, before ?? room));
   // The default takes the NEWEST b of the climb (nothing dropped from inside
   // it); an explicit before thins the whole climb evenly.
@@ -110,7 +118,7 @@ export function fitNext<T extends RunEntry>(mine: MySide<T>, theirs: TheirSide, 
 
   const beatMs = d.beatS * 1000;
   const change = changeBeats(d);
-  const climbMax = Math.min(series.slice().sort(compareCapture).findIndex((e) => e.snapshotId === peak.snapshotId), Math.max(1, cap) - 1);
+  const climbMax = Math.min(series.slice().sort(compareCapture).findIndex((e) => e.snapshotId === peak.snapshotId), roomOf(cap));
   const landing = (before: number) => mine.t0Ms + (change + before) * beatMs;
 
   const T = theirs.peakAtMs;

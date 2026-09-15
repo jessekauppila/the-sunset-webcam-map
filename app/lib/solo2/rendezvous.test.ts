@@ -22,6 +22,11 @@ describe('peakOf', () => {
     expect(peakOf(night)!.snapshotId).toBe(10);
     expect(peakOf(night.filter((x) => x.bin !== 'sunset'))).toBeNull();
   });
+  it('breaks a quality tie by capture time, not array position', () => {
+    // id 2 was captured after id 1, but is listed first in the array.
+    const tied = [f(2, 7, 200, 0.9), f(1, 7, 100, 0.9)];
+    expect(peakOf(tied)!.snapshotId).toBe(1);
+  });
 });
 
 describe('thinClimb', () => {
