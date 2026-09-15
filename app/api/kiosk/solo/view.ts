@@ -99,6 +99,14 @@ export interface StateView {
      * sized for are one decision rather than two derivations that can differ.
      */
     shownSnapshotIds: number[];
+    /**
+     * When this dwell's peak lands, ms since epoch (rendezvous spec §3.3), as
+     * the draw pinned it. Null off the rendezvous dial, for solo, and for a
+     * draw that found nothing to meet and nothing worth pinning.
+     */
+    peakAtMs: number | null;
+    /** True only when this landing was FITTED to the other screen's, rather than pinned for it to meet. */
+    rendezvous: boolean;
   } | null;
   next: EntryView[];
   /** Parallel to `next`: what each draw is inside its bar. All peaks for solo. */
@@ -222,6 +230,8 @@ export function buildStateView(input: {
         slot: screen?.slot ?? null,
         endsAtMs,
         shownSnapshotIds: currentRunIds,
+        peakAtMs: screen?.peakAtMs ?? null,
+        rendezvous: screen?.rendezvous ?? false,
       }
       : null,
     next: next.map((e) => view(byId.get(e.snapshotId)!)),
