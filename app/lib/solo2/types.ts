@@ -41,20 +41,15 @@ export interface Solo2Dials extends SoloDials {
   leadScale: number;
   /** A camera's frames are one item in the bin; a dwell plays them oldest to newest (camera-run spec §2). */
   cameraRun: boolean;
-  /**
-   * The shortest a single frame of a run may hold, seconds — the floor of the
-   * budget rule (dwell-budget spec §3). Below `n* = floor(dwellS / minStepS)`
-   * frames the budget is simply divided more finely and the dwell stays
-   * `dwellS`; above it the dwell stretches rather than the frames shrinking.
-   */
-  minStepS: number;
-  /** Most frames a sunset run may play. Its cap sets the longest possible dwell. */
+  /** The beat, seconds: every frame change lands on a tick of the wall clock at this spacing (beat spec §2.1). One of `BEAT_OPTIONS`. */
+  beatS: number;
+  /** How many beats a single image holds; a run shorter than this rests on its last frame (spec §2.3). */
+  dwellBeats: number;
+  /** Beats of veil at a camera change: the burn-down is the first half, the rise the second. 0 only when the transition is a cut. */
+  changeBeats: number;
+  /** Most frames a sunset run may play; each is one beat. */
   runFramesSunset: number;
-  /**
-   * Most frames a non-sunset run may play. Kept below `n*` by default, which
-   * makes the floor a sunset-only mechanism: below the threshold this dial
-   * buys pictures, never screen time (spec §4.1).
-   */
+  /** Most frames a non-sunset run may play. */
   runFramesOther: number;
   /** Flat: every sunset may play the sunset cap. Rank: a sunset's run sits between the two caps by its rank among the sunsets present. */
   runShape: RunShape;

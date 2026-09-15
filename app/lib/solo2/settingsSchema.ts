@@ -1,6 +1,7 @@
-import type { NumberKnob, SettingsSchema, SettingsValues } from '@/app/lib/settings/schema';
+import type { SettingsSchema, SettingsValues } from '@/app/lib/settings/schema';
 import { SOLO_SETTINGS_SCHEMA } from '@/app/lib/solo/settingsSchema';
 import { dialsFrom } from '@/app/lib/solo/settingsSchema';
+import { BEAT_OPTIONS } from './plan';
 import type { ArrivalEase, RunShape, Screens, Solo2Dials, Transition, VeilCovers, VeilStyle, VeilTint } from './types';
 
 export const SOLO2_NAMESPACE = 'solo2';
@@ -21,27 +22,30 @@ const solo = (key: string) => {
  */
 export const SOLO2_SETTINGS_SCHEMA: SettingsSchema = [
   // ---- glass ----
-  solo('dwellS'),
-  solo('offsetS'),
+  {
+    key: 'beat', kind: 'enum', options: BEAT_OPTIONS.map(String), default: '4',
+    label: 'beat (s)', section: 'glass',
+    description: 'The tick both screens change frames on: seconds 0, 4, 8 \u2026 of every minute at 4. A frame of a run holds one beat; a still holds the dwell below; a camera change holds the change below. Only divisors of a minute, so the grid never drifts from the clock. Both screens read the same clock, so nothing has to be told.',
+  },
+  {
+    key: 'dwellBeats', kind: 'number', min: 1, max: 10, step: 1, default: 3,
+    label: 'still (beats)', section: 'glass',
+    description: 'How many beats a single image holds \u2014 3 beats at a 4 s beat is 12 s. A run with fewer frames than this rests the remainder on its last frame, the picture it arrived at; a longer run simply takes more beats. The rate never changes.',
+  },
   {
     key: 'cameraRun', kind: 'boolean', default: true,
     label: 'camera run', section: 'glass',
     description: 'A camera\'s frames are one item in the bin. A dwell plays them oldest to newest, each for an even share of the dwell, dissolving from one to the next. Off: every frame is its own item, as solo does.',
   },
   {
-    key: 'minStepS', kind: 'number', min: 1, max: 20, step: 0.5, default: 4,
-    label: 'shortest frame (s)', section: 'glass',
-    description: 'The floor under a run\u2019s frames. A dwell is a budget its frames share: with few enough frames they simply divide it and the dwell stays the dwell. Once the share would fall below this, frames hold here instead and the dwell stretches. At a 20 s dwell that threshold is 5 frames.',
-  },
-  {
     key: 'runFramesSunset', kind: 'number', min: 1, max: 20, step: 1, default: 8,
     label: 'most frames, sunset', section: 'glass',
-    description: 'The longest a sunset timelapse may run. Above the threshold each extra frame adds the shortest-frame time to the dwell, so this dial sets the longest dwell the glass can ever show: 8 frames at a 4 s floor is 32 s.',
+    description: 'The longest a sunset timelapse may run, in frames; each frame is one beat, so 8 frames at a 4 s beat is 32 s plus the change.',
   },
   {
     key: 'runFramesOther', kind: 'number', min: 1, max: 20, step: 1, default: 3,
     label: 'most frames, non-sunset', section: 'glass',
-    description: 'The same cap for non-sunsets, deliberately lower. At or below the threshold this buys PICTURES, not time: the dwell stays the dwell however many frames play, so a non-sunset can never hold the screen longer than a single still does. Above the threshold it starts stretching like a sunset.',
+    description: 'The same cap for non-sunsets, deliberately lower. A non-sunset run shorter than the still rests on its last frame like any other, so this dial buys pictures inside the still before it buys time.',
   },
   {
     key: 'runShape', kind: 'enum', options: ['rank', 'flat'], default: 'rank',
@@ -51,12 +55,12 @@ export const SOLO2_SETTINGS_SCHEMA: SettingsSchema = [
   {
     key: 'dwellBoost', kind: 'number', min: 0, max: 100, step: 5, default: 25,
     label: 'best sunset holds longer (%)', section: 'glass',
-    description: 'How much more than the dwell the strongest sunset present holds; sunsets below it get a share of this by rank, down to the trim at the bottom. At 13 s and 25% the best sunset on offer holds 16.25 s. A camera run\u2019s frames share the longer budget, so a strong sunset\u2019s timelapse is longer twice over; the most-frames dial still caps how long that can run. 0 = the dwell.',
+    description: 'How much longer than the still the strongest sunset present holds, percent, rounded to whole beats; sunsets below it get a share by rank, down to the trim at the bottom. At 3 beats and 25% the best sunset on offer holds 4. 0 = the still.',
   },
   {
     key: 'dwellTrim', kind: 'number', min: 0, max: 50, step: 5, default: 25,
     label: 'grey frame holds shorter (%)', section: 'glass',
-    description: 'How much less than the dwell a non-sunset holds, and the weakest sunset present with it. At 13 s and 25% that is 9.75 s. 0 = the dwell; a non-sunset can never hold longer than the dwell whatever the boost says.',
+    description: 'How much shorter than the still a non-sunset holds, and the weakest sunset present with it, percent, rounded to whole beats, never below one. 0 = the still.',
   },
   {
     key: 'leadS', kind: 'number', min: 0, max: 10, step: 0.5, default: 0,
@@ -74,7 +78,11 @@ export const SOLO2_SETTINGS_SCHEMA: SettingsSchema = [
     label: 'camera change', section: 'arrival',
     description: 'The gesture, for both screens. cut: the new picture simply replaces the old. crossfade: the old picture fades out while the new one fades in on top of it. dip: the old picture fades away into a veil, then the new one fades up out of it. Only `dip` reads the veil dial below — the other two are already not ending in darkness.',
   },
-  { ...(solo('fadeS') as NumberKnob), default: 1.5, section: 'arrival', label: 'camera change (s)', description: 'How long a crossfade takes, or a dip (down plus up). Ignored by cut. A crossfade is charged to the front of the arriving dwell. A dip is split: the down half is the leaving dwell\'s exit and the up half is the arriving dwell\'s front. Both sit OUTSIDE the frames, so no picture ever spends its own time arriving or leaving. That makes this dial the gap at a camera change too: one frame\'s time plus this, against one frame\'s time through the middle of a run — watch the dwell line on the Play tab.' },
+  {
+    key: 'changeBeats', kind: 'number', min: 1, max: 2, step: 1, default: 1,
+    label: 'camera change (beats)', section: 'arrival',
+    description: 'How many beats a camera change takes. One beat: the old picture burns down into the veil over the first half and the new one rises over the second, and frame 1 then holds a whole beat of its own. Ignored by cut, which changes on the tick.',
+  },
   {
     key: 'veilStyle', kind: 'enum', options: ['black', 'crossfade', 'lift', 'exposure'], default: 'black',
     label: 'sunrise change', section: 'arrival',
@@ -98,7 +106,7 @@ export const SOLO2_SETTINGS_SCHEMA: SettingsSchema = [
   {
     key: 'sameCameraFadeS', kind: 'number', min: 0, max: 5, step: 0.5, default: 1.5,
     label: 'same camera (s)', section: 'arrival',
-    description: 'How long one frame of a camera takes to dissolve into the next inside the run, and on a change to a later frame of the camera on glass. Never through black. 0 is a cut. Capped at half a step inside a run, so at a 4 s shortest frame nothing above 2 reaches the glass: raise the shortest frame first.',
+    description: 'How long one frame of a camera takes to dissolve into the next inside the run, and on a change to a later frame of the camera on glass. Never through black. 0 is a cut. Capped at half a beat inside a run, so at a 4 s beat nothing above 2 reaches the glass.',
   },
   {
     key: 'arrivalEase', kind: 'enum', options: ['linear', 'gentle', 'soft'], default: 'gentle',
@@ -133,12 +141,18 @@ export const SOLO2_SETTINGS_SCHEMA: SettingsSchema = [
 export function dialsFrom2(values: SettingsValues): Solo2Dials {
   return {
     ...dialsFrom(values),
+    beatS: Number(values.beat),
+    dwellBeats: values.dwellBeats as number,
+    changeBeats: values.changeBeats as number,
+    // Derived, so every consumer of SoloDials still reads seconds (beat spec §2.2).
+    dwellS: (values.dwellBeats as number) * Number(values.beat),
+    fadeS: (values.changeBeats as number) * Number(values.beat),
+    offsetS: 0,
     transition: values.transition as Transition,
     sameCameraFadeS: values.sameCameraFadeS as number,
     leadS: values.leadS as number,
     leadScale: values.leadScale as number,
     cameraRun: values.cameraRun as boolean,
-    minStepS: values.minStepS as number,
     runFramesSunset: values.runFramesSunset as number,
     runFramesOther: values.runFramesOther as number,
     runShape: values.runShape as RunShape,
