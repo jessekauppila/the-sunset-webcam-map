@@ -61,6 +61,21 @@ describe('poolEntries / runOf', () => {
     const grey = [f(1, 7, 100, { bin: 'non_sunset', quality: null }), f(2, 7, 200, { bin: 'non_sunset', quality: null }), f(3, 7, 300, { bin: 'non_sunset', quality: null })];
     expect(runOf(grey[2], grey, true, 2).map((e) => e.snapshotId)).toEqual([2, 3]);
   });
+  it('a duplicated snapshot id is deduped before windowing, not double-counted against the cap', () => {
+    // Two rows for snapshot 2 — the peak — tying on capturedAt/bin/quality (as
+    // any real duplicate must) but differing in tally/isNew, the way a
+    // caller's own pool and its projected queue can each hand back the same
+    // frame. Undeduped, the duplicate would sort right after the peak and
+    // fill the one remaining window slot, bumping frame 3 out entirely and
+    // producing [1, 2, 2] instead of [1, 2, 3].
+    const x = f(1, 7, 100, { quality: 0.3 });
+    const pA = f(2, 7, 200, { quality: 0.9, tally: 0, isNew: false });
+    const pB = f(2, 7, 200, { quality: 0.9, tally: 5, isNew: true });
+    const y = f(3, 7, 300, { quality: 0.5 });
+    const run = runOf(pA, [x, pA, pB, y], true, 3);
+    expect(run.map((e) => e.snapshotId)).toEqual([1, 2, 3]); // each id once, capture order
+    expect(run[1]).toMatchObject({ snapshotId: 2, tally: 5, isNew: true }); // the later-supplied row wins
+  });
 });
 
 describe('the per-bin frame cap (dwell-budget spec §4)', () => {

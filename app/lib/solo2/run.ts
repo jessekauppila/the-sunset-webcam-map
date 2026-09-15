@@ -126,7 +126,9 @@ export function runOf<T extends RunEntry>(
   // Deduplicated by snapshot id: a caller's pool can hand the same frame
   // twice (the studio's `all` mixes its raw bins with a projected queue
   // built from those same frames), and a repeated peak must not double up
-  // in the window.
+  // in the window. The later-supplied row wins the Map, which is safe:
+  // callers never vary capturedAt/bin/quality across duplicate snapshot
+  // ids (project2 clones rows and mutates only tally/isNew/lastShown*).
   const series = [...new Map(entries.filter((e) => e.webcamId === entry.webcamId).map((e) => [e.snapshotId, e])).values()]
     .sort(compareCapture);
   const peak = peakOf(series);
