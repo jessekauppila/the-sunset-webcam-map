@@ -28,6 +28,13 @@ export interface SourceCamera {
   lng: number;
   /** The current frame. Compared tick to tick: an unchanged URL is not re-fetched. */
   imageUrl: string;
+  /**
+   * The source's own marker for "this is a new frame" when the URL does not
+   * carry one: an ETag or Last-Modified from a HEAD. Compared tick to tick in
+   * place of the URL when present. Leave undefined for a source whose URL
+   * changes with every frame (FAA stamps the capture time into the filename).
+   */
+  imageVersion?: string;
   /** When the source says the frame was taken, ISO 8601, or null if it does not say. */
   imageAt: string | null;
   /** Published camera direction, degrees clockwise from true north. */

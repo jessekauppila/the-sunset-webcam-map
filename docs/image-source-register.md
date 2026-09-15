@@ -301,6 +301,18 @@ partial: which way along the road, not a compass bearing. Image is
 fixed attribution: "Source: Fintraffic / digitraffic.fi, license CC 4.0 BY"
 (terms of service page). Rate limits unstated.
 
+**Built 2026-09-15** (`app/api/cron/update-cameras/lib/sources/digitraffic.ts`,
+issue #221, flag `source_digitraffic` seeded OFF). What the build taught:
+the station list carries no image URLs (derived from the preset id instead,
+so the hot path is one list call every ten minutes) and no per-image time
+(`dataUpdatedTime` is identical on all 810 stations), and the image URL
+never changes. So the port gained `imageVersion`: one HEAD per in-band
+preset per tick, the ETag compared against the one stored in
+`webcams.images.current.version`. A failed HEAD leaves the frame versionless
+and it is fetched, never dropped. Direction and presentation name live only
+in the per-station detail and are not read; aim stays null. Station names
+like `kt51_Inkoo` give the title ("kt51 Inkoo 01") and the place ("Inkoo").
+
 ### 10. US state 511 systems
 
 Washington (WSDOT), New York, Arizona, Georgia, California. Thousands of
