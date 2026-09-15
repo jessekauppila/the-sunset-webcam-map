@@ -70,7 +70,7 @@ it('a run stacks the earlier frames above the newest one, each labelled i/k with
   expect(screen.queryByText('PRELUDE')).toBeNull();
 });
 
-it('a peaked run shows the frame it actually ends on, not the row\'s own entry, while the click target and place text stay the entry', () => {
+it('a peaked run shows and opens the frame it actually ends on, not the row\'s own entry, while the place text stays the entry', () => {
   const onClick = vi.fn();
   const earlier = [
     { ...e, ...tz, snapshotId: 5, imageUrl: 'u5', capturedAt: AT - 44 * 60_000 },
@@ -89,9 +89,11 @@ it('a peaked run shows the frame it actually ends on, not the row\'s own entry, 
   expect(main).toHaveTextContent('rating 2.2'); // scoreLine of quality 0.3
   expect(main).not.toHaveTextContent('rating 5.0'); // quality 0.99 would round to this
   expect(main).toHaveTextContent('Pier 8');
-  // The click target and the place/time text stay the row's own entry (9, 7:42 pm).
+  // The click target follows the frame actually shown (8), not the row's own
+  // entry (9) — so it's always a frame the pop-up's list actually contains.
+  // The place/time text still reads off the entry (9, 7:42 pm; same camera).
   fireEvent.click(main);
-  expect(onClick).toHaveBeenCalledWith(expect.objectContaining({ snapshotId: 9 }));
+  expect(onClick).toHaveBeenCalledWith(expect.objectContaining({ snapshotId: 8 }));
   expect(main).toHaveTextContent('7:42 pm');
 });
 

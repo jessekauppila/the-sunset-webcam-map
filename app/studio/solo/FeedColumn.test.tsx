@@ -194,6 +194,14 @@ it('solo2 groups a peaked run by the played window, not by the camera\'s newest 
   // played window (1, 2, 3). One camera alone fills the whole queue, so the
   // same six-frame cycle repeats; check the first cycle rather than the length.
   expect(list.slice(0, 6)).toEqual([4, 5, 6, 1, 2, 3]);
+  // Clicking the box itself (its main button, the run's last-played frame)
+  // selects frame 3, not frame 6 — and frame 3 is actually in the list, since
+  // it's the frame the dwell really ends on.
+  const rowButtons = within(group).getAllByRole('button');
+  fireEvent.click(rowButtons[rowButtons.length - 1]);
+  const lastCall = onSelect.mock.calls[onSelect.mock.calls.length - 1];
+  expect(lastCall[0]).toEqual(expect.objectContaining({ snapshotId: 3 }));
+  expect(lastCall[2].map((e: { snapshotId: number }) => e.snapshotId).slice(0, 6)).toContain(3);
 });
 
 it('a bin the queue has emptied says so in one line instead of three zero stages', async () => {

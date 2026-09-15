@@ -298,13 +298,17 @@ it('a peaked, cap-cut run\'s main block shows the window\'s last frame, not the 
   // the newest (index 5, the row's own `next` entry) sits outside the window.
   const frame = (i: number, quality: number) => ({ ...entry(200 + i), quality, imageUrl: `u${i}` });
   const seq = { earlier: [frame(0, 0.5), frame(1, 0.95)], last: frame(2, 0.6), skipped: [], stepS: 4 };
+  const onSelect = vi.fn();
   render(<Tape past={[]} current={null} next={[frame(5, 0.4)]} nextSequences={[seq]}
-    pastDials={{ dwellS: 12, fadeS: 4 }} nextDials={{ dwellS: 12, fadeS: 4 }} onSelect={vi.fn()} />);
+    pastDials={{ dwellS: 12, fadeS: 4 }} nextDials={{ dwellS: 12, fadeS: 4 }} onSelect={onSelect} />);
   // The main block's picture is frame 2's, not frame 5's (the camera's newest).
   expect(screen.getByTestId('tape-next-0').querySelector('img')).toHaveAttribute('src', 'u2');
   // The peak (frame 1, quality 0.95) rings; the main block (frame 2, quality 0.6) does not.
   expect(screen.getByTestId('tape-next-0-pre-201').style.boxShadow).toContain('#f5a344');
   expect(screen.getByTestId('tape-next-0').style.boxShadow).not.toContain('#f5a344');
+  // Clicking the main block reports frame 2 (the run's last), not frame 5.
+  fireEvent.click(screen.getByTestId('tape-next-0'));
+  expect(onSelect).toHaveBeenCalledWith(expect.objectContaining({ snapshotId: 202 }));
 });
 
 describe('zoom', () => {

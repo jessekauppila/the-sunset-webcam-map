@@ -409,14 +409,14 @@ export function Tape({ past, current, currentSince, currentEndsAt, next, nextSeq
           ))}
           <Thumb testId={`tape-next-${i}`} src={last.imageUrl} width={mainWidth} height={thumbH} color={COLOR[e.bin]} dashed
             ring={last.snapshotId === peakId} rating={last.bin === 'sunset' ? last.quality : null} ratingId={last.snapshotId}
-            repeat={repeatOf(e.snapshotId)} title={title} onClick={() => onSelect(e)} />
+            repeat={repeatOf(last.snapshotId)} title={title} onClick={() => onSelect(last)} />
         </div>,
       );
     } else {
       blocks.push(
         <Thumb key={`next-${i}`} testId={`tape-next-${i}`} src={last.imageUrl} width={total} height={thumbH} color={COLOR[e.bin]} dashed
           ring={last.snapshotId === peakId} rating={last.bin === 'sunset' ? last.quality : null} ratingId={last.snapshotId}
-          repeat={repeatOf(e.snapshotId)} title={title} onClick={() => onSelect(e)} />,
+          repeat={repeatOf(last.snapshotId)} title={title} onClick={() => onSelect(last)} />,
       );
     }
   });

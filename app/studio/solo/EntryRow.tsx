@@ -108,7 +108,7 @@ export function EntryRow({
   const stepPx = grouped ? Math.max(MIN_FRAME_PX, run.stepS * PX_PER_S) : undefined;
 
   const main = (
-    <button type="button" onClick={() => onClick(e)} title={title} style={{
+    <button type="button" onClick={() => onClick(shown)} title={title} style={{
       display: 'grid', gridTemplateColumns: '46px 1fr', gap: 5, alignItems: 'center', width: '100%',
       textAlign: 'left', borderRadius: 5, padding: 3, marginBottom: grouped ? 0 : 4,
       border: grouped ? `1px solid ${LIGHT}` : `1.5px solid ${COLOR[e.bin]}`,
