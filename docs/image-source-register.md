@@ -252,8 +252,8 @@ the platform, not the resort.
 |---|---|
 | Scale | British Columbia coast and mountains |
 | License | **Open Government Licence — BC, commercial use permitted** |
-| Access | Open511 spec, XML or JSON; `github.com/bcgov/drivebc-webcam-api` |
-| Verified | Documented, endpoints not called |
+| Access | `https://images.drivebc.ca/webcam/api/v1/webcams` (JSON, no key); `github.com/bcgov/drivebc-webcam-api` |
+| Verified | **Called 2026-09-15**: 1,077 cameras, 1,057 on, lat 48–60; compass `orientation` on every camera (N/E/S/W plus diagonals); `imageStats.updatePeriodMean` p50 906 s, p90 1,077 s (a fifteen-minute cadence, not ten); image at `https://www.drivebc.ca/images/{id}.jpg` is **800×468 JPEG ~49 KB** with an ETag (the legacy `images.drivebc.ca/bchighwaycam/pub/cameras/{id}.jpg` is 420×315 PNG); `credit` carries a few partner attributions (TransLink). OGL-BC requires the attribution statement. |
 
 The cleanest license in the register, and the only one that states commercial
 use outright. There is a dedicated webcam API repository, not just a traffic
@@ -266,6 +266,16 @@ minute. Fixes a real hole: the terminator pool is northern-hemisphere heavy,
 and New Zealand runs the opposite season, so it changes what the band looks
 like in our winter.
 
+**Verified 2026-09-15:** `https://www.journeys.nzta.govt.nz/assets/map-data-cache/cameras.json`
+(GeoJSON, no key) lists 313 cameras, 56 offline, lat −36 to −46, with a
+`Direction` field (Northbound/Southbound/Eastbound/Westbound) and a prose
+`Description` ("South along Western Belfast Bypass…"). Same data at
+`trafficnz.info/service/traffic/rest/4/cameras/all`. Image
+`https://www.trafficnz.info/camera/{id}.jpg` is **800×448 JPEG ~44 KB**, ETag +
+Last-Modified. **Licence for the images is not stated**: the website's content
+is CC BY 4.0 (and in one place CC BY-NC 4.0), and traffic footage is otherwise
+an OIA request. Ask before building.
+
 ### 8. Live Traffic NSW (Australia)
 
 GeoJSON carrying image URL, coordinates, **and a view description field** —
@@ -277,6 +287,19 @@ partial aim, unstructured but parseable. Sydney metro plus statewide.
 documented ETag conditional requests, thumbnail parameter available. Nordic
 latitudes mean long twilight. The zero-friction option if FAA turns out
 harder than expected.
+
+**Verified 2026-09-15:** `https://tie.digitraffic.fi/api/weathercam/v1/stations`
+(GeoJSON; the API answers 406 unless the request sends `Accept-Encoding: gzip`,
+and asks for a `Digitraffic-User` header naming the caller) lists **810
+stations / 2,276 presets**, 807 gathering, lat 59.9–70.1. Per station
+(`/stations/{id}`): `collectionInterval: 600`, and per preset `resolution`
+(1280x720), `imageUrl` (`https://weathercam.digitraffic.fi/{presetId}.jpg`),
+`presentationName` and a `direction` that is road-relative
+(INCREASING_DIRECTION / DECREASING_DIRECTION / SPECIAL_DIRECTION), so aim is
+partial: which way along the road, not a compass bearing. Image is
+**1280×720 JPEG ~277 KB**, ETag + Last-Modified. Licence **CC BY 4.0** with a
+fixed attribution: "Source: Fintraffic / digitraffic.fi, license CC 4.0 BY"
+(terms of service page). Rate limits unstated.
 
 ### 10. US state 511 systems
 
@@ -291,6 +314,35 @@ Statens vegvesen, Trafikverket, and road.is. Expected to be the same shape as
 Digitraffic. **Unverified — I did not confirm these exist as open APIs.**
 
 ---
+
+## The second adapter — measured 2026-09-15
+
+With FAA built (issue #204) and waiting on its token, three keyless
+candidates were called the same day:
+
+| | Digitraffic (FI) | DriveBC (CA) | NZTA (NZ) |
+|---|---|---|---|
+| Cameras | 810 stations / 2,276 presets | 1,077 | 313 |
+| Latitude | 60–70 N | 48–60 N | 36–46 S |
+| Aim | road-relative direction per preset | compass orientation per camera | Northbound/Southbound + prose |
+| Image | 1280×720 ~277 KB | 800×468 ~49 KB | 800×448 ~44 KB |
+| Cadence | 600 s stated | ~15 min measured | unmeasured |
+| Conditional fetch | ETag | ETag | ETag |
+| Licence | CC BY 4.0, fixed credit line | OGL-BC, attribution statement | images unstated |
+| Key | none (two headers) | none | none |
+
+**Digitraffic is the second adapter.** Best image, stated ten-minute cadence,
+the highest latitudes on the list after Alaska, a licence that says exactly
+what to print. It also proves the port's shape in the way FAA cannot: string
+preset ids, a two-level station→preset listing, and a credit line that must
+reach the glass. DriveBC is a close third on numbers but its measured cadence
+is fifteen minutes and its resolution is Windy-class. NZTA fills the
+southern-hemisphere hole and should be asked about image licensing now, since
+that has lead time.
+
+**Every one of these needs attribution shown beside the picture** (as do the
+442 third-party FAA sites). That display work, not another adapter, is the
+prerequisite for turning any second source on.
 
 ## Tier 3 — small networks, exceptional framing
 
