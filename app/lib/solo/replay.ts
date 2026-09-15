@@ -232,7 +232,11 @@ function openScreen<D extends SoloDials>(o: ReplayOptions<D>): Screen<D> {
     // The counter continues the recorded sequence rather than being derived
     // from fromMs, so `rest` compares against the same numbers the log holds.
     slot: (o.priorDraws.at(-1)?.slot ?? -1) + 1,
-    atMs: o.fromMs,
+    // Every dwell begins on a tick (beat spec §2.6), and `fitNext` refuses a
+    // landing that is not a whole number of beats away, so a replay that
+    // started off the grid produced times its own arithmetic would reject.
+    // Identity for solo, which has no beat: its strip is unchanged.
+    atMs: o.version.startMs(o.fromMs, o.dials),
   };
 }
 
@@ -395,16 +399,24 @@ export function replayPair<D extends SoloDials>(o: PairOptions<D>): PairResult {
       { peakAtMs: theirs && theirs.atMs > s.atMs ? theirs.atMs : null },
       dials,
     );
+    /** This screen is drawing: a pin of its own that nothing met has passed, and the new one replaces it. */
+    const settle = (next: number | null) => {
+      const mine = pins[side];
+      if (mine && !mine.matched) counts.missed += 1;
+      pins[side] = next == null ? null : { atMs: next, matched: false };
+    };
     if (dec.kind === 'grow') {
       // A grow that adds nothing would leave the clock where it is and the
-      // loop would never end. fitNext never returns one; this says so aloud.
-      if (dec.add.length === 0 || s.frames.length === 0) return plain;
+      // loop would never end. fitNext never returns one; this says so aloud —
+      // and settles the pin, because what happens instead IS a draw, and a pin
+      // must not outlive its own screen's draw.
+      if (dec.add.length === 0 || s.frames.length === 0) {
+        settle(null);
+        return plain;
+      }
       counts.grown += dec.add.length;
       return { kind: 'grow', add: dec.add, addedMs: dec.add.length * beatMsOf(dials) };
     }
-    // This screen is drawing, so a pin of its own that nothing met has passed.
-    const mine = pins[side];
-    if (mine && !mine.matched) counts.missed += 1;
     if (dec.kind === 'fit') {
       counts.made += 1;
       counts.dropped += dec.dropped.length;
@@ -419,7 +431,7 @@ export function replayPair<D extends SoloDials>(o: PairOptions<D>): PairResult {
         sunsetSlot: side === 'sunset' ? s.slot : theirSlot,
       });
     }
-    pins[side] = dec.kind === 'pin' ? { atMs: dec.peakAtMs, matched: false } : null;
+    settle(dec.kind === 'pin' ? dec.peakAtMs : null);
     return {
       kind: 'draw',
       shown: dec.frames,

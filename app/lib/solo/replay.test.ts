@@ -128,6 +128,21 @@ describe('replay', () => {
     expect(first.dwellMs).toBeGreaterThanOrEqual(20_000);
   });
 
+  it('solo2 starts its clock on the nearest tick; solo starts where it is asked', () => {
+    const d2 = { ...dialsFrom2(schemaDefaults(SOLO2_SETTINGS_SCHEMA)), dwellS: 20, offsetS: 10, cameraRun: true, dwellBoost: 0, dwellTrim: 0 };
+    // 1.3 s past a tick: the dwell belongs to the tick the kiosk fired on, and
+    // every landing is measured in whole beats from there (beat spec §2.6).
+    const off = at(SLOT0) + 1_300;
+    const many = [1, 2, 3].map((i) => sun(i, 0.9 - i * 0.01, { webcamId: 7, capturedAt: i }));
+    const beat2 = replay({ feed: FEED, version: SOLO_VERSIONS.solo2, dials: d2, entries: many, priorDraws: [], fromMs: off, toMs: off });
+    expect(beat2.frames[0].shownAt).toBe(at(SLOT0)); // the nearest tick, 1.3 s back
+    expect(beat2.frames[0].shownAt % (d2.beatS * 1000)).toBe(0);
+    expect(beat2.fromMs).toBe(off); // the window asked for is still the window reported
+    // solo has no beat, so its clock starts exactly where the caller put it.
+    const flat = replay({ feed: FEED, version: solo, dials: D, entries, priorDraws: [], fromMs: off, toMs: off });
+    expect(flat.frames[0].shownAt).toBe(off);
+  });
+
   it('parity: seeded from the first five draws, reproduces draws six to twelve', () => {
     const picks = solo.project(entries, D, { lastSnapshotId: null, sunsetStreak: 0 }, 12, SLOT0, FEED);
     const prior = drawsOf(picks.slice(0, 5), SLOT0);
@@ -319,8 +334,10 @@ describe('replayPair (rendezvous spec §5)', () => {
     const off = { ...D2, rendezvous: false };
     const sunriseNight = [shot(51, 27, 100, 0.4), shot(52, 27, 200, 0.95), shot(53, 27, 300, 0.5)];
     const sunsetNight = [shot(61, 28, 100, 0.3), shot(62, 28, 200, 0.9)];
-    const a = () => opts('sunrise', sunriseNight, T0, T0 + beat(12), off);
-    const b = () => opts('sunset', sunsetNight, T0 + beat(1), T0 + beat(12), off);
+    // Off-tick starts on purpose: both paths snap to the same grid, so the
+    // equality holds for a window that begins wherever the caller says.
+    const a = () => opts('sunrise', sunriseNight, T0 + 1_300, T0 + beat(12), off);
+    const b = () => opts('sunset', sunsetNight, T0 + beat(1) + 1_300, T0 + beat(12), off);
     const pair = replayPair({ sunrise: a(), sunset: b() });
     expect(pair.rendezvous).toEqual({ made: 0, missed: 0, dropped: 0, grown: 0, landings: [] });
     expect(pair.sunrise).toEqual(replay(a()));

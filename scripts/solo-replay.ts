@@ -209,7 +209,13 @@ async function main(): Promise<void> {
     return { summaries, agreement };
   };
 
-  const pair = prepared.length === 2 ? replayPair({ sunrise: prepared[0].options, sunset: prepared[1].options }) : null;
+  // By name, never by position: which screen is which is the whole point of
+  // the pair, and it must not depend on the order `feeds` happened to be in.
+  const byFeed = (feed: Feed) => prepared.find((p) => p.feed === feed);
+  const both = { sunrise: byFeed('sunrise'), sunset: byFeed('sunset') };
+  const pair = both.sunrise && both.sunset
+    ? replayPair({ sunrise: both.sunrise.options, sunset: both.sunset.options })
+    : null;
   let single: ({ re: Strip } & ReturnType<typeof report>) | null = null;
   for (const [i, p] of prepared.entries()) {
     if (i > 0) console.log('\n————\n');
@@ -230,6 +236,7 @@ async function main(): Promise<void> {
     const payload = pair
       ? { sunrise: pair.sunrise, sunset: pair.sunset, rendezvous: pair.rendezvous, dials: deviations }
       : { actual: prepared[0].actual, replay: single!.re, summaries: single!.summaries, agreement: single!.agreement, dials: deviations };
+    // (the single-feed payload has exactly one prepared screen, so [0] is it)
     writeFileSync(args.json, JSON.stringify(payload, null, 2));
     console.log(`\nwrote ${args.json}`);
   }
