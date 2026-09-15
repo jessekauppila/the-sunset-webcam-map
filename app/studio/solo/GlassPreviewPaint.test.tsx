@@ -54,7 +54,7 @@ it('paints the new run from its OLDEST frame, with no later picture in between',
   const { SOLO_VERSIONS } = await import('@/app/lib/solo/versions');
   const { SOLO2_SETTINGS_SCHEMA, dialsFrom2 } = await import('@/app/lib/solo2/settingsSchema');
   vi.useFakeTimers();
-  const d2 = { ...dialsFrom2(schemaDefaults(SOLO2_SETTINGS_SCHEMA)), dwellS: 6, sameCameraFadeS: 1, minStepS: 1, dwellBoost: 0, dwellTrim: 0 };
+  const d2 = { ...dialsFrom2(schemaDefaults(SOLO2_SETTINGS_SCHEMA)), beatS: 1, dwellBeats: 6, sameCameraFadeS: 1, dwellBoost: 0, dwellTrim: 0 };
   // BOTH cameras need a multi-frame run. The outgoing dwell's stage index is
   // what gets stranded, so a camera on glass with a run of ONE ends at index 0
   // and strands nothing — the fixture, not the code, is what decides whether
