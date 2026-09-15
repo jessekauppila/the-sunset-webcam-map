@@ -38,7 +38,7 @@ describe('Rail, solo kind', () => {
     for (const k of CAPTION_SCHEMA) expect(screen.queryByLabelText(k.label)).toBeNull();
     for (const k of ARRIVAL_KNOBS) expect(screen.queryByLabelText(k.label)).toBeNull();
     expect(screen.getByText('valleys per peak')).toHaveStyle({ fontWeight: 700 });
-    expect(screen.getByText('dwell (s)')).toHaveStyle({ fontWeight: 400 });
+    expect(screen.getByText('still (beats)')).toHaveStyle({ fontWeight: 400 });
     expect(screen.getByRole('tab', { name: 'Play' })).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByText('TAKES')).toBeInTheDocument();
     expect(screen.queryByText(/glass .* · dials/)).toBeNull();

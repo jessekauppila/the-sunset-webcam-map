@@ -4,7 +4,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import type { EntryView, StateView } from '@/app/api/kiosk/solo/view';
 import type { Feed, SoloDials } from '@/app/lib/solo/types';
 import type { SoloVersionSpec } from '@/app/lib/solo/versions';
-import { budgetS, cameraGroups, capFor, planDialsFor, representative, runOf, standsFor } from '@/app/lib/solo2/run';
+import { budgetBeats, cameraGroups, capFor, planDialsFor, representative, runOf, standsFor } from '@/app/lib/solo2/run';
 import { fitPlan } from '@/app/lib/solo2/plan';
 import { SOLO2_SETTINGS_SCHEMA } from '@/app/lib/solo2/settingsSchema';
 import type { Solo2Dials } from '@/app/lib/solo2/types';
@@ -144,7 +144,7 @@ export function FeedColumn({ feed, server, projected, liveDials, nowMs, version,
   // solo2: a row is as tall as its time on glass, and a camera is one box.
   const d2 = version?.name === 'solo2' ? (projected.dials as Solo2Dials) : null;
   // A lone frame's box is as tall as its own budget, which the spread dial swings per draw.
-  const rowSFor = (e: EntryView) => (d2 ? budgetS(e, d2, all, !!d2.cameraRun) : undefined);
+  const rowSFor = (e: EntryView) => (d2 ? budgetBeats(e, d2, all, !!d2.cameraRun) * d2.beatS : undefined);
   const grouping = !!d2?.cameraRun;
   const all: EntryView[] = [...projected.bins.sunset, ...projected.bins.nonSunset, ...queue];
   /**
