@@ -114,13 +114,12 @@ camera change is a whole beat (4 s, not 3), and a still holds 12 s (not 13).
 ### 2.6 Server and glass
 
 - `POST /api/kiosk/solo/advance` computes `dwellMs = totalBeats · beatS · 1000`
-  and `endsAtMs = tickAfter(nowMs) + dwellMs`, where `tickAfter` is the next
-  grid instant at or after the request. `shownSince` is that tick, not the
-  request time. The kiosk already fires the advance at `endsAtMs`
-  (`useSoloGlass.ts`), so the boundary lands on the tick and the next dwell
-  starts on it. A late advance (network) starts on the next tick after it
-  lands; the screen holds the old picture one beat longer, which is on the
-  grid too.
+  and `endsAtMs = nearestTick(nowMs) + dwellMs`. `shownSince` is that tick,
+  not the request time. The kiosk already fires the advance at `endsAtMs`
+  (`useSoloGlass.ts`), so the request lands a few hundred ms after the tick
+  and belongs to it; "the next tick at or after" would lose a beat on every
+  change. A request more than half a beat late starts on the following tick;
+  the screen holds the old picture one beat longer, which is on the grid too.
 - Nothing about idempotency changes: the slot is still a counter.
 - `Solo2Frame` / `useStage` render from `stageAt`; their fade code is
   unchanged except that a change is one beat.
@@ -344,12 +343,15 @@ migration.
 ## 7. Phases
 
 1. **The beat.** `beatS`, `dwellBeats`, `changeBeats` replace `minStepS`,
-   `dwellS`, `fadeS` in the `solo2` namespace; the plan in beats; tick-aligned
-   `endsAtMs`; the one tape with the grid and the rating bars; replay in beats.
-   Ships alone and is visible at once: both screens changing frames together.
-2. **The rendezvous.** The window around the peak; `peak_at`; the fit and the
-   pin; the three dials; ties, ghosts and labels on the tape; the replay
-   counts. Flag off by default; turned on from /studio.
+   `dwellS`, `fadeS`, `offsetS` in the `solo2` namespace; the plan in beats;
+   tick-aligned `endsAtMs`; the beat grid, rating bars and peak ring on the
+   existing per-screen tapes; replay in beats. Ships alone and is visible at
+   once: both screens changing frames together. Plan:
+   `docs/superpowers/plans/2026-09-14-solo2-beat.md`.
+2. **The rendezvous.** One tape for two screens (§4.1); the window around
+   the peak; `peak_at`; the fit, the grow and the pin; the two dials; ties,
+   ghosts and labels on the tape; the replay counts. Flag off by default;
+   turned on from /studio.
 3. **Later, not designed:** the search version of the fit (§3.9); a text
    entry point for the piece (parked from the same conversation).
 
