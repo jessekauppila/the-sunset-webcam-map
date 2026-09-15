@@ -207,11 +207,11 @@ it('a run restarts by rebuilding its stack, never by fading back down to an earl
   render(<GlassPreview version={SOLO_VERSIONS.solo2} screens={[{ feed: 'sunset', server: s2, projected: null }]}
     dials={d2} panel={{ width: 1920, height: 1080 }} />);
 
-  await act(async () => { vi.advanceTimersByTime(6_500); }); // past the 2 s change beat and two full 2 s frame beats: index 2
+  await act(async () => { vi.advanceTimersByTime(7_000); }); // past the 2 s change beat and two full 2 s frame beats: index 2
   expect(screen.getByTestId('top')).toHaveAttribute('src', 'u7'); // last frame of the run
   const stackBefore = screen.getByTestId('stack');
 
-  await act(async () => { vi.advanceTimersByTime(2_500); }); // past the whole 8 s dwell: the single-item order wraps and replays
+  await act(async () => { vi.advanceTimersByTime(1_000); }); // exactly the whole 8 s dwell: the single-item order wraps and replays
   expect(screen.getByTestId('top')).toHaveAttribute('src', 'u5'); // back to the oldest frame
   // Rebuilt, so the later frames are simply gone rather than dissolving away
   // on top of the oldest one.
