@@ -74,8 +74,11 @@ it('a new frame on glass arrives with the old one as its previous in the same re
   rerender(<Solo2Kiosk webcams={[]} width={100} height={50} feed="sunset" settings={{ transition: 'crossfade' }} />);
   // The previous frame (camera 7's drawn frame) sits underneath and the crossfade is on the stack, from the first render.
   expect(screen.getAllByRole('presentation').map((i) => i.getAttribute('src'))).toEqual(['u3', 'u9']);
+  // Camera 7 → camera 8 is a camera change, not a same-camera step, so the
+  // fade is the change beat's fadeS (changeBeats × beat = 1 × 4 s = 4 s),
+  // not sameCameraFadeS (1.5 s).
   expect(screen.getByTestId('stack'))
-    .toHaveStyle({ animation: `solo2-fade-in 1.5s ${ARRIVAL_EASES.gentle} both` });
+    .toHaveStyle({ animation: `solo2-fade-in 4s ${ARRIVAL_EASES.gentle} both` });
   expect(screen.getByTestId('top')).toHaveAttribute('src', 'u9');
 });
 
@@ -106,12 +109,20 @@ it('plays the frames the draw pinned, in the order it pinned them', () => {
   expect(screen.getByTestId('top')).toHaveAttribute('src', 'u2');
 });
 
-it('steps across the pinned span, not the span a dial would compute', () => {
+it('steps on the beat, not the span the server happens to publish', () => {
+  // Under the beat model the dwell is computed purely from the dials and the
+  // pinned frame count (`fitPlan`) — `endsAtMs`/`boundaryMs` no longer sizes
+  // the step, so stretching the published end to 62 s changes nothing here.
+  // Camera 7 and camera 8 tie on quality (both 0.9), so camera 7's rank is 0
+  // and its still budget is 3 × (1 − 0.25 trim + 0 boost) = 2.25 → 2 beats;
+  // 3 pinned frames already exceed that budget, so the rest is 0 and the
+  // dwell is 1 change beat + 3 frames = 4 beats × 4 s = 16 s, whatever
+  // endsAtMs says. Arrival is 1 beat (4 s); 8.5 s in is 4.5 s into the run,
+  // floor(4.5 / 4) = 1 → the second pinned frame.
   mocked.mockImplementation(() => ({ ...pinned, endsAtMs: 62_000, boundaryMs: 62_000 }));
-  // 62 s span, 1.5 s arrival, 3 frames: 20.17 s each. 8.5 s in is still frame 1.
   vi.setSystemTime(new Date(8_500));
   render(<Solo2Kiosk webcams={[]} width={100} height={50} feed="sunset" />);
-  expect(screen.getByTestId('top')).toHaveAttribute('src', 'u1');
+  expect(screen.getByTestId('top')).toHaveAttribute('src', 'u2');
 });
 
 it('does not step backwards when the pool grows under a running dwell', () => {

@@ -52,9 +52,9 @@ export function useLoopingStage(plan: DwellPlan, startMs: number | null, tickMs 
     stage = stageOf(startMs, plan);
     setState({ startMs, stage });
   }
-  const { dwellS, frames, stepS, lastStepS, leadS, arrivalS, exitS } = plan;
+  const { dwellS, frames, stepS, lastStepS, leadS, arrivalS, exitS, beatS, changeBeats, restBeats, totalBeats } = plan;
   useEffect(() => {
-    const p = { dwellS, frames, stepS, lastStepS, leadS, arrivalS, exitS };
+    const p = { dwellS, frames, stepS, lastStepS, leadS, arrivalS, exitS, beatS, changeBeats, restBeats, totalBeats };
     const read = () => setState((prev) => {
       const nextStage = stageOf(startMs, p);
       return prev.startMs === startMs && same(prev.stage, nextStage) ? prev : { startMs, stage: nextStage };
@@ -62,6 +62,6 @@ export function useLoopingStage(plan: DwellPlan, startMs: number | null, tickMs 
     read();
     const t = setInterval(read, tickMs);
     return () => clearInterval(t);
-  }, [startMs, tickMs, dwellS, frames, stepS, lastStepS, leadS, arrivalS]);
+  }, [startMs, tickMs, dwellS, frames, stepS, lastStepS, leadS, arrivalS, beatS, changeBeats, restBeats, totalBeats]);
   return stage;
 }

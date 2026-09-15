@@ -71,7 +71,11 @@ describe('GET /api/kiosk/solo/state', () => {
     const res = await get('?feed=sunset&version=solo2');
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.dials.dwellS).toBe(9);
+    // solo2 has no raw seconds dial any more: dwellS is dwellBeats × beat
+    // (beat spec §2.2), so the mocked namespace's `dwellS: 9` — a leftover
+    // from before the beat model — is not a schema key and is ignored.
+    // Default dwellBeats (3) × the default beat (4 s) = 12.
+    expect(body.dials.dwellS).toBe(12);
     expect(body.dials.valleys).toBe(1);
     expect(body.nextRoles).toEqual([]);
   });
