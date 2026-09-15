@@ -84,7 +84,7 @@ export function EntryRow({
   const grouped = !!run && (run.earlier.length > 0 || skipped.length > 0);
   const k = grouped ? run.earlier.length + 1 : 1;
   const title =
-    `${e.title} · ${placeText}. Frame ${e.snapshotId}, ${feed} feed` +
+    `${e.title} · ${placeText}.${e.credit ? ` Credit: ${e.credit}.` : ''} Frame ${e.snapshotId}, ${feed} feed` +
     (place === 'queue' ? ', in the queue. ' : '. ') +
     (e.bin === 'sunset' ? 'Sunset bin, ordered by rating. ' : 'Non-sunset bin, ordered by sunset probability. ') +
     (!e.eligible ? 'Below the floor dial; not eligible. ' : '') +

@@ -85,3 +85,27 @@ it('the clock styles still read the camera’s own time', () => {
   draw({ dials: { ...D, timeStyle: '12h-there' } });
   expect(drawnTime()).toBe('7:42 pm there');
 });
+
+describe('the credit line', () => {
+  const credited = { ...e, credit: 'Source: Fintraffic / digitraffic.fi, license CC 4.0 BY' };
+
+  it('draws the credit last, inside the caption block, one step smaller than the place line in its grey', () => {
+    draw({ entry: credited });
+    const block = screen.getByTestId('caption');
+    const credit = screen.getByTestId('caption-credit');
+    expect(block.contains(credit)).toBe(true);
+    expect(block.lastElementChild).toBe(credit);
+    expect(credit.textContent).toBe('Source: Fintraffic / digitraffic.fi, license CC 4.0 BY');
+    const place = screen.getByTestId('caption-place');
+    expect(parseFloat(credit.style.fontSize)).toBeCloseTo(parseFloat(place.style.fontSize) * 0.8);
+    expect(credit.style.color).toBe(place.style.color);
+  });
+
+  it('draws nothing for a frame without one: the block is byte-for-byte what it was', () => {
+    const plain = draw().container.innerHTML;
+    document.body.innerHTML = '';
+    const nulled = draw({ entry: { ...e, credit: null } }).container.innerHTML;
+    expect(nulled).toBe(plain);
+    expect(screen.queryByTestId('caption-credit')).toBeNull();
+  });
+});
