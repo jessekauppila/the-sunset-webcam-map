@@ -1,15 +1,18 @@
 # Instagram prelude bank — a hand-posted feed of camera runs
 
 **Date:** 2026-09-08
+**Revised:** 2026-09-15 — posting rights added (§3a), data rechecked (§2, §13),
+show deadline removed.
 **Status:** design, approved in chat; nothing built.
 **Branch:** `docs/instagram-prelude-bank`
+**Issue:** #206
 **Scope:** stage one only. A script that assembles posts; a human uploads them.
 API publishing is named in §10 and deliberately excluded.
 
 ## 1. What this is
 
-The project needs an audience before the 2026-09-12 show. The material for
-one already exists in the archive: a camera's consecutive frames through a
+The project wants an audience beyond the room the glass hangs in. The material
+for one already exists in the archive: a camera's consecutive frames through a
 single sunrise or sunset are an arc, and swiping through them is the sunset
 developing. That arc is what solo2 calls a camera run and what Jesse calls a
 prelude series.
@@ -17,6 +20,11 @@ prelude series.
 This spec defines a **bank**: the best twenty sunrise series and the best
 twenty sunset series in a window, rendered to Instagram-ready cards with
 captions written, sitting in a folder waiting to be posted by hand.
+
+**What may be posted is decided by where a picture came from (§3a).** The bank
+is built and tuned on Windy frames, which may never be posted. Those land in a
+stamped practice folder. The ready-to-post folder fills as postable sources
+arrive.
 
 No Meta app, no access token, no cron, no production write. The script reads
 the database and the image host and writes files to disk.
@@ -37,6 +45,12 @@ Frames were clustered into series by the rule in §4.
 | Median gap between frames in a series | 10.3 minutes |
 | Typical candidate series | 8 frames, about 80 minutes |
 | Series of 6+ frames missing an image URL | 0 |
+
+**Rechecked 2026-09-15.** Windy frames over the preceding seven days: 99,371,
+every one carrying `ai_regression_score` and `ai_binary_score`, none carrying
+`llm_quality`. The count more than doubled because since 2026-09-05 the solo
+kiosk bins save every frame the cron scores (#214). The series counts above
+were not re-measured.
 
 Three consequences, each of which decides something below.
 
@@ -76,6 +90,72 @@ constraint on the whole design and §6 exists because of it.
 6. **The picture is inset on a dark card, never full-bleed.** §6.
 7. **The caption carries no model score.** §7.
 8. **Carousel, not video.** §8.
+9. **Posting permission belongs to the source, and the script enforces it.**
+   §3a.
+
+## 3a. Posting rights
+
+Decided 2026-09-15.
+
+**The label lives on the source, not the picture.** Whether a picture may be
+posted depends entirely on where it came from, so every frame from one source
+carries the same answer. The key is `webcams.source`.
+
+| Label | Meaning |
+| --- | --- |
+| `post` | Terms read, and they allow it |
+| `post_with_credit` | Allowed, if the caption names the source |
+| `no_post` | Forbidden, **or nobody has read the terms yet** |
+
+Every source starts at `no_post`. Moving one up means someone read its terms,
+and the rule records what they read and when.
+
+Sources in the database on 2026-09-15:
+
+| `webcams.source` | Cameras | Label | Largest draw | Basis |
+| --- | --- | --- | --- | --- |
+| `windy` | 9,044 | `no_post` | 1x | Terms forbid redistribution and stretching |
+| `youtube` | 30 | `no_post` | 1x | Terms not read |
+| `custom` | 1 | `post` | 2x | Our own camera |
+
+**Windy's terms**, from
+https://account.windy.com/agreements/windy-webcams-api-terms-of-use, read
+2026-09-15:
+
+- "The User must not further redistribute the Content that they obtain via the
+  API."
+- "Redistribution of any part of the API or the included data to any third
+  party is forbidden."
+- Misuse that leads to termination includes "image URL usage other than
+  provided by the API" and "stretch the Webcam images (only the original or
+  smaller Webcam image size usage is allowed)".
+- The Provider may "restrict or completely deny the User the use of the
+  Services" at any time without notice. The map and the glass depend on that
+  access, which is why one mistaken post matters beyond Instagram.
+
+Building and tuning the bank on Windy frames is inside those terms: nothing
+leaves the project. Posting them is not.
+
+**Enforcement is structural, not a reminder.** A label someone has to remember
+to check eventually gets missed. So:
+
+- `app/lib/prelude/postingRights.ts` holds the rules, keyed by source. An
+  unknown or missing source gets `no_post`.
+- The script asks that module where each series goes. `no_post` series are
+  written to `practice/` and **every card carries a red "NOT FOR POSTING"
+  stamp**. Only `post` and `post_with_credit` series reach `ready/`.
+- Each rule sets the largest scale a frame may be drawn at. Windy frames are
+  drawn at their stored size, because the terms allow only the original or
+  smaller.
+- `post_with_credit` series get the credit line appended to `caption.txt`.
+
+Where terms get read: `docs/image-source-register.md` already carries a
+license line for each candidate source. A source moves out of `no_post` in the
+rules module, with the register as the record of what was read.
+
+**Today nothing is postable in practice.** The one `custom` camera has been
+dark since June, and no candidate source from the register is connected yet.
+Finding those is deliberately later.
 
 ## 4. The series
 
@@ -121,6 +201,10 @@ Score each candidate as `0.5 * peak + 0.5 * mean` over `ai_regression_score`.
 Sort descending. Walk the sorted list and take a series only if its camera is
 not already in the bank. Stop at twenty. Do this once per phase.
 
+The bank ranks every candidate together, whatever its posting label. The
+label decides only where a series is written (§3a), so the practice folder
+shows exactly what the feed would look like if every source were postable.
+
 The result of running this on 2026-09-08 over seven days, as a sanity check
 on the whole idea: Easter Island, Norfolk Island, Mount Yasur in Vanuatu,
 Broome, Spiekeroog, Iceland, Kazakhstan, Kenya, Lake Crescent.
@@ -128,19 +212,27 @@ Broome, Spiekeroog, Iceland, Kazakhstan, Kenya, Lake Crescent.
 ## 6. The card
 
 **The constraint.** Every archived frame is 400 by 224. Windy's API offers no
-larger still: its `images.sizes` tops out at exactly that preview size. An
-undocumented path, `images-webcams.windy.com/37/<id>/current/full/<id>.jpg`,
-does serve 640 by 360, but only for a camera's *current* frame, so it cannot
-reach back into the archive. See §11.
+larger still on the free tier: its `images.sizes` tops out at exactly that
+preview size. Two undocumented paths serve more. One is
+`images-webcams.windy.com/37/<id>/current/full/<id>.jpg`, which returns 640 by
+360 for a camera's *current* frame. The other is the day-timelapse embed page,
+which lists 1280 by 720 frames, one every ~50 minutes. **Both are ruled out:**
+Windy's terms list "image URL usage other than provided by the API" as misuse
+(§3a). See §11.
 
 **The consequence.** Do not upscale to full bleed. A 2.7x upscale of a 15KB
 JPEG, viewed full-screen on a phone, looks like a mistake.
 
 **The card.** 1080 by 1350, Instagram's 4:5 portrait. The frame is drawn at
-2x, so 800 by 448, centred horizontally with generous margin, on a dark
-ground. The caption sits below its foot. A small picture inside a deliberate
+the largest scale its source's rule allows (§3a), centred horizontally with
+generous margin, on a dark ground. For a postable source that is up to 2x, so
+a 400 by 224 frame becomes 800 by 448. A Windy frame stays at its stored 400
+by 224. The caption sits below its foot. A small picture inside a deliberate
 frame reads as a choice; the same pixels stretched to the edges read as a
 failure.
+
+A practice card adds a red band across the top reading "NOT FOR POSTING" and
+the source's name. The band sits above the picture at either scale.
 
 This is not a new layout. It is the solo kiosk's inset composition, which
 already puts a picture on a dark panel with the caption hanging below it. The
@@ -168,7 +260,7 @@ using the peak frame of the series:
 
 Then, written by this script rather than borrowed: the span of the series in
 minutes and the frame count, so the reader knows what they are swiping
-through.
+through. A `post_with_credit` source adds its credit line (§3a).
 
 **No model score in the caption.** It is an internal instrument on a scale
 nobody outside the project can read, and printing it invites arguing with the
@@ -177,29 +269,36 @@ manifest (§8) so the bank stays auditable.
 
 ## 8. Output
 
-One directory per series under `out/prelude/`, git-ignored:
+One directory per series under `out/prelude/`, git-ignored, split by posting
+label:
 
 ```
-out/prelude/2026-09-08/sunset-01-easter-island-mataveri/
-  01.jpg … 10.jpg      the cards, in capture order
-  caption.txt          ready to paste
-  manifest.json        snapshot ids, scores, timestamps, the URLs fetched
+out/prelude/2026-09-15/
+  ready/                     post and post_with_credit sources only
+    sunrise-03-.../
+  practice/                  no_post sources; every card stamped
+    sunset-01-easter-island-mataveri/
+      01.jpg … 10.jpg        the cards, in capture order
+      caption.txt            ready to paste
+      manifest.json          snapshot ids, scores, timestamps, the URLs fetched,
+                             plus source, posting label and destination
 ```
+
+Posts come from `ready/` only. Nothing in `practice/` is ever uploaded.
 
 Carousel order is oldest to newest, always. A sunrise brightens and a sunset
 darkens, and that direction is the whole point of the swipe.
 
-`manifest.json` exists so a post can be traced back to its frames after the
-fact, and so the script can refuse to rebuild a series that was already
-posted.
+`manifest.json` exists so a post can be traced back to its frames and its
+posting basis after the fact, and so the script can refuse to rebuild a series
+that was already posted.
 
 ## 9. Editorial
 
-**Cadence.** Daily from Tuesday 2026-09-09 through Friday 2026-09-12, to
-build a feed that exists before the show. Every other day after that. Twenty
-per phase is eighty days of feed at that rate, and the weather does not
-cooperate on demand, so the bank is what makes the feed look curated rather
-than dutiful.
+**Cadence.** Every other day, once `ready/` has something in it. Twenty per
+phase is eighty days of feed at that rate, and the weather does not cooperate
+on demand, so the bank is what makes the feed look curated rather than
+dutiful. Until then the practice folder is where the look gets tuned.
 
 **Alternate the phase.** Sunset, sunrise, sunset, sunrise down the feed. The
 contrast is stronger discovered as a rhythm than stated in a caption.
@@ -221,23 +320,27 @@ stage-two API path needs no conversion later.
 - Publishing through the Instagram API. That needs a Meta app, a long-lived
   token that expires on a fixed clock, and public URLs for every image. The
   token failure is silent, which is the same shape as the migration-ledger
-  loss, so when it is built it belongs in the daily digest. After the show.
+  loss, so when it is built it belongs in the daily digest. Later.
 - Reels. More reach than carousels, and the crossfade timing is already
-  worked out in solo2, but rendering video means adding ffmpeg. After the
-  show.
+  worked out in solo2, but rendering video means adding ffmpeg. Later.
+- Connecting postable sources. `docs/image-source-register.md` ranks the
+  candidates, and FAA WeatherCams is #204. Each arrives as `no_post` until its
+  terms are read. Later, by decision on 2026-09-15.
 - Changing what the ingest stores. See §11.
 
 ## 11. Open question, for a separate decision
 
 The ingest fetches `images.current.preview` at 400 by 224 in
-`app/api/cron/update-cameras/route.ts`. A 640 by 360 original is available
-and is what the preview is downscaled from. Switching would improve the glass
-as well as the feed, from now on and not retroactively, at roughly 50KB per
-frame instead of 15KB. At the measured 43,861 frames a week that is about
-2.2GB a week against 0.65GB.
+`app/api/cron/update-cameras/route.ts`. Larger stills exist, but Windy only
+permits them through the API: the free tier limits image size, and the
+Professional tier (€9,990 a year) lifts the limit. The undocumented paths in §6
+are not an option for the glass either, for the same terms reason.
 
-This is a storage-cost decision that touches the kiosk, so it does not belong
-to this spec. Flagged here because it was found here.
+A larger ingest would improve the glass as well as the feed, from then on and
+not retroactively, at roughly three times the bytes per frame. This is a
+storage-cost and licensing decision that touches the kiosk, so it does not
+belong to this spec. Flagged here because it was found here. Cost context for
+the current ingest is on #214.
 
 ## 12. Testing
 
@@ -258,11 +361,17 @@ and no network:
 - **The timestamp trap** — a fixture whose `captured_at` is read naively
   produces a different phase than one read as UTC. This test exists to fail
   if someone drops the `AT TIME ZONE 'UTC'`.
+- **`postingRights.ts`** — Windy and YouTube are `no_post`; our own camera is
+  `post`; an unknown or missing source is `no_post`; Windy's largest draw is
+  1x; only `post` and `post_with_credit` go to `ready/`; a credit line appears
+  only for `post_with_credit`.
+- **`card.ts`** — a frame at scale 1 is drawn at its stored size; a practice
+  card carries the stamp; the stamp clears the picture at either scale.
 
 The rendering and the fetching are checked by looking at the output, which is
 the point of a hand-posted stage.
 
-## 13. The run panel, after the show
+## 13. The run panel
 
 Written 2026-09-08, after this spec and the run-crossing labeling design
 (`2026-09-08-run-crossing-labeling-design.md`, branch `feat/run-crossings`,
@@ -283,15 +392,22 @@ what intake drops. This does not contradict the 10.3-minute median gap measured
 in §2, because that gap is measured over retained frames only. The cadence
 inside a kept stretch is dense. The ends are clipped.
 
+**Superseded in part, 2026-09-15.** Since 2026-09-05 the solo kiosk bins save
+every frame the cron scores, so archive series are no longer clipped by
+intake. An event's ends can still fall outside the band of cameras the cron
+sweeps. The measurement is on #214.
+
 **This does not block stage one.** Nobody swiping a carousel knows that its
 first frame is not the true beginning. Build the bank as specified, on archive
-series, and post the pre-show feed from it.
+series.
 
 ### What changes afterward
 
 The run panel keeps every scored frame for 60 cameras in both solar windows,
-stamped `intake_reason = 'run'`, behind a runtime flag. It is held until after
-the show on Friday 2026-09-12 because it edits the `update-cameras` cron. Two
+stamped `intake_reason = 'run'`, behind a runtime flag. **It went live on
+2026-09-15**: the flag was flipped at 01:38Z, an id-matching fix deployed at
+02:16Z, and the first run frame landed at 02:18Z. Panel cameras are Windy
+cameras, so run frames are `no_post` like any other Windy frame (§3a). Two
 revisions follow from it, and both are revisions rather than rewrites.
 
 1. **A second source.** Select on `intake_reason = 'run'` and a run is already
@@ -322,4 +438,5 @@ different skies.
 At two posts a day a 60-camera panel starts repeating cameras in about a month.
 So the panel is an additional source for this bank, never a replacement for the
 archive path. If the feed ever outgrows both, the fix is to widen the panel for
-its own reasons, not to relax the per-camera cap here.
+its own reasons, not to relax the per-camera cap here. Keeping the best
+sequences from any camera each day is a separate idea, #214.
