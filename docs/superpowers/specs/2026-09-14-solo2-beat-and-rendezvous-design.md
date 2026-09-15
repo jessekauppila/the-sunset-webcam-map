@@ -38,7 +38,8 @@ Three decisions came out of the conversation, all Jesse's:
 1. **A beat.** Every frame change on both screens lands on one tick of the
    wall clock. Holds and fades are whole beats. Runs can be any number of beats
    long.
-2. **Fit by dropping frames, never by changing the rate.**
+2. **Fit by dropping or adding frames, never by changing the rate and never
+   by holding.** A frame is a beat; the count of frames is the only knob.
 3. **The rendezvous is a tick number.** Both peaks on the same tick.
 
 The first makes the third a one-number problem. That is why they are one spec.
@@ -67,14 +68,13 @@ step.
 | the dwell floor | `dwellS` as a budget | `dwellBeats`: a run of `n` frames that would total fewer beats **rests on its last frame** (§2.3) |
 | the dwell spread by rank | `dwellBoost` / `dwellTrim` percent | unchanged in meaning, applied to `dwellBeats` and rounded to whole beats |
 
-A dwell of `n` frames occupies `changeBeats + holdBeats + n + restBeats`
-beats. `holdBeats` is 0 except in a rendezvous fit (§3.4). `restBeats` is
-§2.3. The dwell **ends on a tick**, and the next dwell begins on that tick,
+A dwell of `n` frames occupies `changeBeats + n + restBeats` beats.
+`restBeats` is §2.3. The dwell **ends on a tick**, and the next dwell begins on that tick,
 so every screen change of either screen is on the grid.
 
 ### 2.3 The dwell floor rests on the last frame
 
-`restBeats = max(0, dwellBeats − n − holdBeats)`. A run of one frame holds
+`restBeats = max(0, dwellBeats − n)`. A run of one frame holds
 `dwellBeats`; a run of two holds one beat on the first and `dwellBeats − 1` on
 the second. The rate never changes, and the extra time goes to the picture the
 run arrived at. This is the step-ceiling spec's §2 kept, with the ceiling
@@ -89,9 +89,8 @@ interface DwellPlan {
   beatS: number;
   frames: number;
   changeBeats: number;   // the veil at the front; 0 for cut
-  holdBeats: number;     // extra beats on frame 1 (rendezvous only)
   restBeats: number;     // extra beats on the last frame (the dwell floor)
-  totalBeats: number;    // change + hold + frames + rest
+  totalBeats: number;    // change + frames + rest
   peakIndex: number | null;  // which frame is the peak, when the run has one
   leadS: number;         // unchanged; capped at the last frame's hold
 }
@@ -100,10 +99,10 @@ interface DwellPlan {
 `fitPlan` takes the frames and returns this; `planOf(totalMs, …)` (the
 backward form the glass renders from) is no longer needed, because the server
 publishes `endsAtMs` on a tick and the plan is integers — a client can only
-land on the same beats. `stageAt(elapsedMs, plan)` walks beats: frame 1 is up
-from `changeBeats` through `changeBeats + holdBeats`, frame `i` for one beat
-each after that, the last frame through the rest. `describePlan` prints
-`8 frames · 1 beat change · rests 0` or, in a fit, `6 of 21 · hold 2 · dropped 9`.
+land on the same beats. `stageAt(elapsedMs, plan)` walks beats: the change,
+then one beat per frame, the last frame through the rest. `describePlan`
+prints `8 frames · 1 beat change · rests 0` or, in a fit, `6 of 21 · dropped 9`
+or `grown +3 for the sunset screen`.
 
 ### 2.5 What a viewer sees
 
@@ -147,7 +146,9 @@ A new section **rendezvous** in the `solo2` namespace:
 |---|---|---|---|
 | `rendezvous` | boolean | off | the mechanism on or off |
 | `rendezvousRank` | 0–1, step 0.05 | 0.6 | a draw is eligible when its camera's sunset rank is at least this. 1 = only the best sunset present; 0 = every sunset |
-| `rendezvousWait` | beats, 0–8 | 3 | the most a fitted run may hold its first frame |
+
+There is no wait dial. A screen never holds a frame to meet the other; it
+adds frames (§3.5).
 
 The rhythm dials (`valleys`, `screens`) keep their meaning. A valley draw is
 never eligible. The rendezvous is not folded into `screens` after all:
@@ -172,19 +173,25 @@ other feed `G`:
 1. **Pick** as today: `next2` over the pool, the camera as the unit, the beat
    role from the slot. The rendezvous never chooses the camera.
 2. **Not eligible** (no peak, rank below the gate, a valley, or the dial off):
-   plan the run as §2 over the default window of §3.6 with `holdBeats = 0`.
+   plan the run as §2 over the window of §3.6.
    `peak_at = null`. Done.
 3. **Eligible, and `G.peak_at` is a future tick `T`.** Fit:
    `avail = (T − t0) / beatS − changeBeats` beats before the peak.
    - `avail < 0`: too soon. Plan as step 2; leave `G.peak_at` alone (a later
      draw of `F` may still reach it). Label the draw `no fit · too soon`.
-   - `avail − min(P, cap − 1) > rendezvousWait`: too far. Same.
-   - else `before = min(avail, P, cap − 1)`, `holdBeats = avail − before`,
-     `after = min(A, cap − 1 − before)`. `F.peak_at = T`, `rendezvous = true`.
+   - `avail ≤ min(P, cap − 1)`: `before = avail`, dropping evenly from the
+     climb (§3.5), `after = min(A, cap − 1 − before)`. `F.peak_at = T`,
+     `rendezvous = true`.
+   - `avail > min(P, cap − 1)`: the climb is too short. Do not start this run
+     yet. **Grow the run that is ending** instead (§3.5): answer the advance
+     with the same dwell extended by `avail − min(P, cap − 1)` frames of its
+     camera taken from the series after the last frame it played, and a new
+     `endsAtMs`. The eligible run then starts at the right tick and fits with
+     its full climb. If the ending run's camera has no more frames, no fit:
+     plan as step 2 and label it `no fit · nothing to add`.
 4. **Eligible, nothing to meet.** Pin: plan with the full climb of §3.6,
    `before = min(P, cap − 1)`, which is as late as this run's own frames can
-   put its landing. `F.peak_at = t0 + (changeBeats + before) · beatS`. Never
-   hold to pin. (Bending toward `G`'s next eligible draw is not needed: the
+   put its landing. `F.peak_at = t0 + (changeBeats + before) · beatS`. (Bending toward `G`'s next eligible draw is not needed: the
    full climb is already the latest landing, and `G` does the fitting.)
 5. `G.peak_at` is cleared by `G`'s own next advance, since its dwell is over.
    There is no "matched" flag: a landing is one instant, `F` cannot draw
@@ -193,9 +200,12 @@ other feed `G`:
 Two advances in the same second both pin; the pair is missed and nothing
 breaks.
 
-### 3.5 Dropping frames
+### 3.5 Dropping and adding frames
 
-`before` frames are chosen from the `P` frames of the series that precede the
+The count of frames is the only knob. A frame is one beat, so a peak moves
+one beat for every frame dropped ahead of it or added ahead of it.
+
+**Dropping.** `before` frames are chosen from the `P` frames of the series that precede the
 peak. When `before ≥ P` all of them play. When `before < P`, keep the frame
 nearest the peak and spread the rest evenly across the climb:
 
@@ -209,6 +219,15 @@ climb, thinned; it never plays out of order and never changes its rate.
 
 After the peak the run plays the series forward, up to `cap − 1 − before`
 frames, unthinned. Starts and ends are free: only the landing is shared.
+
+**Adding.** When the climb is shorter than the beats to the partner's tick,
+the frames are added to the run *before* the eligible one on the same screen:
+that run keeps playing its own camera's night past where it would have
+stopped, one frame per beat, so the next run starts later. The server does
+this at the advance that would have ended it, by answering "keep going"
+(§3.8). Those frames come from the same series (frames the cap cut, in
+order); a camera with nothing left cannot grow, and the pair is missed.
+Growth is not bounded by a dial: it is bounded by the frames the camera has.
 
 ### 3.6 The window is around the peak
 
@@ -227,6 +246,17 @@ anything between, whatever the rendezvous needs; the peak always plays.
 For a camera with no sunset frame the window is unchanged (the newest `cap`
 frames). The representative's identity (§3.1 there) stays the newest frame, so
 rule 4 and `isNew` are untouched; only `runOf` changes.
+
+### 3.8 The "keep going" answer
+
+`POST /api/kiosk/solo/advance` today either advances or repeats the current
+state. It gains a third answer: `advanced: false` with the current dwell's
+`shownSnapshotIds` extended and a later `endsAtMs`. The kiosk plays on from
+where it is (`stageAt` over the longer plan; the frame index does not jump),
+and fires the next advance at the new end. `kiosk_screen_state.dwell_ms` and
+`shown_snapshot_ids` are updated in place; the draw log's row for that slot is
+updated too, so replay sees the run as it actually played. The slot does not
+change: growing is not a draw.
 
 ### 3.7 Which cameras pair
 
@@ -249,20 +279,21 @@ fixed-width greyed stubs, from #163) with three additions:
 - the beat grid as faint verticals;
 - a rating bar under every frame, the peak outlined in the ring colour;
 - frames dropped by a fit as greyed stubs **in place** with an orange top
-  edge, so a thinned timelapse still reads as the whole sunset.
+  edge, so a thinned timelapse still reads as the whole sunset; frames a run
+  grew by with the same edge at its tail.
 
 A rendezvous is one vertical line through both strips with the time on the
 ruler. In the projection, a grey triangle above a run marks where its peak
 would land without a rendezvous, and the run's label says `dropped 8`,
-`hold 2`, `peak moved +12 s`.
+`grew +3`, `peak moved +12 s`.
 
 The bins stay in `FeedColumn` as they are: sunrise's two bins to the left of
 the tape, sunset's two to the right.
 
 ### 4.2 The dwell line
 
-`DwellBudget` prints beats: `6 of 21 frames · 1 beat change · hold 2 · rests
-0 · lands 5:41:08 with the sunset screen`, or `no fit · too soon`.
+`DwellBudget` prints beats: `6 of 21 frames · 1 beat change · rests 0 · lands
+5:41:08 with the sunset screen`, or `no fit · too soon`.
 
 ### 4.3 The rules lab (#201)
 
@@ -273,8 +304,8 @@ later phase links a run on the tape to that draw's sieve.
 ## 5. Replay
 
 `scripts/solo-replay.ts` runs both feeds together on the beat and reports,
-per evening: rendezvous made, missed (pins that passed unmet), mean hold,
-frames dropped, and the same-order fidelity it reports today. `kiosk_draws.
+per evening: rendezvous made, missed (pins that passed unmet), frames
+dropped, frames grown, and the same-order fidelity it reports today. `kiosk_draws.
 peak_at` and `rendezvous` make the recorded run reconstructible.
 
 ## 6. Migration
@@ -308,10 +339,12 @@ migration.
 - `run.test.ts`: the window around the peak; `pick` keeps the frame nearest
   the peak and spreads the rest; `before ≥ P` plays everything; a camera with
   no peak keeps today's window.
-- `engine.test.ts`: fit on a future tick lands the peak on it; too soon and
-  too far leave the pin; a pin is the full climb and never holds; a valley is never eligible; two same-tick pins both
-  pin.
-- `advance.test.ts`: `peak_at` written and cleared; `shownSince` on a tick.
+- `engine.test.ts`: fit on a future tick lands the peak on it by dropping; a
+  short climb grows the ending run instead and never holds; too soon leaves
+  the pin; a pin is the full climb; a valley is never eligible; two same-tick
+  pins both pin.
+- `advance.test.ts`: `peak_at` written and cleared; `shownSince` on a tick;
+  the keep-going answer extends the dwell without a new slot.
 - `Tape.test.tsx`: one axis for two feeds; a tie spans both strips; dropped
   stubs sit in place; the ghost marks the unfitted landing.
 - Replay: the counts above on a recorded evening, and same-order fidelity
