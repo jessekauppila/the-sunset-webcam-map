@@ -157,3 +157,52 @@ describe('budgetBeats: the still, swung by rank and rounded to whole beats', () 
     expect(out.runFramesSunset).toBe(8);
   });
 });
+
+describe('the run is sized by the camera, not by the drawn frame', () => {
+  // 2026-09-08: `next2` chooses a camera by its representative — the best
+  // frame's bin — then returns the raw newest frame, and everything downstream
+  // read the bin off THAT. One snapshot the detection head called non-sunset
+  // dropped the camera from up to 16 frames to 5, and its budget with it.
+  // Measured that day: 30 of 38 non-sunset draws were of cameras still holding
+  // sunset frames; Stromness had 13 of 23 and ran five.
+  const d = { runFramesSunset: 16, runFramesOther: 5, runShape: 'rank' as const, dwellBeats: 13, dwellBoost: 25, dwellTrim: 25 };
+  // Camera 7's best frame is a strong sunset; its NEWEST frame is not a sunset.
+  const camera7 = [
+    f(1, 7, 100, { bin: 'sunset', quality: 0.9 }),
+    f(2, 7, 200, { bin: 'sunset', quality: 0.8 }),
+    f(3, 7, 300, { bin: 'non_sunset', quality: null, detection: 0.4 }),
+  ];
+  const rival = f(9, 8, 300, { bin: 'sunset', quality: 0.1 });
+  const pool = [...camera7, rival];
+  const newest = camera7[2];
+
+  it('caps by the camera, so the newest frame\'s bin cannot shrink the run', () => {
+    // The camera stands top of two sunsets: the whole sunset cap, not the 5 its
+    // own newest frame would have asked for.
+    expect(capFor(newest, d, pool, true)).toBe(16);
+  });
+
+  it('budgets by the camera too, so the dwell and the cap agree about what it is', () => {
+    // Rank 1: the dial plus the boost, not the dial less the trim.
+    // 13 × (1 - 0.25 + (0.25 + 0.25) × 1) = 13 × 1.25 = 16.25 → 16.
+    expect(budgetBeats(newest, d, pool, true)).toBe(16);
+  });
+
+  it('still sizes a camera whose frames are all non-sunset by the non-sunset dial', () => {
+    const grey = [f(4, 6, 100, { bin: 'non_sunset', quality: null }), f(5, 6, 200, { bin: 'non_sunset', quality: null })];
+    expect(capFor(grey[1], d, [...grey, ...pool], true)).toBe(5);
+    // rank 0: 13 × (1 - 0.25) = 13 × 0.75 = 9.75 → 10.
+    expect(budgetBeats(grey[1], d, [...grey, ...pool], true)).toBe(10);
+  });
+
+  it('with the camera run off, a frame is sized as itself: there is no camera to stand for it', () => {
+    expect(capFor(newest, d, pool, false)).toBe(5);
+  });
+
+  it('standsFor falls back to the entry when there is no camera or nothing to group', () => {
+    expect(standsFor(newest, pool, true)).toMatchObject({ webcamId: 7, bin: 'sunset', quality: 0.9 });
+    expect(standsFor(newest, undefined, true)).toBe(newest);
+    expect(standsFor(newest, pool, false)).toBe(newest);
+    expect(standsFor({ bin: 'sunset' }, pool, true)).toEqual({ bin: 'sunset' });
+  });
+});

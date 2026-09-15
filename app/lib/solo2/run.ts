@@ -111,7 +111,7 @@ function standing<T extends RunEntry>(e: Pick<BinEntry, 'bin'> & Partial<T>, d: 
  * 23 and ran five.
  *
  * Resolving it here rather than at the call sites is deliberate: six surfaces
- * call `capFor`/`budgetS`, and a rule each of them has to remember is a rule
+ * call `capFor`/`budgetBeats`, and a rule each of them has to remember is a rule
  * that drifts.
  *
  * Falls back to `e` when the run is off, when there is nothing to group
