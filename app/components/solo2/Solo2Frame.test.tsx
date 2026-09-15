@@ -75,7 +75,7 @@ it('the run is stacked: frames up to the stage are opaque, later ones transparen
     ['seq-1', '1', `opacity 1s ${E}`],
     ['seq-2', '0', `opacity 1s ${E}`],
   ]);
-  const short = fitPlan({ ...D, dwellS: 3, minStepS: 1 }, 3); // 1 s a frame
+  const short = fitPlan({ ...D, beatS: 1, changeBeats: 0 }, 3); // 1 s a frame
   rerender(<Solo2Frame entry={e} run={run} previous={null} stage={last} plan={short}
     dials={{ ...D, sameCameraFadeS: 5 }} width={1920} height={1080} />);
   expect(layers()).toEqual([
@@ -117,11 +117,10 @@ it('cut shows no previous layer; crossfade keeps it and animates the top; dip ad
   expect(screen.getByTestId('stack')).toHaveStyle({ animation: `solo2-fade-in 2s ${E} both` });
   expect(screen.queryByTestId('dip')).toBeNull();
   rerender(<Solo2Frame entry={e} run={[e]} previous={prev} stage={one} plan={plan} dials={{ ...D, transition: 'dip', fadeS: 2 }} width={100} height={50} />);
-  // The veil is already closed: the previous dwell raised it at its exit. This
-  // dwell only rises out of it, over the dip's second half, with no delay.
-  expect(screen.getByTestId('dip')).toHaveStyle({ opacity: '1' });
-  expect(screen.getByTestId('dip').style.animation).toBe('');
-  expect(screen.getByTestId('stack')).toHaveStyle({ animation: `solo2-fade-in 1s ${E} both` });
+  // The dip's first half closes the veil over the previous picture; the stack
+  // rises out of it over the second half, delayed to wait for it.
+  expect(screen.getByTestId('dip').style.animation).toBe(`solo2-dip 1s ${E} both`);
+  expect(screen.getByTestId('stack')).toHaveStyle({ animation: `solo2-fade-in 1s ${E} 1s both` });
 });
 
 it('a change to the same camera dissolves over the same-camera fade, never through black', () => {
@@ -136,8 +135,8 @@ it('a change to the same camera dissolves over the same-camera fade, never throu
 it('the defaults dip through black between cameras', () => {
   const prev = { ...e, snapshotId: 0, webcamId: 99, imageUrl: 'u0' };
   render(<Solo2Frame entry={e} run={[e]} previous={prev} stage={{ index: 0, leadProgress: 0, exitProgress: 0 }} plan={plan} dials={D} width={100} height={50} />);
-  expect(screen.getByTestId('dip')).toHaveStyle({ background: '#000000', opacity: '1' });
-  expect(screen.getByTestId('stack')).toHaveStyle({ animation: `solo2-fade-in 0.75s ${E} both` });
+  expect(screen.getByTestId('dip')).toHaveStyle({ background: '#000000' });
+  expect(screen.getByTestId('stack')).toHaveStyle({ animation: `solo2-fade-in 2s ${E} 2s both` });
 });
 
 it('the lead pushes the frame in by progress and lands the next frame still', () => {
@@ -179,12 +178,11 @@ it('the outgoing caption dissolves away, so a veil-less change never leaves two 
   // It leaves on exactly the ramp the new caption arrives on, held at the end.
   expect(screen.getByTestId('caption-prev')).toHaveStyle({ animation: `solo2-fade-out 2s ${E} both` });
 
-  // A dip: the words already left at the previous dwell's exit, with the
-  // picture; here they sit hidden under the closed veil.
+  // A dip: the old words leave with the old picture, under the closing veil,
+  // over the change beat's first half.
   rerender(<Solo2Frame entry={e} run={[e]} previous={prev} stage={one} plan={plan}
     dials={{ ...D, transition: 'dip', fadeS: 2 }} width={1920} height={1080} />);
-  expect(screen.getByTestId('caption-prev')).toHaveStyle({ opacity: '0' });
-  expect(screen.getByTestId('caption-prev').style.animation).toBe('');
+  expect(screen.getByTestId('caption-prev')).toHaveStyle({ animation: `solo2-fade-out 1s ${E} both` });
 
   // A sunrise change of `crossfade` has no veil, so its dip becomes a crossfade
   // — the case #172 opened up, and the one that must not strand the old words.
@@ -205,7 +203,20 @@ it('on a dip the veil covers the outgoing caption, and the new words fade in aft
   // Painted in this order, so the veil hides the old words rather than sitting behind them.
   expect(out.compareDocumentPosition(veil) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   expect(veil.compareDocumentPosition(arriving) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-  expect(arriving).toHaveStyle({ animation: `solo2-fade-in 1s ${E} both` });
+  expect(arriving).toHaveStyle({ animation: `solo2-fade-in 1s ${E} 1s both` });
+});
+
+it('a dip: the previous picture burns down over the first half of the change, the new one rises over the second', () => {
+  const prev = { ...e, snapshotId: 9, webcamId: 2, imageUrl: 'u9', title: 'Elsewhere' };
+  render(<Solo2Frame entry={e} run={[e]} previous={prev} next={null} stage={{ index: 0, leadProgress: 0, exitProgress: 0 }} plan={fitPlan(D, 1)}
+    dials={{ ...D, transition: 'dip' }} width={1920} height={1080} feed="sunset" />);
+  // fadeS is one beat (4 s): the veil closes over 2 s, the new picture waits 2 s then rises over 2 s.
+  expect(screen.getByTestId('dip').style.animation).toBe(`solo2-dip 2s ${E} both`);
+  expect(screen.getByTestId('stack').style.animation).toBe(`solo2-fade-in 2s ${E} 2s both`);
+  expect(screen.getByTestId('caption-layer').style.animation).toBe(`solo2-fade-in 2s ${E} 2s both`);
+  // The old words leave with the old picture, under the closing veil.
+  expect(screen.getByTestId('caption-prev').style.animation).toBe(`solo2-fade-out 2s ${E} both`);
+  expect(screen.getByTestId('caption-prev').style.opacity).toBe('');
 });
 
 it('a dip goes down and comes up on the same ramp: the leaving veil and the arriving picture share duration and timing function', () => {
@@ -312,11 +323,12 @@ describe('what the change dips through', () => {
   it('exposure moves the picture toward the veil, each screen toward its own end', () => {
     dip({ veilStyle: 'exposure', burnLift: 1.6 });
     expect(screen.getByTestId('dip')).toHaveStyle({ background: '#ffffff' });
-    // The previous picture already burned down at its own exit; it sits at the lift.
-    expect(screen.getByTestId('prev').style.animation).toBe('');
-    expect(screen.getByTestId('prev')).toHaveStyle({ filter: 'brightness(1.6)' });
+    // The previous picture burns toward the lift over the closing half; the
+    // stack rises out of it, back from the lift, over the second half.
+    expect(screen.getByTestId('prev').style.animation).toBe(`solo2-burn-out 1s ${E} both`);
+    expect(screen.getByTestId('prev').style.getPropertyValue('--solo2-lift')).toBe('1.6');
     expect(screen.getByTestId('stack').style.animation)
-      .toBe(`solo2-fade-in 1s ${E} both, solo2-burn-in 1s ${E} both`);
+      .toBe(`solo2-fade-in 1s ${E} 1s both, solo2-burn-in 1s ${E} 1s both`);
     // Carried as a custom property, never baked into the keyframes: two screens
     // share one document, and a `<style>` rule is global.
     expect(screen.getByTestId('stack').style.getPropertyValue('--solo2-lift')).toBe('1.6');
@@ -330,7 +342,7 @@ describe('what the change dips through', () => {
     dip({ veilStyle: 'exposure', burnLift: 1 });
     expect(screen.getByTestId('prev').style.animation).toBe('');
     expect(screen.getByTestId('prev').style.filter).toBe('');
-    expect(screen.getByTestId('stack').style.animation).toBe(`solo2-fade-in 1s ${E} both`);
+    expect(screen.getByTestId('stack').style.animation).toBe(`solo2-fade-in 1s ${E} 1s both`);
   });
 
   it('the veil stays inside the picture unless it is told to flood the panel', () => {

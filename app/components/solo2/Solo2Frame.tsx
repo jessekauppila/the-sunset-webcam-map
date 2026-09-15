@@ -124,14 +124,14 @@ export function Solo2Frame({ entry, run, previous, next, stage, plan, dials, wid
   // in (PR #160). Every curve `arrivalEase` offers is symmetric, so this
   // single value can go on all of them.
   const ease = look.ease;
-  // A dip is two halves, and this dwell only plays the second. The first —
-  // the previous picture burning down into the veil — was the previous
-  // dwell's exit, run on its own clock over the last seconds of its last
-  // frame (plan.ts `exitS`). So the veil is already closed when this dwell
-  // mounts, and the new picture rises out of it at once, over half the dial.
+  // A dip is two halves inside the arriving dwell's change beat (beat spec
+  // §2.2): the previous picture burns down into the veil over the first half,
+  // and this one rises out of it over the second. So the rise waits half the
+  // change. Until the beat the burn-down was the previous dwell's exit.
+  const half = arrive.fadeS / 2;
   const inAnimation =
     arrive.kind === 'crossfade' ? `solo2-fade-in ${arrive.fadeS}s ${ease} both`
-    : arrive.kind === 'dip' ? `solo2-fade-in ${arrive.fadeS / 2}s ${ease} both`
+    : arrive.kind === 'dip' ? `solo2-fade-in ${half}s ${ease} ${half}s both`
     : undefined;
   // The outgoing caption's half of that dissolve. A picture needs none — the
   // arriving frame is opaque and covers the one beneath it — but a caption is
@@ -141,21 +141,19 @@ export function Solo2Frame({ entry, run, previous, next, stage, plan, dials, wid
   // no veil colour showed two clocks at once. It leaves over the same span the
   // picture takes to cover it: the whole fade on a crossfade, the closing half
   // on a dip, held at the end by `both`.
-  // On a dip the old words already left with the old picture, at the previous
-  // dwell's exit, so there is nothing to animate here: they sit hidden.
   const outAnimation =
     arrive.kind === 'crossfade' ? `solo2-fade-out ${arrive.fadeS}s ${ease} both`
+    : arrive.kind === 'dip' ? `solo2-fade-out ${half}s ${ease} both`
     : undefined;
   // The picture moves toward the veil rather than merely being covered by it:
   // up into white on a sunrise, down into black on a sunset. That is what
   // separates an exposure from a dip through a coloured card. Only on a dip,
-  // and only when the lift asks for something. The burn-out half happened at
-  // the previous dwell's exit, so the previous picture sits at the lift and
-  // the new one comes back from it.
+  // and only when the lift asks for something.
   const burning = arrive.kind === 'dip' && look.lift !== 1;
-  const burnIn = burning ? `solo2-burn-in ${arrive.fadeS / 2}s ${ease} both` : undefined;
+  const burnIn = burning ? `solo2-burn-in ${half}s ${ease} ${half}s both` : undefined;
+  // The previous picture's half: it moves toward the veil as the veil closes.
+  const burnOutPrev = burning ? `solo2-burn-out ${half}s ${ease} both` : undefined;
   const liftVar = look.lift !== 1 ? ({ '--solo2-lift': String(look.lift) } as React.CSSProperties) : undefined;
-  const burnedStill = burning ? ({ filter: `brightness(${look.lift})` } as React.CSSProperties) : undefined;
 
   // The exit (plan.ts `exitS`): over the last seconds of the last frame this
   // picture burns down into the veil, on this dwell's own clock, so the next
@@ -189,23 +187,21 @@ export function Solo2Frame({ entry, run, previous, next, stage, plan, dials, wid
       {showPrevious && (
         // eslint-disable-next-line @next/next/no-img-element
         <img key={`prev-${previous.snapshotId}`} src={previous.imageUrl} alt="" role="presentation" data-testid="prev"
-          style={{ ...pictureLayer, ...burnedStill }} />
+          style={{ ...pictureLayer, ...liftVar, animation: burnOutPrev }} />
       )}
       {showPrevious && (
         // The words being left behind, under the veil and under the arriving
-        // caption, so the caption dissolves exactly as the picture does. On a
-        // dip they already left at the previous dwell's exit, so they hide.
+        // caption, so the caption dissolves exactly as the picture does.
         <div key={`caption-prev-${previous.snapshotId}`} data-testid="caption-prev"
-          style={{ ...captionLayer, animation: outAnimation, opacity: arrive.kind === 'dip' ? 0 : undefined }}>
+          style={{ ...captionLayer, animation: outAnimation }}>
           <Caption entry={previous} dials={dials} picture={picture} width={width} height={height} feed={feed} />
         </div>
       )}
       {arrive.kind === 'dip' && showPrevious && look.veilColor && (
-        // Already closed: the previous dwell raised it at its exit. This dwell
-        // only rises out of it, above.
+        // Closes over the previous picture during the first half of the change beat; the stack above rises out of it during the second.
         <div key={`dip-${dwellId}`} data-testid="dip" style={{
           ...(look.covers === 'panel' ? layer : pictureLayer),
-          background: look.veilColor, opacity: 1,
+          background: look.veilColor, animation: `solo2-dip ${half}s ${ease} both`,
         }} />
       )}
       {/* keyed by the drawn frame so the arrival runs once per dwell; the stage only changes opacities inside */}
