@@ -72,7 +72,7 @@ describe('POST /api/kiosk/solo/advance', () => {
     getScreenState.mockResolvedValue({ feed: 'sunrise', currentSnapshotId: 2, shownSince: 1, slot: 41, sunsetStreak: 0 });
     expect((await post({ feed: 'sunrise', slot: 42 })).status).toBe(200);
     expect(commitAdvance).toHaveBeenCalledWith('sunrise', 42, expect.objectContaining({ snapshotId: 1 }), 1,
-      [expect.objectContaining({ snapshotId: 1 })], 'solo', expect.any(Number));
+      [expect.objectContaining({ snapshotId: 1 })], 'solo', expect.any(Number), expect.any(Number));
     // Moving the clock a long way does not move the accepted slot.
     vi.setSystemTime(new Date(1_000_500_000_000));
     expect((await post({ feed: 'sunrise', slot: 42 })).status).toBe(200);
@@ -85,7 +85,7 @@ describe('POST /api/kiosk/solo/advance', () => {
     expect(body.current.entry.snapshotId).toBe(1);
     expect(body.current.entry.tally).toBe(1);
     expect(commitAdvance).toHaveBeenCalledWith('sunrise', 0, expect.objectContaining({ snapshotId: 1 }), 1,
-      [expect.objectContaining({ snapshotId: 1 })], 'solo', expect.any(Number));
+      [expect.objectContaining({ snapshotId: 1 })], 'solo', expect.any(Number), expect.any(Number));
   });
   it('version=solo2 marks every frame of the camera run shown, and the pick is the newest', async () => {
     // Camera 101 has frames 1 (older) and 3 (newer); camera 102 has frame 2.
@@ -96,7 +96,7 @@ describe('POST /api/kiosk/solo/advance', () => {
     const body = await res.json();
     expect(body.current.entry.snapshotId).toBe(3);
     expect(commitAdvance).toHaveBeenLastCalledWith('sunrise', 0, expect.objectContaining({ snapshotId: 3 }), 1,
-      [expect.objectContaining({ snapshotId: 1 }), expect.objectContaining({ snapshotId: 3 })], 'solo2', expect.any(Number));
+      [expect.objectContaining({ snapshotId: 1 }), expect.objectContaining({ snapshotId: 3 })], 'solo2', expect.any(Number), expect.any(Number));
     const tallies = Object.fromEntries(body.entries.map((e: { snapshotId: number; tally: number }) => [e.snapshotId, e.tally]));
     expect(tallies).toEqual({ 1: 1, 2: 0, 3: 1 });
   });
@@ -141,5 +141,32 @@ describe('POST /api/kiosk/solo/advance', () => {
     const res = await post({ feed: 'sunrise', slot: 0 });
     expect((await res.json()).advanced).toBe(false);
     expect(commitAdvance).not.toHaveBeenCalled();
+  });
+  describe('the advance starts the dwell on the tick (beat spec §2.6)', () => {
+    // A lone sunset in the pool: cameraRun's rank is 1 (the only sunset present
+    // ranks best), so at the default dials (dwellBeats 3, dwellBoost/Trim 25,
+    // changeBeats 1, beat 4s) the still is round(3 x 1.25) = 4 beats, one frame,
+    // so the dwell is 1 change + 1 frame + 3 rest = 5 beats = 20_000 ms.
+    beforeEach(() => {
+      listActiveEntries.mockResolvedValue([entry(1, 0.9)]);
+    });
+    it('solo2 starts the dwell on the nearest tick and publishes an end on the grid', async () => {
+      const t0 = Date.UTC(2026, 8, 14, 17, 30, 0);
+      vi.setSystemTime(new Date(t0 + 300)); // the kiosk fired at the tick; the request landed 300 ms later
+      const res = await post({ feed: 'sunset', slot: 0, version: 'solo2' });
+      const body = await res.json();
+      expect(commitAdvance).toHaveBeenCalledWith('sunset', 0, expect.objectContaining({ snapshotId: 1 }),
+        expect.any(Number), expect.any(Array), 'solo2', 20_000, t0);
+      expect(body.current.shownSince).toBe(t0);
+      expect(body.current.endsAtMs).toBe(t0 + 20_000);
+      expect(body.current.endsAtMs % 4_000).toBe(0);
+    });
+    it('solo starts now, as before', async () => {
+      const t0 = Date.UTC(2026, 8, 14, 17, 30, 0) + 1_234;
+      vi.setSystemTime(new Date(t0));
+      await post({ feed: 'sunset', slot: 0, version: 'solo' });
+      expect(commitAdvance).toHaveBeenLastCalledWith('sunset', 0, expect.anything(), expect.any(Number),
+        expect.any(Array), 'solo', expect.any(Number), t0);
+    });
   });
 });

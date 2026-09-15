@@ -120,19 +120,19 @@ describe('screen state', () => {
     expect(upsert).toMatch(/shown_since = excluded\.shown_since/);
     expect(upsert).toMatch(/dwell_ms = excluded\.dwell_ms/);
     expect(upsert).toMatch(/shown_snapshot_ids = excluded\.shown_snapshot_ids/);
-    expect(sqlMock.mock.calls[0].slice(1)).toEqual(['sunset', 9, 42, 1, 22_000, [7, 8, 9]]);
+    expect(sqlMock.mock.calls[0].slice(1)).toEqual(['sunset', 9, null, 42, 1, 22_000, [7, 8, 9]]);
   });
   it('commitAdvance rounds a fractional dwell: the column is an integer', async () => {
     sqlMock.mockResolvedValueOnce([{ feed: 'sunset' }]).mockResolvedValueOnce([]).mockResolvedValueOnce([]);
     const e = { snapshotId: 7, webcamId: 3, bin: 'sunset' as const, quality: 0.9, detection: 0.8, isNew: true, tally: 0, enteredAt: 0 };
     await commitAdvance('sunset', 42, e, 1, [e], 'solo2', 21_666.667);
-    expect(sqlMock.mock.calls[0].slice(1)).toEqual(['sunset', 7, 42, 1, 21_667, [7]]);
+    expect(sqlMock.mock.calls[0].slice(1)).toEqual(['sunset', 7, null, 42, 1, 21_667, [7]]);
   });
   it('commitAdvance leaves the dwell unpinned when no length is supplied', async () => {
     sqlMock.mockResolvedValueOnce([{ feed: 'sunset' }]).mockResolvedValueOnce([]).mockResolvedValueOnce([]);
     const e = { snapshotId: 7, webcamId: 3, bin: 'sunset' as const, quality: 0.9, detection: 0.8, isNew: true, tally: 0, enteredAt: 0 };
     await commitAdvance('sunset', 42, e, 1);
-    expect(sqlMock.mock.calls[0].slice(1)).toEqual(['sunset', 7, 42, 1, null, [7]]);
+    expect(sqlMock.mock.calls[0].slice(1)).toEqual(['sunset', 7, null, 42, 1, null, [7]]);
   });
   it('commitAdvance is a no-op when the slot was already committed', async () => {
     sqlMock.mockResolvedValueOnce([]); // upsert returned nothing: slot unchanged
@@ -152,7 +152,7 @@ describe('screen state', () => {
     expect(lastQuery()).toMatch(/on conflict \(feed, slot\) do nothing/);
     // The stamp (replay spec §2): version, the newest deploy, the entry as the engine saw it, the frames played.
     expect(lastQuery()).toMatch(/\(select max\(id\) from kiosk_deploys\)/);
-    expect(sqlMock.mock.calls.at(-1)!.slice(1)).toEqual(['sunset', 42, 7, 'solo', 'sunset', 0.9, 0.8, [7]]);
+    expect(sqlMock.mock.calls.at(-1)!.slice(1)).toEqual(['sunset', 42, 7, null, 'solo', 'sunset', 0.9, 0.8, [7]]);
   });
   it('a failed draw log does not fail the advance', async () => {
     sqlMock.mockResolvedValueOnce([{ feed: 'sunset' }]).mockResolvedValueOnce([])
@@ -181,7 +181,7 @@ describe('screen state', () => {
     await commitAdvance('sunset', 42, e(9), 1, [e(7), e(8), e(9)], 'solo2');
     expect(sqlMock.mock.calls[1].slice(1)).toEqual([42, 'sunset', [7, 8, 9]]);
     // The draw log names the drawn frame and stamps every frame the dwell played.
-    expect(sqlMock.mock.calls.at(-1)!.slice(1)).toEqual(['sunset', 42, 9, 'solo2', 'sunset', 0.9, 0.8, [7, 8, 9]]);
+    expect(sqlMock.mock.calls.at(-1)!.slice(1)).toEqual(['sunset', 42, 9, null, 'solo2', 'sunset', 0.9, 0.8, [7, 8, 9]]);
   });
 });
 

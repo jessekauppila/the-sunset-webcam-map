@@ -71,16 +71,19 @@ export async function POST(request: Request) {
       // stored alongside the start instant. Every surface reads it back
       // rather than working it out again from a pool that has since moved.
       const dwellMs = version.dwellMs(entries, pick, dials);
-      advanced = await commitAdvance(feed, slot, pick, after.sunsetStreak, shown, version.name, dwellMs);
+      // On the beat the dwell begins on the tick the kiosk fired on, not when
+      // this request happened to land (beat spec §2.6); solo starts now.
+      const startMs = version.startMs(nowMs, dials);
+      advanced = await commitAdvance(feed, slot, pick, after.sunsetStreak, shown, version.name, dwellMs, startMs);
       if (advanced) {
         for (const f of shown) {
           const stored = entries.find((e) => e.snapshotId === f.snapshotId)!;
           stored.tally += 1;
           stored.isNew = false;
-          stored.lastShownAt = nowMs;
+          stored.lastShownAt = startMs;
         }
         screen = {
-          feed, currentSnapshotId: pick.snapshotId, shownSince: nowMs, slot, sunsetStreak: after.sunsetStreak,
+          feed, currentSnapshotId: pick.snapshotId, shownSince: startMs, slot, sunsetStreak: after.sunsetStreak,
           dwellMs, shownSnapshotIds: shown.map((e) => e.snapshotId),
         };
       }

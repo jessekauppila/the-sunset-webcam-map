@@ -317,11 +317,12 @@ export async function commitAdvance(
   shown: BinEntry[] = [entry],
   version: SoloVersionName = 'solo',
   dwellMs: number | null = null,
+  startMs: number | null = null,
 ): Promise<boolean> {
   const shownIds = shown.map((e) => e.snapshotId);
   const rows = (await sql`
     insert into kiosk_screen_state (feed, current_snapshot_id, shown_since, slot, sunset_streak, dwell_ms, shown_snapshot_ids, updated_at)
-    values (${feed}, ${entry.snapshotId}, now(), ${slot}, ${sunsetStreak},
+    values (${feed}, ${entry.snapshotId}, coalesce(${startMs == null ? null : new Date(startMs).toISOString()}::timestamptz, now()), ${slot}, ${sunsetStreak},
             ${dwellMs == null ? null : Math.round(dwellMs)}, ${shownIds}::bigint[], now())
     on conflict (feed) do update
       set current_snapshot_id = excluded.current_snapshot_id,
@@ -347,7 +348,7 @@ export async function commitAdvance(
         last_shown_slot = ${slot}
     where feed = ${feed} and snapshot_id = any(${shownIds}::bigint[])
   `;
-  await logDraw(feed, slot, entry, version, shown);
+  await logDraw(feed, slot, entry, version, shown, startMs);
   return true;
 }
 
@@ -373,11 +374,12 @@ export interface TapeFrame extends StoredEntry {
  */
 export async function logDraw(
   feed: Feed, slot: number, entry: BinEntry, version: SoloVersionName, shown: BinEntry[],
+  shownAtMs: number | null = null,
 ): Promise<void> {
   try {
     await sql`
       insert into kiosk_draws (feed, slot, snapshot_id, shown_at, version, deploy_id, bin, quality, detection, shown_snapshot_ids)
-      select ${feed}, ${slot}, ${entry.snapshotId}, now(), ${version}, (select max(id) from kiosk_deploys),
+      select ${feed}, ${slot}, ${entry.snapshotId}, coalesce(${shownAtMs == null ? null : new Date(shownAtMs).toISOString()}::timestamptz, now()), ${version}, (select max(id) from kiosk_deploys),
              ${entry.bin}, ${entry.quality}, ${entry.detection}, ${shown.map((e) => e.snapshotId)}::bigint[]
       on conflict (feed, slot) do nothing
     `;
