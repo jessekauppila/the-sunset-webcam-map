@@ -62,6 +62,16 @@ export function shown2<T extends RunEntry>(entries: T[], pick: T, d: Solo2Dials)
 }
 
 /**
+ * How long a draw of `pick` occupies the glass when it plays exactly
+ * `frames` frames, ms (the beat rule of §2.2). The rendezvous seam (spec
+ * §3.9) needs to price a run the fit has already shortened or grown, before
+ * that run is the one `shown2` would compute on its own.
+ */
+export function dwellMsFor(entries: BinEntry[], pick: BinEntry, d: Solo2Dials, frames: number): number {
+  return fitPlan(planDialsFor(pick as RunEntry, d, entries as RunEntry[], d.cameraRun), frames).dwellS * 1000;
+}
+
+/**
  * How long a draw of `pick` occupies the glass, ms. The beat rule of §2.2
  * over the frames the draw actually plays, which is `shown2` — so the caps
  * of §4 are already applied and this cannot disagree with what reaches the
@@ -73,7 +83,7 @@ export function shown2<T extends RunEntry>(entries: T[], pick: T, d: Solo2Dials)
  */
 export function dwellMs2(entries: BinEntry[], pick: BinEntry, d: Solo2Dials): number {
   const run = shown2(entries as RunEntry[], pick as RunEntry, d);
-  return fitPlan(planDialsFor(pick as RunEntry, d, entries as RunEntry[], d.cameraRun), run.length).dwellS * 1000;
+  return dwellMsFor(entries, pick, d, run.length);
 }
 
 /**
