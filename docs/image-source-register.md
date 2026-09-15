@@ -154,9 +154,9 @@ Vocabulary for both jobs is now in `CONCEPTS.md` under **Snapshot** and
 | Cadence | 10 minutes, native |
 | Aim | **Published per camera**, referenced to a sectional chart |
 | License | US federal, public domain |
-| Access | `https://weathercams.faa.gov/` — free, no key, no login |
-| Extras | Clear-day comparison image and a 6-hour loop per view |
-| Verified | Documented, endpoints not called |
+| Access | `https://weathercams.faa.gov/api/` — documented OpenAPI, Bearer token from the Program Office (see below) |
+| Extras | Clear-day comparison image per camera; 28 days of history per camera |
+| Verified | **Called 2026-09-15**, numbers below |
 
 The best match on this list and the one to build first. Native 10-minute
 cadence means no resampling. Published direction means `azimuth_source` comes
@@ -169,6 +169,29 @@ guaranteed sunset-facing view regardless of season.
 
 The 6-hour loop is also a training-data source with known aim, which nothing
 else here offers.
+
+**Verified 2026-09-15** (adapter: `app/api/cron/update-cameras/lib/sources/faa.ts`,
+issue #204). The API is the one the site's own front end uses; its OpenAPI
+spec is at `/api/docs/`.
+
+| | |
+|---|---|
+| Sites / cameras, all | 974 / 3,493 (US 756, Canada 218 via NAV CANADA) |
+| `GET /api/redistributable/sites` | US only: **756 sites / 2,848 cameras**, every camera's `currentImageUri` in one 2.7 MB response |
+| FAA-operated vs third party (redistributable) | 314 / 442 — third-party sites carry an `attribution` HTML the FAA displays; ALERTWest, state aeronautics divisions and others |
+| Alaska | 264 sites |
+| Bearing | `cameraBearing`, degrees true, on **every** camera; `mapWedgeAngle` is the field of view (45 or 90) |
+| Frame age at read time | p10 4 min, p50 7 min, p90 11 min — a ten-minute cadence, as documented |
+| Image | 1920×1080 JPEG, ~240 KB, on `images.wcams-static.faa.gov`; `ETag` + `Last-Modified`, `If-None-Match` answers 304; the filename carries the capture timestamp |
+| Other endpoints | `/api/cameras/{id}/images/current`, `/images/last/{n}`, `/images` (28-day history), `/images/clearday`, `/api/sites/{id}/images/download` (zip) |
+| Auth | The spec declares a Bearer token and says: "Use of this API is subject to the terms and conditions of the FAA Weather Camera Program. Contact the Program Office at 9-AJO-WCAM-ProgramOffice@faa.gov to obtain access." The site's own browser calls pass with a `Referer` header alone; the adapter does not do that — it sends the token from `FAA_WEATHERCAMS_TOKEN` and lists nothing without one. |
+
+What the adapter does with this: one `redistributable/sites` call through
+Next's data cache with a ten-minute revalidate, cut to the swept band with
+the same box test as the Windy sweep, FAA-operated sites only until the
+display can show attribution, cameras with a frame in the last 30 minutes,
+and no image download when the URL is the one stored last tick. The register's
+"299 sites" above was the program's own headline figure; the API lists 974.
 
 ### 2. ALERTCalifornia / AlertWildfire
 
