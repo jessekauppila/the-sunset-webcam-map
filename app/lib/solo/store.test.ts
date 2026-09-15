@@ -203,7 +203,7 @@ describe('growDwell (rendezvous spec §3.8: keep going, same slot)', () => {
 
   it('grows the screen row, stamps the added frames, and best-effort extends the draw log, in order', async () => {
     sqlMock.mockResolvedValueOnce([{ feed: 'sunset' }]).mockResolvedValueOnce([]).mockResolvedValueOnce([]);
-    const grew = await growDwell('sunset', 42, [e(10), e(11)], 24_000, 1_700_000_000_000);
+    const grew = await growDwell('sunset', 42, [e(10), e(11)], 24_000);
     expect(grew).toBe(true);
     expect(sqlMock).toHaveBeenCalledTimes(3);
 
@@ -229,7 +229,7 @@ describe('growDwell (rendezvous spec §3.8: keep going, same slot)', () => {
 
   it('returns false and does nothing else when the screen row did not change (no row returned)', async () => {
     sqlMock.mockResolvedValueOnce([]);
-    const grew = await growDwell('sunset', 42, [e(10)], 24_000, 1_700_000_000_000);
+    const grew = await growDwell('sunset', 42, [e(10)], 24_000);
     expect(grew).toBe(false);
     expect(sqlMock).toHaveBeenCalledTimes(1);
   });
@@ -237,7 +237,7 @@ describe('growDwell (rendezvous spec §3.8: keep going, same slot)', () => {
   it('a failed draw-log extension does not fail growDwell', async () => {
     sqlMock.mockResolvedValueOnce([{ feed: 'sunset' }]).mockResolvedValueOnce([])
       .mockRejectedValueOnce(new Error('relation "kiosk_draws" does not exist'));
-    await expect(growDwell('sunset', 42, [e(10)], 24_000, 1_700_000_000_000)).resolves.toBe(true);
+    await expect(growDwell('sunset', 42, [e(10)], 24_000)).resolves.toBe(true);
   });
 });
 

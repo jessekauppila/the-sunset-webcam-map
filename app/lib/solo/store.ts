@@ -381,21 +381,17 @@ async function stampShown(feed: Feed, ids: number[], slot: number): Promise<void
 /**
  * The keep-going answer (rendezvous spec §3.8): the current dwell plays
  * `add` more frames of its own camera and ends later. The slot does not
- * change — growing is not a draw. Returns whether the screen row changed
- * (false when it was raced out from under us, in which case nothing else
- * runs).
+ * change — growing is not a draw, so unlike `commitAdvance` there is no new
+ * shown-at instant to pin; the bin-entry stamp uses `now()`, same as
+ * `commitAdvance`'s. Returns whether the screen row changed (false when it
+ * was raced out from under us, in which case nothing else runs).
  */
 export async function growDwell(
   feed: Feed,
   slot: number,
   add: BinEntry[],
   dwellMs: number,
-  // Kept for call-site symmetry with commitAdvance/logDraw's startMs/shownAtMs
-  // (rendezvous spec §3.8's caller always has "now"); growing writes no new
-  // shown-at instant of its own, so nothing here reads it.
-  shownAtMs: number,
 ): Promise<boolean> {
-  void shownAtMs;
   const addIds = add.map((e) => e.snapshotId);
   const rows = (await sql`
     update kiosk_screen_state
