@@ -65,7 +65,6 @@ describe('stageAt walks beats', () => {
     expect(stageAt(8_000, p).index).toBe(1);
     expect(stageAt(15_999, p).index).toBe(1);
     expect(stageAt(40_000, p).index).toBe(1);
-    expect(stageAt(8_000, p).exitProgress).toBe(0);
   });
   it('the lead measures back from the end of the whole dwell', () => {
     const p = fitPlan({ ...D, leadS: 4 }, 2); // 16 s dwell, lead over 12–16 s

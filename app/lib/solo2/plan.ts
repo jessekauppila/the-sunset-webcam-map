@@ -117,12 +117,6 @@ export interface Stage {
   index: number;
   /** 0 until the lead begins, 1 at the boundary. */
   leadProgress: number;
-  /**
-   * 0 until the exit begins, 1 at the boundary. Positive only over the last
-   * `exitS` of the dwell, which is when the glass burns its last picture down
-   * into the veil. Always 0 for a plan with no exit.
-   */
-  exitProgress: number;
 }
 
 /**
@@ -136,10 +130,7 @@ export function stageAt(elapsedMs: number, p: DwellPlan): Stage {
   const index = Math.min(p.frames - 1, Math.floor(Math.max(0, t - p.arrivalS) / p.stepS));
   const leadStart = p.dwellS - p.leadS;
   const leadProgress = p.leadS > 0 ? Math.min(1, Math.max(0, (t - leadStart) / p.leadS)) : 0;
-  const exit = p.exitS ?? 0;
-  const exitStart = p.dwellS - exit;
-  const exitProgress = exit > 0 ? Math.min(1, Math.max(0, (t - exitStart) / exit)) : 0;
-  return { index, leadProgress, exitProgress };
+  return { index, leadProgress };
 }
 
 /**

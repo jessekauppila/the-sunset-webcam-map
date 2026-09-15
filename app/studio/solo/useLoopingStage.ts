@@ -3,8 +3,7 @@
 import { useEffect, useState } from 'react';
 import { stageAt, type DwellPlan, type Stage } from '@/app/lib/solo2/plan';
 
-const same = (a: Stage, b: Stage) =>
-  a.index === b.index && a.leadProgress === b.leadProgress && a.exitProgress === b.exitProgress;
+const same = (a: Stage, b: Stage) => a.index === b.index && a.leadProgress === b.leadProgress;
 
 /**
  * Where a dwell that began at `startMs` is now. Clamped at the dwell, never
@@ -63,6 +62,6 @@ export function useLoopingStage(plan: DwellPlan, startMs: number | null, tickMs 
     read();
     const t = setInterval(read, tickMs);
     return () => clearInterval(t);
-  }, [startMs, tickMs, dwellS, frames, stepS, lastStepS, leadS, arrivalS, exitS]);
+  }, [startMs, tickMs, dwellS, frames, stepS, lastStepS, leadS, arrivalS]);
   return stage;
 }
