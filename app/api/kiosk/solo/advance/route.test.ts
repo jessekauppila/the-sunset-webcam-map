@@ -400,6 +400,8 @@ describe('POST /api/kiosk/solo/advance', () => {
         ids([1, 2, 3, 4, 5]), 'solo2', dwellFor(5), T0, null, false);
       expect(body.current.peakAtMs).toBeNull();
       expect(body.current.rendezvous).toBe(false);
+      // The dial being off means the other screen's row is never read.
+      expect(getScreenState).not.toHaveBeenCalledWith('sunrise');
     });
   });
 });

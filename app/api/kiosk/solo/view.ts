@@ -105,10 +105,12 @@ export interface StateView {
      */
     endsAtMs: number | null;
     /**
-     * The frames this dwell plays, in play order, the drawn frame last, as
-     * the draw pinned them. A solo2 run; `[entry]` for solo. The glass renders
-     * exactly this list, so what steps on glass and what the published end was
-     * sized for are one decision rather than two derivations that can differ.
+     * The frames this dwell plays, in play order: the run as the draw pinned
+     * it — the climb, the peak, then what the cap left; the drawn frame (the
+     * newest) plays only when the window reaches it. A solo2 run; `[entry]`
+     * for solo. The glass renders exactly this list, so what steps on glass
+     * and what the published end was sized for are one decision rather than
+     * two derivations that can differ.
      */
     shownSnapshotIds: number[];
     /**

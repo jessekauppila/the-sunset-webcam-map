@@ -103,7 +103,12 @@ export async function POST(request: Request) {
         // of the tick this draw starts on — not of the request instant, which
         // is a few hundred ms either side of it. A landing already past, or on
         // the very tick we start, is nothing this draw can meet.
-        const theirs = await getScreenState(feed === 'sunrise' ? 'sunset' : 'sunrise');
+        // With the dial off there is nothing to fit to, so skip the other
+        // screen's row entirely; fitNext still runs, with null to fit against,
+        // so `decision` reports 'plain' as it always has off the dial.
+        const theirs = (dials as Solo2Dials).rendezvous
+          ? await getScreenState(feed === 'sunrise' ? 'sunset' : 'sunrise')
+          : null;
         const otherPeak = theirs?.peakAtMs != null && theirs.peakAtMs > startMs ? theirs.peakAtMs : null;
         // The run ending on THIS screen, so a fit needing more room than the
         // climb has can ask that run to play on instead of holding anything.

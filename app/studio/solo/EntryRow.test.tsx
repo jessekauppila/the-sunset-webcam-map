@@ -50,7 +50,7 @@ it('a run stacks the earlier frames above the newest one, each labelled i/k with
     { ...e, ...tz, snapshotId: 6, imageUrl: 'u6', capturedAt: AT - 28 * 60_000 },
   ];
   render(<EntryRow reason="draw 3 · shown ×2 · last 1 min ago" entry={{ ...e, ...tz, capturedAt: AT }} feed="sunset" place="queue" onClick={onClick}
-    run={{ earlier, stepS: 20 / 3 }} rowS={20} />);
+    run={{ earlier, last: { ...e, ...tz, capturedAt: AT }, stepS: 20 / 3 }} rowS={20} />);
   const group = screen.getByRole('group');
   expect(group).toHaveStyle({ border: '2px solid #7ee2ac' });
   expect(group).toHaveAccessibleName('Pier: 3 frames in one dwell');
@@ -70,15 +70,40 @@ it('a run stacks the earlier frames above the newest one, each labelled i/k with
   expect(screen.queryByText('PRELUDE')).toBeNull();
 });
 
+it('a peaked run shows the frame it actually ends on, not the row\'s own entry, while the click target and place text stay the entry', () => {
+  const onClick = vi.fn();
+  const earlier = [
+    { ...e, ...tz, snapshotId: 5, imageUrl: 'u5', capturedAt: AT - 44 * 60_000 },
+    { ...e, ...tz, snapshotId: 6, imageUrl: 'u6', capturedAt: AT - 28 * 60_000 },
+  ];
+  // The window's last frame (8) is not the row's own entry (9, the camera's
+  // newest) — the cap cut 9 out of the played window.
+  const last = { ...e, ...tz, snapshotId: 8, imageUrl: 'u8', title: 'Pier 8', capturedAt: AT - 5 * 60_000, quality: 0.3 };
+  const entry9 = { ...e, ...tz, snapshotId: 9, imageUrl: 'u9', title: 'Pier 9', capturedAt: AT, quality: 0.99 };
+  render(<EntryRow reason="draw 3 · shown ×2 · last 1 min ago" entry={entry9} feed="sunset" place="queue" onClick={onClick}
+    run={{ earlier, last, stepS: 20 / 3 }} rowS={20} />);
+  const buttons = screen.getAllByRole('button');
+  const main = buttons[buttons.length - 1];
+  // The picture and score shown are frame 8's (the run's last), not frame 9's.
+  expect(main.querySelector('img')).toHaveAttribute('src', 'u8');
+  expect(main).toHaveTextContent('rating 2.2'); // scoreLine of quality 0.3
+  expect(main).not.toHaveTextContent('rating 5.0'); // quality 0.99 would round to this
+  expect(main).toHaveTextContent('Pier 8');
+  // The click target and the place/time text stay the row's own entry (9, 7:42 pm).
+  fireEvent.click(main);
+  expect(onClick).toHaveBeenCalledWith(expect.objectContaining({ snapshotId: 9 }));
+  expect(main).toHaveTextContent('7:42 pm');
+});
+
 it('heights are time: every frame of the run gets the same share, never below a legible minimum', () => {
   const earlier = [{ ...e, snapshotId: 5, imageUrl: 'u5', capturedAt: 1 }];
   render(<EntryRow reason="draw 3 · shown ×2 · last 1 min ago" entry={{ ...e, capturedAt: 2 }} feed="sunset" place="queue" onClick={vi.fn()}
-    run={{ earlier, stepS: 10 }} rowS={20} />);
+    run={{ earlier, last: { ...e, capturedAt: 2 }, stepS: 10 }} rowS={20} />);
   const [step, main] = screen.getAllByRole('button');
   expect(step).toHaveStyle({ height: `${10 * PX_PER_S}px` });
   expect(main).toHaveStyle({ minHeight: `${10 * PX_PER_S}px` });
   render(<EntryRow reason="draw 3 · shown ×2 · last 1 min ago" entry={{ ...e, capturedAt: 2 }} feed="sunset" place="queue" onClick={vi.fn()}
-    run={{ earlier, stepS: 0.5 }} rowS={20} />);
+    run={{ earlier, last: { ...e, capturedAt: 2 }, stepS: 0.5 }} rowS={20} />);
   expect(screen.getAllByRole('button')[2]).toHaveStyle({ height: `${MIN_FRAME_PX}px` });
 });
 
@@ -90,6 +115,6 @@ it('without a run the row keeps its shape, and rowS alone sets its height as tim
 });
 
 it('a run of one is not a group', () => {
-  render(<EntryRow reason="draw 3" entry={e} feed="sunset" place="sunset" onClick={vi.fn()} run={{ earlier: [], stepS: 20 }} />);
+  render(<EntryRow reason="draw 3" entry={e} feed="sunset" place="sunset" onClick={vi.fn()} run={{ earlier: [], last: e, stepS: 20 }} />);
   expect(screen.queryByRole('group')).toBeNull();
 });

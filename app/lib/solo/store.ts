@@ -261,9 +261,11 @@ export interface ScreenRow {
    */
   dwellMs?: number | null;
   /**
-   * The frames this dwell plays, in play order, the drawn frame last: the
-   * same array the draw log stamps, kept on the screen row so the glass reads
-   * fact rather than re-deriving a run from a pool that has since changed.
+   * The frames this dwell plays, in play order: the run as the draw pinned
+   * it — the climb, the peak, then what the cap left; the drawn frame (the
+   * newest) plays only when the window reaches it. The same array the draw
+   * log stamps, kept on the screen row so the glass reads fact rather than
+   * re-deriving a run from a pool that has since changed.
    *
    * Optional alongside `dwellMs` for the same reason: a row from before the
    * migration has neither, and every reader falls back to the old recompute.

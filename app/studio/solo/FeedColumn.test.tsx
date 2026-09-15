@@ -171,6 +171,31 @@ it('solo2 greys out the frames of a camera that the most-frames cap cuts, keeps 
   expect(list.indexOf(1)).toBeLessThan(list.indexOf(3));
 });
 
+it('solo2 groups a peaked run by the played window, not by the camera\'s newest frame the cap cuts', async () => {
+  const { SOLO_VERSIONS } = await import('@/app/lib/solo/versions');
+  const { SOLO2_SETTINGS_SCHEMA, dialsFrom2 } = await import('@/app/lib/solo2/settingsSchema');
+  const d2 = { ...dialsFrom2(schemaDefaults(SOLO2_SETTINGS_SCHEMA)), ratingFloor: 1, runFramesSunset: 3 };
+  const at = Date.UTC(2026, 8, 5, 2, 42);
+  const cam = (id: number, score: number, minutesBefore: number) => ({
+    ...entry(id, 'sunset', score, 7), capturedAt: at - minutesBefore * 60_000, timezone: 'America/Mazatlan',
+  });
+  // Peak (quality 0.95) is frame 2; cap 3 plays frames 1, 2, 3 (§3.6), cutting 4, 5, and 6 — the camera's newest.
+  const es = [cam(1, 0.5, 50), cam(2, 0.95, 40), cam(3, 0.6, 30), cam(4, 0.55, 20), cam(5, 0.5, 10), cam(6, 0.4, 0)];
+  const v = buildStateView({ feed: 'sunrise', dials: d2, entries: es, screen: null,
+    nowMs: 0, admitted: { sunset: 0, nonSunset: 0 }, zone: { minDeg: -24, maxDeg: -2 }, version: SOLO_VERSIONS.solo2 });
+  const onSelect = vi.fn();
+  render(<FeedColumn feed="sunrise" server={v} projected={v} liveDials={d2} nowMs={0} version={SOLO_VERSIONS.solo2} onSelect={onSelect} />);
+  const group = screen.getAllByRole('group')[0];
+  // Three cut (4, 5, 6, including the newest); the played window is numbered 1/3 … 3/3.
+  expect(group).toHaveTextContent(/CUT.*CUT.*CUT.*1\/3.*2\/3.*3\/3/s);
+  fireEvent.click(within(group).getAllByTitle(/not played/)[0]);
+  const list = onSelect.mock.calls[0][2].map((e: { snapshotId: number }) => e.snapshotId);
+  // The cap-cut frames (4, 5, 6 — the newest among them) come first, then the
+  // played window (1, 2, 3). One camera alone fills the whole queue, so the
+  // same six-frame cycle repeats; check the first cycle rather than the length.
+  expect(list.slice(0, 6)).toEqual([4, 5, 6, 1, 2, 3]);
+});
+
 it('a bin the queue has emptied says so in one line instead of three zero stages', async () => {
   const { SOLO_VERSIONS } = await import('@/app/lib/solo/versions');
   const { SOLO2_SETTINGS_SCHEMA, dialsFrom2 } = await import('@/app/lib/solo2/settingsSchema');

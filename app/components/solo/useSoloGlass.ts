@@ -17,14 +17,15 @@ export interface SoloGlass {
   /** When this dwell ends, ms since epoch, as the server computed it (spec §5.1). Null before the first state arrives. */
   endsAtMs: number | null;
   /**
-   * The frames this dwell plays, in play order, the drawn frame last, as the
-   * DRAW pinned them. Empty before the first state arrives.
+   * The frames this dwell plays, in play order: the run as the draw pinned
+   * it — the climb, the peak, then what the cap left; the drawn frame (the
+   * newest) plays only when the window reaches it. Empty before the first
+   * state arrives.
    *
    * A renderer must play this list rather than re-deriving a run from
    * `entries`. That pool is refetched every minute and changes every minute,
-   * and a run's window is anchored at its newest frame, so a re-derivation
-   * mid-dwell prepends older frames and shifts every index under a clock that
-   * has already started.
+   * and a run's window is anchored at its peak, so a re-derivation mid-dwell
+   * can shift every index under a clock that has already started.
    */
   shownSnapshotIds: number[];
   next: EntryView | null;
