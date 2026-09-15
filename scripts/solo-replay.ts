@@ -9,19 +9,22 @@
 //     --version solo --deploy 4 --dial ratingFloor=2.5 --dial rest=6 \
 //     --json /tmp/replay.json
 //
-//   --feed     sunrise | sunset (default sunset)
+//   --feed     sunrise | sunset | both (default sunset). `both` walks the two
+//              screens on one clock and reports the rendezvous between them.
 //   --from/--to  ISO time or `now`; default the last hour
 //   --deploy   kiosk_deploys id whose dials to start from; default the newest
 //   --version  solo | solo2; default the deploy's shared activeVersion when it
 //              is a solo version, else solo
 //   --dial     key=value on top of the deploy, repeatable; sanitized by the schema
-//   --json     also write { actual, replay, summaries } for the studio strip
+//   --json     also write { actual, replay, summaries } for the studio strip,
+//              or { sunrise, sunset, rendezvous } under --feed both
 //
 // Read-only. Needs DATABASE_URL in .env.local (read here, before the store
 // is imported, because app/lib/db reads it at import).
 import { readFileSync, writeFileSync } from 'node:fs';
 import type { SettingsSchema, SettingsValues } from '@/app/lib/settings/schema';
-import type { StripFrame } from '@/app/lib/solo/replay';
+import type { Strip, StripFrame } from '@/app/lib/solo/replay';
+import type { Feed } from '@/app/lib/solo/types';
 
 function loadEnvLocal(): void {
   let text = '';
@@ -34,7 +37,7 @@ function loadEnvLocal(): void {
 }
 
 interface Args {
-  feed: 'sunrise' | 'sunset';
+  feed: Feed | 'both';
   from: number;
   to: number;
   deploy: number | null;
@@ -62,7 +65,7 @@ function parseArgs(argv: string[]): Args {
   }
   const one = (k: string) => flags.get(k)?.at(-1);
   const feed = one('feed') ?? 'sunset';
-  if (feed !== 'sunrise' && feed !== 'sunset') throw new Error('--feed must be sunrise or sunset');
+  if (feed !== 'sunrise' && feed !== 'sunset' && feed !== 'both') throw new Error('--feed must be sunrise, sunset or both');
   const to = parseTime(one('to'), Date.now());
   const from = parseTime(one('from'), to - 3_600_000);
   const dials: Record<string, string> = {};
@@ -111,7 +114,7 @@ async function main(): Promise<void> {
   loadEnvLocal();
   const args = parseArgs(process.argv.slice(2));
   const [{ listDrawsBetween, listEntriesOverlapping }, { listDeploys }, { SOLO_VERSIONS, resolveSoloVersion },
-    { mergeSettings, stripDefaults }, { SHARED_SCHEMA }, { replay, actualStrip, summarize, compare }] = await Promise.all([
+    { mergeSettings, stripDefaults }, { SHARED_SCHEMA }, { replay, replayPair, actualStrip, summarize, compare }] = await Promise.all([
     import('@/app/lib/solo/store'), import('@/app/lib/settings/deploys'), import('@/app/lib/solo/versions'),
     import('@/app/lib/settings/schema'), import('@/app/lib/settings/sharedSchema'), import('@/app/lib/solo/replay'),
   ]);
@@ -130,69 +133,104 @@ async function main(): Promise<void> {
 
   // Bins expire at 24 h, so every draw of a frame still in the pool is within a day: the seed is exact from the log.
   const LOOKBACK_MS = 24 * 3_600_000;
-  const [draws, entries] = await Promise.all([
-    listDrawsBetween(args.feed, args.from - LOOKBACK_MS, args.to),
-    listEntriesOverlapping(args.feed, args.from - LOOKBACK_MS, args.to),
-  ]);
-  const prior = draws.filter((d) => d.shownAt < args.from);
-  const window = draws.filter((d) => d.shownAt >= args.from);
-  const liveDeploy = deploys.find((d) => d.id === window.at(-1)?.deployId) ?? deploy;
-  const liveVersion = resolveSoloVersion(window.at(-1)?.version ?? versionName) ?? version;
-  const liveDials = liveVersion.dialsFrom(mergeSettings(liveVersion.schema, liveDeploy.namespaces[liveVersion.namespace]));
-  const actual = actualStrip(args.feed, window, { dwellS: liveDials.dwellS }, args.from, args.to);
-  const re = replay({ feed: args.feed, version, dials, entries, priorDraws: prior, fromMs: args.from, toMs: args.to });
-  const summaries = { actual: summarize(actual), replay: summarize(re) };
-  const agreement = compare(actual, re);
+  // `both` walks the two screens together, so both windows are loaded before
+  // either is replayed: a draw on one screen is decided against the peak the
+  // other had already pinned, and that is not knowable one feed at a time.
+  const feeds: Feed[] = args.feed === 'both' ? ['sunrise', 'sunset'] : [args.feed];
+  const prepared = await Promise.all(feeds.map(async (feed) => {
+    const [draws, entries] = await Promise.all([
+      listDrawsBetween(feed, args.from - LOOKBACK_MS, args.to),
+      listEntriesOverlapping(feed, args.from - LOOKBACK_MS, args.to),
+    ]);
+    const prior = draws.filter((d) => d.shownAt < args.from);
+    const window = draws.filter((d) => d.shownAt >= args.from);
+    const liveDeploy = deploys.find((d) => d.id === window.at(-1)?.deployId) ?? deploy;
+    const liveVersion = resolveSoloVersion(window.at(-1)?.version ?? versionName) ?? version;
+    const liveDials = liveVersion.dialsFrom(mergeSettings(liveVersion.schema, liveDeploy.namespaces[liveVersion.namespace]));
+    return {
+      feed, entries, prior, liveDeploy, liveVersion, liveDials,
+      actual: actualStrip(feed, window, { dwellS: liveDials.dwellS }, args.from, args.to),
+      drawn: window.length,
+      options: { feed, version, dials, entries, priorDraws: prior, fromMs: args.from, toMs: args.to },
+    };
+  }));
 
   // A row with no deployedAt is a saved take: dialled and kept, never sent to
   // the glass (takes spec, PR #147). Replaying one is legitimate and is the
   // point of a take, so name it rather than pretending it was deployed.
   const deployLabel = (d: typeof deploy) => `#${d.id}${d.label ? ` ${d.label}` : ''} `
     + (d.deployedAt ? `(deployed ${clock(Date.parse(d.deployedAt))} PT)` : `(take, saved ${clock(Date.parse(d.createdAt))} PT)`);
-  console.log(`${args.feed} screen, ${clock(args.from)} → ${clock(args.to)} PT`);
-  console.log(`pool: ${entries.length} bin rows overlapped the window; ${prior.length} prior draws seed the shown state`);
-  console.log(`actual: ${liveVersion.name}, deploy ${deployLabel(liveDeploy)}, dwell ${liveDials.dwellS} s nominal${window.length === 0 ? ' — no draws logged in this window' : ''}`);
-  console.log(`replay: ${version.name}, deploy ${deployLabel(deploy)}` +
-    (Object.keys(deviations).length ? `, dials ${Object.entries(deviations).map(([k, v]) => `${k}=${v}`).join(' ')}` : ', dials at defaults'));
-  console.log('');
-  console.log(`${'slot'.padEnd(9)} ${'actual'.padEnd(40)}   ${'replay'.padEnd(40)}`);
-  const byActual = new Map(actual.frames.map((f) => [f.slot, f]));
-  const byReplay = new Map(re.frames.map((f) => [f.slot, f]));
-  const slots = [...new Set([...byActual.keys(), ...byReplay.keys()])].sort((a, b) => a - b);
-  for (const slot of slots) {
-    const a = byActual.get(slot);
-    const r = byReplay.get(slot);
-    const mark = a && r && agreement ? (a.snapshotId === r.snapshotId ? ' ' : '≠') : ' ';
-    console.log(`${clock((a ?? r)!.shownAt)} ${cell(a)} ${mark} ${cell(r)}`);
+
+  /** One screen's block: the two strips side by side, then the summaries. */
+  const report = (p: (typeof prepared)[number], re: Strip) => {
+    const summaries = { actual: summarize(p.actual), replay: summarize(re) };
+    const agreement = compare(p.actual, re);
+    console.log(`${p.feed} screen, ${clock(args.from)} → ${clock(args.to)} PT`);
+    console.log(`pool: ${p.entries.length} bin rows overlapped the window; ${p.prior.length} prior draws seed the shown state`);
+    console.log(`actual: ${p.liveVersion.name}, deploy ${deployLabel(p.liveDeploy)}, dwell ${p.liveDials.dwellS} s nominal${p.drawn === 0 ? ' — no draws logged in this window' : ''}`);
+    console.log(`replay: ${version.name}, deploy ${deployLabel(deploy)}` +
+      (Object.keys(deviations).length ? `, dials ${Object.entries(deviations).map(([k, v]) => `${k}=${v}`).join(' ')}` : ', dials at defaults'));
+    console.log('');
+    console.log(`${'slot'.padEnd(9)} ${'actual'.padEnd(40)}   ${'replay'.padEnd(40)}`);
+    const byActual = new Map(p.actual.frames.map((f) => [f.slot, f]));
+    const byReplay = new Map(re.frames.map((f) => [f.slot, f]));
+    const slots = [...new Set([...byActual.keys(), ...byReplay.keys()])].sort((a, b) => a - b);
+    for (const slot of slots) {
+      const a = byActual.get(slot);
+      const r = byReplay.get(slot);
+      const mark = a && r && agreement ? (a.snapshotId === r.snapshotId ? ' ' : '≠') : ' ';
+      console.log(`${clock((a ?? r)!.shownAt)} ${cell(a)} ${mark} ${cell(r)}`);
+    }
+    console.log('');
+    const rows: [string, string, string][] = [
+      ['draws', String(summaries.actual.draws), String(summaries.replay.draws)],
+      ['blanks', String(summaries.actual.blanks), String(summaries.replay.blanks)],
+      ['distinct frames', String(summaries.actual.distinctFrames), String(summaries.replay.distinctFrames)],
+      ['distinct cameras', String(summaries.actual.distinctCameras), String(summaries.replay.distinctCameras)],
+      ['repeats', String(summaries.actual.repeats), String(summaries.replay.repeats)],
+      ['non-sunset share', pct(summaries.actual.nonSunsetShare), pct(summaries.replay.nonSunsetShare)],
+      ['mean quality', q3(summaries.actual.meanQuality), q3(summaries.replay.meanQuality)],
+      ['min quality', q3(summaries.actual.minQuality), q3(summaries.replay.minQuality)],
+      ['quality deciles', summaries.actual.qualityHistogram.join(' '), summaries.replay.qualityHistogram.join(' ')],
+    ];
+    for (const [k, a, r] of rows) console.log(`${k.padEnd(18)} ${a.padEnd(22)} ${r}`);
+    if (agreement) {
+      console.log(`${'same frame'.padEnd(18)} ${agreement.same} of ${agreement.slots} slots`);
+      console.log(`${'same order'.padEnd(18)} ${agreement.inOrder} of ${Math.min(p.actual.frames.length, re.frames.length)} draws (a draw the glass missed shifts the rest)`);
+    }
+    else console.log(`${'same frame'.padEnd(18)} (different screens; their counters are independent)`);
+    console.log('');
+    console.log('draws per camera (actual | replay)');
+    const cams = new Map<number, { title: string; a: number; r: number }>();
+    for (const c of summaries.actual.perCamera) cams.set(c.webcamId, { title: c.title, a: c.draws, r: 0 });
+    for (const c of summaries.replay.perCamera) cams.set(c.webcamId, { ...(cams.get(c.webcamId) ?? { title: c.title, a: 0 }), r: c.draws });
+    for (const [id, c] of [...cams].sort((x, y) => y[1].a + y[1].r - (x[1].a + x[1].r)))
+      console.log(`  ${String(c.a).padStart(3)} | ${String(c.r).padStart(3)}  ${short(c.title.replace(/ › .*?: /, ' '), 60)} (${id})`);
+    return { summaries, agreement };
+  };
+
+  const pair = prepared.length === 2 ? replayPair({ sunrise: prepared[0].options, sunset: prepared[1].options }) : null;
+  let single: ({ re: Strip } & ReturnType<typeof report>) | null = null;
+  for (const [i, p] of prepared.entries()) {
+    if (i > 0) console.log('\n————\n');
+    const re = pair ? pair[p.feed] : replay(p.options);
+    const out = report(p, re);
+    if (!pair) single = { re, ...out };
   }
-  console.log('');
-  const rows: [string, string, string][] = [
-    ['draws', String(summaries.actual.draws), String(summaries.replay.draws)],
-    ['blanks', String(summaries.actual.blanks), String(summaries.replay.blanks)],
-    ['distinct frames', String(summaries.actual.distinctFrames), String(summaries.replay.distinctFrames)],
-    ['distinct cameras', String(summaries.actual.distinctCameras), String(summaries.replay.distinctCameras)],
-    ['repeats', String(summaries.actual.repeats), String(summaries.replay.repeats)],
-    ['non-sunset share', pct(summaries.actual.nonSunsetShare), pct(summaries.replay.nonSunsetShare)],
-    ['mean quality', q3(summaries.actual.meanQuality), q3(summaries.replay.meanQuality)],
-    ['min quality', q3(summaries.actual.minQuality), q3(summaries.replay.minQuality)],
-    ['quality deciles', summaries.actual.qualityHistogram.join(' '), summaries.replay.qualityHistogram.join(' ')],
-  ];
-  for (const [k, a, r] of rows) console.log(`${k.padEnd(18)} ${a.padEnd(22)} ${r}`);
-  if (agreement) {
-    console.log(`${'same frame'.padEnd(18)} ${agreement.same} of ${agreement.slots} slots`);
-    console.log(`${'same order'.padEnd(18)} ${agreement.inOrder} of ${Math.min(actual.frames.length, re.frames.length)} draws (a draw the glass missed shifts the rest)`);
+
+  if (pair) {
+    const r = pair.rendezvous;
+    console.log('');
+    console.log(`rendezvous: made ${r.made} · missed ${r.missed} · frames dropped ${r.dropped} · grown ${r.grown}`);
+    for (const l of r.landings) console.log(`  ${clock(l.atMs)}  sunrise slot ${l.sunriseSlot} · sunset slot ${l.sunsetSlot}`);
+    if (r.landings.length === 0) console.log('  (no landings in this window)');
   }
-  else console.log(`${'same frame'.padEnd(18)} (different screens; their counters are independent)`);
-  console.log('');
-  console.log('draws per camera (actual | replay)');
-  const cams = new Map<number, { title: string; a: number; r: number }>();
-  for (const c of summaries.actual.perCamera) cams.set(c.webcamId, { title: c.title, a: c.draws, r: 0 });
-  for (const c of summaries.replay.perCamera) cams.set(c.webcamId, { ...(cams.get(c.webcamId) ?? { title: c.title, a: 0 }), r: c.draws });
-  for (const [id, c] of [...cams].sort((x, y) => y[1].a + y[1].r - (x[1].a + x[1].r)))
-    console.log(`  ${String(c.a).padStart(3)} | ${String(c.r).padStart(3)}  ${short(c.title.replace(/ › .*?: /, ' '), 60)} (${id})`);
 
   if (args.json) {
-    writeFileSync(args.json, JSON.stringify({ actual, replay: re, summaries, agreement, dials: deviations }, null, 2));
+    const payload = pair
+      ? { sunrise: pair.sunrise, sunset: pair.sunset, rendezvous: pair.rendezvous, dials: deviations }
+      : { actual: prepared[0].actual, replay: single!.re, summaries: single!.summaries, agreement: single!.agreement, dials: deviations };
+    writeFileSync(args.json, JSON.stringify(payload, null, 2));
     console.log(`\nwrote ${args.json}`);
   }
 }

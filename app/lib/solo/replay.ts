@@ -35,6 +35,10 @@ export interface DrawLike {
   /** Every frame the dwell played; defaults to the drawn frame alone. */
   shownSnapshotIds?: number[];
   bin?: BinKind | null;
+  /** When this dwell's peak landed (rendezvous spec §3.3); null off the dial and for rows written before the migration. */
+  peakAtMs?: number | null;
+  /** True only when this dwell's landing was fitted to the other screen's peak. */
+  rendezvous?: boolean;
 }
 
 /** A block on a strip: a draw, actual or replayed. `snapshotId` null is a blank (nothing eligible). */
@@ -58,6 +62,18 @@ export interface StripFrame {
    * draw, or null for the last one, which has nothing to measure against.
    */
   dwellMs: number | null;
+  /**
+   * When this block's peak lands, ms (rendezvous spec §3.3): the tick this
+   * screen pinned for the other one, or the one it fitted itself to. Null
+   * for a block that neither pinned nor fitted.
+   */
+  peakAtMs: number | null;
+  /** This block's landing was fitted to the other screen's pinned peak. */
+  rendezvous: boolean;
+  /** Frames the fit dropped from this block's climb to make it land on the tick. */
+  dropped: number;
+  /** Frames a later grow added to this block so the OTHER screen's landing could be met. */
+  grown: number;
 }
 
 /**
@@ -145,15 +161,22 @@ export function initialState(priorDraws: DrawLike[], entries: ReplayEntry[]): Sc
 const blank = (slot: number, shownAt: number, dwellMs: number | null): StripFrame => ({
   slot, shownAt, snapshotId: null, webcamId: null, bin: null, quality: null, detection: null,
   title: '', imageUrl: '', capturedAt: null, shownSnapshotIds: [], repeat: false, dwellMs,
+  peakAtMs: null, rendezvous: false, dropped: 0, grown: 0,
 });
+
+/** The rendezvous stamp on a block; absent for every strip that has no rendezvous. */
+interface Landed { peakAtMs?: number | null; rendezvous?: boolean; dropped?: number; grown?: number }
 
 function frameOf(
   e: FrameFacts, slot: number, shownAt: number, shownIds: number[], repeat: boolean, dwellMs: number | null,
+  landed: Landed = {},
 ): StripFrame {
   return {
     slot, shownAt, snapshotId: e.snapshotId, webcamId: e.webcamId, bin: e.bin,
     quality: e.quality, detection: e.detection, title: e.title ?? '', imageUrl: e.imageUrl ?? '',
     capturedAt: e.capturedAt ?? null, shownSnapshotIds: shownIds, repeat, dwellMs,
+    peakAtMs: landed.peakAtMs ?? null, rendezvous: landed.rendezvous ?? false,
+    dropped: landed.dropped ?? 0, grown: landed.grown ?? 0,
   };
 }
 
@@ -182,43 +205,244 @@ export interface ReplayOptions<D extends SoloDials> {
  * budget its frames share, so a run of eight stretches the block.
  */
 export function replay<D extends SoloDials>(o: ReplayOptions<D>): Strip {
-  const { feed, version, dials } = o;
-  const working = seedFromDraws(o.entries, o.priorDraws, o.fromMs);
-  let state = initialState(o.priorDraws, o.entries);
-  const seen = new Set<number>();
-  const frames: StripFrame[] = [];
-  // The counter continues the recorded sequence rather than being derived
-  // from fromMs, so `rest` compares against the same numbers the log holds.
-  let slot = (o.priorDraws.at(-1)?.slot ?? -1) + 1;
-  let atMs = o.fromMs;
-  while (atMs <= o.toMs) {
-    const pool = poolAt(working, atMs);
-    const pick = version.next(pool, dials, state, slot, feed);
-    if (!pick) {
-      // Nothing eligible, so nothing to ask a length of. A blank costs one
-      // nominal dwell, which is what the glass waits while the bin is empty.
-      const blankMs = dials.dwellS * 1000;
-      frames.push(blank(slot, atMs, blankMs));
-      atMs += blankMs;
-      slot += 1;
-      continue;
-    }
-    const shown = version.shown(pool, pick, dials);
-    const lengthMs = version.dwellMs(pool, pick, dials);
-    for (const f of shown) {
-      f.tally += 1;
-      f.isNew = false;
-      f.lastShownAt = atMs;
-      f.lastShownSlot = slot;
-    }
-    const chosen = working.find((e) => e.snapshotId === pick.snapshotId)!;
-    frames.push(frameOf(chosen, slot, atMs, shown.map((f) => f.snapshotId), seen.has(pick.snapshotId), lengthMs));
-    seen.add(pick.snapshotId);
-    state = afterShowing(pick, state);
-    atMs += lengthMs;
-    slot += 1;
+  const screen = openScreen(o);
+  while (screen.atMs <= o.toMs) stepOnce(screen);
+  return stripOf(screen);
+}
+
+/** One screen mid-replay: its clock, its counter, its pool and what it has shown. */
+interface Screen<D extends SoloDials> {
+  o: ReplayOptions<D>;
+  /** The entries carrying the shown state the replay itself has built. */
+  working: ReplayEntry[];
+  state: ScreenState;
+  seen: Set<number>;
+  frames: StripFrame[];
+  slot: number;
+  atMs: number;
+}
+
+function openScreen<D extends SoloDials>(o: ReplayOptions<D>): Screen<D> {
+  return {
+    o,
+    working: seedFromDraws(o.entries, o.priorDraws, o.fromMs),
+    state: initialState(o.priorDraws, o.entries),
+    seen: new Set<number>(),
+    frames: [],
+    // The counter continues the recorded sequence rather than being derived
+    // from fromMs, so `rest` compares against the same numbers the log holds.
+    slot: (o.priorDraws.at(-1)?.slot ?? -1) + 1,
+    atMs: o.fromMs,
+  };
+}
+
+const stripOf = <D extends SoloDials>(s: Screen<D>): Strip => ({
+  feed: s.o.feed, version: s.o.version.name, schedule: { dwellS: s.o.dials.dwellS },
+  fromMs: s.o.fromMs, toMs: s.o.toMs, frames: s.frames,
+});
+
+/** Every frame a dwell played is on glass: it rests, it is no longer new, and it has a time and a draw number. */
+function stampShown(frames: BinEntry[], atMs: number, slot: number): void {
+  for (const f of frames) {
+    f.tally += 1;
+    f.isNew = false;
+    f.lastShownAt = atMs;
+    f.lastShownSlot = slot;
   }
-  return { feed, version: version.name, schedule: { dwellS: dials.dwellS }, fromMs: o.fromMs, toMs: o.toMs, frames };
+}
+
+/** What a draw does, once anything above the plain path has had its say. */
+type StepDecision =
+  | { kind: 'draw'; shown: BinEntry[]; lengthMs: number; peakAtMs: number | null; rendezvous: boolean; dropped: number }
+  /** Do not draw: the dwell that is ending plays `add` more frames of its own camera, one beat each. */
+  | { kind: 'grow'; add: BinEntry[]; addedMs: number };
+
+/** The rendezvous seam, as one screen's step sees it. Only `replayPair` has one. */
+type Decide<D extends SoloDials> = (s: Screen<D>, pool: ReplayEntry[], pick: BinEntry) => StepDecision;
+
+/**
+ * One step of one screen's clock — the body a single-feed replay and a
+ * paired one share, so that the two cannot drift. Without `decide` this is
+ * the plain path, byte for byte what the replay has always done; `decide`
+ * lets the caller substitute the rendezvous's frames, length and stamp, or
+ * say that the dwell already running should play on instead.
+ */
+function stepOnce<D extends SoloDials>(s: Screen<D>, decide?: Decide<D>): void {
+  const { feed, version, dials } = s.o;
+  const pool = poolAt(s.working, s.atMs);
+  const pick = version.next(pool, dials, s.state, s.slot, feed);
+  if (!pick) {
+    // Nothing eligible, so nothing to ask a length of. A blank costs one
+    // nominal dwell, which is what the glass waits while the bin is empty.
+    const blankMs = dials.dwellS * 1000;
+    s.frames.push(blank(s.slot, s.atMs, blankMs));
+    s.atMs += blankMs;
+    s.slot += 1;
+    return;
+  }
+  const decision: StepDecision = decide?.(s, pool, pick) ?? {
+    kind: 'draw',
+    shown: version.shown(pool, pick, dials),
+    lengthMs: version.dwellMs(pool, pick, dials),
+    peakAtMs: null, rendezvous: false, dropped: 0,
+  };
+  if (decision.kind === 'grow') {
+    // Keep going rather than draw (rendezvous spec §3.8): the block that is
+    // ending gets longer and holds more frames, the counter does not move,
+    // and this screen asks again at the new end.
+    const prev = s.frames.at(-1)!;
+    stampShown(decision.add, s.atMs, prev.slot);
+    prev.shownSnapshotIds = [...prev.shownSnapshotIds, ...decision.add.map((f) => f.snapshotId)];
+    prev.dwellMs = (prev.dwellMs ?? 0) + decision.addedMs;
+    prev.grown += decision.add.length;
+    s.atMs += decision.addedMs;
+    return;
+  }
+  stampShown(decision.shown, s.atMs, s.slot);
+  const chosen = s.working.find((e) => e.snapshotId === pick.snapshotId)!;
+  s.frames.push(frameOf(
+    chosen, s.slot, s.atMs, decision.shown.map((f) => f.snapshotId), s.seen.has(pick.snapshotId), decision.lengthMs,
+    { peakAtMs: decision.peakAtMs, rendezvous: decision.rendezvous, dropped: decision.dropped },
+  ));
+  s.seen.add(pick.snapshotId);
+  s.state = afterShowing(pick, s.state);
+  s.atMs += decision.lengthMs;
+  s.slot += 1;
+}
+
+export interface PairOptions<D extends SoloDials> {
+  sunrise: ReplayOptions<D>;
+  sunset: ReplayOptions<D>;
+}
+
+/** Where the two screens landed together: the tick, and the draw that was up on each. */
+export interface Landing {
+  atMs: number;
+  sunriseSlot: number;
+  sunsetSlot: number;
+}
+
+export interface RendezvousCounts {
+  /** Fits: draws that thinned their climb to land on the other screen's pinned peak. */
+  made: number;
+  /** Pins that passed unmet: the pinning screen drew again with nothing having fitted to it. */
+  missed: number;
+  /** Frames the fits dropped from their climbs. */
+  dropped: number;
+  /** Frames the grows added to dwells that were ending. */
+  grown: number;
+  landings: Landing[];
+}
+
+export interface PairResult {
+  sunrise: Strip;
+  sunset: Strip;
+  rendezvous: RendezvousCounts;
+}
+
+/**
+ * One beat, ms. A version with a rendezvous prices a grown frame in beats
+ * (rendezvous spec §3.5) and so carries the dial; a version without one
+ * never grows, and the fallback is only there so this cannot throw.
+ */
+const beatMsOf = (d: SoloDials): number => {
+  const beatS = (d as SoloDials & { beatS?: number }).beatS;
+  return (typeof beatS === 'number' && beatS > 0 ? beatS : d.dwellS) * 1000;
+};
+
+const otherFeed = (f: Feed): Feed => (f === 'sunrise' ? 'sunset' : 'sunrise');
+
+/**
+ * Both screens over one window (rendezvous spec §5). Two clocks, one per
+ * feed, each with its own pool, counter and shown state; whichever is
+ * earlier draws next, so a dwell on one screen is decided against the peak
+ * the other has already pinned — the same single number the two screens pass
+ * each other on glass, and nothing else.
+ *
+ * The pin is held here rather than on the strip because it is state BETWEEN
+ * the screens: a pin outlives the draw that made it, is cleared by the
+ * pinning screen's next draw, and is met at most once. Counting a miss needs
+ * exactly that: was this pin still outstanding when its own screen moved on.
+ */
+export function replayPair<D extends SoloDials>(o: PairOptions<D>): PairResult {
+  const screens: Record<Feed, Screen<D>> = { sunrise: openScreen(o.sunrise), sunset: openScreen(o.sunset) };
+  /** The landing each screen has published, and whether the other one met it. */
+  const pins: Record<Feed, { atMs: number; matched: boolean } | null> = { sunrise: null, sunset: null };
+  const counts: RendezvousCounts = { made: 0, missed: 0, dropped: 0, grown: 0, landings: [] };
+
+  const decideFor = (side: Feed): Decide<D> => (s, pool, pick) => {
+    const { version, dials } = s.o;
+    const plain: StepDecision = {
+      kind: 'draw',
+      shown: version.shown(pool, pick, dials),
+      lengthMs: version.dwellMs(pool, pick, dials),
+      peakAtMs: null, rendezvous: false, dropped: 0,
+    };
+    if (!version.fitNext || !version.dwellMsFor) return plain;
+    // The block that is ending on THIS screen, so a fit needing more room
+    // than its climb has can ask that block to play on. Found by the last
+    // frame PLAYED, not the frame drawn: a grown block ends on a frame its
+    // own draw never named.
+    const last = s.frames.at(-1);
+    const ending = last && last.snapshotId != null && last.webcamId != null
+      ? { webcamId: last.webcamId, lastShownId: last.shownSnapshotIds.at(-1) ?? last.snapshotId }
+      : null;
+    // The other screen's landing, and only while it is still ahead of the
+    // tick this draw starts on: one already past is nothing to meet.
+    const theirs = pins[otherFeed(side)];
+    const dec = version.fitNext<ReplayEntry>(
+      { t0Ms: s.atMs, pick: pick as ReplayEntry, entries: pool, role: version.roleAt(s.slot, s.o.feed, dials), ending },
+      { peakAtMs: theirs && theirs.atMs > s.atMs ? theirs.atMs : null },
+      dials,
+    );
+    if (dec.kind === 'grow') {
+      // A grow that adds nothing would leave the clock where it is and the
+      // loop would never end. fitNext never returns one; this says so aloud.
+      if (dec.add.length === 0 || s.frames.length === 0) return plain;
+      counts.grown += dec.add.length;
+      return { kind: 'grow', add: dec.add, addedMs: dec.add.length * beatMsOf(dials) };
+    }
+    // This screen is drawing, so a pin of its own that nothing met has passed.
+    const mine = pins[side];
+    if (mine && !mine.matched) counts.missed += 1;
+    if (dec.kind === 'fit') {
+      counts.made += 1;
+      counts.dropped += dec.dropped.length;
+      if (theirs) theirs.matched = true;
+      const other = screens[otherFeed(side)];
+      // The fitting screen lands on the draw it is about to make; the other
+      // one lands inside the block already on its glass.
+      const theirSlot = other.frames.at(-1)?.slot ?? other.slot;
+      counts.landings.push({
+        atMs: dec.peakAtMs,
+        sunriseSlot: side === 'sunrise' ? s.slot : theirSlot,
+        sunsetSlot: side === 'sunset' ? s.slot : theirSlot,
+      });
+    }
+    pins[side] = dec.kind === 'pin' ? { atMs: dec.peakAtMs, matched: false } : null;
+    return {
+      kind: 'draw',
+      shown: dec.frames,
+      lengthMs: version.dwellMsFor(pool, pick, dials, dec.frames.length),
+      peakAtMs: dec.peakAtMs,
+      rendezvous: dec.kind === 'fit',
+      dropped: dec.dropped.length,
+    };
+  };
+
+  for (;;) {
+    const due = (['sunrise', 'sunset'] as Feed[]).filter((f) => screens[f].atMs <= screens[f].o.toMs);
+    if (due.length === 0) break;
+    // Whichever clock is earlier draws next; a tie goes to sunrise.
+    const side = due.reduce((a, b) => (screens[b].atMs < screens[a].atMs ? b : a));
+    const s = screens[side];
+    // Both clocks live on the one beat grid, which is what makes a landing a
+    // whole number of beats away (spec §3.5). Idempotent after the first
+    // step: every dwell and every blank is whole beats.
+    s.atMs = s.o.version.startMs(s.atMs, s.o.dials);
+    stepOnce(s, decideFor(side));
+  }
+  return { sunrise: stripOf(screens.sunrise), sunset: stripOf(screens.sunset), rendezvous: counts };
 }
 
 /**
@@ -237,6 +461,9 @@ export function actualStrip(
     const f = frameOf(
       d, d.slot, d.shownAt, d.shownSnapshotIds?.length ? d.shownSnapshotIds : [d.snapshotId],
       seen.has(d.snapshotId), next ? next.shownAt - d.shownAt : null,
+      // The fact strip reads the landing off the record; the counts are a
+      // replay's own arithmetic and are not recoverable from a draw row.
+      { peakAtMs: d.peakAtMs ?? null, rendezvous: d.rendezvous ?? false },
     );
     seen.add(d.snapshotId);
     return f;

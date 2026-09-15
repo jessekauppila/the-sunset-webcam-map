@@ -300,7 +300,10 @@ describe('replay reads (replay spec §3)', () => {
   it('listDrawsBetween returns the window oldest first with the stamp, numbers not strings', async () => {
     sqlMock.mockResolvedValueOnce([
       row('100', '7', '2026-09-06T01:00:00Z'),
-      row('101', '8', '2026-09-06T01:00:20Z', { version: 'solo2', deploy_id: '4', shown_snapshot_ids: ['6', '8'] }),
+      row('101', '8', '2026-09-06T01:00:20Z', {
+        version: 'solo2', deploy_id: '4', shown_snapshot_ids: ['6', '8'],
+        peak_at: '2026-09-06T01:00:40Z', rendezvous: true,
+      }),
     ]);
     const from = Date.parse('2026-09-06T00:00:00Z');
     const to = Date.parse('2026-09-06T02:00:00Z');
@@ -312,8 +315,13 @@ describe('replay reads (replay spec §3)', () => {
     expect(sqlMock.mock.calls.at(-1)!.slice(1)).toEqual(['sunset', new Date(from).toISOString(), new Date(to).toISOString()]);
     expect(out.map((f) => f.snapshotId)).toEqual([7, 8]);
     // An unstamped row: the frames played default to the drawn frame alone.
-    expect(out[0]).toMatchObject({ slot: 100, version: null, deployId: null, shownSnapshotIds: [7], bin: 'sunset', quality: 0.8 });
-    expect(out[1]).toMatchObject({ slot: 101, version: 'solo2', deployId: 4, shownSnapshotIds: [6, 8], shownAt: Date.parse('2026-09-06T01:00:20Z') });
+    expect(lastQuery()).toMatch(/d\.peak_at, d\.rendezvous/);
+    // A row from before the rendezvous migration: no landing, never fitted.
+    expect(out[0]).toMatchObject({ slot: 100, version: null, deployId: null, shownSnapshotIds: [7], bin: 'sunset', quality: 0.8, peakAtMs: null, rendezvous: false });
+    expect(out[1]).toMatchObject({
+      slot: 101, version: 'solo2', deployId: 4, shownSnapshotIds: [6, 8], shownAt: Date.parse('2026-09-06T01:00:20Z'),
+      peakAtMs: Date.parse('2026-09-06T01:00:40Z'), rendezvous: true,
+    });
   });
   it('listDrawsBetween is empty when the table is missing', async () => {
     sqlMock.mockRejectedValueOnce(new Error('relation "kiosk_draws" does not exist'));

@@ -483,6 +483,14 @@ export interface DrawRecord extends TapeFrame {
   deployId: number | null;
   /** Every frame the dwell played; the drawn frame alone when the row predates the stamp. */
   shownSnapshotIds: number[];
+  /**
+   * When this dwell's peak landed, ms (rendezvous spec §3.3): the tick this
+   * screen pinned for the other one, or the one it fitted itself to. Null
+   * off the rendezvous dial and for rows written before its migration.
+   */
+  peakAtMs: number | null;
+  /** True only when this dwell's landing was fitted to the other screen's peak. */
+  rendezvous: boolean;
 }
 
 /** A bin row as the replay needs it: the entry plus when it left the bin, if it has. */
@@ -494,6 +502,7 @@ export interface ReplayEntry extends StoredEntry {
 type DrawRow = EntryRow & {
   slot: string | number; shown_at: string; version: string | null; deploy_id: string | number | null;
   shown_snapshot_ids: (string | number)[] | null;
+  peak_at: string | null; rendezvous: boolean | null;
 };
 
 /**
@@ -505,7 +514,7 @@ type DrawRow = EntryRow & {
 export async function listDrawsBetween(feed: Feed, fromMs: number, toMs: number): Promise<DrawRecord[]> {
   try {
     const rows = (await sql`
-      select d.slot, d.shown_at, d.snapshot_id, d.version, d.deploy_id, d.shown_snapshot_ids,
+      select d.slot, d.shown_at, d.snapshot_id, d.version, d.deploy_id, d.shown_snapshot_ids, d.peak_at, d.rendezvous,
              coalesce(e.webcam_id, s.webcam_id) as webcam_id,
              coalesce(d.bin, e.bin) as bin, coalesce(d.quality, e.quality) as quality, coalesce(d.detection, e.detection) as detection,
              coalesce(e.is_new, false) as is_new, coalesce(e.tally, 0) as tally,
@@ -526,6 +535,10 @@ export async function listDrawsBetween(feed: Feed, fromMs: number, toMs: number)
       version: r.version === 'solo' || r.version === 'solo2' ? r.version : null,
       deployId: r.deploy_id == null ? null : num(r.deploy_id),
       shownSnapshotIds: r.shown_snapshot_ids?.length ? r.shown_snapshot_ids.map(num) : [num(r.snapshot_id)],
+      peakAtMs: ms(r.peak_at),
+      // The column is NOT NULL DEFAULT false, so only a row read through a
+      // stub or an older shape can arrive null: it never rendezvoused.
+      rendezvous: r.rendezvous ?? false,
     }));
   } catch (error) {
     console.warn('[solo/store] draw window read failed:', error);
