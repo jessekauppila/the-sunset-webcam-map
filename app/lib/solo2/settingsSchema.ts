@@ -135,6 +135,17 @@ export const SOLO2_SETTINGS_SCHEMA: SettingsSchema = [
   },
   solo('zoneGrace'),
   solo('promoteNew'),
+  // ---- rendezvous ----
+  {
+    key: 'rendezvous', kind: 'boolean', default: false,
+    label: 'rendezvous', section: 'rendezvous',
+    description: 'Both screens land on their best-rated frame on the same tick. A screen that draws a good sunset pins the tick its peak will land on; the other screen, drawing its own good sunset, fits to it by dropping frames from its climb or by letting the run that is ending play on. Nothing holds and the rate never changes. Off: the screens drift.',
+  },
+  {
+    key: 'rendezvousRank', kind: 'number', min: 0, max: 1, step: 0.05, default: 0.6,
+    label: 'rendezvous rank', section: 'rendezvous',
+    description: 'How good a sunset must be to get a rendezvous, as its rank among the sunsets present: 1 is only the best on offer, 0 is every sunset. 0.6 is the top forty percent.',
+  },
 ] as const;
 
 /** Typed view of a merged `solo2` values object (mergeSettings output). */
@@ -165,5 +176,7 @@ export function dialsFrom2(values: SettingsValues): Solo2Dials {
     arrivalEase: values.arrivalEase as ArrivalEase,
     valleys: values.valleys as number,
     screens: values.screens as Screens,
+    rendezvous: values.rendezvous as boolean,
+    rendezvousRank: values.rendezvousRank as number,
   };
 }

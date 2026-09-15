@@ -13,15 +13,9 @@ export { peakOf, thinClimb, windowAround } from './run';
  * rate (§3.5).
  */
 
-/**
- * `Solo2Dials` does not yet carry `rendezvous`/`rendezvousRank` (Task 5 adds
- * them), so they are added here explicitly until then.
- */
 export type RendezvousDials = Pick<Solo2Dials,
-  'beatS' | 'changeBeats' | 'transition' | 'cameraRun' | 'runFramesSunset' | 'runFramesOther' | 'runShape'> & {
-  rendezvous: boolean;
-  rendezvousRank: number;
-};
+  'beatS' | 'changeBeats' | 'transition' | 'cameraRun' | 'runFramesSunset' | 'runFramesOther' | 'runShape'
+  | 'rendezvous' | 'rendezvousRank'>;
 
 export interface MySide<T extends RunEntry> {
   /** The tick this draw would start on: the previous dwell's end. */
