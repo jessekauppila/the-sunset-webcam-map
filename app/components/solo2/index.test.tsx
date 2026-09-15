@@ -128,8 +128,8 @@ it('steps on the beat, not the span the server happens to publish', () => {
 
 it('does not step backwards when the pool grows under a running dwell', () => {
   // The bug of 2026-09-08. A re-derivation reads the frame cap as a rank
-  // among the sunsets present, and `runOf` anchors its window at the NEWEST
-  // frame — so a wider cap prepends older frames and every index shifts. Here
+  // among the sunsets present, and a wider cap admits more of the window
+  // `runOf` builds around the camera's peak — so every index can shift. Here
   // camera 8 weakens, which lifts camera 7 to the top of the ranking and
   // would widen its run from three frames to four, putting u0 at the front.
   vi.setSystemTime(new Date(8_500));

@@ -59,26 +59,80 @@ export function poolEntries<T extends RunEntry>(entries: T[], cameraRun: boolean
   return [...cameraGroups(entries).values()].map(representative);
 }
 
+const q = (e: RunEntry) => (e.bin === 'sunset' && e.quality != null ? e.quality : -1);
+
+/** The room a cap leaves besides the one frame it always holds (the peak, or `runOf`'s chosen frame). */
+export const roomOf = (cap: number) => Math.max(1, Math.floor(cap)) - 1;
+
 /**
- * What a dwell of `entry` plays (§3.2): its camera's frames taken at or
- * before it, oldest first, `entry` last. `[entry]` when the dial is off.
- *
- * `cap` bounds the run (dwell-budget spec §4). When a camera has more frames
- * than the cap allows, the run plays the NEWEST `cap` of them — the window
- * sits against the chosen frame. Playback order is unchanged and
- * non-negotiable: oldest to newest, so the sun goes down. "Newest" selects
- * the window, not the direction. Taking the oldest instead would play frames
- * from hours earlier and then cut to the chosen one, and at high latitude
- * that window could be broad daylight.
+ * The best-rated sunset frame of a series, or null when it has none. Ties go
+ * to the earlier frame — scans in capture order regardless of the array's
+ * own order, so the guarantee holds for any caller, not just one that
+ * happens to pass a capture-sorted series.
+ */
+export function peakOf<T extends RunEntry>(series: T[]): T | null {
+  let best: T | null = null;
+  for (const e of series.slice().sort(compareCapture)) if (q(e) >= 0 && (best === null || q(e) > q(best))) best = e;
+  return best;
+}
+
+/**
+ * `before` frames of the climb, keeping the one nearest the peak and
+ * spreading the rest evenly (§3.5): keep index
+ * round((P − 1) − j · (P − 1) / (before − 1)), j = 0 … before − 1.
+ */
+export function thinClimb<T>(climb: T[], before: number): { kept: T[]; dropped: T[] } {
+  const P = climb.length;
+  const n = Math.max(0, Math.min(P, Math.floor(before)));
+  if (n >= P) return { kept: climb.slice(), dropped: [] };
+  const keep = new Set<number>();
+  if (n === 1) keep.add(P - 1);
+  else for (let j = 0; j < n; j++) keep.add(Math.round((P - 1) - (j * (P - 1)) / (n - 1)));
+  return { kept: climb.filter((_, i) => keep.has(i)), dropped: climb.filter((_, i) => !keep.has(i)) };
+}
+
+/**
+ * The window around the peak (§3.6): `before` frames ahead of it, the peak,
+ * then what the cap leaves after it. Without `before` the climb comes first:
+ * the newest `cap − 1` of it, and the remainder goes after the peak. The
+ * peak always plays.
+ */
+export function windowAround<T extends RunEntry>(series: T[], peak: T, cap: number, before?: number): { frames: T[]; dropped: T[] } {
+  const sorted = series.slice().sort(compareCapture);
+  const p = sorted.findIndex((e) => e.snapshotId === peak.snapshotId);
+  const climb = sorted.slice(0, Math.max(0, p));
+  const after = sorted.slice(p + 1);
+  const room = roomOf(cap);
+  const b = Math.max(0, Math.min(climb.length, room, before ?? room));
+  // The default takes the NEWEST b of the climb (nothing dropped from inside
+  // it); an explicit before thins the whole climb evenly.
+  const climbPart = before === undefined
+    ? { kept: climb.slice(climb.length - b), dropped: [] as T[] }
+    : thinClimb(climb, b);
+  const a = Math.max(0, Math.min(after.length, room - climbPart.kept.length));
+  return { frames: [...climbPart.kept, sorted[p], ...after.slice(0, a)], dropped: climbPart.dropped };
+}
+
+/**
+ * What a dwell of `entry` plays (camera-run spec §3.2, amended by the
+ * rendezvous spec §3.6): the camera's frames around its PEAK, climb first,
+ * capped; the newest `cap` frames when the camera has no sunset frame.
+ * `[entry]` when the dial is off. Oldest to newest, always.
  */
 export function runOf<T extends RunEntry>(
   entry: T, entries: T[], cameraRun: boolean, cap = Number.POSITIVE_INFINITY,
 ): T[] {
   if (!cameraRun) return [entry];
-  const earlier = entries
-    .filter((e) => e.webcamId === entry.webcamId && e.snapshotId !== entry.snapshotId && compareCapture(e, entry) < 0)
+  // Deduplicated by snapshot id: a caller's pool can hand the same frame
+  // twice (the studio's `all` mixes its raw bins with a projected queue
+  // built from those same frames), and a repeated peak must not double up
+  // in the window.
+  const series = [...new Map(entries.filter((e) => e.webcamId === entry.webcamId).map((e) => [e.snapshotId, e])).values()]
     .sort(compareCapture);
+  const peak = peakOf(series);
+  if (peak) return windowAround(series, peak, cap).frames;
   const keep = Math.max(1, Math.floor(cap)) - 1; // the chosen frame takes one place
+  const earlier = series.filter((e) => e.snapshotId !== entry.snapshotId && compareCapture(e, entry) < 0);
   return [...earlier.slice(Math.max(0, earlier.length - keep)), entry];
 }
 

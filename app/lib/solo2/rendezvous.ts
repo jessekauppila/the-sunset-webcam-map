@@ -1,5 +1,7 @@
-import { cameraGroups, capFor, compareCapture, qualityRank, runOf, type RunEntry } from './run';
+import { cameraGroups, capFor, compareCapture, peakOf, qualityRank, roomOf, runOf, windowAround, type RunEntry } from './run';
 import type { Role, Solo2Dials } from './types';
+
+export { peakOf, thinClimb, windowAround } from './run';
 
 /**
  * The rendezvous (beat-and-rendezvous spec §3): both screens land on their
@@ -20,60 +22,6 @@ export type RendezvousDials = Pick<Solo2Dials,
   rendezvous: boolean;
   rendezvousRank: number;
 };
-
-const q = (e: RunEntry) => (e.bin === 'sunset' && e.quality != null ? e.quality : -1);
-
-/** The room a cap leaves besides the one frame it always holds (the peak, or `runOf`'s chosen frame). */
-const roomOf = (cap: number) => Math.max(1, Math.floor(cap)) - 1;
-
-/**
- * The best-rated sunset frame of a series, or null when it has none. Ties go
- * to the earlier frame — scans in capture order regardless of the array's
- * own order, so the guarantee holds for any caller, not just one that
- * happens to pass a capture-sorted series.
- */
-export function peakOf<T extends RunEntry>(series: T[]): T | null {
-  let best: T | null = null;
-  for (const e of series.slice().sort(compareCapture)) if (q(e) >= 0 && (best === null || q(e) > q(best))) best = e;
-  return best;
-}
-
-/**
- * `before` frames of the climb, keeping the one nearest the peak and
- * spreading the rest evenly (§3.5): keep index
- * round((P − 1) − j · (P − 1) / (before − 1)), j = 0 … before − 1.
- */
-export function thinClimb<T>(climb: T[], before: number): { kept: T[]; dropped: T[] } {
-  const P = climb.length;
-  const n = Math.max(0, Math.min(P, Math.floor(before)));
-  if (n >= P) return { kept: climb.slice(), dropped: [] };
-  const keep = new Set<number>();
-  if (n === 1) keep.add(P - 1);
-  else for (let j = 0; j < n; j++) keep.add(Math.round((P - 1) - (j * (P - 1)) / (n - 1)));
-  return { kept: climb.filter((_, i) => keep.has(i)), dropped: climb.filter((_, i) => !keep.has(i)) };
-}
-
-/**
- * The window around the peak (§3.6): `before` frames ahead of it, the peak,
- * then what the cap leaves after it. Without `before` the climb comes first:
- * the newest `cap − 1` of it, and the remainder goes after the peak. The
- * peak always plays.
- */
-export function windowAround<T extends RunEntry>(series: T[], peak: T, cap: number, before?: number): { frames: T[]; dropped: T[] } {
-  const sorted = series.slice().sort(compareCapture);
-  const p = sorted.findIndex((e) => e.snapshotId === peak.snapshotId);
-  const climb = sorted.slice(0, Math.max(0, p));
-  const after = sorted.slice(p + 1);
-  const room = roomOf(cap);
-  const b = Math.max(0, Math.min(climb.length, room, before ?? room));
-  // The default takes the NEWEST b of the climb (nothing dropped from inside
-  // it); an explicit before thins the whole climb evenly.
-  const climbPart = before === undefined
-    ? { kept: climb.slice(climb.length - b), dropped: [] as T[] }
-    : thinClimb(climb, b);
-  const a = Math.max(0, Math.min(after.length, room - climbPart.kept.length));
-  return { frames: [...climbPart.kept, sorted[p], ...after.slice(0, a)], dropped: climbPart.dropped };
-}
 
 export interface MySide<T extends RunEntry> {
   /** The tick this draw would start on: the previous dwell's end. */
