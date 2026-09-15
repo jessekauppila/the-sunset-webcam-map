@@ -72,14 +72,25 @@ export interface TapeDials {
   sameCameraFadeS?: number;
   /** What a dip goes through on this screen, for the seam's colour; null crossfades instead. */
   veil?: string | null;
+  /** The beat, seconds; when present the strip draws a tick grid at this spacing from the seam. */
+  beatS?: number;
 }
 
 const clock = (ms: number) => new Date(ms).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 const place = (f: { city: string; country: string }) => [f.city, f.country].filter(Boolean).join(', ');
 const secs = (s: number) => `${Number.isInteger(s) ? s : s.toFixed(1)} s`;
 
-function Thumb({ testId, src, color, width, height, dashed = false, dim = false, ring = false, repeat = false, title, onClick, children }: {
+function Thumb({ testId, src, color, width, height, dashed = false, dim = false, ring = false, repeat = false, rating = null, ratingId, title, onClick, children }: {
   testId: string; src: string; color: string; width: number; height: number; dashed?: boolean; dim?: boolean; ring?: boolean; repeat?: boolean;
+  /** A sunset frame's quality, [0,1], drawn as a bar along the bottom edge; null for anything else. */
+  rating?: number | null;
+  /**
+   * The rating bar's test id. Explicit rather than derived from `testId`,
+   * because `testId` is not reliably a bare snapshot id — a run's earlier
+   * frames are `tape-next-i-pre-id`, and a regex over that collides with the
+   * slot index `i`.
+   */
+  ratingId?: number | string;
   title: string; onClick?: () => void; children?: ReactNode;
 }) {
   return (
@@ -92,6 +103,11 @@ function Thumb({ testId, src, color, width, height, dashed = false, dim = false,
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src={src} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
       {children}
+      {rating != null && (
+        <span data-testid={`tape-rating-${ratingId}`} style={{
+          position: 'absolute', left: 0, bottom: 0, height: 3, width: `${Math.round(rating * 100)}%`, background: color, opacity: 0.9,
+        }} />
+      )}
     </button>
   );
 }
@@ -303,7 +319,7 @@ export function Tape({ past, current, currentSince, currentEndsAt, next, nextSeq
     const width = Math.max(MIN_BLOCK_PX, Math.min(dwells, MAX_DWELLS) * pastDials.dwellS * px);
     blocks.push(
       <Thumb key={`${f.snapshotId}-${f.slot}`} testId={`tape-past-${f.snapshotId}-${f.slot}`} src={f.imageUrl} width={width} height={thumbH}
-        color={COLOR[f.bin]} repeat={repeatOf(f.snapshotId)} onClick={() => onSelect(f)}
+        color={COLOR[f.bin]} repeat={repeatOf(f.snapshotId)} rating={f.bin === 'sunset' ? f.quality : null} ratingId={f.snapshotId} onClick={() => onSelect(f)}
         title={`${f.title}${place(f) ? ` · ${place(f)}` : ''} · draw at ${clock(f.shownAt)} · on glass `
           + (measured ? secs(Math.round(onGlassS)) : 'unknown, nothing followed it')
           + (held ? ' · held: nothing else was eligible' : '')}>
@@ -316,7 +332,7 @@ export function Tape({ past, current, currentSince, currentEndsAt, next, nextSeq
   if (current) {
     blocks.push(
       <Thumb key="current" testId="tape-current" src={current.imageUrl} width={currentPx()} height={thumbH} color={COLOR[current.bin]} ring
-        repeat={repeatOf(current.snapshotId)} onClick={() => onSelect(current)}
+        repeat={repeatOf(current.snapshotId)} rating={current.bin === 'sunset' ? current.quality : null} ratingId={current.snapshotId} onClick={() => onSelect(current)}
         title={`on glass${currentSince ? ` since ${clock(currentSince)}` : ''} · ${current.title}${place(current) ? ` · ${place(current)}` : ''}`}>
         <Playhead sinceMs={currentSince ?? null} endsAtMs={currentEndsAt ?? null} nowMs={nowMs} />
       </Thumb>,
@@ -341,6 +357,9 @@ export function Tape({ past, current, currentSince, currentEndsAt, next, nextSeq
     const stepPx = seq ? Math.max(6, seq.stepS * px) : 0;
     const total = dwellPx(nextDials);
     const mainWidth = Math.max(MIN_BLOCK_PX, total - (seq?.earlier.length ?? 0) * stepPx);
+    // The peak of the group: the highest-quality frame among the run's earlier
+    // frames and the chosen one, ringed the same way the on-glass frame is.
+    const peakId = seq ? [...seq.earlier, e].reduce((a, b) => ((b.quality ?? -1) > (a.quality ?? -1) ? b : a)).snapshotId : null;
     const title = `draw ${i + 1} · ${e.title}${place(e) ? ` · ${place(e)}` : ''}`
       + (seq && seq.earlier.length > 0 ? ` · after ${seq.earlier.length} earlier frame${seq.earlier.length === 1 ? '' : 's'} of this camera, ${secs(seq.stepS)} each` : '');
     const cut = seq?.skipped ?? [];
@@ -358,19 +377,40 @@ export function Tape({ past, current, currentSince, currentEndsAt, next, nextSeq
               cannot identify from a 6 px sliver. */}
           {seq.earlier.map((f) => (
             <Thumb key={f.snapshotId} testId={`tape-next-${i}-pre-${f.snapshotId}`} src={f.imageUrl} width={stepPx} height={thumbH} color="#2a3242" dashed
+              ring={f.snapshotId === peakId} rating={f.bin === 'sunset' ? f.quality : null} ratingId={f.snapshotId}
               title={`run · ${f.title} · ${secs(seq.stepS)}`} onClick={() => onSelect(f)} />
           ))}
           <Thumb testId={`tape-next-${i}`} src={e.imageUrl} width={mainWidth} height={thumbH} color={COLOR[e.bin]} dashed
+            ring={e.snapshotId === peakId} rating={e.bin === 'sunset' ? e.quality : null} ratingId={e.snapshotId}
             repeat={repeatOf(e.snapshotId)} title={title} onClick={() => onSelect(e)} />
         </div>,
       );
     } else {
       blocks.push(
         <Thumb key={`next-${i}`} testId={`tape-next-${i}`} src={e.imageUrl} width={total} height={thumbH} color={COLOR[e.bin]} dashed
+          ring={e.snapshotId === peakId} rating={e.bin === 'sunset' ? e.quality : null} ratingId={e.snapshotId}
           repeat={repeatOf(e.snapshotId)} title={title} onClick={() => onSelect(e)} />,
       );
     }
   });
+
+  // The beat grid (beat spec §4.1): a tick every beat, anchored at the seam,
+  // which is "now". Both directions, because on the beat the past is on the
+  // grid too. Only the projected side can be trusted to whole widths, so the
+  // lines are drawn from the seam's measured offset, read after layout.
+  const beatS = nextDials.beatS ?? pastDials.beatS ?? null;
+  const [seamLeft, setSeamLeft] = useState<number | null>(null);
+  useEffect(() => { setSeamLeft(seam.current?.offsetLeft ?? null); }, [past.length, current?.snapshotId, zoom, next.length]);
+  const grid: ReactNode[] = [];
+  if (beatS && seamLeft != null) {
+    const stepPx = beatS * px;
+    const span = 40; // beats either side is plenty for the widest strip
+    for (let k = -span; k <= span; k++) {
+      grid.push(<span key={`beat-${k}`} data-testid="tape-beat" aria-hidden style={{
+        position: 'absolute', top: 0, bottom: 0, left: seamLeft + k * stepPx, width: 1, background: k === 0 ? 'transparent' : '#1d2432', pointerEvents: 'none',
+      }} />);
+    }
+  }
 
   const zoomButton = (label: string, to: number | null, testId: string) => (
     <button type="button" data-testid={testId} disabled={to == null} onClick={() => to != null && onZoom?.(to)}
@@ -400,7 +440,7 @@ export function Tape({ past, current, currentSince, currentEndsAt, next, nextSeq
       {past.length === 0 && (
         <span style={{ fontFamily: mono, fontSize: 9.5, color: '#4b5568', whiteSpace: 'nowrap', paddingRight: 6 }}>no draws logged yet</span>
       )}
-      {blocks}
+      <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>{grid}{blocks}</div>
     </div>
   );
 }

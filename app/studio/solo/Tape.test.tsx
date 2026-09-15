@@ -22,8 +22,8 @@ it('lays out past, current, seam, and projected in order, outlined by bin', () =
     pastDials={D} nextDials={D} onSelect={vi.fn()} />);
   const strip = screen.getByTestId('tape');
   const ids = [...strip.querySelectorAll('[data-testid^="tape-"]')].map((n) => n.getAttribute('data-testid'));
-  expect(ids).toEqual(['tape-scale', 'tape-scale-label', 'tape-past-1-10', 'tape-past-2-11', 'tape-past-1-12',
-    'tape-current', 'tape-playhead', 'tape-seam', 'tape-next-0', 'tape-next-1']);
+  expect(ids).toEqual(['tape-scale', 'tape-scale-label', 'tape-past-1-10', 'tape-rating-1', 'tape-past-2-11', 'tape-past-1-12', 'tape-rating-1',
+    'tape-current', 'tape-playhead', 'tape-rating-3', 'tape-seam', 'tape-next-0', 'tape-next-1', 'tape-rating-1']);
   expect(screen.getByTestId('tape-past-1-10')).toHaveStyle({ borderLeftColor: '#7ee2ac' });
   expect(screen.getByTestId('tape-past-2-11')).toHaveStyle({ borderLeftColor: '#c3cad6' });
   expect(screen.getByTestId('tape-current')).toHaveStyle({ boxShadow: '0 0 0 2px #f5a344' });
@@ -252,6 +252,24 @@ describe('the seam is what the glass will play there (2026-09-08)', () => {
     expect(seamBetween({ webcamId: 1 }, { webcamId: 1 }, { ...dip, sameCameraFadeS: 0 })).toEqual({ kind: 'cut', seconds: 0, veil: null });
     expect(seamBetween(null, { webcamId: 2 }, { dwellS: 20, fadeS: 2 })).toEqual({ kind: 'crossfade', seconds: 2, veil: null });
   });
+});
+
+it('draws the beat grid across the strip when the dials carry a beat', () => {
+  render(<Tape past={[]} current={null} next={[entry(4)]} pastDials={{ dwellS: 12, fadeS: 4, beatS: 4 }} nextDials={{ dwellS: 12, fadeS: 4, beatS: 4 }} onSelect={() => {}} />);
+  const lines = screen.getAllByTestId('tape-beat');
+  expect(lines.length).toBeGreaterThan(3);
+  // 4 s at 4 px/s: one line every 16 px.
+  expect(parseFloat(lines[1].style.left) - parseFloat(lines[0].style.left)).toBe(16);
+});
+
+it('draws a rating bar under a sunset frame and rings the run\'s peak', () => {
+  const seq = { earlier: [{ ...entry(4), snapshotId: 41, quality: 0.4 }, { ...entry(4), snapshotId: 42, quality: 0.9 }], skipped: [], stepS: 4 };
+  render(<Tape past={[]} current={null} next={[{ ...entry(4), quality: 0.6 }]} nextSequences={[seq]}
+    pastDials={{ dwellS: 12, fadeS: 4 }} nextDials={{ dwellS: 12, fadeS: 4 }} onSelect={() => {}} />);
+  expect(screen.getByTestId('tape-rating-42').style.width).toBe('90%');
+  expect(screen.getByTestId('tape-rating-41').style.width).toBe('40%');
+  expect(screen.getByTestId('tape-next-0-pre-42').style.boxShadow).toContain('#f5a344');
+  expect(screen.getByTestId('tape-next-0-pre-41').style.boxShadow).not.toContain('#f5a344');
 });
 
 describe('zoom', () => {
