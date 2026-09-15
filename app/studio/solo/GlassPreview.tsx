@@ -8,8 +8,8 @@ import type { EntryView, StateView } from '@/app/api/kiosk/solo/view';
 import type { Feed, SoloDials } from '@/app/lib/solo/types';
 import { SOLO_VERSIONS, type SoloVersionSpec } from '@/app/lib/solo/versions';
 import type { Solo2Dials } from '@/app/lib/solo2/types';
-import { fitPlan } from '@/app/lib/solo2/plan';
-import { budgetS, capFor, runOf } from '@/app/lib/solo2/run';
+import { fitPlan, nearestTick } from '@/app/lib/solo2/plan';
+import { budgetBeats, capFor, runOf } from '@/app/lib/solo2/run';
 import { useLoopingStage } from './useLoopingStage';
 import { useSoloPreview } from './useSoloPreview';
 
@@ -79,21 +79,19 @@ function PlayingScreen({ feed, server, projected, error, dials, panel, version }
   const runFor = (e: EntryView) => (
     solo2 ? runOf(e, server?.entries ?? [], d2.cameraRun, capFor(e, d2, server?.entries ?? [], d2.cameraRun)) : []
   );
-  // The fades only for solo2: its dwell opens with an arrival segment
-  // (dwell-budget spec §3.3); solo's does not, so its walker must not wait one out.
+  // solo's plan is one still with no change; solo2's is whole beats over the
+  // capped run with the still swung by rank (beat spec §2).
   const planFor = (e: EntryView | null) => fitPlan(
-    {
-      dwellS: solo2 && e ? budgetS(e, d2, server?.entries ?? [], d2.cameraRun) : dials.dwellS,
-      leadS: d2.leadS ?? 0, minStepS: d2.minStepS ?? dials.dwellS,
-      ...(solo2 ? { transition: d2.transition, fadeS: d2.fadeS, sameCameraFadeS: d2.sameCameraFadeS } : {}),
-    },
+    solo2
+      ? { ...d2, dwellBeats: e ? budgetBeats(e, d2, server?.entries ?? [], d2.cameraRun) : d2.dwellBeats }
+      : { beatS: dials.dwellS, dwellBeats: 1, changeBeats: 0, leadS: 0 },
     Math.max(1, e ? runFor(e).length : 1),
   );
   // Per frame, not once: the budget stretches a dwell past the dial whenever a
   // run has more frames than the floor can divide it into, so a walker on the
   // dial alone cut a stretched run short — the preview jumped to the next
   // camera mid-timelapse while the glass played the run out.
-  const dwell = useSoloPreview(order, (e) => planFor(e).dwellS);
+  const dwell = useSoloPreview(order, (e) => planFor(e).dwellS, 250, solo2 ? (ms) => nearestTick(ms, d2.beatS) : (ms) => ms);
   const now = useNow();
 
   const run = dwell.entry ? runFor(dwell.entry) : [];

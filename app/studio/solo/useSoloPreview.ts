@@ -33,12 +33,18 @@ const empty = (startMs: number): PreviewDwell => ({ entry: null, previous: null,
  * (`fitPlan`'s `plan.dwellS`). A single shared period cannot find that
  * boundary, so a stretched run was cut short here while the glass played it
  * whole.
+ *
+ * `alignMs` snaps a dwell start onto a grid; solo2 passes the beat's nearest
+ * tick so the preview changes frames on the ticks the glass does.
  */
 export function useSoloPreview(
   order: EntryView[], dwellS: number | ((entry: EntryView) => number), tickMs = 250,
+  alignMs: (ms: number) => number = (ms) => ms,
 ): PreviewDwell {
   const [dwell, setDwell] = useState<PreviewDwell>(() => (
-    order.length === 0 ? empty(Date.now()) : { entry: order[0], previous: null, startMs: Date.now(), index: 0 }
+    order.length === 0
+      ? empty(alignMs(Date.now()))
+      : { entry: order[0], previous: null, startMs: alignMs(Date.now()), index: 0 }
   ));
 
   // The head we started this walk from. Derived during render, like the
@@ -48,8 +54,8 @@ export function useSoloPreview(
   if (head !== walkedFrom) {
     setWalkedFrom(head);
     setDwell(order.length === 0
-      ? empty(Date.now())
-      : { entry: order[0], previous: dwell.entry, startMs: Date.now(), index: 0 });
+      ? empty(alignMs(Date.now()))
+      : { entry: order[0], previous: dwell.entry, startMs: alignMs(Date.now()), index: 0 });
   }
 
   // The interval reads the latest order and dwell without being torn down and
@@ -57,10 +63,12 @@ export function useSoloPreview(
   // tick, and a caller's dwell function is a fresh closure every time).
   const latest = useRef(order);
   const dwellMs = useRef<(entry: EntryView) => number>(() => 0);
+  const align = useRef(alignMs);
   useEffect(() => { latest.current = order; });
   useEffect(() => {
     dwellMs.current = (entry) => Math.max(1, (typeof dwellS === 'function' ? dwellS(entry) : dwellS) * 1000);
   });
+  useEffect(() => { align.current = alignMs; });
 
   useEffect(() => {
     const tick = () => {
@@ -69,7 +77,7 @@ export function useSoloPreview(
       // call time, and a fresh `Date.now()` read from inside the updater
       // would then see whatever time the eventual evaluation happens to
       // land on instead of when this tick actually fired.
-      const nowMs = Date.now();
+      const nowMs = align.current(Date.now());
       setDwell((prev) => {
         const now = latest.current;
         if (now.length === 0) return prev;
