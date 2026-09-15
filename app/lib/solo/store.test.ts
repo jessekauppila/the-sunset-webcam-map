@@ -17,7 +17,7 @@ import { sql } from '@/app/lib/db';
 import {
   listActiveEntries, insertEntry, removeStale, getScreenState, commitAdvance,
   countAdmittedSince, getBinDigestSummary, saveSweptZone, getSweptZone, logDraw, listRecentDraws, pruneDraws,
-  listDrawsBetween, listEntriesOverlapping,
+  listDrawsBetween, listEntriesOverlapping, growDwell,
 } from './store';
 
 const sqlMock = (sql as unknown as SqlTag).__sqlMock;
@@ -98,16 +98,20 @@ describe('screen state', () => {
   it('getScreenState reads the pinned dwell, mapping Neon strings to numbers', async () => {
     sqlMock.mockResolvedValueOnce([{
       feed: 'sunset', current_snapshot_id: '9', shown_since: '2026-09-08T23:49:47Z', slot: '42', sunset_streak: '3',
-      dwell_ms: '22000', shown_snapshot_ids: ['7', '8', '9'],
+      dwell_ms: '22000', shown_snapshot_ids: ['7', '8', '9'], peak_at: '2026-09-08T23:50:07Z', rendezvous: true,
     }]);
-    expect(await getScreenState('sunset')).toMatchObject({ dwellMs: 22_000, shownSnapshotIds: [7, 8, 9] });
+    expect(await getScreenState('sunset')).toMatchObject({
+      dwellMs: 22_000, shownSnapshotIds: [7, 8, 9],
+      peakAtMs: Date.parse('2026-09-08T23:50:07Z'), rendezvous: true,
+    });
+    expect(lastQuery()).toMatch(/peak_at, rendezvous/);
   });
   it('getScreenState leaves a pre-migration row unpinned, so readers fall back', async () => {
     sqlMock.mockResolvedValueOnce([{
       feed: 'sunset', current_snapshot_id: '9', shown_since: null, slot: '42', sunset_streak: '0',
-      dwell_ms: null, shown_snapshot_ids: null,
+      dwell_ms: null, shown_snapshot_ids: null, peak_at: null, rendezvous: false,
     }]);
-    expect(await getScreenState('sunset')).toMatchObject({ dwellMs: null, shownSnapshotIds: null });
+    expect(await getScreenState('sunset')).toMatchObject({ dwellMs: null, shownSnapshotIds: null, peakAtMs: null, rendezvous: false });
   });
   it('commitAdvance pins the dwell beside the instant it starts, in one statement', async () => {
     sqlMock.mockResolvedValueOnce([{ feed: 'sunset' }]).mockResolvedValueOnce([]).mockResolvedValueOnce([]);
@@ -120,19 +124,28 @@ describe('screen state', () => {
     expect(upsert).toMatch(/shown_since = excluded\.shown_since/);
     expect(upsert).toMatch(/dwell_ms = excluded\.dwell_ms/);
     expect(upsert).toMatch(/shown_snapshot_ids = excluded\.shown_snapshot_ids/);
-    expect(sqlMock.mock.calls[0].slice(1)).toEqual(['sunset', 9, null, 42, 1, 22_000, [7, 8, 9]]);
+    expect(upsert).toMatch(/peak_at = excluded\.peak_at/);
+    expect(upsert).toMatch(/rendezvous = excluded\.rendezvous/);
+    expect(sqlMock.mock.calls[0].slice(1)).toEqual(['sunset', 9, null, 42, 1, 22_000, [7, 8, 9], null, false]);
   });
   it('commitAdvance rounds a fractional dwell: the column is an integer', async () => {
     sqlMock.mockResolvedValueOnce([{ feed: 'sunset' }]).mockResolvedValueOnce([]).mockResolvedValueOnce([]);
     const e = { snapshotId: 7, webcamId: 3, bin: 'sunset' as const, quality: 0.9, detection: 0.8, isNew: true, tally: 0, enteredAt: 0 };
     await commitAdvance('sunset', 42, e, 1, [e], 'solo2', 21_666.667);
-    expect(sqlMock.mock.calls[0].slice(1)).toEqual(['sunset', 7, null, 42, 1, 21_667, [7]]);
+    expect(sqlMock.mock.calls[0].slice(1)).toEqual(['sunset', 7, null, 42, 1, 21_667, [7], null, false]);
   });
   it('commitAdvance leaves the dwell unpinned when no length is supplied', async () => {
     sqlMock.mockResolvedValueOnce([{ feed: 'sunset' }]).mockResolvedValueOnce([]).mockResolvedValueOnce([]);
     const e = { snapshotId: 7, webcamId: 3, bin: 'sunset' as const, quality: 0.9, detection: 0.8, isNew: true, tally: 0, enteredAt: 0 };
     await commitAdvance('sunset', 42, e, 1);
-    expect(sqlMock.mock.calls[0].slice(1)).toEqual(['sunset', 7, null, 42, 1, null, [7]]);
+    expect(sqlMock.mock.calls[0].slice(1)).toEqual(['sunset', 7, null, 42, 1, null, [7], null, false]);
+  });
+  it('commitAdvance writes peak_at and rendezvous at the new trailing positions', async () => {
+    sqlMock.mockResolvedValueOnce([{ feed: 'sunset' }]).mockResolvedValueOnce([]).mockResolvedValueOnce([]);
+    const e = { snapshotId: 7, webcamId: 3, bin: 'sunset' as const, quality: 0.9, detection: 0.8, isNew: true, tally: 0, enteredAt: 0 };
+    const peakAtMs = Date.parse('2026-09-15T20:04:00Z');
+    await commitAdvance('sunset', 42, e, 1, [e], 'solo2', 20_000, null, peakAtMs, true);
+    expect(sqlMock.mock.calls[0].slice(1)).toEqual(['sunset', 7, null, 42, 1, 20_000, [7], new Date(peakAtMs).toISOString(), true]);
   });
   it('commitAdvance is a no-op when the slot was already committed', async () => {
     sqlMock.mockResolvedValueOnce([]); // upsert returned nothing: slot unchanged
@@ -152,7 +165,7 @@ describe('screen state', () => {
     expect(lastQuery()).toMatch(/on conflict \(feed, slot\) do nothing/);
     // The stamp (replay spec §2): version, the newest deploy, the entry as the engine saw it, the frames played.
     expect(lastQuery()).toMatch(/\(select max\(id\) from kiosk_deploys\)/);
-    expect(sqlMock.mock.calls.at(-1)!.slice(1)).toEqual(['sunset', 42, 7, null, 'solo', 'sunset', 0.9, 0.8, [7]]);
+    expect(sqlMock.mock.calls.at(-1)!.slice(1)).toEqual(['sunset', 42, 7, null, 'solo', 'sunset', 0.9, 0.8, [7], null, false]);
   });
   it('a failed draw log does not fail the advance', async () => {
     sqlMock.mockResolvedValueOnce([{ feed: 'sunset' }]).mockResolvedValueOnce([])
@@ -181,7 +194,50 @@ describe('screen state', () => {
     await commitAdvance('sunset', 42, e(9), 1, [e(7), e(8), e(9)], 'solo2');
     expect(sqlMock.mock.calls[1].slice(1)).toEqual([42, 'sunset', [7, 8, 9]]);
     // The draw log names the drawn frame and stamps every frame the dwell played.
-    expect(sqlMock.mock.calls.at(-1)!.slice(1)).toEqual(['sunset', 42, 9, null, 'solo2', 'sunset', 0.9, 0.8, [7, 8, 9]]);
+    expect(sqlMock.mock.calls.at(-1)!.slice(1)).toEqual(['sunset', 42, 9, null, 'solo2', 'sunset', 0.9, 0.8, [7, 8, 9], null, false]);
+  });
+});
+
+describe('growDwell (rendezvous spec §3.8: keep going, same slot)', () => {
+  const e = (id: number) => ({ snapshotId: id, webcamId: 3, bin: 'sunset' as const, quality: 0.9, detection: 0.8, isNew: true, tally: 0, enteredAt: 0 });
+
+  it('grows the screen row, stamps the added frames, and best-effort extends the draw log, in order', async () => {
+    sqlMock.mockResolvedValueOnce([{ feed: 'sunset' }]).mockResolvedValueOnce([]).mockResolvedValueOnce([]);
+    const grew = await growDwell('sunset', 42, [e(10), e(11)], 24_000, 1_700_000_000_000);
+    expect(grew).toBe(true);
+    expect(sqlMock).toHaveBeenCalledTimes(3);
+
+    const screenUpdate = (sqlMock.mock.calls[0][0] as TemplateStringsArray).join('?');
+    expect(screenUpdate).toMatch(/update kiosk_screen_state/);
+    expect(screenUpdate).toMatch(/shown_snapshot_ids = coalesce\(shown_snapshot_ids, '\{\}'::bigint\[\]\) \|\|/);
+    expect(screenUpdate).toMatch(/dwell_ms = \?/);
+    expect(screenUpdate).toMatch(/where feed = \? and slot = \?/);
+    expect(screenUpdate).toMatch(/returning feed/);
+    expect(sqlMock.mock.calls[0].slice(1)).toEqual([[10, 11], 24_000, 'sunset', 42]);
+
+    // Same bin-entry stamp commitAdvance runs, over the added ids, with THIS slot.
+    const stamp = (sqlMock.mock.calls[1][0] as TemplateStringsArray).join('?');
+    expect(stamp).toMatch(/tally = tally \+ 1/);
+    expect(stamp).toMatch(/last_shown_slot = \?/);
+    expect(sqlMock.mock.calls[1].slice(1)).toEqual([42, 'sunset', [10, 11]]);
+
+    const drawUpdate = (sqlMock.mock.calls[2][0] as TemplateStringsArray).join('?');
+    expect(drawUpdate).toMatch(/update kiosk_draws/);
+    expect(drawUpdate).toMatch(/shown_snapshot_ids = coalesce\(shown_snapshot_ids, '\{\}'::bigint\[\]\) \|\|/);
+    expect(sqlMock.mock.calls[2].slice(1)).toEqual([[10, 11], 'sunset', 42]);
+  });
+
+  it('returns false and does nothing else when the screen row did not change (no row returned)', async () => {
+    sqlMock.mockResolvedValueOnce([]);
+    const grew = await growDwell('sunset', 42, [e(10)], 24_000, 1_700_000_000_000);
+    expect(grew).toBe(false);
+    expect(sqlMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('a failed draw-log extension does not fail growDwell', async () => {
+    sqlMock.mockResolvedValueOnce([{ feed: 'sunset' }]).mockResolvedValueOnce([])
+      .mockRejectedValueOnce(new Error('relation "kiosk_draws" does not exist'));
+    await expect(growDwell('sunset', 42, [e(10)], 24_000, 1_700_000_000_000)).resolves.toBe(true);
   });
 });
 
