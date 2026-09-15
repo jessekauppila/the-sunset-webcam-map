@@ -125,38 +125,32 @@ export function standsFor<T extends RunEntry>(
   return poolEntries(entries.filter((x) => x.webcamId === e.webcamId), cameraRun)[0] ?? e;
 }
 
-/** The two ends the budget swings between, as dial fields; both optional so older callers read as the dial. */
-export interface BudgetDials { dwellS: number; dwellBoost?: number; dwellTrim?: number }
+/** The still and its spread, as dial fields; the spread is optional so older callers read as the dial. */
+export interface BudgetDials { dwellBeats: number; dwellBoost?: number; dwellTrim?: number }
 
 /**
- * The dwell budget for a draw of `e`, seconds (the `dwellS` the budget rule
- * of the dwell-budget spec §3 then shares among the run's frames). A
- * non-sunset, and the weakest sunset present, hold the dial less the trim;
- * the strongest sunset present holds the dial plus the boost; sunsets
- * between sit by rank. Two dials rather than one spread so the top and the
- * bottom can be set apart: how long the best may run and how short a grey
- * frame may get are different worries. The same shape as the frame cap,
- * applied to the clock, so a lone frame with no run to lengthen still
- * feels the difference.
- *
- * Read off the camera, not off the drawn frame (`standsFor`).
+ * The still for a draw of `e`, in whole beats (beat spec §2.2): a non-sunset,
+ * and the weakest sunset present, hold the dial less the trim; the strongest
+ * sunset present holds the dial plus the boost; sunsets between sit by rank.
+ * Rounded to whole beats, never below one. Read off the camera, not off the
+ * drawn frame (`standsFor`).
  */
-export function budgetS<T extends RunEntry>(
+export function budgetBeats<T extends RunEntry>(
   e: Pick<BinEntry, 'bin'> & Partial<T>, d: CapDials & BudgetDials, entries?: T[], cameraRun = true,
 ): number {
   const boost = (d.dwellBoost ?? 0) / 100;
   const trim = (d.dwellTrim ?? 0) / 100;
-  if (boost === 0 && trim === 0) return d.dwellS;
+  if (boost === 0 && trim === 0) return Math.max(1, Math.round(d.dwellBeats));
   const stands = standsFor(e, entries, cameraRun);
   const rank = stands.bin === 'sunset' ? standing(stands, d, entries, cameraRun) : 0;
-  return d.dwellS * (1 - trim + (trim + boost) * rank);
+  return Math.max(1, Math.round(d.dwellBeats * (1 - trim + (trim + boost) * rank)));
 }
 
-/** `d` with its dwell replaced by the draw's budget, ready for fitPlan. */
+/** `d` with its still replaced by the draw's budget, ready for fitPlan. */
 export function planDialsFor<T extends RunEntry, D extends CapDials & BudgetDials>(
   e: Pick<BinEntry, 'bin'> & Partial<T>, d: D, entries?: T[], cameraRun = true,
 ): D {
-  return { ...d, dwellS: budgetS(e, d, entries, cameraRun) };
+  return { ...d, dwellBeats: budgetBeats(e, d, entries, cameraRun) };
 }
 
 /**
