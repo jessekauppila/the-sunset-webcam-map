@@ -181,15 +181,11 @@ other feed `G`:
    - `avail − min(P, cap − 1) > rendezvousWait`: too far. Same.
    - else `before = min(avail, P, cap − 1)`, `holdBeats = avail − before`,
      `after = min(A, cap − 1 − before)`. `F.peak_at = T`, `rendezvous = true`.
-4. **Eligible, nothing to meet.** Pin, and bend toward `G`: project `G`'s
-   queue with the default windows (`project2` already exists) to the start
-   tick `s` of `G`'s next eligible draw. `F`'s landing must be at least
-   `s + changeBeats + 1` beats, so `G` can arrive and show at least one
-   frame before its peak. Raise `before` from the default toward
-   `min(P, cap − 1)`, taking the frames from `after`, until the landing is
-   late enough or the climb runs out. Never hold to pin — a pin only moves
-   its own cap from after the peak to before it.
-   `F.peak_at = t0 + (changeBeats + before) · beatS`.
+4. **Eligible, nothing to meet.** Pin: plan with the full climb of §3.6,
+   `before = min(P, cap − 1)`, which is as late as this run's own frames can
+   put its landing. `F.peak_at = t0 + (changeBeats + before) · beatS`. Never
+   hold to pin. (Bending toward `G`'s next eligible draw is not needed: the
+   full climb is already the latest landing, and `G` does the fitting.)
 5. `G.peak_at` is cleared by `G`'s own next advance, since its dwell is over.
    There is no "matched" flag: a landing is one instant, `F` cannot draw
    twice before it, and `G` has moved on.
@@ -221,12 +217,12 @@ with a peak the window is now `before` frames ahead of the peak, the peak,
 then `after` frames behind it, with `P` and `A` the frames the series has on
 each side and `before + 1 + after ≤ cap`.
 
-The **default** split, used by every draw that is not fitting or pinning,
-spends the cap evenly: `after = min(A, ⌊(cap − 1) / 2⌋)`,
-`before = min(P, cap − 1 − after)`. So the peak always plays, the sun keeps
-going down after it when the series has more, and a short series simply plays
-whole. A fit sets `before` from the beats available (§3.4 step 3); a pin moves
-frames from `after` to `before` (step 4).
+There is no fixed split. The climb comes first: a run that is not fitting
+plays the whole climb the cap allows, `before = min(P, cap − 1)`, and what the
+cap leaves goes after the peak, `after = min(A, cap − 1 − before)`. A fit sets
+`before` from the beats available (§3.4 step 3), shorter or longer, and
+`after` again takes what is left. So a run may be all climb, all descent, or
+anything between, whatever the rendezvous needs; the peak always plays.
 
 For a camera with no sunset frame the window is unchanged (the newest `cap`
 frames). The representative's identity (§3.1 there) stays the newest frame, so
@@ -313,8 +309,7 @@ migration.
   the peak and spreads the rest; `before ≥ P` plays everything; a camera with
   no peak keeps today's window.
 - `engine.test.ts`: fit on a future tick lands the peak on it; too soon and
-  too far leave the pin; a pin bends toward the other feed's next eligible
-  start and never holds; a valley is never eligible; two same-tick pins both
+  too far leave the pin; a pin is the full climb and never holds; a valley is never eligible; two same-tick pins both
   pin.
 - `advance.test.ts`: `peak_at` written and cleared; `shownSince` on a tick.
 - `Tape.test.tsx`: one axis for two feeds; a tie spans both strips; dropped
