@@ -325,7 +325,12 @@ export async function GET(req: Request) {
       // Whole-evening capture: this camera's frames are kept regardless of
       // score, which is the entire point — the model-gated reasons drop the
       // N-to-1 crossing, and that crossing is what run labeling needs.
-      const isRunPanel = runPanel.has(webcamId);
+      // Number(): webcams.id is BIGINT, so idByExternal's ids are strings at
+      // runtime whatever its type says, and loadRunPanel's Set holds numbers.
+      // Converted here and not in getWebcamIdMap, because hashByWebcamId is
+      // keyed by those same strings and matches today only because both sides
+      // are strings.
+      const isRunPanel = runPanel.has(Number(webcamId));
       // The disagreement is always COMPUTED and always recorded on the row via
       // model_disagreement_kind, which is what the Hard Examples queue reads.
       // Only whether it is a reason to KEEP the frame is switchable. Gated by

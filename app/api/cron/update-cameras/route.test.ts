@@ -604,6 +604,21 @@ describe('GET /api/cron/update-cameras', () => {
     });
   });
 
+  it('matches a panel camera when the id map returns the BIGINT id as a string, as the Neon driver does', async () => {
+    // webcams.id is BIGINT, so getWebcamIdMap's ids arrive as strings in
+    // production despite its Map<string, number> signature, while loadRunPanel
+    // coerces to numbers. The default mock above returns a number, which is why
+    // the panel shipped matching nothing: 2026-09-15, 19 panel cameras in the
+    // swept band, 16 of their frames stamped kiosk_bin, zero stamped run.
+    getIdMapMock.mockResolvedValue(new Map([['7', '700']]));
+    loadRunPanelMock.mockResolvedValue(new Set([700]));
+    await GET(makeReq());
+    expect(insertWindyDisagreementSnapshotMock).toHaveBeenCalledTimes(1);
+    expect(insertWindyDisagreementSnapshotMock.mock.calls[0][0]).toMatchObject({
+      intakeReason: 'run',
+    });
+  });
+
   it('does not persist a frame for disagreement alone when the intake flag is off', async () => {
     // Default beforeEach already resolves isFlagEnabledMock to false for
     // every key, matching the flag's real seeded-off default, but this is
