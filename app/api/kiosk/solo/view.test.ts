@@ -10,7 +10,7 @@ const stored = (id: number, bin: 'sunset' | 'non_sunset', score: number, tally =
   quality: bin === 'sunset' ? score : null, detection: bin === 'sunset' ? 0.9 : score,
   isNew: false, tally, enteredAt: id,
   imageUrl: `u${id}`, title: `t${id}`, city: '', region: '', country: '',
-  capturedAt: 0, timezone: null, sunAltitudeDeg: null,
+  capturedAt: 0, timezone: null, sunAltitudeDeg: null, credit: null,
 });
 
 describe('parseFeed', () => {
@@ -31,6 +31,16 @@ describe('toViewEntry', () => {
     expect(v).not.toHaveProperty('lat');
     expect(v).not.toHaveProperty('feed');
     expect(v).toMatchObject({ snapshotId: 1, quality: 0.9, title: 't1' });
+  });
+
+  it('carries the source credit to the glass, and null when the frame needs none', () => {
+    const base = {
+      ...stored(1, 'sunset', 0.9), feed: 'sunset' as const, lat: 1, lng: 2, firstShownAt: null, lastShownAt: null,
+      lastShownSlot: null, capturedAt: 5, timezone: null, sunAltitudeDeg: null,
+    };
+    expect(toViewEntry({ ...base, credit: 'Source: Fintraffic / digitraffic.fi, license CC 4.0 BY' }).credit)
+      .toBe('Source: Fintraffic / digitraffic.fi, license CC 4.0 BY');
+    expect(toViewEntry({ ...base, credit: null }).credit).toBeNull();
   });
 });
 

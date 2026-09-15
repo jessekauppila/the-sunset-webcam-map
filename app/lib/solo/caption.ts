@@ -21,6 +21,12 @@ export interface CaptionEntry {
   sunEventAt?: number | null;
   /** Which crossing it was, so the caption can name it. */
   sunPhase?: Feed | null;
+  /**
+   * The credit the picture's source requires beside it, already plain text
+   * (lib/solo/credit.ts); null or absent for Windy and custom frames. A
+   * licence term, not a look: no dial turns it off.
+   */
+  credit?: string | null;
 }
 
 function clock(capturedAt: number, timezone: string, hour12: boolean): string | null {
@@ -169,6 +175,8 @@ export interface CaptionLines {
   timeParts: TimeSegment[];
   /** place · time on one line, for the studio's compact readouts. */
   sub: string;
+  /** The source's credit line, or '' when the frame needs none. */
+  credit: string;
 }
 
 /** The screen's name before the title when the prefix dial is on. */
@@ -189,7 +197,10 @@ export function captionLines(
   const place = [t.city, e.region, e.country].filter(Boolean).join(', ');
   const timeParts = timeSegments(d.timeStyle, e.capturedAt, e.timezone, e.sunAltitudeDeg, now, sunEventOf(e));
   const time = timeText(timeParts);
-  return { title: prefix + t.title, place, time, timeParts, sub: [place, time].filter(Boolean).join(' · ') };
+  return {
+    title: prefix + t.title, place, time, timeParts, sub: [place, time].filter(Boolean).join(' · '),
+    credit: e.credit ?? '',
+  };
 }
 
 export interface Rect { left: number; top: number; width: number; height: number }
@@ -288,7 +299,15 @@ export interface CaptionBox {
 }
 
 /** Line heights the caption draws with, as multiples of each line's font size. Caption.tsx uses these. */
-export const LINE_HEIGHT = { title: 1.15, place: 1.3, time: 1.3 } as const;
+export const LINE_HEIGHT = { title: 1.15, place: 1.3, time: 1.3, credit: 1.3 } as const;
+
+/**
+ * The credit line's size as a share of the place line's: one step smaller,
+ * in the place line's grey and gap. It always comes last, under whatever
+ * order the dials put the three caption lines in, and only when the frame
+ * carries one — so a Windy frame's block is exactly what it was.
+ */
+export const CREDIT_SCALE = 0.8;
 
 /** The three caption lines, named. */
 export type LineKey = 'title' | 'place' | 'time';
@@ -325,7 +344,7 @@ export function captionSequence(
 export function captionHeight(
   d: Pick<SoloDials, 'titleSize' | 'placeSize' | 'timeSize' | 'lineOrder'
     | 'titleGap' | 'placeGap' | 'timeGap' | 'timeLine'>,
-  lines: Pick<CaptionLines, 'place' | 'time'>, s: number,
+  lines: Pick<CaptionLines, 'place' | 'time'> & Partial<Pick<CaptionLines, 'credit'>>, s: number,
 ): number {
   const inline = d.timeLine === 'inline' && d.lineOrder === 'name-first';
   let total = 0;
@@ -339,6 +358,9 @@ export function captionHeight(
     total += (first ? 0 : gap) + d[SIZE_KEY[key]] * LINE_HEIGHT[key];
     first = false;
   }
+  // The credit hangs under the last line, in the place line's gap and a
+  // step below its size; Caption.tsx draws it with the same numbers.
+  if (lines.credit) total += (first ? 0 : d.placeGap) + d.placeSize * CREDIT_SCALE * LINE_HEIGHT.credit;
   return total * s;
 }
 

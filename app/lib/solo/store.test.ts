@@ -55,6 +55,7 @@ describe('listActiveEntries', () => {
       is_new: true, tally: '2', entered_at: '2026-09-04T01:00:00Z', first_shown_at: null, last_shown_at: null,
       firebase_url: 'https://storage.googleapis.com/x.jpg', title: 'Pier', city: 'Lisbon', region: 'Lisboa',
       country: 'Portugal', lat: '38.700000', lng: '-9.400000', captured_at: '2026-09-04 00:59:30.5',
+      provider: '<a href="https://www.alertwest.org/" target="_blank">ALERTWest</a>\n',
     }]);
     const [e] = await listActiveEntries('sunset');
     expect(e).toMatchObject({ snapshotId: 7, webcamId: 3, bin: 'sunset', quality: 0.91, detection: 0.88,
@@ -64,6 +65,9 @@ describe('listActiveEntries', () => {
     expect(e.capturedAt).toBe(Date.UTC(2026, 8, 4, 0, 59, 30, 500));
     expect(e.timezone).toBe('Europe/Lisbon');
     expect(e.sunAltitudeDeg).toBeLessThan(0); // 01:59 in Lisbon is night
+    // The source's attribution reaches the entry as text, never as markup.
+    expect(e.credit).toBe('ALERTWest');
+    expect(lastQuery()).toMatch(/urls->>'provider' as provider/);
     expect(lastQuery()).toMatch(/captured_at::text/);
     expect(lastQuery()).toMatch(/removed_at is null/i);
   });

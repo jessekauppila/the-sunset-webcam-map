@@ -40,6 +40,8 @@ export interface ViewEntry extends BinEntry {
   sunEventAt?: number | null;
   /** Which crossing that was, so the caption can name it. */
   sunPhase?: Feed | null;
+  /** The credit the source requires beside the picture, plain text; null for Windy and custom. */
+  credit: string | null;
 }
 
 export function toViewEntry(e: StoredEntry): ViewEntry {
@@ -48,7 +50,7 @@ export function toViewEntry(e: StoredEntry): ViewEntry {
     detection: e.detection, isNew: e.isNew, tally: e.tally, enteredAt: e.enteredAt, lastShownAt: e.lastShownAt,
     imageUrl: e.imageUrl, title: e.title, city: e.city, region: e.region, country: e.country,
     capturedAt: e.capturedAt, timezone: e.timezone, sunAltitudeDeg: e.sunAltitudeDeg,
-    sunEventAt: e.sunEventAt, sunPhase: e.sunPhase,
+    sunEventAt: e.sunEventAt, sunPhase: e.sunPhase, credit: e.credit ?? null,
   };
 }
 

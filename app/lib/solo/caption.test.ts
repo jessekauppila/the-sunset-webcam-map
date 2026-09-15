@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { captionBox, captionHeight, captionLines, displayTitle, drawFactor, formatAgo, formatTime, gray, captionSequence, pairTimeSegments, pictureRect, splitTime, tailTravel, timeSegments, timeText } from './caption';
+import { CREDIT_SCALE, captionBox, captionHeight, captionLines, displayTitle, drawFactor, formatAgo, formatTime, gray, captionSequence, pairTimeSegments, pictureRect, splitTime, tailTravel, timeSegments, timeText } from './caption';
 
 // 02:42 UTC on 2026-09-05 is 7:42 pm the evening before in Mazatlán (UTC−7).
 const AT = Date.UTC(2026, 8, 5, 2, 42);
@@ -140,6 +140,7 @@ describe('captionLines', () => {
       title: 'Porjus: Northern Lights webcam', place: 'Norrbotten County, Sweden', time: '7:42 pm there',
       timeParts: [{ text: '7:42 pm there', fade: true }],
       sub: 'Norrbotten County, Sweden · 7:42 pm there',
+      credit: '',
     });
   });
   it('the ago style reads against the wall clock the caller passes', () => {
@@ -339,5 +340,29 @@ describe('tailTravel', () => {
 
   it('ignores a sub-pixel difference rather than promoting a layer for it', () => {
     expect(tailTravel(20.2, 20)).toBe(0);
+  });
+});
+
+describe('the credit line', () => {
+  const d = {
+    showPlace: true, timeStyle: '12h-there' as const, titleClean: 'compass' as const, feedPrefix: false,
+    titleSize: 21, placeSize: 17, timeSize: 12, lineOrder: 'name-first' as const,
+    titleGap: 4, placeGap: 6, timeGap: 12, timeLine: 'own' as const,
+  };
+  const e = { title: 'Nyac NorthEast', region: 'AK', country: 'US', capturedAt: 0, timezone: null, sunAltitudeDeg: null };
+
+  it('captionLines carries the credit, and an empty string when the frame has none', () => {
+    expect(captionLines({ ...e, credit: 'Source: Fintraffic / digitraffic.fi, license CC 4.0 BY' }, d)?.credit)
+      .toBe('Source: Fintraffic / digitraffic.fi, license CC 4.0 BY');
+    expect(captionLines(e, d)?.credit).toBe('');
+    expect(captionLines({ ...e, credit: null }, d)?.credit).toBe('');
+  });
+
+  it('captionHeight adds one step-smaller line under the block only when there is a credit', () => {
+    const lines = { place: 'AK, US', time: '7:42 pm' };
+    const without = captionHeight(d, lines, 1);
+    expect(captionHeight(d, { ...lines, credit: '' }, 1)).toBe(without);
+    expect(captionHeight(d, { ...lines, credit: 'ALERTWest' }, 1))
+      .toBeCloseTo(without + d.placeGap + d.placeSize * CREDIT_SCALE * 1.3);
   });
 });

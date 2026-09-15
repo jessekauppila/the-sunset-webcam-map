@@ -3,7 +3,7 @@
 import { Fragment, useLayoutEffect, useRef, type CSSProperties, type ReactNode } from 'react';
 import type { Feed, SoloDials } from '@/app/lib/solo/types';
 import {
-  FONT_STACKS, LINE_HEIGHT, captionBox, captionLines, captionScale, captionSequence, gray,
+  CREDIT_SCALE, FONT_STACKS, LINE_HEIGHT, captionBox, captionLines, captionScale, captionSequence, gray,
   pairTimeSegments, splitTime, sunEventOf, tailTravel, timeSegments,
   type CaptionEntry, type LineKey, type Rect,
 } from '@/app/lib/solo/caption';
@@ -234,6 +234,18 @@ export function Caption({ entry, dials, picture, width, feed, step, now = Date.n
       {stepping && <style>{TIME_KEYFRAMES}</style>}
       <div data-testid="caption" style={block}>
         {sequence.map(({ key, gap }) => draw(key, gap))}
+        {/* The source's credit, last whatever the order, and only when the
+            frame carries one. Inside the block, so the layer fade that
+            carries the words out carries this line with them. */}
+        {lines.credit ? (
+          <div data-testid="caption-credit" style={{
+            ...line, marginTop: dials.placeGap * s, fontSize: dials.placeSize * CREDIT_SCALE * s,
+            fontWeight: Number(dials.titleWeight), color: gray(dials.placeGray),
+            lineHeight: LINE_HEIGHT.credit,
+          }}>
+            {lines.credit}
+          </div>
+        ) : null}
       </div>
     </>
   );
