@@ -423,7 +423,7 @@ export function Tape({ past, current, currentSince, currentEndsAt, next, nextSeq
   return (
     <div ref={strip} data-testid="tape"
       title={`The tape: past draws, the frame on glass, then the projected next draws. ${SCALE_NOTE}`}
-      style={{ display: 'flex', alignItems: 'center', overflowX: 'auto', padding: '4px 2px', minHeight: thumbH + 12 }}>
+      style={{ position: 'relative', display: 'flex', alignItems: 'center', overflowX: 'auto', padding: '4px 2px', minHeight: thumbH + 12 }}>
       <style>{
         `@keyframes ${PLAYHEAD_ANIM} { from { left: 0% } to { left: 100% } }`
         + ` @media (prefers-reduced-motion: reduce) { [data-testid="tape-playhead"] { animation: none } }`
@@ -440,7 +440,8 @@ export function Tape({ past, current, currentSince, currentEndsAt, next, nextSeq
       {past.length === 0 && (
         <span style={{ fontFamily: mono, fontSize: 9.5, color: '#4b5568', whiteSpace: 'nowrap', paddingRight: 6 }}>no draws logged yet</span>
       )}
-      <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>{grid}{blocks}</div>
+      {grid}
+      {blocks}
     </div>
   );
 }
