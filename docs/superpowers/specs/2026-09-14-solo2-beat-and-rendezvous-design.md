@@ -258,6 +258,28 @@ and fires the next advance at the new end. `kiosk_screen_state.dwell_ms` and
 updated too, so replay sees the run as it actually played. The slot does not
 change: growing is not a draw.
 
+### 3.9 Greedy now, search later, one seam
+
+§3.4 is a greedy heuristic: whoever draws first pins, the other fits. The
+problem it approximates is small and integer once everything is beats: two
+screens, a horizon of two or three draws each, a few dozen frame counts per
+run. The exact version is a receding-horizon search — at every advance,
+enumerate the joint schedules over the projected queues of both screens,
+score each by rendezvous made (weighted by rank) minus frames dropped,
+commit only the next draw, repeat next advance. It also chooses pairs, by
+letting the enumeration consider the next few eligible candidates rather
+than the head of each queue.
+
+The build keeps one seam so the swap costs nothing: the fit is a pure
+function `fitNext(mine, theirs, dials) → plan` over both feeds' projected
+queues. Greedy ships first, because what it does can be read off the tape
+and explained on the wall. Replay (§5) runs both over recorded evenings and
+reports rendezvous made and frames dropped for each; if greedy makes most of
+what search makes, it stays.
+
+Legibility is for Jesse, in the studio and the replay. The viewer should see
+only the sunsets, and two screens that sometimes agree.
+
 ### 3.7 Which cameras pair
 
 Whichever the engine picks. Rule 3 (never shown, then longest since shown)
@@ -328,8 +350,8 @@ migration.
 2. **The rendezvous.** The window around the peak; `peak_at`; the fit and the
    pin; the three dials; ties, ghosts and labels on the tape; the replay
    counts. Flag off by default; turned on from /studio.
-3. **Later, not designed:** choosing pairs by lookahead (§3.7); a text entry
-   point for the piece (parked from the same conversation).
+3. **Later, not designed:** the search version of the fit (§3.9); a text
+   entry point for the piece (parked from the same conversation).
 
 ## 8. Testing
 
