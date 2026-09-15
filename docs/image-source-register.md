@@ -154,9 +154,9 @@ Vocabulary for both jobs is now in `CONCEPTS.md` under **Snapshot** and
 | Cadence | 10 minutes, native |
 | Aim | **Published per camera**, referenced to a sectional chart |
 | License | US federal, public domain |
-| Access | `https://weathercams.faa.gov/` — free, no key, no login |
-| Extras | Clear-day comparison image and a 6-hour loop per view |
-| Verified | Documented, endpoints not called |
+| Access | `https://weathercams.faa.gov/api/` — documented OpenAPI, Bearer token from the Program Office (see below) |
+| Extras | Clear-day comparison image per camera; 28 days of history per camera |
+| Verified | **Called 2026-09-15**, numbers below |
 
 The best match on this list and the one to build first. Native 10-minute
 cadence means no resampling. Published direction means `azimuth_source` comes
@@ -169,6 +169,29 @@ guaranteed sunset-facing view regardless of season.
 
 The 6-hour loop is also a training-data source with known aim, which nothing
 else here offers.
+
+**Verified 2026-09-15** (adapter: `app/api/cron/update-cameras/lib/sources/faa.ts`,
+issue #204). The API is the one the site's own front end uses; its OpenAPI
+spec is at `/api/docs/`.
+
+| | |
+|---|---|
+| Sites / cameras, all | 974 / 3,493 (US 756, Canada 218 via NAV CANADA) |
+| `GET /api/redistributable/sites` | US only: **756 sites / 2,848 cameras**, every camera's `currentImageUri` in one 2.7 MB response |
+| FAA-operated vs third party (redistributable) | 314 / 442 — third-party sites carry an `attribution` HTML the FAA displays; ALERTWest, state aeronautics divisions and others |
+| Alaska | 264 sites |
+| Bearing | `cameraBearing`, degrees true, on **every** camera; `mapWedgeAngle` is the field of view (45 or 90) |
+| Frame age at read time | p10 4 min, p50 7 min, p90 11 min — a ten-minute cadence, as documented |
+| Image | 1920×1080 JPEG, ~240 KB, on `images.wcams-static.faa.gov`; `ETag` + `Last-Modified`, `If-None-Match` answers 304; the filename carries the capture timestamp |
+| Other endpoints | `/api/cameras/{id}/images/current`, `/images/last/{n}`, `/images` (28-day history), `/images/clearday`, `/api/sites/{id}/images/download` (zip) |
+| Auth | The spec declares a Bearer token and says: "Use of this API is subject to the terms and conditions of the FAA Weather Camera Program. Contact the Program Office at 9-AJO-WCAM-ProgramOffice@faa.gov to obtain access." The site's own browser calls pass with a `Referer` header alone; the adapter does not do that — it sends the token from `FAA_WEATHERCAMS_TOKEN` and lists nothing without one. |
+
+What the adapter does with this: one `redistributable/sites` call through
+Next's data cache with a ten-minute revalidate, cut to the swept band with
+the same box test as the Windy sweep, FAA-operated sites only until the
+display can show attribution, cameras with a frame in the last 30 minutes,
+and no image download when the URL is the one stored last tick. The register's
+"299 sites" above was the program's own headline figure; the API lists 974.
 
 ### 2. ALERTCalifornia / AlertWildfire
 
@@ -229,8 +252,8 @@ the platform, not the resort.
 |---|---|
 | Scale | British Columbia coast and mountains |
 | License | **Open Government Licence — BC, commercial use permitted** |
-| Access | Open511 spec, XML or JSON; `github.com/bcgov/drivebc-webcam-api` |
-| Verified | Documented, endpoints not called |
+| Access | `https://images.drivebc.ca/webcam/api/v1/webcams` (JSON, no key); `github.com/bcgov/drivebc-webcam-api` |
+| Verified | **Called 2026-09-15**: 1,077 cameras, 1,057 on, lat 48–60; compass `orientation` on every camera (N/E/S/W plus diagonals); `imageStats.updatePeriodMean` p50 906 s, p90 1,077 s (a fifteen-minute cadence, not ten); image at `https://www.drivebc.ca/images/{id}.jpg` is **800×468 JPEG ~49 KB** with an ETag (the legacy `images.drivebc.ca/bchighwaycam/pub/cameras/{id}.jpg` is 420×315 PNG); `credit` carries a few partner attributions (TransLink). OGL-BC requires the attribution statement. |
 
 The cleanest license in the register, and the only one that states commercial
 use outright. There is a dedicated webcam API repository, not just a traffic
@@ -243,6 +266,16 @@ minute. Fixes a real hole: the terminator pool is northern-hemisphere heavy,
 and New Zealand runs the opposite season, so it changes what the band looks
 like in our winter.
 
+**Verified 2026-09-15:** `https://www.journeys.nzta.govt.nz/assets/map-data-cache/cameras.json`
+(GeoJSON, no key) lists 313 cameras, 56 offline, lat −36 to −46, with a
+`Direction` field (Northbound/Southbound/Eastbound/Westbound) and a prose
+`Description` ("South along Western Belfast Bypass…"). Same data at
+`trafficnz.info/service/traffic/rest/4/cameras/all`. Image
+`https://www.trafficnz.info/camera/{id}.jpg` is **800×448 JPEG ~44 KB**, ETag +
+Last-Modified. **Licence for the images is not stated**: the website's content
+is CC BY 4.0 (and in one place CC BY-NC 4.0), and traffic footage is otherwise
+an OIA request. Ask before building.
+
 ### 8. Live Traffic NSW (Australia)
 
 GeoJSON carrying image URL, coordinates, **and a view description field** —
@@ -254,6 +287,19 @@ partial aim, unstructured but parseable. Sydney metro plus statewide.
 documented ETag conditional requests, thumbnail parameter available. Nordic
 latitudes mean long twilight. The zero-friction option if FAA turns out
 harder than expected.
+
+**Verified 2026-09-15:** `https://tie.digitraffic.fi/api/weathercam/v1/stations`
+(GeoJSON; the API answers 406 unless the request sends `Accept-Encoding: gzip`,
+and asks for a `Digitraffic-User` header naming the caller) lists **810
+stations / 2,276 presets**, 807 gathering, lat 59.9–70.1. Per station
+(`/stations/{id}`): `collectionInterval: 600`, and per preset `resolution`
+(1280x720), `imageUrl` (`https://weathercam.digitraffic.fi/{presetId}.jpg`),
+`presentationName` and a `direction` that is road-relative
+(INCREASING_DIRECTION / DECREASING_DIRECTION / SPECIAL_DIRECTION), so aim is
+partial: which way along the road, not a compass bearing. Image is
+**1280×720 JPEG ~277 KB**, ETag + Last-Modified. Licence **CC BY 4.0** with a
+fixed attribution: "Source: Fintraffic / digitraffic.fi, license CC 4.0 BY"
+(terms of service page). Rate limits unstated.
 
 ### 10. US state 511 systems
 
@@ -268,6 +314,35 @@ Statens vegvesen, Trafikverket, and road.is. Expected to be the same shape as
 Digitraffic. **Unverified — I did not confirm these exist as open APIs.**
 
 ---
+
+## The second adapter — measured 2026-09-15
+
+With FAA built (issue #204) and waiting on its token, three keyless
+candidates were called the same day:
+
+| | Digitraffic (FI) | DriveBC (CA) | NZTA (NZ) |
+|---|---|---|---|
+| Cameras | 810 stations / 2,276 presets | 1,077 | 313 |
+| Latitude | 60–70 N | 48–60 N | 36–46 S |
+| Aim | road-relative direction per preset | compass orientation per camera | Northbound/Southbound + prose |
+| Image | 1280×720 ~277 KB | 800×468 ~49 KB | 800×448 ~44 KB |
+| Cadence | 600 s stated | ~15 min measured | unmeasured |
+| Conditional fetch | ETag | ETag | ETag |
+| Licence | CC BY 4.0, fixed credit line | OGL-BC, attribution statement | images unstated |
+| Key | none (two headers) | none | none |
+
+**Digitraffic is the second adapter.** Best image, stated ten-minute cadence,
+the highest latitudes on the list after Alaska, a licence that says exactly
+what to print. It also proves the port's shape in the way FAA cannot: string
+preset ids, a two-level station→preset listing, and a credit line that must
+reach the glass. DriveBC is a close third on numbers but its measured cadence
+is fifteen minutes and its resolution is Windy-class. NZTA fills the
+southern-hemisphere hole and should be asked about image licensing now, since
+that has lead time.
+
+**Every one of these needs attribution shown beside the picture** (as do the
+442 third-party FAA sites). That display work, not another adapter, is the
+prerequisite for turning any second source on.
 
 ## Tier 3 — small networks, exceptional framing
 

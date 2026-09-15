@@ -39,7 +39,8 @@ import {
 import { sha256Hex } from './imageHash';
 import { preprocessJpegToModelTensor } from './imagePreprocess';
 
-export type WebcamSource = 'windy' | 'custom' | 'flickr';
+// Known names first for autocomplete; any registered source name (lib/sources) is valid.
+export type WebcamSource = 'windy' | 'custom' | 'flickr' | (string & {});
 
 export interface ScoreImageInput {
   webcamId: number;

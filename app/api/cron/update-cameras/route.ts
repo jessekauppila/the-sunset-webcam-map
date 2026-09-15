@@ -33,6 +33,7 @@ import {
   ARCHIVE_BACKFILL_ENABLED,
   TERMINATOR_RETENTION_GRACE_MS,
   TERMINATOR_SWEEP_FAILED_HOLD_RATIO,
+  SEARCH_RADIUS_DEG,
 } from '@/app/lib/masterConfig';
 import {
   isFlagEnabled,
@@ -60,8 +61,15 @@ import {
   deactivateMissingTerminatorState,
   updateWebcamAiFields,
   insertWindyDisagreementSnapshot,
+  upsertSourceCameras,
+  getSourceWebcamMap,
 } from './lib/dbOperations';
 import { loadRunPanel } from './lib/runPanel';
+import { fetchEnabledSources } from './lib/sources/registry';
+import { withinSweptBoxes } from './lib/sources/band';
+import { toWindyShape } from './lib/sources/toWindyShape';
+import { sourceKey } from './lib/sources/types';
+import type { WindyWebcam } from '@/app/lib/types';
 import { computeDisagreementKind, scoreImage } from './lib/aiScoring';
 import { decideBin, enterBins, maintainBins, type Admission } from './lib/binAdmission';
 import { getLiveSettingsCached } from '@/app/lib/settings/liveSettings';
@@ -155,6 +163,65 @@ export async function GET(req: Request) {
     JSON.stringify({ forcedDayRing, ...sweep.telemetry }),
   );
 
+  // Other sources (issue #204), read after the sweep so they are cut to the
+  // same band Windy was. Windy-independent and non-fatal: a source that fails
+  // contributes nothing this tick, and only the Windy sweep can hold the pool.
+  const within = withinSweptBoxes([...sunriseCoords, ...sunsetCoords], SEARCH_RADIUS_DEG);
+  const sourceTicks = await fetchEnabledSources({ now, within });
+  const sourceWebcams: WindyWebcam[] = [];
+  // In-tick identity for every camera of every source, Windy included:
+  // `${source}:${externalId}` → webcams.id. Windy's entries are added once
+  // getWebcamIdMap has run below.
+  const idByKey = new Map<string, number>();
+  // A source frame whose URL is the one stored last tick stays in the pool
+  // and is not downloaded again. Every source we take stamps the capture
+  // time into the URL, so this is the conditional fetch the register asks
+  // for, without a request.
+  const unchangedKeys = new Set<string>();
+  const sources: Record<string, {
+    cameras: number; changed: number; unchanged: number;
+    attempted: number; failed: number; failedByStatus: Record<string, number>;
+    skipped: Record<string, number>; elapsedMs: number; error?: string;
+  }> = {};
+  for (const tick of sourceTicks) {
+    if (!tick.enabled) continue;
+    const ids = tick.cameras.map((c) => c.externalId);
+    let changed = 0;
+    let unchanged = 0;
+    try {
+      const before = await getSourceWebcamMap(tick.name, ids);
+      await upsertSourceCameras(tick.cameras);
+      const after = await getSourceWebcamMap(tick.name, ids);
+      for (const cam of tick.cameras) {
+        const row = after.get(cam.externalId);
+        if (!row) continue;
+        const key = sourceKey(cam.source, cam.externalId);
+        idByKey.set(key, row.id);
+        sourceWebcams.push(toWindyShape(cam));
+        if (before.get(cam.externalId)?.previewUrl === cam.imageUrl) {
+          unchangedKeys.add(key);
+          unchanged += 1;
+        } else {
+          changed += 1;
+        }
+      }
+    } catch (error) {
+      console.warn(`[update-cameras] source ${tick.name} db step failed:`, error);
+      tick.error = error instanceof Error ? error.message : String(error);
+    }
+    sources[tick.name] = {
+      cameras: tick.cameras.length, changed, unchanged,
+      attempted: tick.attempted, failed: tick.failed, failedByStatus: tick.failedByStatus,
+      skipped: tick.skipped, elapsedMs: tick.elapsedMs,
+      ...(tick.error ? { error: tick.error } : {}),
+    };
+  }
+  if (Object.keys(sources).length > 0) console.log('🧭 sources:', JSON.stringify(sources));
+
+  // Everything this tick classifies, scores and pools: Windy plus the sources.
+  const all: WindyWebcam[] = [...windyAll, ...sourceWebcams];
+  const keyOf = (w: WindyWebcam) => sourceKey(w.source ?? 'windy', w.externalId ?? String(w.webcamId));
+
   // Ring attribution for the detection-gate comparison. Each camera is
   // credited to the ring that first saw it this tick, so the digest can print
   // the day-side ring's gate-pass rate beside the base ring's. That
@@ -178,10 +245,10 @@ export async function GET(req: Request) {
 
   // Classify webcams into sunrise/sunset phases
   const { sunrise: sunriseList, sunset: sunsetList } =
-    classifyWebcamsByPhase(windyAll, sunriseCoords, sunsetCoords);
+    classifyWebcamsByPhase(all, sunriseCoords, sunsetCoords);
 
   console.log('📊 Webcam split:', {
-    total: windyAll.length,
+    total: all.length,
     sunrise: sunriseList.length,
     sunset: sunsetList.length,
   });
@@ -189,8 +256,8 @@ export async function GET(req: Request) {
   // Solo kiosk admission (spec §5.3) collects during scoring and writes once
   // after the loop. Feed comes from the same classification the pool uses.
   const feedByExternalId = new Map<string, 'sunrise' | 'sunset'>();
-  for (const w of sunriseList) feedByExternalId.set(String(w.webcamId), 'sunrise');
-  for (const w of sunsetList) feedByExternalId.set(String(w.webcamId), 'sunset');
+  for (const w of sunriseList) feedByExternalId.set(keyOf(w), 'sunrise');
+  for (const w of sunsetList) feedByExternalId.set(keyOf(w), 'sunset');
   const admissions: Admission[] = [];
 
   // One query per tick, not per frame. Empty when the flag is off.
@@ -204,15 +271,17 @@ export async function GET(req: Request) {
   // Get mapping of external IDs to internal IDs
   const externalIds = windyAll.map((w) => String(w.webcamId));
   const idByExternal = await getWebcamIdMap(externalIds);
+  for (const [externalId, id] of idByExternal) idByKey.set(sourceKey('windy', externalId), id);
 
   // Prior image hashes, batched in a single query (replaces per-webcam Redis
   // GETs). Used to skip re-scoring frames whose image hasn't changed.
-  const hashByWebcamId = await getWebcamImageHashMap([...idByExternal.values()]);
+  const hashByWebcamId = await getWebcamImageHashMap([...idByKey.values()]);
 
   // AI scoring via real image pipeline — per-tick counters.
   const windyScores: number[] = [];
   let cacheHits = 0;
   let fallbacks = 0;
+  let sourceFramesUnchanged = 0;
   // Per-tick breakdown of which scoring path each webcam took. Makes
   // 'is ONNX actually running' inspectable from the cron response —
   // scoringPaths.onnx > 0 && scoringPaths.unscored === 0 is green.
@@ -222,10 +291,14 @@ export async function GET(req: Request) {
     unscored: 0,
   };
 
-  async function scoreOneWindy(webcam: typeof windyAll[number]): Promise<void> {
-    const externalId = String(webcam.webcamId);
-    const webcamId = idByExternal.get(externalId);
+  async function scoreOneWindy(webcam: WindyWebcam): Promise<void> {
+    const externalId = keyOf(webcam);
+    const webcamId = idByKey.get(externalId);
     if (!webcamId) return;
+    if (unchangedKeys.has(externalId)) {
+      sourceFramesUnchanged += 1;
+      return;
+    }
 
     const previewUrl = webcam.images?.current?.preview;
     if (!previewUrl) return;
@@ -241,7 +314,7 @@ export async function GET(req: Request) {
       const scored = await scoreImage({
         webcamId,
         imageBytes: bytes,
-        source: 'windy',
+        source: webcam.source ?? 'windy',
         lastImageHash: lastHash ?? undefined,
       });
 
@@ -264,7 +337,8 @@ export async function GET(req: Request) {
       // binary head configured there is no gate outcome to attribute, and a
       // scored-but-ungated frame would deflate the ring's rate rather than
       // leave it undefined.
-      if (typeof scored.binaryIsSunset === 'boolean') {
+      // Ring attribution is a Windy fact: only the sweep has rings.
+      if (typeof scored.binaryIsSunset === 'boolean' && (webcam.source ?? 'windy') === 'windy') {
         recordGateOutcome(webcam.webcamId, scored.binaryIsSunset);
       }
 
@@ -417,7 +491,7 @@ export async function GET(req: Request) {
     }
   }
 
-  for (let i = 0; i < windyAll.length; i += SCORING_CONCURRENCY) {
+  for (let i = 0; i < all.length; i += SCORING_CONCURRENCY) {
     // Per-batch granularity: a batch that starts 1 ms before the deadline can
     // still run for up to PER_IMAGE_TIMEOUT_MS × SCORING_CONCURRENCY (~30 s).
     // Intentional trade-off — simpler than per-image checks.
@@ -425,7 +499,7 @@ export async function GET(req: Request) {
       console.warn('[update-cameras] tick deadline reached, stopping batches');
       break;
     }
-    const batch = windyAll.slice(i, i + SCORING_CONCURRENCY);
+    const batch = all.slice(i, i + SCORING_CONCURRENCY);
     await Promise.all(batch.map(scoreOneWindy));
   }
 
@@ -478,10 +552,10 @@ export async function GET(req: Request) {
     archiveBackfill: backfillResult,
   });
 
-  // Resolve Windy external_id → DB webcam_id rows
+  // Resolve (source, external_id) → DB webcam_id rows
   function toWindyDbRows(list: typeof sunriseList) {
     return list
-      .map((w) => idByExternal.get(String(w.webcamId)))
+      .map((w) => idByKey.get(keyOf(w)))
       .filter((id): id is number => id !== undefined)
       .map((webcamId) => ({ webcamId }));
   }
@@ -634,5 +708,7 @@ export async function GET(req: Request) {
     retention: sweepHold,
     forcedDayRing,
     bins,
+    sources,
+    sourceFramesUnchanged,
   });
 }
