@@ -150,6 +150,32 @@ settings only, once the build that carries it is on the glass.
 | Doctor says monitors asleep (DPMS Off) | Pi is fine, screens are blanked | `ssh pi@sunsetdisplay 'DISPLAY=:0 xset dpms force on'` |
 | "No visible Chromium kiosk windows" | `kiosk-launch.sh` did not run | `ssh pi@sunsetdisplay sudo reboot`; a cold boot brings both windows up with no interaction |
 | Reload reported success but the panels still look old | Build not finished, or you are looking at a settings problem | `vercel ls --prod`; then check `/studio` for `not stored` warnings |
+| Doctor says a window is titled with the URL, not "Kiosk Display" | The tab is on a Chromium error page or crash page (issue #196). Usually the Pi booted before the router had internet. | Nothing, if the watchdog cron is present: it reloads the tab within about two minutes. If the doctor says the cron is absent, run the doctor with `--sync`. |
+
+## After a power event
+
+The Pi boots faster than the GL-X3000 gets its cellular uplink back. Two
+things cover that, both in `scripts/pi/` and pushed by `--sync`:
+
+1. `kiosk-launch.sh` waits up to `KIOSK_NET_WAIT_S` (default 120 s) for the
+   kiosk origin to answer before launching Chromium, then launches anyway.
+2. `kiosk-watchdog.sh` runs from cron every minute. A visible Chromium
+   window whose title lacks `KIOSK_TITLE_MARK` ("Kiosk Display", the title
+   set in `app/kiosk/layout.tsx`) is suspect; on the second sighting in a row
+   it gets the same focus-then-Ctrl+R reload the doctor uses. Only that
+   window, so a healthy panel never blinks. Its state and log live under
+   `/tmp/kiosk-watchdog/` (tmpfs), read by the doctor's step 3.
+
+If the app's kiosk title ever changes, change `KIOSK_TITLE_MARK` in
+`/home/pi/kiosk.env` in the same PR, or the watchdog will reload healthy
+tabs every two minutes.
+
+Measured on the Pi 2026-09-15 (Chromium 152) while testing this: a reload
+against a dead uplink takes about 20 s to show the error page, so a 6 s look
+after a reload proves nothing; and Chromium auto-reloads a net-error page on
+its own once the network is back (11 s after a 60 s outage), with a backoff
+that grows across a long outage. The watchdog is the bound on that backoff
+and the only cover for the "Aw, Snap!" crash page.
 
 Full Pi access notes (addresses, wifi profile, autostart quirks):
 `docs/superpowers/specs/2026-04-13-gallery-display-pi-setup-design.md` and

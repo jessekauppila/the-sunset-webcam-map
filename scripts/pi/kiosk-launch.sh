@@ -69,5 +69,35 @@ launch() {
     "$1" &
 }
 
+# Wait for the kiosk origin before launching (issue #196). The Pi rides a
+# cellular router that comes back slower than the Pi boots; launching into a
+# dead uplink parks both tabs on a Chromium error page where none of our
+# JavaScript runs. Poll the actual page, not the gateway: DNS and TLS return
+# after the link does. Bounded, and falls through to launching regardless, so
+# the worst case is exactly what happened before this wait existed — and the
+# watchdog (kiosk-watchdog.sh, cron every minute) takes it from there.
+wait_for_origin() {
+  local url=$1 budget=${KIOSK_NET_WAIT_S:-120} t0 elapsed
+  case "$url" in file://*) return 0 ;; esac
+  t0=$(date +%s)
+  while :; do
+    if curl -sS -o /dev/null --max-time 5 "$url" 2>/dev/null; then
+      echo "kiosk-launch: origin reachable after $(( $(date +%s) - t0 ))s"
+      return 0
+    fi
+    elapsed=$(( $(date +%s) - t0 ))
+    if [ "$elapsed" -ge "$budget" ]; then
+      echo "kiosk-launch: origin NOT reachable after ${elapsed}s — launching anyway"
+      return 1
+    fi
+    sleep 3
+  done
+}
+
+wait_for_origin "$URL_A"
+
 launch "$URL_A" /home/pi/.kiosk-sunrise 0
 launch "$URL_B" /home/pi/.kiosk-sunset  "$SECOND_X"
+
+# The watchdog reloads a tab that lands on an error page anyway. Idempotent.
+[ -f /home/pi/kiosk-watchdog.sh ] && bash /home/pi/kiosk-watchdog.sh --install

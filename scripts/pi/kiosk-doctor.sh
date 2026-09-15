@@ -109,7 +109,15 @@ STATE=$(ssh -o ConnectTimeout=10 "pi@$HOST" '
     echo "X=down"
   fi
   echo "WINDOWS=$(xdotool search --onlyvisible --class chromium 2>/dev/null | wc -l | tr -d " ")"
+  for w in $(xdotool search --onlyvisible --class chromium 2>/dev/null); do
+    echo "TITLE=$(xdotool getwindowname "$w" 2>/dev/null)"
+  done
   pgrep -a chromium 2>/dev/null | grep -o "https://[^ ]*" | sort -u | sed "s/^/URL=/"
+  if [ -f /home/pi/kiosk-watchdog.sh ]; then
+    bash /home/pi/kiosk-watchdog.sh --status 2>/dev/null | sed "s/^/WD_/"
+  else
+    echo "WD_CRON=missing"
+  fi
 ' 2>/dev/null)
 
 get() { printf '%s\n' "$STATE" | grep "^$1=" | head -1 | cut -d= -f2-; }
@@ -149,6 +157,23 @@ fi
 
 printf '%s\n' "$STATE" | grep '^URL=' | sed 's/^URL=/        serving /'
 
+# A window titled with the URL instead of "Kiosk Display" is on an error
+# page, a crash page, or still loading — the case issue #196 is about. The
+# watchdog reloads it after two sightings; this just shows what it sees.
+printf '%s\n' "$STATE" | grep '^TITLE=' | cut -d= -f2- | while read -r title; do
+  case "$title" in
+    *"Kiosk Display"*) ok "window titled [$title]" ;;
+    *) bad "window titled [$title] — not the kiosk page (error page? still loading?)" ;;
+  esac
+done
+
+case "$(get WD_CRON)" in
+  present) ok "watchdog cron present, last run $(get WD_LAST_RUN_AGE_S)s ago" ;;
+  missing) bad "kiosk-watchdog.sh is not on the Pi — run with --sync" ;;
+  *)       bad "watchdog cron line absent — run with --sync, or on the Pi: bash ~/kiosk-watchdog.sh --install" ;;
+esac
+printf '%s\n' "$STATE" | grep '^WD_LOG=' | cut -d= -f2- | while read -r line; do info "watchdog: $line"; done
+
 # ---------------------------------------------------------------- step 4: sync
 if [ "$DO_SYNC" = "1" ]; then
   say "4. Syncing scripts/pi/*.sh"
@@ -158,6 +183,13 @@ if [ "$DO_SYNC" = "1" ]; then
   else
     bad "scp failed — the Pi is running whatever it had before"
     exit 1
+  fi
+  # The watchdog is a cron line, not a running process, so a fresh copy is
+  # live as soon as the line exists. Idempotent.
+  if WD=$(ssh "pi@$HOST" 'bash ~/kiosk-watchdog.sh --install' 2>&1); then
+    ok "watchdog: $WD"
+  else
+    bad "watchdog install failed: $WD"
   fi
 fi
 
