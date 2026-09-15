@@ -3,8 +3,7 @@
 import { useEffect, useState } from 'react';
 import { stageAt, type DwellPlan, type Stage } from '@/app/lib/solo2/plan';
 
-const same = (a: Stage, b: Stage) =>
-  a.index === b.index && a.leadProgress === b.leadProgress && a.exitProgress === b.exitProgress;
+const same = (a: Stage, b: Stage) => a.index === b.index && a.leadProgress === b.leadProgress;
 
 /**
  * Where the current dwell is, re-read from the wall clock every `tickMs`
@@ -30,9 +29,9 @@ export function useStage(plan: DwellPlan, startMs: number, tickMs = 250): Stage 
     stage = stageAt(Date.now() - startMs, plan);
     setState({ startMs, stage });
   }
-  const { dwellS, frames, stepS, lastStepS, leadS, arrivalS, exitS } = plan;
+  const { dwellS, frames, stepS, lastStepS, leadS, arrivalS, exitS, beatS, changeBeats, restBeats, totalBeats } = plan;
   useEffect(() => {
-    const p = { dwellS, frames, stepS, lastStepS, leadS, arrivalS, exitS };
+    const p = { dwellS, frames, stepS, lastStepS, leadS, arrivalS, exitS, beatS, changeBeats, restBeats, totalBeats };
     const read = () => setState((prev) => {
       const nextStage = stageAt(Date.now() - startMs, p);
       return prev.startMs === startMs && same(prev.stage, nextStage) ? prev : { startMs, stage: nextStage };
@@ -40,6 +39,6 @@ export function useStage(plan: DwellPlan, startMs: number, tickMs = 250): Stage 
     read();
     const t = setInterval(read, tickMs);
     return () => clearInterval(t);
-  }, [startMs, tickMs, dwellS, frames, stepS, lastStepS, leadS, arrivalS, exitS]);
+  }, [startMs, tickMs, dwellS, frames, stepS, lastStepS, leadS, arrivalS, exitS, beatS, changeBeats, restBeats, totalBeats]);
   return stage;
 }

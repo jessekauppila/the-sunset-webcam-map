@@ -22,8 +22,8 @@ it('lays out past, current, seam, and projected in order, outlined by bin', () =
     pastDials={D} nextDials={D} onSelect={vi.fn()} />);
   const strip = screen.getByTestId('tape');
   const ids = [...strip.querySelectorAll('[data-testid^="tape-"]')].map((n) => n.getAttribute('data-testid'));
-  expect(ids).toEqual(['tape-scale', 'tape-scale-label', 'tape-past-1-10', 'tape-past-2-11', 'tape-past-1-12',
-    'tape-current', 'tape-playhead', 'tape-seam', 'tape-next-0', 'tape-next-1']);
+  expect(ids).toEqual(['tape-scale', 'tape-scale-label', 'tape-past-1-10', 'tape-rating-1', 'tape-past-2-11', 'tape-past-1-12', 'tape-rating-1',
+    'tape-current', 'tape-playhead', 'tape-rating-3', 'tape-seam', 'tape-next-0', 'tape-next-1', 'tape-rating-1']);
   expect(screen.getByTestId('tape-past-1-10')).toHaveStyle({ borderLeftColor: '#7ee2ac' });
   expect(screen.getByTestId('tape-past-2-11')).toHaveStyle({ borderLeftColor: '#c3cad6' });
   expect(screen.getByTestId('tape-current')).toHaveStyle({ boxShadow: '0 0 0 2px #f5a344' });
@@ -154,6 +154,16 @@ it('a projected dwell with a camera run shows the earlier frames as narrow sub-b
   expect(screen.getByTestId('tape-next-0').getAttribute('title')).toMatch(/after 2 earlier frames of this camera, 1.5 s each/);
 });
 
+it('a projected run\'s block is the beat plan\'s total, not the nominal still', () => {
+  // beat 4 s, still 3 beats, change 1 beat, 8 frames played: total = change 1 +
+  // frames 8 + rest max(0, 3 − 8) = 0 → 9 beats × 4 s = 36 s × 4 px/s = 144 px.
+  const earlier = [entry(21), entry(22), entry(23), entry(24), entry(25), entry(26), entry(27)];
+  render(<Tape past={[]} current={entry(3)} next={[entry(4)]} nextSequences={[{ earlier, stepS: 4 }]}
+    pastDials={D} nextDials={{ dwellS: 12, fadeS: 4, beatS: 4, dwellBeats: 3, changeBeats: 1 }} onSelect={vi.fn()} />);
+  expect(screen.getByTestId('tape-next-0-pre-21')).toHaveStyle({ width: '16px' }); // 4 s × 4 px
+  expect(screen.getByTestId('tape-next-0')).toHaveStyle({ width: '32px' }); // 144 − 7 × 16
+});
+
 it('with no past and nothing on glass it renders a blank, the seam, and the projection', () => {
   render(<Tape past={[]} current={null} next={[entry(4)]} pastDials={D} nextDials={D} onSelect={vi.fn()} />);
   expect(screen.queryByTestId('tape-current')).toBeNull();
@@ -175,6 +185,14 @@ it('a projected dwell shows the frames the cap cut as dim stubs before the run, 
   expect(screen.getByTestId('tape-next-0-cut-5').getAttribute('title')).toMatch(/not played/);
   // The run's own frames still add up to the dwell: 2 × 5 s + the chosen one's 10 s.
   expect(screen.getByTestId('tape-next-0')).toHaveStyle({ width: `${20 * PX_PER_S - 2 * 5 * PX_PER_S}px` });
+});
+
+it('a lone projected frame does not ring itself as the group\'s peak', () => {
+  // No earlier frames to be a peak among — only the cap cut a frame off the front.
+  const skipped = [entry(5)];
+  render(<Tape past={[]} current={entry(3)} next={[entry(4)]} nextSequences={[{ earlier: [], skipped, stepS: 5 }]}
+    pastDials={D} nextDials={D} onSelect={vi.fn()} />);
+  expect(screen.getByTestId('tape-next-0').style.boxShadow).not.toContain('#f5a344');
 });
 
 it('a run\'s earlier frames open like any other block', () => {
@@ -252,6 +270,24 @@ describe('the seam is what the glass will play there (2026-09-08)', () => {
     expect(seamBetween({ webcamId: 1 }, { webcamId: 1 }, { ...dip, sameCameraFadeS: 0 })).toEqual({ kind: 'cut', seconds: 0, veil: null });
     expect(seamBetween(null, { webcamId: 2 }, { dwellS: 20, fadeS: 2 })).toEqual({ kind: 'crossfade', seconds: 2, veil: null });
   });
+});
+
+it('draws the beat grid across the strip when the dials carry a beat', () => {
+  render(<Tape past={[]} current={null} next={[entry(4)]} pastDials={{ dwellS: 12, fadeS: 4, beatS: 4 }} nextDials={{ dwellS: 12, fadeS: 4, beatS: 4 }} onSelect={() => {}} />);
+  const lines = screen.getAllByTestId('tape-beat');
+  expect(lines.length).toBeGreaterThan(3);
+  // 4 s at 4 px/s: one line every 16 px.
+  expect(parseFloat(lines[1].style.left) - parseFloat(lines[0].style.left)).toBe(16);
+});
+
+it('draws a rating bar under a sunset frame and rings the run\'s peak', () => {
+  const seq = { earlier: [{ ...entry(4), snapshotId: 41, quality: 0.4 }, { ...entry(4), snapshotId: 42, quality: 0.9 }], skipped: [], stepS: 4 };
+  render(<Tape past={[]} current={null} next={[{ ...entry(4), quality: 0.6 }]} nextSequences={[seq]}
+    pastDials={{ dwellS: 12, fadeS: 4 }} nextDials={{ dwellS: 12, fadeS: 4 }} onSelect={() => {}} />);
+  expect(screen.getByTestId('tape-rating-42').style.width).toBe('90%');
+  expect(screen.getByTestId('tape-rating-41').style.width).toBe('40%');
+  expect(screen.getByTestId('tape-next-0-pre-42').style.boxShadow).toContain('#f5a344');
+  expect(screen.getByTestId('tape-next-0-pre-41').style.boxShadow).not.toContain('#f5a344');
 });
 
 describe('zoom', () => {

@@ -5,6 +5,7 @@ import type { BinEntry, Feed, ScreenState, SoloDials } from './types';
 import { dwellMs2, next2, project2, roleAt, shown2 } from '@/app/lib/solo2/engine';
 import { SOLO2_NAMESPACE, SOLO2_SETTINGS_SCHEMA, dialsFrom2 } from '@/app/lib/solo2/settingsSchema';
 import type { Role, Solo2Dials } from '@/app/lib/solo2/types';
+import { nearestTick } from '@/app/lib/solo2/plan';
 
 /**
  * The solo kiosk's versions, side by side (solo2 spec §5.1). Both read the
@@ -37,6 +38,13 @@ export interface SoloVersionSpec<D extends SoloDials = SoloDials> {
    * publishes the resulting instant.
    */
   dwellMs(entries: BinEntry[], pick: BinEntry, d: D): number;
+  /**
+   * When a dwell asked for at `nowMs` begins (beat spec §2.6). solo: now.
+   * solo2: the nearest tick of the beat, so every screen change of either
+   * screen is on the grid, and a request landing a few hundred ms after the
+   * tick the kiosk fired on belongs to that tick.
+   */
+  startMs(nowMs: number, d: D): number;
 }
 
 export type SoloVersionName = 'solo' | 'solo2';
@@ -52,6 +60,7 @@ const solo: SoloVersionSpec<SoloDials> = {
   shown: (_entries, pick) => [pick],
   // solo keeps the fixed grid, so its dwell is the dial and nothing else.
   dwellMs: (_entries, _pick, d) => d.dwellS * 1000,
+  startMs: (nowMs) => nowMs,
 };
 
 const solo2: SoloVersionSpec<Solo2Dials> = {
@@ -64,6 +73,7 @@ const solo2: SoloVersionSpec<Solo2Dials> = {
   roleAt,
   shown: shown2,
   dwellMs: dwellMs2,
+  startMs: (nowMs, d) => nearestTick(nowMs, d.beatS),
 };
 
 export const SOLO_VERSIONS = { solo, solo2 } as const;

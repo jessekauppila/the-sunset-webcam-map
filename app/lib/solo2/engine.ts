@@ -58,10 +58,10 @@ export function shown2<T extends RunEntry>(entries: T[], pick: T, d: Solo2Dials)
 }
 
 /**
- * How long a draw of `pick` occupies the glass, ms (dwell-budget spec §5.2).
- * The budget rule of §3 over the frames the draw actually plays, which is
- * `shown2` — so the caps of §4 are already applied and this cannot disagree
- * with what reaches the glass.
+ * How long a draw of `pick` occupies the glass, ms. The beat rule of §2.2
+ * over the frames the draw actually plays, which is `shown2` — so the caps
+ * of §4 are already applied and this cannot disagree with what reaches the
+ * glass.
  *
  * It lives here rather than at the call sites so that every surface renders
  * toward a supplied instant without knowing anything about versions, caps or

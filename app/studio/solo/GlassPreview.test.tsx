@@ -70,22 +70,25 @@ it('solo2 plays the on-glass camera\'s run on the studio dials, looping on a loc
   const { SOLO2_SETTINGS_SCHEMA, dialsFrom2 } = await import('@/app/lib/solo2/settingsSchema');
   const { schemaDefaults } = await import('@/app/lib/settings/schema');
   vi.useFakeTimers();
-  // 3 frames → 2 s each, between the two segments the default dip adds outside
-  // the frames' budget (dwell-budget spec §3.3): a 1 s rise in front and a
-  // 0.75 s burn behind, so 7.75 s a dwell.
-  const d2 = { ...dialsFrom2(schemaDefaults(SOLO2_SETTINGS_SCHEMA)), dwellS: 6, sameCameraFadeS: 1, minStepS: 1, dwellBoost: 0, dwellTrim: 0 };
+  vi.setSystemTime(Date.UTC(2026, 8, 14, 17, 30, 0)); // an exact tick at every beat used below, so the alignment snaps to it exactly
+  // beat spec §2: 3 frames, one beat (1 s) each, a 1 s (1-beat) change beat in
+  // front, and 3 rest beats — 6 does not divide evenly by 3, so all 3 land on
+  // the last frame: dwellS = (1 change + 3 frames + 3 rest) × 1 s beat = 7 s.
+  const d2 = { ...dialsFrom2(schemaDefaults(SOLO2_SETTINGS_SCHEMA)), beatS: 1, dwellBeats: 6, sameCameraFadeS: 1, dwellBoost: 0, dwellTrim: 0 };
   const older = (id: number, capturedAt: number) => ({ ...entry, snapshotId: id, imageUrl: `u${id}`, capturedAt });
   const entries = [older(5, entry.capturedAt - 20 * 60_000), older(6, entry.capturedAt - 10 * 60_000), entry];
   const s2 = { ...server, entries } as unknown as StateView;
   render(<GlassPreview version={SOLO_VERSIONS.solo2} screens={[{ feed: 'sunset', server: s2, projected: null }]} dials={d2} panel={{ width: 1920, height: 1080 }} />);
   expect(screen.getByTestId('top')).toHaveAttribute('src', 'u5');
+  // Capped at half a beat (DISSOLVE_SHARE): a 1 s same-camera fade against a
+  // 1 s beat dissolves over 0.5 s, not the dial's full second.
   expect(screen.getByTestId('seq-1'))
-    .toHaveStyle({ opacity: '0', transition: `opacity 1s ${ARRIVAL_EASES.gentle}` });
-  await act(async () => { vi.advanceTimersByTime(3_600); }); // 1.5 s arrival + 2.1 s: the second frame is up
+    .toHaveStyle({ opacity: '0', transition: `opacity 0.5s ${ARRIVAL_EASES.gentle}` });
+  await act(async () => { vi.advanceTimersByTime(2_500); }); // past the 1 s change beat and frame 1's own 1 s beat: index 1
   expect(screen.getByTestId('top')).toHaveAttribute('src', 'u6');
-  await act(async () => { vi.advanceTimersByTime(2_000); });
+  await act(async () => { vi.advanceTimersByTime(2_500); }); // into the last frame's 3 rest beats: index 2
   expect(screen.getByTestId('top')).toHaveAttribute('src', 'u7');
-  await act(async () => { vi.advanceTimersByTime(2_400); }); // past the last frame's step and the burn behind it
+  await act(async () => { vi.advanceTimersByTime(2_500); }); // past the whole 7 s dwell: the single-item order wraps
   expect(screen.getByTestId('top')).toHaveAttribute('src', 'u5'); // round again
 });
 
@@ -118,7 +121,8 @@ it('solo2 plays the queued dwell\'s own camera run once the preview advances', a
   const { SOLO_VERSIONS } = await import('@/app/lib/solo/versions');
   const { SOLO2_SETTINGS_SCHEMA, dialsFrom2 } = await import('@/app/lib/solo2/settingsSchema');
   vi.useFakeTimers();
-  const d2 = { ...dialsFrom2(schemaDefaults(SOLO2_SETTINGS_SCHEMA)), dwellS: 6, sameCameraFadeS: 1, minStepS: 1, dwellBoost: 0, dwellTrim: 0 };
+  vi.setSystemTime(Date.UTC(2026, 8, 14, 17, 30, 0)); // an exact tick at every beat used below
+  const d2 = { ...dialsFrom2(schemaDefaults(SOLO2_SETTINGS_SCHEMA)), beatS: 1, dwellBeats: 6, sameCameraFadeS: 1, dwellBoost: 0, dwellTrim: 0 };
   const cam2a = at(11, 2, entry.capturedAt - 30 * 60_000);
   const cam2b = at(12, 2, entry.capturedAt - 20 * 60_000);
   const s2 = { ...server, entries: [entry, cam2a, cam2b] } as unknown as StateView;
@@ -154,7 +158,10 @@ it('restarts the run\'s stage clock when the server advances a different camera 
   const { SOLO_VERSIONS } = await import('@/app/lib/solo/versions');
   const { SOLO2_SETTINGS_SCHEMA, dialsFrom2 } = await import('@/app/lib/solo2/settingsSchema');
   vi.useFakeTimers();
-  const d2 = { ...dialsFrom2(schemaDefaults(SOLO2_SETTINGS_SCHEMA)), dwellS: 6, sameCameraFadeS: 1, minStepS: 1, dwellBoost: 0, dwellTrim: 0 }; // 2 frames → 3 s each, after a 1.5 s arrival
+  vi.setSystemTime(Date.UTC(2026, 8, 14, 17, 30, 0)); // an exact tick at every beat used below
+  // beat spec §2: a 2-frame run against a 6-beat still rests 4 beats on the
+  // last frame: dwellS = (1 change + 2 frames + 4 rest) × 1 s beat = 7 s.
+  const d2 = { ...dialsFrom2(schemaDefaults(SOLO2_SETTINGS_SCHEMA)), beatS: 1, dwellBeats: 6, sameCameraFadeS: 1, dwellBoost: 0, dwellTrim: 0 };
   const panel = { width: 1920, height: 1080 };
   const camAOlder = at(5, 1, entry.capturedAt - 20 * 60_000);
   const s2a = { current: { entry, shownSince: 0, slot: 1 }, entries: [camAOlder, entry] } as unknown as StateView;
@@ -162,7 +169,7 @@ it('restarts the run\'s stage clock when the server advances a different camera 
     dials={d2} panel={panel} />);
   expect(screen.getByTestId('top')).toHaveAttribute('src', 'u5'); // run's first frame at mount
 
-  await act(async () => { vi.advanceTimersByTime(5_000); }); // past the arrival and the 3 s step, still inside the 7.5 s dwell (index 0 unchanged)
+  await act(async () => { vi.advanceTimersByTime(5_000); }); // past the 1 s change beat and frame 1's own beat, into the rest: index 1, still inside the 7 s dwell
   expect(screen.getByTestId('top')).toHaveAttribute('src', 'u7'); // stage advanced within the same dwell
 
   // The server advances to a different camera while the preview is still
@@ -189,20 +196,22 @@ it('a run restarts by rebuilding its stack, never by fading back down to an earl
   const { SOLO_VERSIONS } = await import('@/app/lib/solo/versions');
   const { SOLO2_SETTINGS_SCHEMA, dialsFrom2 } = await import('@/app/lib/solo2/settingsSchema');
   vi.useFakeTimers();
-  // minStepS 2 keeps the 6 s dwell divided evenly by 3 rather than stretched,
-  // so this test is about the stack and not about the budget.
-  const d2 = { ...dialsFrom2(schemaDefaults(SOLO2_SETTINGS_SCHEMA)), dwellS: 6, minStepS: 2, sameCameraFadeS: 1, dwellBoost: 0, dwellTrim: 0 }; // 3 frames → 2 s each, between a 1 s rise and a 0.75 s burn
+  vi.setSystemTime(Date.UTC(2026, 8, 14, 17, 30, 0)); // an exact tick at every beat used below
+  // beat spec §2: a 2 s beat keeps the 3-beat still divided evenly by the 3
+  // frames (0 rest) rather than stretched, so this test is about the stack
+  // and not about the budget: dwellS = (1 change + 3 frames + 0 rest) × 2 s = 8 s.
+  const d2 = { ...dialsFrom2(schemaDefaults(SOLO2_SETTINGS_SCHEMA)), beatS: 2, dwellBeats: 3, sameCameraFadeS: 1, dwellBoost: 0, dwellTrim: 0 };
   const older = (id: number, capturedAt: number) => ({ ...entry, snapshotId: id, imageUrl: `u${id}`, capturedAt });
   const entries = [older(5, entry.capturedAt - 20 * 60_000), older(6, entry.capturedAt - 10 * 60_000), entry];
   const s2 = { ...server, entries } as unknown as StateView;
   render(<GlassPreview version={SOLO_VERSIONS.solo2} screens={[{ feed: 'sunset', server: s2, projected: null }]}
     dials={d2} panel={{ width: 1920, height: 1080 }} />);
 
-  await act(async () => { vi.advanceTimersByTime(5_600); }); // 1.5 s arrival + 4.1 s
+  await act(async () => { vi.advanceTimersByTime(7_000); }); // past the 2 s change beat and two full 2 s frame beats: index 2
   expect(screen.getByTestId('top')).toHaveAttribute('src', 'u7'); // last frame of the run
   const stackBefore = screen.getByTestId('stack');
 
-  await act(async () => { vi.advanceTimersByTime(2_400); }); // the last frame's step and its burn end, and the dwell replays
+  await act(async () => { vi.advanceTimersByTime(1_000); }); // exactly the whole 8 s dwell: the single-item order wraps and replays
   expect(screen.getByTestId('top')).toHaveAttribute('src', 'u5'); // back to the oldest frame
   // Rebuilt, so the later frames are simply gone rather than dissolving away
   // on top of the oldest one.
@@ -240,10 +249,14 @@ it('solo2 holds a stretched dwell for the run it plays, not for the dial', async
   const { SOLO_VERSIONS } = await import('@/app/lib/solo/versions');
   const { SOLO2_SETTINGS_SCHEMA, dialsFrom2 } = await import('@/app/lib/solo2/settingsSchema');
   vi.useFakeTimers();
-  // 3 frames against a 3 s floor: the budget cannot divide 6 s that finely, so
-  // the dwell STRETCHES to 9 s (dwell-budget spec §3). The walker has to wait
-  // for the run it is actually playing.
-  const d2 = { ...dialsFrom2(schemaDefaults(SOLO2_SETTINGS_SCHEMA)), dwellS: 6, minStepS: 3, sameCameraFadeS: 1 };
+  vi.setSystemTime(Date.UTC(2026, 8, 14, 17, 30, 0)); // an exact tick at every beat used below
+  // beat spec §2.3: a 2-beat floor cannot fit 3 frames evenly, but this lone
+  // sunset's default spread (25% boost, 25% trim, rank 1 as the only camera
+  // present) rounds the effective still up to round(2 × 1.25) = 3 beats —
+  // exactly the run's 3 frames, so it rests 0, not the raw dial's 2:
+  // dwellS = (1 change + 3 frames + 0 rest) × 3 s beat = 12 s. The walker has
+  // to wait for the run it is actually playing, not the raw dial.
+  const d2 = { ...dialsFrom2(schemaDefaults(SOLO2_SETTINGS_SCHEMA)), beatS: 3, dwellBeats: 2, sameCameraFadeS: 1 };
   const older = (id: number, capturedAt: number) => ({ ...entry, snapshotId: id, imageUrl: `u${id}`, capturedAt });
   const entries = [older(5, entry.capturedAt - 20 * 60_000), older(6, entry.capturedAt - 10 * 60_000), entry];
   const s2 = { ...server, entries } as unknown as StateView;
@@ -251,10 +264,10 @@ it('solo2 holds a stretched dwell for the run it plays, not for the dial', async
   render(<GlassPreview version={SOLO_VERSIONS.solo2} screens={[{ feed: 'sunset', server: s2, projected }]}
     dials={d2} panel={{ width: 1920, height: 1080 }} />);
 
-  await act(async () => { vi.advanceTimersByTime(7_600); }); // the dial (plus the 1 s rise) is up; the run is not
+  await act(async () => { vi.advanceTimersByTime(10_000); }); // deep into the run's last frame; the 12 s dwell is not up yet
   expect(screen.getByTestId('top')).toHaveAttribute('src', 'u7'); // still the run's last frame
   expect(screen.getByText(/on glass now · frame 7/)).toBeInTheDocument();
 
-  await act(async () => { vi.advanceTimersByTime(3_200); }); // 10.8 s: the rise, the 9 s run and the burn are all done
+  await act(async () => { vi.advanceTimersByTime(2_500); }); // past the whole 12 s dwell: the walker moves to the queued frame
   expect(screen.getByText(/^preview · frame 8/)).toBeInTheDocument();
 });

@@ -3,7 +3,7 @@ import { renderHook, act } from '@testing-library/react';
 import { useStage } from './useStage';
 import { fitPlan, type Stage } from '@/app/lib/solo2/plan';
 
-const plan = fitPlan({ dwellS: 6, leadS: 2, minStepS: 1 }, 3); // 2 s a frame, lead over the last 2 s
+const plan = fitPlan({ beatS: 2, dwellBeats: 3, changeBeats: 0, leadS: 2 }, 3); // 2 s a frame, lead over the last 2 s
 
 beforeEach(() => {
   vi.useFakeTimers();
@@ -14,23 +14,23 @@ afterEach(() => vi.useRealTimers());
 describe('useStage', () => {
   it('walks the run then the lead on the wall clock', () => {
     const { result } = renderHook(() => useStage(plan, 100_000));
-    expect(result.current).toEqual({ index: 0, leadProgress: 0, exitProgress: 0 });
+    expect(result.current).toEqual({ index: 0, leadProgress: 0 });
     act(() => { vi.advanceTimersByTime(2_000); });
-    expect(result.current).toEqual({ index: 1, leadProgress: 0, exitProgress: 0 });
+    expect(result.current).toEqual({ index: 1, leadProgress: 0 });
     act(() => { vi.advanceTimersByTime(2_000); });
-    expect(result.current).toEqual({ index: 2, leadProgress: 0, exitProgress: 0 });
+    expect(result.current).toEqual({ index: 2, leadProgress: 0 });
     act(() => { vi.advanceTimersByTime(1_000); });
-    expect(result.current).toEqual({ index: 2, leadProgress: 0.5, exitProgress: 0 });
+    expect(result.current).toEqual({ index: 2, leadProgress: 0.5 });
   });
   it('joins a dwell that started earlier at the right frame', () => {
     const { result } = renderHook(() => useStage(plan, 100_000 - 2_500));
-    expect(result.current).toEqual({ index: 1, leadProgress: 0, exitProgress: 0 });
+    expect(result.current).toEqual({ index: 1, leadProgress: 0 });
   });
   it('a new start resets to the first frame', () => {
     const { result, rerender } = renderHook((p: { start: number }) => useStage(plan, p.start), { initialProps: { start: 100_000 - 5_000 } });
-    expect(result.current).toEqual({ index: 2, leadProgress: 0.5, exitProgress: 0 });
+    expect(result.current).toEqual({ index: 2, leadProgress: 0.5 });
     rerender({ start: 100_000 });
-    expect(result.current).toEqual({ index: 0, leadProgress: 0, exitProgress: 0 });
+    expect(result.current).toEqual({ index: 0, leadProgress: 0 });
   });
 });
 
@@ -48,9 +48,9 @@ describe('useStage across a change of dwell', () => {
       (p: { start: number }) => { const s = useStage(plan, p.start); seen.push(s); return s; },
       { initialProps: { start: 100_000 - 5_000 } },
     );
-    expect(seen[seen.length - 1]).toEqual({ index: 2, leadProgress: 0.5, exitProgress: 0 });
+    expect(seen[seen.length - 1]).toEqual({ index: 2, leadProgress: 0.5 });
     seen.length = 0;
     rerender({ start: 100_000 });
-    expect(seen[0]).toEqual({ index: 0, leadProgress: 0, exitProgress: 0 });
+    expect(seen[0]).toEqual({ index: 0, leadProgress: 0 });
   });
 });

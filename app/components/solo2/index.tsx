@@ -6,7 +6,7 @@ import type { EntryView } from '@/app/api/kiosk/solo/view';
 import { mergeSettings } from '@/app/lib/settings/schema';
 import { SOLO2_SETTINGS_SCHEMA, dialsFrom2 } from '@/app/lib/solo2/settingsSchema';
 import { withCaption } from '@/app/lib/solo/captionSchema';
-import { fitPlan, planOf } from '@/app/lib/solo2/plan';
+import { changeBeatsOf, fitPlan } from '@/app/lib/solo2/plan';
 import { capFor, planDialsFor, runOf } from '@/app/lib/solo2/run';
 import { useSoloGlass } from '@/app/components/solo/useSoloGlass';
 import { Solo2Frame } from './Solo2Frame';
@@ -60,17 +60,6 @@ export function Solo2Kiosk(props: MosaicProps) {
   const previous = dwell.previous;
 
   /**
-   * The run and the plan are READ, not re-derived: the draw pinned both, and
-   * the server publishes them as `shownSnapshotIds` and `endsAtMs`.
-   *
-   * This used to call `runOf`/`fitPlan` over `glass.entries` on every render.
-   * That pool is refetched every minute and changes every minute, the frame
-   * cap is a rank within it, and `runOf` anchors its window at the newest
-   * frame — so a wider cap PREPENDED older frames while the dwell's clock was
-   * already running, and the clock-driven index landed on a different picture.
-   * On glass that read as the run stepping backwards and the caption's
-   * "minutes ago" counting up (reported 2026-09-08).
-   *
    * The fallback is the old derivation, reached only for a screen row written
    * before the dwell was pinned.
    */
@@ -80,15 +69,23 @@ export function Solo2Kiosk(props: MosaicProps) {
   // in the timing: `plan.frames` stays the pinned count, so the step rate is
   // unchanged and only the missing picture is skipped.
   const pinnedRun = pinnedIds.map((id) => byId.get(id)).filter((e): e is EntryView => !!e);
-  const pinnedTotalS = glass.endsAtMs != null && glass.shownSince != null
-    ? (glass.endsAtMs - glass.shownSince) / 1000
-    : null;
-  const pinned = pinnedRun.length > 0 && pinnedTotalS != null && pinnedTotalS > 0;
+  // The run the draw pinned. On the beat the plan is integers over that
+  // count, so the glass can only land on the tick the server did; nothing
+  // here re-reads the pool (beat spec §2.4).
+  const pinned = pinnedRun.length > 0;
   const run = pinned
     ? pinnedRun
     : current ? runOf(current, glass.entries, dials.cameraRun, capFor(current, dials, glass.entries, dials.cameraRun)) : [];
-  const plan = pinned
-    ? planOf(pinnedTotalS, pinnedIds.length, dials)
+  // When the draw is pinned, the server published the dwell's span; the rest
+  // is whatever that span holds beyond the change and the frames. Read, not
+  // re-derived: the pool moves every minute and the rank with it, and a plan
+  // that follows the pool changes dwellS under a clock that has already
+  // started (2026-09-08, again 2026-09-14).
+  const plan = pinned && glass.endsAtMs != null && glass.shownSince != null
+    ? fitPlan({
+        ...dials,
+        dwellBeats: Math.max(1, Math.round((glass.endsAtMs - glass.shownSince) / 1000 / dials.beatS) - changeBeatsOf(dials)),
+      }, pinnedIds.length)
     : fitPlan(current ? planDialsFor(current, dials, glass.entries, dials.cameraRun) : dials, run.length);
   const stage = useStage(plan, dwell.startMs);
 
@@ -106,7 +103,7 @@ export function Solo2Kiosk(props: MosaicProps) {
   return (
     <div style={{ position: 'relative', width: props.width, height: props.height, background: '#000' }}>
       {current ? (
-        <Solo2Frame entry={current} run={run} previous={previous} next={nextEntry} stage={stage} plan={plan} dials={dials} dwellKey={dwell.startMs}
+        <Solo2Frame entry={current} run={run} previous={previous} stage={stage} plan={plan} dials={dials} dwellKey={dwell.startMs}
           width={props.width} height={props.height} feed={props.feed} />
       ) : null}
       {debug && (

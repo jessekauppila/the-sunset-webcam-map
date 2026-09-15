@@ -28,17 +28,25 @@ const empty = (startMs: number): PreviewDwell => ({ entry: null, previous: null,
  *
  * `dwellS` is a number when every frame holds for the same time, and a
  * function of the frame when they do not. solo2 needs the function: a dwell is
- * as long as the run it plays, and once a run has more frames than the step
- * floor can divide the budget into, the dwell STRETCHES past the dial
- * (`fitPlan`'s `plan.dwellS`). A single shared period cannot find that
- * boundary, so a stretched run was cut short here while the glass played it
- * whole.
+ * whole beats (`fitPlan`'s `plan.dwellS`), and a run of more frames simply
+ * takes more beats, so no single shared period fits every run the same way.
+ *
+ * `alignMs` snaps a dwell START onto a grid; solo2 passes the beat's nearest
+ * tick so the preview changes frames on the ticks the glass does. It is never
+ * applied to the tick's own clock reading: rounding "now" to the nearest tick
+ * moves it forward by up to half a beat, which ends a dwell early. Every
+ * period is whole beats from an aligned start, so walking `startMs +=
+ * periods[index]` against the raw clock keeps every start on the grid anyway,
+ * and a dwell ends exactly when it is up, never before.
  */
 export function useSoloPreview(
   order: EntryView[], dwellS: number | ((entry: EntryView) => number), tickMs = 250,
+  alignMs: (ms: number) => number = (ms) => ms,
 ): PreviewDwell {
   const [dwell, setDwell] = useState<PreviewDwell>(() => (
-    order.length === 0 ? empty(Date.now()) : { entry: order[0], previous: null, startMs: Date.now(), index: 0 }
+    order.length === 0
+      ? empty(alignMs(Date.now()))
+      : { entry: order[0], previous: null, startMs: alignMs(Date.now()), index: 0 }
   ));
 
   // The head we started this walk from. Derived during render, like the
@@ -48,8 +56,8 @@ export function useSoloPreview(
   if (head !== walkedFrom) {
     setWalkedFrom(head);
     setDwell(order.length === 0
-      ? empty(Date.now())
-      : { entry: order[0], previous: dwell.entry, startMs: Date.now(), index: 0 });
+      ? empty(alignMs(Date.now()))
+      : { entry: order[0], previous: dwell.entry, startMs: alignMs(Date.now()), index: 0 });
   }
 
   // The interval reads the latest order and dwell without being torn down and
@@ -57,10 +65,12 @@ export function useSoloPreview(
   // tick, and a caller's dwell function is a fresh closure every time).
   const latest = useRef(order);
   const dwellMs = useRef<(entry: EntryView) => number>(() => 0);
+  const align = useRef(alignMs);
   useEffect(() => { latest.current = order; });
   useEffect(() => {
     dwellMs.current = (entry) => Math.max(1, (typeof dwellS === 'function' ? dwellS(entry) : dwellS) * 1000);
   });
+  useEffect(() => { align.current = alignMs; });
 
   useEffect(() => {
     const tick = () => {
@@ -74,8 +84,9 @@ export function useSoloPreview(
         const now = latest.current;
         if (now.length === 0) return prev;
         // The order shrank under us: take its first frame rather than nothing.
+        // A new dwell start, so it goes through `alignMs` like any other.
         if (prev.index >= now.length) {
-          return { entry: now[0], previous: prev.entry, startMs: nowMs, index: 0 };
+          return { entry: now[0], previous: prev.entry, startMs: align.current(nowMs), index: 0 };
         }
         // Jump straight to where the clock should be rather than walking one
         // step per tick: after a long pause (backgrounded tab, sleep) a

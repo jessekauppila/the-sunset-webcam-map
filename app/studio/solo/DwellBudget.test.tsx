@@ -2,41 +2,19 @@ import { it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { DwellBudget } from './DwellBudget';
 
-const D = { dwellS: 20, leadS: 4, minStepS: 4 };
+const D = { beatS: 4, dwellBeats: 3, changeBeats: 1, leadS: 0, transition: 'dip' as const };
 
-it('prints how the dwell splits between the frames of the camera on glass', () => {
-  const { rerender } = render(<DwellBudget dials={D} frames={4} />);
-  expect(screen.getByText(/4 frames × 5 s · lead 4 s/)).toBeInTheDocument();
-  rerender(<DwellBudget dials={{ ...D, leadS: 0 }} />);
-  expect(screen.getByText(/1 frame · 20 s/)).toBeInTheDocument();
+it('prints the run in beats: frames, the change, and the rest on the last frame', () => {
+  const { rerender } = render(<DwellBudget dials={D} frames={8} />);
+  expect(screen.getByText('8 frames × 4 s · 1 beat change')).toBeInTheDocument();
+  expect(screen.getByText('36 s at the still dial · ends on a tick')).toBeInTheDocument();
+  rerender(<DwellBudget dials={D} frames={1} />);
+  expect(screen.getByText('1 frame × 4 s · 1 beat change · rests 2 beats')).toBeInTheDocument();
+  expect(screen.getByText('16 s at the still dial · ends on a tick')).toBeInTheDocument();
 });
 
-it('names the threshold, which is the number that tells an operator what a cap costs', () => {
-  render(<DwellBudget dials={D} frames={4} />);
-  // 20 s over a 4 s floor: up to five frames divide the dwell for free.
-  expect(screen.getByText('divides the dwell up to 5 frames')).toBeInTheDocument();
-});
-
-it('says so when the run stretches the dwell rather than dividing it', () => {
-  render(<DwellBudget dials={D} frames={8} />);
-  expect(screen.getByText(/8 frames × 4 s/)).toBeInTheDocument();
-  expect(screen.getByText(/· dwell 32 s/)).toBeInTheDocument();
-  expect(screen.getByText('stretched: past 5 frames each one adds 4 s')).toBeInTheDocument();
-});
-
-it('names the arrival segment, and does not call it a stretch', () => {
-  // The camera change sits in front of the frames (dwell-budget spec §3.3):
-  // the dwell is 1.5 s longer than the dial by design, not because the run
-  // outgrew the budget.
-  render(<DwellBudget dials={{ ...D, transition: 'dip', fadeS: 1.5, sameCameraFadeS: 1.5 }} frames={4} />);
-  expect(screen.getByText(/4 frames × 5 s · lead 4 s · arrival 1.5 s/)).toBeInTheDocument();
-  expect(screen.queryByText(/· dwell/)).toBeNull();
-  expect(screen.getByText('divides the dwell up to 5 frames')).toBeInTheDocument();
-});
-
-it('the threshold moves with the floor, not just the dwell', () => {
-  const { rerender } = render(<DwellBudget dials={{ ...D, minStepS: 6 }} frames={2} />);
-  expect(screen.getByText('divides the dwell up to 3 frames')).toBeInTheDocument();
-  rerender(<DwellBudget dials={{ ...D, dwellS: 60 }} frames={2} />);
-  expect(screen.getByText('divides the dwell up to 15 frames')).toBeInTheDocument();
+it('a cut has no change beat and the lead is named', () => {
+  render(<DwellBudget dials={{ ...D, transition: 'cut', leadS: 4 }} frames={3} />);
+  expect(screen.getByText('3 frames × 4 s · lead 4 s')).toBeInTheDocument();
+  expect(screen.getByText('12 s at the still dial · ends on a tick')).toBeInTheDocument();
 });

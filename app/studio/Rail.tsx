@@ -310,19 +310,10 @@ export function Rail({ api, surface, tab, onTab, runFrames = 1, children }: {
   const sharedDiff = new Set(api.diffByNamespace[SHARED_NAMESPACE] ?? []);
   const panel = PANEL_PRESETS[String(shared.panelPreset)] ?? PANEL_PRESETS[DEFAULT_PANEL_PRESET];
   const soloDials = surface.solo ? surface.solo.dialsFrom(withCaption(values, shared)) : null;
-  // leadS, minStepS and the fades are solo2's. A version without a lead leads
-  // for no time at all; a version without a floor has none, so its frames
-  // divide the dwell at any count and it can never stretch (dwell-budget spec
-  // §3); a version without a camera change has no arrival segment (§3.3).
-  const planDials: PlanDials | null = soloDials
-    ? {
-      dwellS: soloDials.dwellS,
-      leadS: (soloDials as Partial<Solo2Dials>).leadS ?? 0,
-      minStepS: (soloDials as Partial<Solo2Dials>).minStepS ?? 0,
-      transition: (soloDials as Partial<Solo2Dials>).transition,
-      fadeS: (soloDials as Partial<Solo2Dials>).transition ? soloDials.fadeS : undefined,
-      sameCameraFadeS: (soloDials as Partial<Solo2Dials>).sameCameraFadeS,
-    }
+  // The beat dials are solo2's; solo has no camera run and no dwell line.
+  const d2 = soloDials as Partial<Solo2Dials> | null;
+  const planDials: PlanDials | null = d2 && d2.beatS !== undefined
+    ? { beatS: d2.beatS, dwellBeats: d2.dwellBeats ?? 1, changeBeats: d2.changeBeats ?? 0, leadS: d2.leadS ?? 0, transition: d2.transition, sameCameraFadeS: d2.sameCameraFadeS }
     : null;
   const hasChangePage = surface.schema.some((k) => k.section === ARRIVAL_SECTION);
   const tabs = TABS.filter((t) => (t.id === 'picture' ? surface.hasPicturePage : t.id === 'change' ? hasChangePage : true));

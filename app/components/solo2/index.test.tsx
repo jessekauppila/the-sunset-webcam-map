@@ -1,5 +1,6 @@
 import { it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { ARRIVAL_EASES } from '@/app/lib/solo2/veil';
+import * as planModule from '@/app/lib/solo2/plan';
 import { render, screen } from '@testing-library/react';
 import { Solo2Kiosk } from './index';
 
@@ -74,8 +75,11 @@ it('a new frame on glass arrives with the old one as its previous in the same re
   rerender(<Solo2Kiosk webcams={[]} width={100} height={50} feed="sunset" settings={{ transition: 'crossfade' }} />);
   // The previous frame (camera 7's drawn frame) sits underneath and the crossfade is on the stack, from the first render.
   expect(screen.getAllByRole('presentation').map((i) => i.getAttribute('src'))).toEqual(['u3', 'u9']);
+  // Camera 7 → camera 8 is a camera change, not a same-camera step, so the
+  // fade is the change beat's fadeS (changeBeats × beat = 1 × 4 s = 4 s),
+  // not sameCameraFadeS (1.5 s).
   expect(screen.getByTestId('stack'))
-    .toHaveStyle({ animation: `solo2-fade-in 1.5s ${ARRIVAL_EASES.gentle} both` });
+    .toHaveStyle({ animation: `solo2-fade-in 4s ${ARRIVAL_EASES.gentle} both` });
   expect(screen.getByTestId('top')).toHaveAttribute('src', 'u9');
 });
 
@@ -106,12 +110,20 @@ it('plays the frames the draw pinned, in the order it pinned them', () => {
   expect(screen.getByTestId('top')).toHaveAttribute('src', 'u2');
 });
 
-it('steps across the pinned span, not the span a dial would compute', () => {
+it('steps on the beat, not the span the server happens to publish', () => {
+  // Under the beat model the dwell is computed purely from the dials and the
+  // pinned frame count (`fitPlan`) — `endsAtMs`/`boundaryMs` no longer sizes
+  // the step, so stretching the published end to 62 s changes nothing here.
+  // Camera 7 and camera 8 tie on quality (both 0.9), so camera 7's rank is 0
+  // and its still budget is 3 × (1 − 0.25 trim + 0 boost) = 2.25 → 2 beats;
+  // 3 pinned frames already exceed that budget, so the rest is 0 and the
+  // dwell is 1 change beat + 3 frames = 4 beats × 4 s = 16 s, whatever
+  // endsAtMs says. Arrival is 1 beat (4 s); 8.5 s in is 4.5 s into the run,
+  // floor(4.5 / 4) = 1 → the second pinned frame.
   mocked.mockImplementation(() => ({ ...pinned, endsAtMs: 62_000, boundaryMs: 62_000 }));
-  // 62 s span, 1.5 s arrival, 3 frames: 20.17 s each. 8.5 s in is still frame 1.
   vi.setSystemTime(new Date(8_500));
   render(<Solo2Kiosk webcams={[]} width={100} height={50} feed="sunset" />);
-  expect(screen.getByTestId('top')).toHaveAttribute('src', 'u1');
+  expect(screen.getByTestId('top')).toHaveAttribute('src', 'u2');
 });
 
 it('does not step backwards when the pool grows under a running dwell', () => {
@@ -139,4 +151,24 @@ it('a frame the pool dropped mid-dwell costs its picture, never the step rate', 
   mocked.mockImplementation(() => ({ ...pinned, entries: [entry(1, 100), entry(3, 300)] }));
   render(<Solo2Kiosk webcams={[]} width={100} height={50} feed="sunset" />);
   expect(screen.getByTestId('top')).toHaveAttribute('src', 'u3');
+});
+
+it('a pinned dwell reads its rest from the published span, not a re-rank of a moving pool', () => {
+  // One pinned frame, a 20 s span (5 beats at beatS 4): dwellBeats input =
+  // 5 − 1 change = 4, restBeats = 4 − 1 = 3, total = 1 + 1 + 3 = 5 beats × 4 s = 20 s.
+  const oneFrame = { ...glass, shownSnapshotIds: [3], shownSince: 0, endsAtMs: 20_000, boundaryMs: 20_000 };
+  mocked.mockImplementation(() => oneFrame);
+  const spy = vi.spyOn(planModule, 'fitPlan');
+  const { rerender } = render(<Solo2Kiosk webcams={[]} width={100} height={50} feed="sunset" />);
+  expect(spy.mock.results.at(-1)?.value.dwellS).toBe(20);
+  spy.mockClear();
+  // A state refresh returns a pool where camera 8 now outranks camera 7 —
+  // under the old re-derivation (`planDialsFor` ranked against `glass.entries`
+  // on every render) this would move `dwellBeats`/`restBeats` under a running
+  // clock even though the pinned frame count never changed (2026-09-14).
+  const stronger = [entry(1, 100), entry(2, 200), { ...entry(3, 300), quality: 0.9 }, { ...entry(9, 250, 8), quality: 0.99 }];
+  mocked.mockImplementation(() => ({ ...oneFrame, entries: stronger }));
+  rerender(<Solo2Kiosk webcams={[]} width={100} height={50} feed="sunset" />);
+  expect(spy.mock.results.at(-1)?.value.dwellS).toBe(20);
+  spy.mockRestore();
 });

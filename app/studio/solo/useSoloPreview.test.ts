@@ -206,4 +206,31 @@ describe('useSoloPreview', () => {
     expect(result.current.startMs).toBe(T0 + 44_000 + 28_000);
     expect(result.current.previous?.snapshotId).toBe(1);
   });
+
+  it('aligns every dwell start through alignMs, so the studio walker can sit on the beat', () => {
+    const order = [entry(1), entry(2), entry(3)];
+    vi.setSystemTime(new Date(100_300)); // 300 ms past a 4 s tick
+    const align = (ms: number) => Math.round(ms / 4_000) * 4_000;
+    const { result } = renderHook(() => useSoloPreview(order, 4, 250, align));
+    expect(result.current.startMs).toBe(100_000);
+    act(() => { vi.advanceTimersByTime(4_250); });
+    expect(result.current.index).toBe(1);
+    expect(result.current.startMs).toBe(104_000);
+  });
+
+  it('never rounds the tick clock forward, only a dwell start, so a dwell does not end early', () => {
+    const order = [entry(1), entry(2), entry(3)];
+    vi.setSystemTime(new Date(100_000)); // exactly on a 4 s tick
+    const align = (ms: number) => Math.round(ms / 4_000) * 4_000;
+    const { result } = renderHook(() => useSoloPreview(order, 4, 250, align));
+    // Under the old code `nowMs` itself was rounded to the nearest tick, so at
+    // 3_999 ms in — still short of the 4 s dwell — `align(103_999)` rounds UP
+    // to 104_000 and the dwell wraps a whole tick early.
+    act(() => { vi.advanceTimersByTime(3_999); });
+    expect(result.current.index).toBe(0);
+    expect(result.current.startMs).toBe(100_000);
+    act(() => { vi.advanceTimersByTime(1); });
+    expect(result.current.index).toBe(1);
+    expect(result.current.startMs).toBe(104_000);
+  });
 });

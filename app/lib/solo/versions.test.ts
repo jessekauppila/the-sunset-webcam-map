@@ -1,9 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { arrivalS, exitS } from '@/app/lib/solo2/plan';
+import { fitPlan } from '@/app/lib/solo2/plan';
 import { schemaDefaults } from '@/app/lib/settings/schema';
 import { project } from './engine';
 import { SOLO_VERSIONS, resolveSoloVersion } from './versions';
 import type { BinEntry } from './types';
+import type { Solo2Dials } from '@/app/lib/solo2/types';
 
 const sun = (id: number, q: number): BinEntry => ({
   snapshotId: id, webcamId: 1000 + id, bin: 'sunset', quality: q, detection: 0.9, isNew: false, tally: 0, enteredAt: id,
@@ -31,19 +32,11 @@ describe('descriptors', () => {
     expect(v.namespace).toBe('solo');
   });
   it('every version answers dwellMs purely, from the same three arguments as shown', () => {
-    // The point of the interface (dwell-budget spec §5.2): nothing outside the
-    // engine works a dwell's length out for itself. Today both versions return
-    // the dial; step 3 changes solo2's function alone and every surface that
-    // renders toward a dwell end follows without knowing about versions.
     for (const v of Object.values(SOLO_VERSIONS)) {
-      // solo2's spread swings the budget by rank; pinned so the dwell is the dial here.
       const d = { ...v.dialsFrom(schemaDefaults(v.schema)), dwellBoost: 0, dwellTrim: 0 };
-      // solo2's dwell carries the camera change's own segments outside the
-      // frames' budget (dwell-budget spec §3.3): the rise in front and the
-      // burn behind. solo's dials have no fades, so both are 0.
-      const expected = (d.dwellS + arrivalS(d) + exitS(d)) * 1000;
+      // solo: the dial. solo2: whole beats — one beat of change, the frame, and the rest of the still (beat spec §2.2).
+      const expected = v.name === 'solo' ? d.dwellS * 1000 : fitPlan(d as Solo2Dials, 1).dwellS * 1000;
       expect(v.dwellMs(entries, entries[0], d)).toBe(expected);
-      // Pure: same answer for a different pick, and no mutation of the input.
       expect(v.dwellMs(entries, entries[2], d)).toBe(expected);
       expect(entries.map((e) => e.tally)).toEqual([0, 0, 0]);
     }
@@ -52,6 +45,15 @@ describe('descriptors', () => {
     const v = SOLO_VERSIONS.solo;
     const d = { ...v.dialsFrom(schemaDefaults(v.schema)), dwellS: 47 };
     expect(v.dwellMs(entries, entries[0], d)).toBe(47_000);
+  });
+  it('a dwell starts now for solo and on the nearest tick for solo2', () => {
+    const t0 = Date.UTC(2026, 8, 14, 17, 30, 0);
+    const solo = SOLO_VERSIONS.solo;
+    expect(solo.startMs(t0 + 1_234, solo.dialsFrom(schemaDefaults(solo.schema)))).toBe(t0 + 1_234);
+    const solo2 = SOLO_VERSIONS.solo2;
+    const d2 = solo2.dialsFrom(schemaDefaults(solo2.schema));
+    expect(solo2.startMs(t0 + 300, d2)).toBe(t0);
+    expect(solo2.startMs(t0 + 3_800, d2)).toBe(t0 + 4_000);
   });
   it('solo2 reads its own namespace and follows the beat', () => {
     const v = SOLO_VERSIONS.solo2;

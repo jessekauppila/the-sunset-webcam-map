@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { budgetS, cameraGroups, planDialsFor, poolEntries, qualityRank, representative, runOf, standsFor, type RunEntry, capFor } from './run';
+import { budgetBeats, cameraGroups, planDialsFor, poolEntries, qualityRank, representative, runOf, standsFor, type RunEntry, capFor } from './run';
 
 const f = (id: number, cam: number, capturedAt: number, extra: Partial<RunEntry> = {}): RunEntry => ({
   snapshotId: id, webcamId: cam, bin: 'sunset', quality: 0.5, detection: 0.8, isNew: false, tally: 0, enteredAt: id,
@@ -131,38 +131,30 @@ describe('the run by rank: the peak buys screen time, a grey sunset gives it bac
   });
 });
 
-describe('the dwell boost and trim: a grey frame gives back a little time, the best sunset takes a little more', () => {
-  const d = { dwellS: 13, dwellBoost: 25, dwellTrim: 25, runFramesSunset: 16, runFramesOther: 5, runShape: 'rank' as const };
-  const pool = [
-    f(1, 1, 1000, { quality: 0.2 }),
-    f(2, 2, 1000, { quality: 0.6 }),
-    f(3, 3, 1000, { quality: 0.9 }),
-    f(4, 4, 1000, { bin: 'non_sunset', quality: null, detection: 0.4 }),
-  ];
-  it('the dial is the middle: non-sunset and weakest sunset below it, strongest above, by rank between', () => {
-    expect(budgetS(pool[3], d, pool)).toBeCloseTo(9.75);
-    expect(budgetS(pool[0], d, pool)).toBeCloseTo(9.75);
-    expect(budgetS(pool[1], d, pool)).toBeCloseTo(13);
-    expect(budgetS(pool[2], d, pool)).toBeCloseTo(16.25);
+describe('budgetBeats: the still, swung by rank and rounded to whole beats', () => {
+  const D = { dwellBeats: 3, dwellBoost: 25, dwellTrim: 25, runFramesSunset: 8, runFramesOther: 3, runShape: 'rank' as const };
+  const s = (id: number, cam: number, q: number) => f(id, cam, id * 100, { quality: q });
+  it('with no spread every draw is the still', () => {
+    const d = { ...D, dwellBoost: 0, dwellTrim: 0 };
+    expect(budgetBeats(s(1, 7, 0.9), d, [s(1, 7, 0.9), s(2, 8, 0.2)])).toBe(3);
+    expect(budgetBeats(f(3, 9, 300, { bin: 'non_sunset', quality: null }), d, [])).toBe(3);
   });
-  it('both at 0 is the dial for everyone', () => {
-    expect(budgetS(pool[3], { ...d, dwellBoost: 0, dwellTrim: 0 }, pool)).toBe(13);
-    expect(budgetS(pool[2], { ...d, dwellBoost: 0, dwellTrim: 0 }, pool)).toBe(13);
+  it('the best sunset present holds the boost, the weakest and every non-sunset the trim, rounded', () => {
+    const pool = [s(1, 7, 0.9), s(2, 8, 0.5), s(3, 9, 0.2), f(4, 10, 400, { bin: 'non_sunset', quality: null })];
+    expect(budgetBeats(pool[0], D, pool)).toBe(4);   // 3 × 1.25 = 3.75 → 4
+    expect(budgetBeats(pool[1], D, pool)).toBe(3);   // rank 0.5: 3 × 1.0
+    expect(budgetBeats(pool[2], D, pool)).toBe(2);   // 3 × 0.75 = 2.25 → 2
+    expect(budgetBeats(pool[3], D, pool)).toBe(2);
   });
-  it('the two ends are set apart: a big boost does not shorten grey frames, and no trim leaves them at the dial', () => {
-    expect(budgetS(pool[2], { ...d, dwellBoost: 100, dwellTrim: 0 }, pool)).toBeCloseTo(26);
-    expect(budgetS(pool[3], { ...d, dwellBoost: 100, dwellTrim: 0 }, pool)).toBe(13);
-    expect(budgetS(pool[0], { ...d, dwellBoost: 100, dwellTrim: 0 }, pool)).toBe(13);
-    expect(budgetS(pool[1], { ...d, dwellBoost: 100, dwellTrim: 0 }, pool)).toBeCloseTo(19.5);
+  it('never below one beat', () => {
+    expect(budgetBeats(f(4, 10, 400, { bin: 'non_sunset', quality: null }), { ...D, dwellBeats: 1, dwellTrim: 50 }, [])).toBe(1);
   });
-  it('flat shape: every sunset is the strongest, non-sunsets still below', () => {
-    expect(budgetS(pool[0], { ...d, runShape: 'flat' }, pool)).toBeCloseTo(16.25);
-    expect(budgetS(pool[3], { ...d, runShape: 'flat' }, pool)).toBeCloseTo(9.75);
-  });
-  it('planDialsFor hands fitPlan the swung budget and nothing else changed', () => {
-    const p = planDialsFor(pool[2], { ...d, minStepS: 4 }, pool);
-    expect(p.dwellS).toBeCloseTo(16.25);
-    expect(p.minStepS).toBe(4);
+  it('planDialsFor swaps the still for the budget and touches nothing else', () => {
+    const pool = [s(1, 7, 0.9), s(2, 8, 0.2)];
+    const out = planDialsFor(pool[0], { ...D, beatS: 4, leadS: 0, changeBeats: 1 }, pool);
+    expect(out.dwellBeats).toBe(4);
+    expect(out.beatS).toBe(4);
+    expect(out.runFramesSunset).toBe(8);
   });
 });
 
@@ -173,7 +165,7 @@ describe('the run is sized by the camera, not by the drawn frame', () => {
   // dropped the camera from up to 16 frames to 5, and its budget with it.
   // Measured that day: 30 of 38 non-sunset draws were of cameras still holding
   // sunset frames; Stromness had 13 of 23 and ran five.
-  const d = { runFramesSunset: 16, runFramesOther: 5, runShape: 'rank' as const, dwellS: 13, dwellBoost: 25, dwellTrim: 25 };
+  const d = { runFramesSunset: 16, runFramesOther: 5, runShape: 'rank' as const, dwellBeats: 13, dwellBoost: 25, dwellTrim: 25 };
   // Camera 7's best frame is a strong sunset; its NEWEST frame is not a sunset.
   const camera7 = [
     f(1, 7, 100, { bin: 'sunset', quality: 0.9 }),
@@ -192,13 +184,15 @@ describe('the run is sized by the camera, not by the drawn frame', () => {
 
   it('budgets by the camera too, so the dwell and the cap agree about what it is', () => {
     // Rank 1: the dial plus the boost, not the dial less the trim.
-    expect(budgetS(newest, d, pool, true)).toBeCloseTo(13 * 1.25);
+    // 13 × (1 - 0.25 + (0.25 + 0.25) × 1) = 13 × 1.25 = 16.25 → 16.
+    expect(budgetBeats(newest, d, pool, true)).toBe(16);
   });
 
   it('still sizes a camera whose frames are all non-sunset by the non-sunset dial', () => {
     const grey = [f(4, 6, 100, { bin: 'non_sunset', quality: null }), f(5, 6, 200, { bin: 'non_sunset', quality: null })];
     expect(capFor(grey[1], d, [...grey, ...pool], true)).toBe(5);
-    expect(budgetS(grey[1], d, [...grey, ...pool], true)).toBeCloseTo(13 * 0.75);
+    // rank 0: 13 × (1 - 0.25) = 13 × 0.75 = 9.75 → 10.
+    expect(budgetBeats(grey[1], d, [...grey, ...pool], true)).toBe(10);
   });
 
   it('with the camera run off, a frame is sized as itself: there is no camera to stand for it', () => {
