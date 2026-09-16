@@ -6,6 +6,7 @@ import type { StripFrame, Landing } from '@/app/lib/solo/replay';
 import type { Feed } from '@/app/lib/solo/types';
 import type { TapeDials } from './tapeParts';
 import type { PairProjection } from './projectPair';
+import { PX_PER_S } from './timeScale';
 
 /**
  * PairTape (one-tape spec §4, task 5): one strip for both screens on a
@@ -215,5 +216,57 @@ describe('click', () => {
       'sunrise',
       expect.arrayContaining([expect.objectContaining({ snapshotId: 4 })]),
     );
+  });
+
+  it('an earlier run frame, a dropped stub, and a cut stub each call onSelect with a list containing themselves', () => {
+    // Camera 700's series, ids 1..7 by capture order; id 4 is the peak. The
+    // dwell played 2, 4, 6: 1 and 3 (climb, before the peak) are dropped;
+    // 5 and 7 (after the peak, not kept) are cut.
+    const wc = 700;
+    const series = [1, 2, 3, 4, 5, 6, 7].map((id) => base(id, { webcamId: wc, capturedAt: T0 + id * 1000, quality: id === 4 ? 0.99 : 0.3 }));
+    const sunrise = view({ entries: series });
+    const proj = projection({ sunrise: [strip(6, T0, { webcamId: wc, shownSnapshotIds: [2, 4, 6], dwellMs: 20_000 })] });
+    const onSelect = renderTape({ sunrise, projection: proj });
+
+    fireEvent.click(screen.getByTestId('tape-next-sunrise-0-pre-2'));
+    expect(onSelect).toHaveBeenLastCalledWith(
+      expect.objectContaining({ snapshotId: 2 }), 'sunrise', expect.arrayContaining([expect.objectContaining({ snapshotId: 2 })]),
+    );
+
+    fireEvent.click(screen.getByTestId('tape-dropped-1'));
+    expect(onSelect).toHaveBeenLastCalledWith(
+      expect.objectContaining({ snapshotId: 1 }), 'sunrise', expect.arrayContaining([expect.objectContaining({ snapshotId: 1 })]),
+    );
+
+    fireEvent.click(screen.getByTestId('tape-next-sunrise-0-cut-5'));
+    expect(onSelect).toHaveBeenLastCalledWith(
+      expect.objectContaining({ snapshotId: 5 }), 'sunrise', expect.arrayContaining([expect.objectContaining({ snapshotId: 5 })]),
+    );
+  });
+});
+
+describe('sub-block widths always sum to the block width', () => {
+  it('with a beat dial: one beat each for the earlier frames, the last takes the rest', () => {
+    const dwellMs = 60_000;
+    const sunrise = view({ entries: [base(1), base(2), base(3)] });
+    const proj = projection({ sunrise: [strip(3, T0, { shownSnapshotIds: [1, 2, 3], dwellMs })] });
+    renderTape({ sunrise, projection: proj, studioDials: dials({ sunrise: D2, sunset: D2 }) });
+    const w1 = parseFloat(screen.getByTestId('tape-next-sunrise-0-pre-1').style.width);
+    const w2 = parseFloat(screen.getByTestId('tape-next-sunrise-0-pre-2').style.width);
+    const w3 = parseFloat(screen.getByTestId('tape-next-sunrise-0').style.width);
+    const expected = (dwellMs / 1000) * PX_PER_S;
+    expect(Math.abs(w1 + w2 + w3 - expected)).toBeLessThanOrEqual(1);
+  });
+
+  it('without a beat dial: each frame gets an equal share', () => {
+    const dwellMs = 30_000;
+    const sunrise = view({ entries: [base(1), base(2), base(3)] });
+    const proj = projection({ sunrise: [strip(3, T0, { shownSnapshotIds: [1, 2, 3], dwellMs })] });
+    renderTape({ sunrise, projection: proj }); // default studioDials: D, no beatS
+    const w1 = parseFloat(screen.getByTestId('tape-next-sunrise-0-pre-1').style.width);
+    const w2 = parseFloat(screen.getByTestId('tape-next-sunrise-0-pre-2').style.width);
+    const w3 = parseFloat(screen.getByTestId('tape-next-sunrise-0').style.width);
+    const expected = (dwellMs / 1000) * PX_PER_S;
+    expect(Math.abs(w1 + w2 + w3 - expected)).toBeLessThanOrEqual(1);
   });
 });

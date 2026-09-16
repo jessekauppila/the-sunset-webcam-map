@@ -85,10 +85,13 @@ function fromStrip(f: StripFrame): EntryView {
 /**
  * This camera's series split around its peak (run.ts's own rule): frames
  * before the peak, the peak, frames after. `null` peak (no sunset frame in
- * the group) leaves `climb` empty — nothing to have thinned.
+ * the group) leaves `climb` empty — nothing to have thinned. `groups` is
+ * `cameraGroups(view.entries)`, built once per `layoutStrip` call by the
+ * caller — grouping every entry is an O(n) pass over the whole pool, and a
+ * strip with several projected runs must not repeat it once per block.
  */
-function climbOf(view: StateView, webcamId: number): { series: ViewEntry[]; climb: ViewEntry[] } {
-  const series = cameraGroups(view.entries).get(webcamId) ?? [];
+function climbOf(groups: Map<number, ViewEntry[]>, webcamId: number): { series: ViewEntry[]; climb: ViewEntry[] } {
+  const series = groups.get(webcamId) ?? [];
   const peak = peakOf(series);
   if (!peak) return { series, climb: [] };
   const i = series.findIndex((s) => s.snapshotId === peak.snapshotId);
@@ -104,9 +107,10 @@ function climbOf(view: StateView, webcamId: number): { series: ViewEntry[]; clim
  * the same frame as both a dim cut stub and an orange-edged dropped stub, so
  * `cut` excludes anything `dropped` already claims.
  */
-function cutAndDropped(view: StateView, webcamId: number, keptIds: Set<number>): { cut: EntryView[]; dropped: EntryView[] } {
-  const resolve = resolver(view);
-  const { series, climb } = climbOf(view, webcamId);
+function cutAndDropped(
+  resolve: (id: number) => EntryView, groups: Map<number, ViewEntry[]>, webcamId: number, keptIds: Set<number>,
+): { cut: EntryView[]; dropped: EntryView[] } {
+  const { series, climb } = climbOf(groups, webcamId);
   const dropped = climb.filter((c) => !keptIds.has(c.snapshotId));
   const droppedIds = new Set(dropped.map((d) => d.snapshotId));
   const cut = series.filter((s) => !keptIds.has(s.snapshotId) && !droppedIds.has(s.snapshotId));
@@ -129,6 +133,7 @@ export function layoutStrip(input: {
 }): Block[] {
   const { view, projection, ghosts, liveDials, studioDials, nowMs } = input;
   const resolve = resolver(view);
+  const groups = cameraGroups(view.entries);
   const seen = new Set<number>();
   const repeatOf = (id: number) => {
     const r = seen.has(id);
@@ -194,7 +199,7 @@ export function layoutStrip(input: {
     const entry = frames[frames.length - 1];
     const repeat = repeatOf(entry.snapshotId);
     const keptIds = new Set(frames.map((fr) => fr.snapshotId));
-    const { cut, dropped } = cutAndDropped(view, entry.webcamId, keptIds);
+    const { cut, dropped } = cutAndDropped(resolve, groups, entry.webcamId, keptIds);
     blocks.push({
       kind: 'next', startMs: f.shownAt, endMs: f.shownAt + (f.dwellMs ?? studioDwellS * 1000), entry, frames,
       cut, dropped, grown: f.grown, peakAtMs: f.peakAtMs, rendezvous: f.rendezvous, ghostMs: ghosts[i] ?? null,

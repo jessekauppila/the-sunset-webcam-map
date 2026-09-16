@@ -1,8 +1,7 @@
 'use client';
 
-import { useEffect, useRef, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, type ReactNode } from 'react';
 import type { EntryView, StateView } from '@/app/api/kiosk/solo/view';
-import type { StripFrame } from '@/app/lib/solo/replay';
 import type { Feed } from '@/app/lib/solo/types';
 import type { PairProjection } from './projectPair';
 import { layoutStrip, type Block } from './pairLayout';
@@ -31,11 +30,6 @@ const LABEL_H = 20;
 const SUB_MIN_PX = 6;
 const ORANGE = '#f5a344';
 const GHOST = '#4b5568';
-
-const lastEndOf = (frames: StripFrame[], fallbackMs: number): number => {
-  const f = frames[frames.length - 1];
-  return f ? f.shownAt + (f.dwellMs ?? 0) : fallbackMs;
-};
 
 /** `dropped`/`grown` frames get this instead of `Thumb`'s fixed red repeat edge, which is a different fact. */
 function OrangeEdge({ testId }: { testId: string }) {
@@ -71,7 +65,25 @@ export function PairTape({ sunrise, sunset, projection, liveDials, studioDials, 
   const beatS = studioDials.sunrise.beatS ?? studioDials.sunset.beatS ?? liveDials.sunrise.beatS ?? liveDials.sunset.beatS ?? 0;
   const earliestOf = (v: StateView) => v.tape[0]?.shownAt ?? v.current?.shownSince ?? nowMs;
   const originMs = Math.min(earliestOf(sunrise), earliestOf(sunset)) - 8 * beatS * 1000;
-  const endMs = Math.max(lastEndOf(projection.sunrise, nowMs), lastEndOf(projection.sunset, nowMs));
+
+  const views: Record<Feed, StateView> = { sunrise, sunset };
+  // Deliberately NOT keyed on `nowMs`: layoutStrip only reads it for the "no
+  // current"/"unmeasured past" fallback edges, and nowMs otherwise ticks far
+  // more often than the underlying data changes — keying on it would defeat
+  // the memo.
+  const blocksOf: Record<Feed, Block[]> = useMemo(() => ({
+    sunrise: layoutStrip({ view: sunrise, projection: projection.sunrise, ghosts: projection.ghosts.sunrise, liveDials: liveDials.sunrise, studioDials: studioDials.sunrise, nowMs }),
+    sunset: layoutStrip({ view: sunset, projection: projection.sunset, ghosts: projection.ghosts.sunset, liveDials: liveDials.sunset, studioDials: studioDials.sunset, nowMs }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), [sunrise, sunset, projection, studioDials, liveDials]);
+
+  // The same blank-slot/unmeasured fallback `layoutStrip` already resolved
+  // per block — never re-derived from the raw frames here, which would miss
+  // that fallback (a `StripFrame`'s own `dwellMs` is null for a blank slot).
+  const endMs = Math.max(
+    ...blocksOf.sunrise.map((b) => b.endMs),
+    ...blocksOf.sunset.map((b) => b.endMs),
+  );
   const px = PX_PER_S * zoom;
   const x = (ms: number) => ((ms - originMs) / 1000) * px;
   const width = x(endMs) + 40;
@@ -87,12 +99,6 @@ export function PairTape({ sunrise, sunset, projection, liveDials, studioDials, 
     el.scrollLeft = Math.max(0, x(nowMs) - el.clientWidth * (2 / 3));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nowMinute, zoom]);
-
-  const views: Record<Feed, StateView> = { sunrise, sunset };
-  const blocksOf: Record<Feed, Block[]> = {
-    sunrise: layoutStrip({ view: sunrise, projection: projection.sunrise, ghosts: projection.ghosts.sunrise, liveDials: liveDials.sunrise, studioDials: studioDials.sunrise, nowMs }),
-    sunset: layoutStrip({ view: sunset, projection: projection.sunset, ghosts: projection.ghosts.sunset, liveDials: liveDials.sunset, studioDials: studioDials.sunset, nowMs }),
-  };
 
   const zoomIndex = (TAPE_ZOOMS as readonly number[]).indexOf(zoom);
   const zoomOut = zoomIndex > 0 ? TAPE_ZOOMS[zoomIndex - 1] : null;
@@ -192,8 +198,23 @@ export function PairTape({ sunrise, sunset, projection, liveDials, studioDials, 
       }
       const entry = b.entry;
       const kept = b.frames.length ? b.frames : [entry];
-      const stepPx = dials.beatS ? Math.max(SUB_MIN_PX, dials.beatS * px) : w;
-      const subW = kept.length > 1 ? [...new Array(kept.length - 1).fill(stepPx), Math.max(MIN_BLOCK_PX, w - (kept.length - 1) * stepPx)] : [w];
+      // The sub-blocks must always sum to the block's own width `w` — never
+      // more, never less. With a beat dial: one beat each for every earlier
+      // frame, the last takes whatever is left (its own change beat sits
+      // ahead of the block, at the seam; its rest sits here, at the tail).
+      // Without one, there is no beat to measure a "one frame" width by, so
+      // each frame gets an equal share of `w`.
+      let subW: number[];
+      if (kept.length <= 1) {
+        subW = [w];
+      } else if (dials.beatS) {
+        const stepPx = Math.max(SUB_MIN_PX, dials.beatS * px);
+        const earlier = new Array(kept.length - 1).fill(stepPx);
+        const usedByEarlier = earlier.reduce((a: number, c: number) => a + c, 0);
+        subW = [...earlier, Math.max(MIN_BLOCK_PX, w - usedByEarlier)];
+      } else {
+        subW = new Array(kept.length).fill(w / kept.length);
+      }
       const junctions: number[] = [left];
       subW.reduce((c, sw) => { const n = c + sw; junctions.push(n); return n; }, left);
 
@@ -261,8 +282,15 @@ export function PairTape({ sunrise, sunset, projection, liveDials, studioDials, 
     });
   }
 
+  /**
+   * Every frame this strip actually shows, in time order: for each block, its
+   * cut stubs, its dropped stubs, then its played frames — a superset of
+   * `map(b => b.entry)` that also carries the run's earlier frames and the
+   * stubs, since a click on any of those must find itself in the list `onSelect`
+   * hands to the caller (SoloPanel opens the detail modal at its index in it).
+   */
   function listOf(feed: Feed): EntryView[] {
-    return blocksOf[feed].map((b) => b.entry).filter((e): e is EntryView => e != null);
+    return blocksOf[feed].flatMap((b) => [...b.cut, ...b.dropped, ...b.frames]);
   }
 
   /** The beat grid (one-tape spec §4.3): from the axis itself, not a measured seam — every tick is `x(originMs + k·beatS·1000)`. */
