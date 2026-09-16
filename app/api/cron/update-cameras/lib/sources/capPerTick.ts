@@ -26,16 +26,32 @@ const TICK_MS = 10 * 60 * 1000;
 /**
  * Cameras one source may contribute to one tick.
  *
- * 120 at the measured 63 ms/HEAD amortized (concurrency 10) is ~7.6 s of
- * listing, which fits beside the 25 s sweep budget inside TICK_DEADLINE_MS.
- * It also puts a source at roughly Windy's own ~97 scored frames per tick,
- * which is the point: a source joins the pool as a peer, not as 20x of it.
+ * 200 at the measured 63 ms/HEAD amortized (concurrency 10) is ~12.6 s of
+ * listing, which still fits beside the 25 s sweep budget inside
+ * TICK_DEADLINE_MS. The scoring loop is deadline-bounded and scores Windy
+ * first, so a slow tick costs this source's tail, never Windy's.
  *
- * This is a dial, not a discovery. Raising it costs storage linearly -- a
- * Digitraffic frame is ~277 KB against a Windy frame's ~14 KB, and nothing
- * downstream re-encodes before upload.
+ * **This is a SURVEY setting, deliberately above what the pool needs.** The
+ * cap does not decide how many cameras are seen -- 120 already surfaces 2,250
+ * of Digitraffic's 2,258 presets in a day. It decides how OFTEN each one is
+ * seen: 3.9 looks per camera per day at 120, 6.3 at 200. Every look already
+ * falls inside that camera's sunrise or sunset window, because the band test
+ * only admits it while the terminator is crossing.
+ *
+ * The extra looks are here to judge which cameras are worth keeping (framing,
+ * aim, obstruction), and that judgement is the point of running wide first.
+ *
+ * **It is expected to come back down, and the cost compounds until it does.**
+ * Frames are kept forever -- CLEANUP_ENABLED is false and the cleanup route
+ * has never run -- so each month's frames are paid for every month after.
+ * Measured at 200 with storage compression: ~14,113 frames/day, ~2.85 GB/day,
+ * about $5.94 in month 1, $14.49 by month 6, $24.75 by month 12. At 120 those
+ * are $3.66 / $8.91 / $15.21. Pruning to a 90-day window would flatten 200 to
+ * a steady ~$9.36/mo instead of climbing.
+ *
+ * Revisit when the survey has answered its question. Issue #235.
  */
-export const SOURCE_MAX_CAMERAS_PER_TICK = 120;
+export const SOURCE_MAX_CAMERAS_PER_TICK = 200;
 
 export interface CapResult<T> {
   cameras: T[];
