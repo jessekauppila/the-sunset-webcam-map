@@ -290,6 +290,11 @@ export async function GET(req: Request) {
   let cacheHits = 0;
   let fallbacks = 0;
   let sourceFramesUnchanged = 0;
+  // Storage compression, per tick. Counted rather than assumed: the saving
+  // depends entirely on what a source sends, and a source that sends frames
+  // already at our quality gets nothing. `kept` counts frames the re-encode
+  // declined to touch because it would have made them bigger.
+  const storage = { framesStored: 0, bytesIn: 0, bytesOut: 0, kept: 0, failed: 0 };
   // Per-tick breakdown of which scoring path each webcam took. Makes
   // 'is ONNX actually running' inspectable from the cron response —
   // scoringPaths.onnx > 0 && scoringPaths.unscored === 0 is green.
@@ -456,6 +461,16 @@ export async function GET(req: Request) {
         try {
           const capturedAt = new Date();
           const upload = await uploadToFirebase(bytes, webcamId, capturedAt);
+          // Counters only. Read defensively: a metrics side-effect must never
+          // be the reason a stored frame fails to get its database row.
+          const re = upload.reencode;
+          storage.framesStored += 1;
+          if (re) {
+            storage.bytesIn += re.originalBytes;
+            storage.bytesOut += re.bytes.length;
+            if (re.outcome === 'kept_original') storage.kept += 1;
+            if (re.outcome === 'failed') storage.failed += 1;
+          }
           const snapshotId = await insertWindyDisagreementSnapshot({
             webcamId,
             phase: 'sunset', // informational; queue doesn't filter by phase
@@ -701,6 +716,13 @@ export async function GET(req: Request) {
     digest = { skipped: 'no-fresh-capture' };
   }
 
+  if (storage.framesStored > 0) {
+    console.log('\ud83d\udcbe storage:', JSON.stringify({
+      ...storage,
+      savedPct: storage.bytesIn > 0 ? Math.round((1 - storage.bytesOut / storage.bytesIn) * 100) : 0,
+    }));
+  }
+
   return NextResponse.json({
     ok: true,
     sunrise: sunriseRows.length,
@@ -718,5 +740,11 @@ export async function GET(req: Request) {
     bins,
     sources,
     sourceFramesUnchanged,
+    storage: {
+      ...storage,
+      savedPct: storage.bytesIn > 0
+        ? Math.round((1 - storage.bytesOut / storage.bytesIn) * 100)
+        : 0,
+    },
   });
 }
