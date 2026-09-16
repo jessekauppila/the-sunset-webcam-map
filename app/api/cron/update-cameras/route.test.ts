@@ -24,6 +24,9 @@ const computeDisagreementKindMock = vi.fn(() => null);
 const uploadToFirebaseMock = vi.fn(() => ({
   url: 'https://stub-firebase/test.jpg',
   path: 'snapshots/0/test.jpg',
+  // Production returns what the storage re-encode did (frameReencode.ts);
+  // the tick counts it. 900 -> 600 makes a 33% saving assertable.
+  reencode: { bytes: Buffer.alloc(600), outcome: 'reencoded', originalBytes: 900 },
 }));
 const insertWindyDisagreementSnapshotMock = vi.fn(() => 999);
 const isFlagEnabledMock = vi.fn();
@@ -257,6 +260,7 @@ beforeEach(() => {
   uploadToFirebaseMock.mockReset().mockReturnValue({
     url: 'https://stub-firebase/test.jpg',
     path: 'snapshots/0/test.jpg',
+    reencode: { bytes: Buffer.alloc(600), outcome: 'reencoded', originalBytes: 900 },
   });
   insertWindyDisagreementSnapshotMock.mockReset().mockReturnValue(999);
   isFlagEnabledMock.mockReset().mockResolvedValue(false);
@@ -493,6 +497,30 @@ describe('GET /api/cron/update-cameras', () => {
     expect(updateAiFieldsMock).not.toHaveBeenCalled();
     expect(body.scoringPaths.unscored).toBeGreaterThan(0);
     expect(body.scoringPaths.onnx).toBe(0);
+  });
+
+  it('reports what storage compression saved this tick', async () => {
+    enableDisagreementIntake();
+    computeDisagreementKindMock.mockReturnValueOnce('binary_negative_regression_high');
+    const res = await GET(makeReq());
+    const body = await res.json();
+    expect(body.storage).toMatchObject({
+      framesStored: 1, bytesIn: 900, bytesOut: 600, kept: 0, failed: 0, savedPct: 33,
+    });
+  });
+
+  it('still stores the frame when the upload reports no re-encode', async () => {
+    // A counter must never be the reason a frame loses its database row.
+    enableDisagreementIntake();
+    computeDisagreementKindMock.mockReturnValueOnce('binary_negative_regression_high');
+    uploadToFirebaseMock.mockReturnValueOnce({
+      url: 'https://stub-firebase/test.jpg',
+      path: 'snapshots/0/test.jpg',
+    });
+    const res = await GET(makeReq());
+    expect(insertWindyDisagreementSnapshotMock).toHaveBeenCalledTimes(1);
+    const body = await res.json();
+    expect(body.storage).toMatchObject({ framesStored: 1, bytesIn: 0, savedPct: 0 });
   });
 
   it('persists a Windy snapshot when computeDisagreementKind flags the score', async () => {
