@@ -5,8 +5,28 @@ import { useRouter } from 'next/navigation';
 import type { ViewMode } from './MainViewContainer';
 import { homeHrefFor } from './viewModeParam';
 
-/** Studio is a route, not a homepage view, so it is not a ViewMode. */
-export type ToggleTarget = ViewMode | 'studio';
+/**
+ * Routes, not homepage views, so they are not ViewModes.
+ *
+ * `mirror` in particular is NOT the `gallery` ViewMode, which is a different
+ * and unrelated string already spoken for in MainViewContainer. The piece is
+ * a page of its own, outside the homepage's chrome entirely, because a
+ * navigation band over it would be the one thing in the window that is not
+ * the work.
+ */
+const ROUTE_TARGETS = { studio: '/studio', mirror: '/mirror' } as const;
+
+type RouteTarget = keyof typeof ROUTE_TARGETS;
+
+export type ToggleTarget = ViewMode | RouteTarget;
+
+/**
+ * A guard rather than a bare lookup, so the branch below still narrows the
+ * remainder to a ViewMode — which is what `onModeChange` takes. Indexing the
+ * table proves nothing to the compiler and lost that narrowing.
+ */
+const isRouteTarget = (target: ToggleTarget): target is RouteTarget =>
+  Object.hasOwn(ROUTE_TARGETS, target);
 
 interface MapMosaicModeToggleProps {
   /** Which entry reads as current. 'studio' when rendered inside /studio. */
@@ -47,8 +67,8 @@ export function MapMosaicModeToggle({
       exclusive
       onChange={(_, newTarget: ToggleTarget | null) => {
         if (newTarget === null || newTarget === mode) return;
-        if (newTarget === 'studio') {
-          router.push('/studio');
+        if (isRouteTarget(newTarget)) {
+          router.push(ROUTE_TARGETS[newTarget]);
           return;
         }
         // On the homepage this is a state flip; from /studio there is no
@@ -80,6 +100,8 @@ export function MapMosaicModeToggle({
       }}
     >
       <ToggleButton value="globe">Globe</ToggleButton>
+      {/* The piece: both gallery screens, live. Public, like the globe. */}
+      <ToggleButton value="mirror">Mirror</ToggleButton>
       <ToggleButton value="studio">Studio</ToggleButton>
       <ToggleButton value="my-cameras">My Cameras</ToggleButton>
       {/*<ToggleButton value="rating">Rating</ToggleButton>

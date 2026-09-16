@@ -14,11 +14,13 @@ applies_when:
   - "Merging a stacked PR whose base branch may itself have merged already"
   - "Two branches are ready at once and each is green on its own"
   - "Cutting a branch that depends on a symbol another in-flight PR adds"
+  - "Extracting or moving code into a NEW file on a branch cut before other work landed in that same area"
 symptoms:
   - "A pull request reads MERGED while a later commit on the same head branch has never reached main"
   - "Two branches with zero overlapping files break main on merge"
   - "A stacked pull request reads MERGED but its files are absent from main"
   - "Green tests on a branch hide a break that only the build or an untested entrypoint reveals"
+  - "A file that is new on a branch merges with no conflict and silently reverts a feature already on main"
   - "Someone asks where work went after it was reported as shipped"
 related_components:
   - tooling
@@ -30,7 +32,7 @@ tags: [git, github, pull-requests, merge-verification, stacked-prs, worktrees, a
 
 ## Context
 
-Five incidents across three months, in two repos, all from one mistake: treating
+Six incidents across three months, in two repos, all from one mistake: treating
 a cheap git or GitHub signal as evidence that code reached `main`.
 
 **Shape 1 — a branch cut before its dependency landed** (2026-06-08, firmware).
@@ -62,6 +64,28 @@ its first commit, and a second commit was pushed to that same branch at
 MERGED and warned about nothing. The work was reported as shipped while it sat
 orphaned. Jesse caught it: *"I already merged that PR an hour ago, where did
 this go?"* Recovered as #169.
+
+**Shape 5 — a new file auto-merged clean and reverted a merged feature** (2026-09-16).
+`feat/glass-mirror` was cut from `c1bf14cf6`, before PR #224 merged the rendezvous. The
+branch extracted the advance route's draw into a new file, `app/lib/solo/advance.ts` — a
+faithful extraction of the *pre-rendezvous* body.
+
+Two halves, and only one of them was loud. `app/api/kiosk/solo/advance/route.ts` existed
+on both sides and conflicted, so git stopped and asked; the tempting resolution, "take the
+branch's version", was the pre-rendezvous route. `advance.ts` was **new on the branch**, so
+it had nothing to conflict with and merged in silence. Its `drawSlot` never called
+`version.fitNext`, had no grow branch, used `dwellMs` where `main` used `dwellMsFor`, and
+called `commitAdvance` with eight arguments — and on `main` parameters nine and ten are
+`peakAtMs: number | null = null, rendezvous = false`. **The defaults made it compile,
+build, lint and pass the whole suite while writing `peak_at_ms = null, rendezvous = false`
+on every draw.**
+
+The PR inverted the severity. Before it, that code was one of two draw paths. After it the
+kiosk stops posting and the projection route's `advanceIfDue` is the *only* path a solo2
+draw takes, so the rendezvous would not have degraded — it would have stopped, with
+nothing failing anywhere. Caught by a second session that read the merge result instead of
+the branches; fixed by re-extracting from `main`'s current body, with `main`'s 23
+rendezvous route tests kept byte-identical as the guard.
 
 **The unifying root cause.** Every cheap signal — the PR's state, "the branch
 exists", "the push succeeded", "tests are green on the branch" — is a statement
@@ -146,9 +170,31 @@ as a git one. Any sentence containing *merged*, *shipped*, *live*, *on main*, or
 *deployed* must be backed by an ancestry check run **after** the last relevant
 push — never by a status field read earlier in the session.
 
+**6. A file that is new on your branch is the one the merge cannot check.**
+
+Shapes 2 and 5 both live in the gap between text and meaning, but shape 5 survives the
+merge-result build as well: an extraction that lost a feature still type-checks when the
+caller's newer parameters carry defaults. Nothing in git, the suite, or the build is
+asking whether your new file still matches the code it was extracted from — the merge
+cannot, because there is no other side to compare it against.
+
+Before extracting or moving code on a branch cut before other work in the same area:
+
+```bash
+git fetch origin main --quiet
+git log --oneline $(git merge-base HEAD origin/main)..origin/main -- <the area>
+```
+
+If that prints anything, diff your extraction against the **current** source rather than
+the one you copied, and keep the original caller's tests unchanged as the guard. Passing
+them against your version is what proves the move was faithful; finding yourself editing
+them to fit is the signal that it was not. Optional parameters with defaults are where a
+lost feature hides — a call two arguments short is a compile error only until someone
+gives those parameters defaults.
+
 ## Why This Matters
 
-**The failure is silent by construction.** All five incidents produced zero
+**The failure is silent by construction.** All six incidents produced zero
 errors, zero warnings, and a green-looking UI. Nothing notifies you when you push
 to a merged branch, nothing flags a stacked PR whose base is already gone,
 nothing signals that two conflict-free branches are type-incompatible. The
@@ -189,7 +235,11 @@ cut and your branch touches shared types, exported signatures, or shared helpers
 File overlap is *not* the trigger; shape 2 had none. Also when merging a stacked
 PR whose base has already merged.
 
-**You may skip all three** only when you merged the PR yourself, watched the
+**Extraction check** — when your branch adds a new file holding code moved out of an
+existing one, and anything landed on `main` in that area since the branch was cut. This
+is the one the merge is silent about by construction; see guidance 6.
+
+**You may skip all four** only when you merged the PR yourself, watched the
 merge commit land, and nothing has been pushed since.
 
 ## Examples
