@@ -1,7 +1,9 @@
 import { sql } from '@/app/lib/db';
 import {
   getCalibrationDigestSummary,
+  getSourceDigestSummary,
   type CalibrationDigestSummary,
+  type SourceDigestRow,
 } from './dbOperations';
 import {
   getSweepDigestSummary,
@@ -257,6 +259,20 @@ export function formatSweepLine(summary: SweepDigestSummary | null): string {
  * the archive today, so the admission rule's price is readable in money's
  * proxy, rows. Silent when the table is not migrated.
  */
+/**
+ * One line per non-Windy source: how many cameras it listed today and how
+ * many sit in the pool right now. "Sources: none" when nothing but Windy has
+ * ever written a row, so the line is present either way and its absence
+ * would mean the query failed.
+ */
+export function formatSourcesLine(rows: SourceDigestRow[] | null): string {
+  if (rows === null) return '';
+  const body = rows.length
+    ? rows.map((r) => `${r.source} ${r.seenToday} cameras today · ${r.inPool} in the pool now`).join(' · ')
+    : 'none';
+  return `<p style="font:12px sans-serif">Sources: ${body}</p>`;
+}
+
 export function formatBinLine(summary: BinDigestSummary | null): string {
   if (!summary) return '';
   const a = summary.admittedToday;
@@ -295,6 +311,8 @@ export async function sendDailyUsageDigest(
     const sweep = await getSweepDigestSummary();
     // Same contract again: the solo bins table may not be migrated yet.
     const bins = await getBinDigestSummary();
+    // Non-Windy sources (issue #204). Same contract: null degrades to silence.
+    const sources = await getSourceDigestSummary();
 
     const rows = usage.map((r) => ({ ...r, compute_time_s: Number(r.compute_time_s) }));
     const deltas = deriveDailyDeltas(rows);
@@ -368,6 +386,7 @@ export async function sendDailyUsageDigest(
         ${formatCalibrationLine(calibration)}
         ${formatSweepLine(sweep)}
         ${formatBinLine(bins)}
+        ${formatSourcesLine(sources)}
         <p style="font:11px sans-serif;color:#6b7280">
           Same data as the Ops tab. Estimate uses $${NEON_COST_PER_CU_HOUR}/CU-hr;
           the invoice of record is Vercel → Settings → Billing.

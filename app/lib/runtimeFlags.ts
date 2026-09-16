@@ -48,3 +48,13 @@ export async function isFlagEnabled(key: string): Promise<boolean> {
     return false;
   }
 }
+
+/**
+ * A non-Windy image source (issue #204), one flag per source so a source can be
+ * turned on for a day and off in one command. Seeded OFF. The registry in
+ * app/api/cron/update-cameras/lib/sources/registry.ts reads these.
+ */
+export const SOURCE_FAA = 'source_faa';
+
+/** Finland Digitraffic road weather cameras (issue #221). Seeded OFF. */
+export const SOURCE_DIGITRAFFIC = 'source_digitraffic';

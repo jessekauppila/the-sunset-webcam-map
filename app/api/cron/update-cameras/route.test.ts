@@ -72,6 +72,16 @@ vi.mock('./lib/dbOperations', () => ({
   updateWebcamAiFields: (...a: unknown[]) => updateAiFieldsMock(...a),
   insertWindyDisagreementSnapshot: (...a: unknown[]) =>
     insertWindyDisagreementSnapshotMock(...a),
+  upsertSourceCameras: (...a: unknown[]) => upsertSourceCamerasMock(...a),
+  getSourceWebcamMap: (...a: unknown[]) => getSourceWebcamMapMock(...a),
+}));
+// Sources behind the port (issue #204). Empty by default: every source is
+// seeded OFF in production, so the default tick sees none.
+const fetchSourcesMock = vi.fn(async () => [] as unknown[]);
+const upsertSourceCamerasMock = vi.fn();
+const getSourceWebcamMapMock = vi.fn(async () => new Map());
+vi.mock('./lib/sources/registry', () => ({
+  fetchEnabledSources: (...a: unknown[]) => fetchSourcesMock(...(a as [])),
 }));
 // Empty set matches loadRunPanel's real "capture off" behavior, so this file
 // exercises the same isRunPanel === false path production takes by default.
@@ -114,6 +124,7 @@ vi.mock('@/app/lib/db', () => ({ sql: vi.fn() }));
 vi.mock('@/app/lib/runtimeFlags', () => ({
   SWEEP_FORCE_DAY_RING: 'sweep_force_day_ring',
   DISAGREEMENT_INTAKE: 'disagreement_intake',
+  SOURCE_FAA: 'source_faa',
   isFlagEnabled: (key: string) => isFlagEnabledMock(key),
 }));
 
@@ -250,6 +261,9 @@ beforeEach(() => {
   insertWindyDisagreementSnapshotMock.mockReset().mockReturnValue(999);
   isFlagEnabledMock.mockReset().mockResolvedValue(false);
   loadRunPanelMock.mockReset().mockResolvedValue(new Set<number>());
+  fetchSourcesMock.mockReset().mockResolvedValue([]);
+  upsertSourceCamerasMock.mockReset().mockResolvedValue(undefined);
+  getSourceWebcamMapMock.mockReset().mockResolvedValue(new Map());
   sweepHoldMock.mockReset();
   toggles.high = false;
   toggles.all = false;
@@ -883,5 +897,144 @@ describe('GET /api/cron/update-cameras', () => {
       ];
       expect(stats.rings.every((r) => r.framesScored === 0)).toBe(true);
     });
+  });
+});
+
+// Sources behind the port (issue #204): a non-Windy camera flows through the
+// same classify → score → pool path as a Windy one, keyed by source.
+describe('sources behind the port', () => {
+  const faaCam = {
+    source: 'faa', externalId: '10679', title: 'Nyac NorthEast',
+    lat: 60.97839, lng: -160.0021,
+    imageUrl: 'https://images.wcams-static.faa.gov/webimages/206/15/10679-1789440191468.jpg',
+    imageAt: '2026-09-15T02:43:35.049Z', azimuthDeg: 45, hfovDeg: 90,
+    country: 'US', region: 'AK', city: 'Nyac', attribution: null, operator: 'FAA Weather Camera Program',
+  };
+  const faaTick = (cameras: unknown[]) => ({
+    name: 'faa', enabled: true, cameras, attempted: 1, failed: 0, failedByStatus: {}, skipped: {}, elapsedMs: 3,
+  });
+
+  it('scores an enabled source camera beside Windy, under its own source name and database id', async () => {
+    fetchSourcesMock.mockResolvedValue([faaTick([faaCam])]);
+    // Before the upsert the camera is unknown; after it, the driver hands the
+    // BIGINT id back as a string, as it does for Windy.
+    getSourceWebcamMapMock
+      .mockResolvedValueOnce(new Map())
+      .mockResolvedValueOnce(new Map([['10679', { id: '900', previewUrl: faaCam.imageUrl }]]));
+    classifyMock.mockImplementation((webcams: Array<{ webcamId: unknown }>) => ({ sunrise: webcams, sunset: [] }));
+
+    const res = await GET(makeReq());
+    const body = await res.json();
+
+    expect(upsertSourceCamerasMock).toHaveBeenCalledWith([faaCam]);
+    expect(downloadMock).toHaveBeenCalledWith(faaCam.imageUrl);
+    expect(scoreMock).toHaveBeenCalledTimes(2);
+    const faaCall = scoreMock.mock.calls.map((c) => c[0]).find((i) => i.source === 'faa');
+    expect(faaCall).toMatchObject({ webcamId: '900', source: 'faa' });
+    // In the pool under its webcams.id, beside the Windy camera.
+    const [rows] = upsertStateMock.mock.calls.find((c) => c[1] === 'sunrise')!;
+    expect(rows).toEqual(expect.arrayContaining([{ webcamId: 700 }, { webcamId: '900' }]));
+    expect(body.sources.faa).toMatchObject({ cameras: 1, changed: 1, unchanged: 0, attempted: 1, failed: 0 });
+  });
+
+  it('keeps a source camera in the pool without downloading a frame whose URL did not change', async () => {
+    fetchSourcesMock.mockResolvedValue([faaTick([faaCam])]);
+    const known = new Map([['10679', { id: '900', previewUrl: faaCam.imageUrl }]]);
+    getSourceWebcamMapMock.mockResolvedValue(known);
+    classifyMock.mockImplementation((webcams: Array<{ webcamId: unknown }>) => ({ sunrise: webcams, sunset: [] }));
+
+    const res = await GET(makeReq());
+    const body = await res.json();
+
+    expect(scoreMock).toHaveBeenCalledTimes(1); // Windy only
+    expect(downloadMock).not.toHaveBeenCalledWith(faaCam.imageUrl);
+    const [rows] = upsertStateMock.mock.calls.find((c) => c[1] === 'sunrise')!;
+    expect(rows).toEqual(expect.arrayContaining([{ webcamId: '900' }]));
+    expect(body.sources.faa).toMatchObject({ changed: 0, unchanged: 1 });
+    expect(body.sourceFramesUnchanged).toBe(1);
+  });
+
+  it('touches nothing for a source whose flag is off', async () => {
+    fetchSourcesMock.mockResolvedValue([
+      { name: 'faa', enabled: false, cameras: [], attempted: 0, failed: 0, failedByStatus: {}, skipped: {}, elapsedMs: 0 },
+    ]);
+    const res = await GET(makeReq());
+    const body = await res.json();
+    expect(upsertSourceCamerasMock).not.toHaveBeenCalled();
+    expect(getSourceWebcamMapMock).not.toHaveBeenCalled();
+    expect(body.sources).toEqual({});
+    expect(scoreMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('reports a source whose database step failed and still finishes the Windy tick', async () => {
+    fetchSourcesMock.mockResolvedValue([faaTick([faaCam])]);
+    getSourceWebcamMapMock.mockRejectedValue(new Error('neon down'));
+    const res = await GET(makeReq());
+    const body = await res.json();
+    expect(res.status).toBe(200);
+    expect(body.sources.faa).toMatchObject({ cameras: 1, changed: 0, unchanged: 0, error: 'neon down' });
+    expect(scoreMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+// A source whose image URL never changes (Digitraffic) carries an imageVersion
+// (the image's ETag) instead; the tick compares that against what it stored.
+describe('sources with a stable image URL and an imageVersion', () => {
+  const dtCam = {
+    source: 'digitraffic', externalId: 'C0150301', title: 'kt51 Inkoo 01',
+    lat: 60.05374, lng: 23.99616,
+    imageUrl: 'https://weathercam.digitraffic.fi/C0150301.jpg',
+    imageAt: null, azimuthDeg: null, hfovDeg: null,
+    country: 'FI', region: null, city: 'Inkoo',
+    attribution: 'Source: Fintraffic / digitraffic.fi, license CC 4.0 BY', operator: 'Fintraffic',
+    imageVersion: '"etag-2"',
+  };
+  const tick = (cameras: unknown[]) => ({
+    name: 'digitraffic', enabled: true, cameras, attempted: 2, failed: 0, failedByStatus: {}, skipped: {}, elapsedMs: 3,
+  });
+
+  it('keeps a camera in the pool without a download when its imageVersion is the stored one', async () => {
+    fetchSourcesMock.mockResolvedValue([tick([dtCam])]);
+    getSourceWebcamMapMock.mockResolvedValue(
+      new Map([['C0150301', { id: '901', previewUrl: dtCam.imageUrl, version: '"etag-2"' }]]),
+    );
+    classifyMock.mockImplementation((webcams: Array<{ webcamId: unknown }>) => ({ sunrise: webcams, sunset: [] }));
+
+    const res = await GET(makeReq());
+    const body = await res.json();
+
+    expect(downloadMock).not.toHaveBeenCalledWith(dtCam.imageUrl);
+    expect(scoreMock).toHaveBeenCalledTimes(1); // Windy only
+    const [rows] = upsertStateMock.mock.calls.find((c) => c[1] === 'sunrise')!;
+    expect(rows).toEqual(expect.arrayContaining([{ webcamId: '901' }]));
+    expect(body.sources.digitraffic).toMatchObject({ changed: 0, unchanged: 1 });
+  });
+
+  it('downloads a camera whose imageVersion moved even though its URL did not', async () => {
+    fetchSourcesMock.mockResolvedValue([tick([dtCam])]);
+    getSourceWebcamMapMock.mockResolvedValue(
+      new Map([['C0150301', { id: '901', previewUrl: dtCam.imageUrl, version: '"etag-1"' }]]),
+    );
+    classifyMock.mockImplementation((webcams: Array<{ webcamId: unknown }>) => ({ sunrise: webcams, sunset: [] }));
+
+    const res = await GET(makeReq());
+    const body = await res.json();
+
+    expect(downloadMock).toHaveBeenCalledWith(dtCam.imageUrl);
+    expect(scoreMock).toHaveBeenCalledTimes(2);
+    expect(body.sources.digitraffic).toMatchObject({ changed: 1, unchanged: 0 });
+  });
+
+  it('downloads a camera the adapter could not version this tick, rather than dropping it', async () => {
+    const { imageVersion: _v, ...unversioned } = dtCam;
+    void _v;
+    fetchSourcesMock.mockResolvedValue([tick([unversioned])]);
+    getSourceWebcamMapMock.mockResolvedValue(
+      new Map([['C0150301', { id: '901', previewUrl: dtCam.imageUrl, version: '"etag-1"' }]]),
+    );
+    const res = await GET(makeReq());
+    const body = await res.json();
+    expect(downloadMock).toHaveBeenCalledWith(dtCam.imageUrl);
+    expect(body.sources.digitraffic).toMatchObject({ changed: 1, unchanged: 0 });
   });
 });

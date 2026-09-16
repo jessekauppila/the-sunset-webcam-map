@@ -8,6 +8,7 @@
 
 import { sql } from '@/app/lib/db';
 import type { WindyWebcam } from '@/app/lib/types';
+import type { SourceCamera } from './sources/types';
 
 type WebcamAiUpdate = {
   webcamId: number;
@@ -981,6 +982,126 @@ export async function getCalibrationDigestSummary(): Promise<CalibrationDigestSu
     };
   } catch (error) {
     console.warn('[calibrationDigest] summary unavailable:', error);
+    return null;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Non-Windy sources (issue #204). A SourceCamera is exactly a webcams row plus
+// the URL of its current frame; nothing below knows which source it is.
+// ---------------------------------------------------------------------------
+
+/**
+ * Upsert cameras from a source behind the port. `azimuth_deg` /
+ * `azimuth_source` are written from the source when it publishes a bearing
+ * and left alone when it does not, so a hand-placed value (the AR portal)
+ * is never blanked by a source that stays silent.
+ */
+export async function upsertSourceCameras(cams: SourceCamera[]): Promise<void> {
+  for (const c of cams) {
+    try {
+      // `version` is the source's own change marker (an ETag) for sources whose
+      // image URL never changes; absent for sources whose URL carries the time.
+      const images = JSON.stringify({
+        current: { preview: c.imageUrl, ...(c.imageVersion ? { version: c.imageVersion } : {}) },
+      });
+      const urls = c.attribution ? JSON.stringify({ provider: c.attribution }) : null;
+      const azimuthSource = c.azimuthDeg === null ? null : c.source;
+      await sql`
+        insert into webcams (
+          source, external_id, title, status, lat, lng, city, region, country,
+          images, urls, azimuth_deg, azimuth_source, last_fetched_at, updated_at
+        ) values (
+          ${c.source}, ${c.externalId}, ${c.title}, 'active', ${c.lat}, ${c.lng},
+          ${c.city}, ${c.region}, ${c.country},
+          ${images}::jsonb, ${urls}::jsonb, ${c.azimuthDeg}, ${azimuthSource}, now(), now()
+        )
+        on conflict (source, external_id) do update set
+          title = excluded.title,
+          status = excluded.status,
+          lat = excluded.lat,
+          lng = excluded.lng,
+          city = excluded.city,
+          region = excluded.region,
+          country = excluded.country,
+          images = excluded.images,
+          urls = excluded.urls,
+          azimuth_deg = coalesce(excluded.azimuth_deg, webcams.azimuth_deg),
+          azimuth_source = coalesce(excluded.azimuth_source, webcams.azimuth_source),
+          last_fetched_at = now(),
+          updated_at = case
+                         when webcams.images is distinct from excluded.images
+                           or webcams.title is distinct from excluded.title
+                           or webcams.lat is distinct from excluded.lat
+                           or webcams.lng is distinct from excluded.lng
+                         then now()
+                         else webcams.updated_at
+                       end
+      `;
+    } catch (error) {
+      console.error('❌ Failed to upsert source camera:', c.source, c.externalId, error);
+    }
+  }
+}
+
+/**
+ * Internal ids and the frame URL stored last tick, for one source. Read once
+ * BEFORE the upsert (to learn which frames changed) and once after (to learn
+ * the ids of cameras the upsert just created).
+ *
+ * `id` arrives as a string at runtime: webcams.id is BIGINT and the Neon
+ * driver does not coerce it. Same as getWebcamIdMap; compare with Number()
+ * where a number is expected.
+ */
+export async function getSourceWebcamMap(
+  source: string,
+  externalIds: string[],
+): Promise<Map<string, { id: number; previewUrl: string | null; version: string | null }>> {
+  if (externalIds.length === 0) return new Map();
+  const rows = (await sql`
+    select id, external_id,
+           images->'current'->>'preview' as preview_url,
+           images->'current'->>'version' as version
+    from webcams
+    where source = ${source} and external_id = any(${externalIds})
+  `) as { id: number; external_id: string; preview_url: string | null; version: string | null }[];
+  return new Map(rows.map((r) => [
+    r.external_id,
+    { id: r.id, previewUrl: r.preview_url, version: r.version ?? null },
+  ]));
+}
+
+export interface SourceDigestRow {
+  source: string;
+  /** Cameras this source listed at least once today (UTC). */
+  seenToday: number;
+  /** Cameras of this source in the active pool right now. */
+  inPool: number;
+}
+
+/**
+ * One row per non-Windy source for the daily digest. Same isolation contract
+ * as the other digest summaries: swallows its own failure and returns null.
+ */
+export async function getSourceDigestSummary(): Promise<SourceDigestRow[] | null> {
+  try {
+    const rows = (await sql`
+      select w.source,
+             count(distinct w.id) filter (where w.last_fetched_at >= current_date) as seen_today,
+             count(distinct w.id) filter (where s.webcam_id is not null) as in_pool
+      from webcams w
+      left join terminator_webcam_state s on s.webcam_id = w.id and s.active = true
+      where w.source not in ('windy', 'custom', 'flickr')
+      group by w.source
+      order by w.source
+    `) as { source: string; seen_today: string | number; in_pool: string | number }[];
+    return rows.map((r) => ({
+      source: r.source,
+      seenToday: Number(r.seen_today),
+      inPool: Number(r.in_pool),
+    }));
+  } catch (error) {
+    console.warn('[sourceDigest] summary unavailable:', error);
     return null;
   }
 }

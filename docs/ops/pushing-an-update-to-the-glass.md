@@ -13,7 +13,8 @@ procedure; you should not need to re-derive any of it.
 |---|---|---|
 | A dial in `/studio` | Hold **Deploy**. That copies the `studio` settings row to `live`; the kiosk polls `/api/kiosk/state` once a minute and picks it up. | Wait up to 60 s. Nothing else. |
 | Code (a merged PR) | Vercel builds `main` (~2 min). The Pi's Chromium tabs keep running the JavaScript they loaded at boot **until they reload**. | Wait for the build, then **reload the glass** (below). |
-| `scripts/pi/*.sh` | The Pi holds *copies* of these, not a checkout. They drift silently. | Reload with `--sync` (below). |
+| `scripts/pi/*.sh` | The Pi holds *copies* of these, not a checkout. They drift silently. | Reload with `--sync` (below). On a locked Pi the doctor writes the copies through to the card and fails loudly if it cannot. |
+| The OS itself (apt, kernel, `cmdline.txt`, `kiosk.env`) | Root is read-only when the card is locked; these need a writable root. | `--unlock`, do the work, `--lock` (see "The card is locked" below). |
 
 "IN SYNC WITH GLASS" in `/studio` only means *studio row equals live row*. It
 says nothing about which build the Pi is running. If the studio preview and the
@@ -150,6 +151,92 @@ settings only, once the build that carries it is on the glass.
 | Doctor says monitors asleep (DPMS Off) | Pi is fine, screens are blanked | `ssh pi@sunsetdisplay 'DISPLAY=:0 xset dpms force on'` |
 | "No visible Chromium kiosk windows" | `kiosk-launch.sh` did not run | `ssh pi@sunsetdisplay sudo reboot`; a cold boot brings both windows up with no interaction |
 | Reload reported success but the panels still look old | Build not finished, or you are looking at a settings problem | `vercel ls --prod`; then check `/studio` for `not stored` warnings |
+| Doctor says a window is titled with the URL, not "Kiosk Display" | The tab is on a Chromium error page or crash page (issue #196). Usually the Pi booted before the router had internet. | Nothing, if the watchdog cron is present: it reloads the tab within about two minutes. If the doctor says the cron is absent, run the doctor with `--sync`. |
+
+## The card is locked (read-only root)
+
+Once locked, the SD card is mounted read-only and every write since boot
+lives in a RAM overlay that vanishes at reboot, so **anyone can pull the
+plug**. Raspberry Pi OS does this with `raspi-config nonint enable_overlayfs`
+(the `overlayroot` package, `overlayroot=tmpfs` in `cmdline.txt`, the card at
+`/media/root-ro`, the RAM layer at `/media/root-rw`). `/boot/firmware` goes
+read-only through fstab at the same time. Nothing that matters lives only on
+the card at runtime: settings come from `/api/kiosk/state`, pictures from the
+site, the watchdog's state is on tmpfs already. Issue #203.
+
+The doctor reports the state every run: "root is READ-ONLY … the plug is
+safe to pull", or "root is WRITABLE … the case button is the safe off". A
+line saying a reboot is pending means the config and the running state
+disagree.
+
+What still works while locked, with no ceremony:
+
+- **`--sync`.** The scp lands in RAM (live immediately), then
+  `kiosk-lock.sh persist` remounts the card writable for the copy, writes the
+  same files through, checksums them, and remounts read-only. If that step
+  fails the doctor says NOT persisted and exits non-zero. It never reports a
+  sync that the next reboot would undo.
+- **`--reload`**, Deploy from `/studio`, the build-stamp self-reload, the
+  watchdog.
+
+What needs the ceremony (a writable root): apt, a kernel or firmware update,
+editing `cmdline.txt` or `/home/pi/kiosk.env`, adding a package.
+
+```bash
+bash scripts/pi/kiosk-doctor.sh --unlock      # stages, reboots, waits for ssh, verifies overlay off
+ssh pi@sunsetdisplay                          # do the work
+bash scripts/pi/kiosk-doctor.sh --sync --lock # stages, reboots, waits, verifies overlay on
+```
+
+Each reboot takes the glass down for a minute or two; Chromium relaunches on
+its own. The doctor gives the Pi five minutes to answer ssh and then tells
+you to go to it. If the overlay is what broke the boot, mount the card on
+another machine and delete `overlayroot=tmpfs ` from `cmdline.txt`.
+
+First-time setup, once, on a writable root: `--prepare` installs the
+`overlayroot` package (so the lock itself needs no network), sets journald
+to volatile with a 32 MB cap (so a month of uptime cannot fill the RAM
+layer), disables apt's daily timers for good (they would download over the
+cellular uplink into a layer that evaporates; `--unlock` is the maintenance
+window and apt is run by hand there), and installs the watchdog cron line on
+the card. Then `--lock`.
+
+Known costs, accepted:
+
+- `vnstat`'s database is in RAM, so the 08:00 data digest counts traffic
+  since the last boot, not since midnight, on a day the Pi rebooted.
+- Tailscale's state directory is in RAM. Its node key was on the card when
+  locked and expires 2027-02-01; before then, either **disable key expiry
+  for `sunsetdisplay`** in the Tailscale admin console (the usual kiosk
+  setting, and the durable fix) or unlock, let it re-key, relock.
+- The case label strip reading "NEVER PULL THE PLUG" is now wrong and needs
+  reprinting.
+- `kiosk.env` edits need the ceremony. Orientation changes are rare.
+
+## After a power event
+
+The Pi boots faster than the GL-X3000 gets its cellular uplink back. Two
+things cover that, both in `scripts/pi/` and pushed by `--sync`:
+
+1. `kiosk-launch.sh` waits up to `KIOSK_NET_WAIT_S` (default 120 s) for the
+   kiosk origin to answer before launching Chromium, then launches anyway.
+2. `kiosk-watchdog.sh` runs from cron every minute. A visible Chromium
+   window whose title lacks `KIOSK_TITLE_MARK` ("Kiosk Display", the title
+   set in `app/kiosk/layout.tsx`) is suspect; on the second sighting in a row
+   it gets the same focus-then-Ctrl+R reload the doctor uses. Only that
+   window, so a healthy panel never blinks. Its state and log live under
+   `/tmp/kiosk-watchdog/` (tmpfs), read by the doctor's step 3.
+
+If the app's kiosk title ever changes, change `KIOSK_TITLE_MARK` in
+`/home/pi/kiosk.env` in the same PR, or the watchdog will reload healthy
+tabs every two minutes.
+
+Measured on the Pi 2026-09-15 (Chromium 152) while testing this: a reload
+against a dead uplink takes about 20 s to show the error page, so a 6 s look
+after a reload proves nothing; and Chromium auto-reloads a net-error page on
+its own once the network is back (11 s after a 60 s outage), with a backoff
+that grows across a long outage. The watchdog is the bound on that backoff
+and the only cover for the "Aw, Snap!" crash page.
 
 Full Pi access notes (addresses, wifi profile, autostart quirks):
 `docs/superpowers/specs/2026-04-13-gallery-display-pi-setup-design.md` and
