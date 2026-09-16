@@ -54,8 +54,13 @@ export function toViewEntry(e: StoredEntry): ViewEntry {
   };
 }
 
-export function toTapeInput(f: TapeFrame): ViewEntry & { slot: number; shownAt: number } {
-  return { ...toViewEntry(f), slot: f.slot, shownAt: f.shownAt };
+export function toTapeInput(
+  f: TapeFrame,
+): ViewEntry & { slot: number; shownAt: number; peakAtMs: number | null; rendezvous: boolean; shownSnapshotIds: number[] } {
+  return {
+    ...toViewEntry(f), slot: f.slot, shownAt: f.shownAt,
+    peakAtMs: f.peakAtMs, rendezvous: f.rendezvous, shownSnapshotIds: f.shownSnapshotIds,
+  };
 }
 
 export interface EntryView extends ViewEntry {
@@ -70,6 +75,12 @@ export interface EntryView extends ViewEntry {
 export interface TapeEntry extends EntryView {
   slot: number;
   shownAt: number;
+  /** When this dwell's peak landed, ms (rendezvous spec §3.3); null off the dial and for rows written before its migration. */
+  peakAtMs: number | null;
+  /** True only when this dwell's landing was fitted to the other screen's peak. */
+  rendezvous: boolean;
+  /** Every frame the dwell played; the drawn frame alone when the row predates the stamp. */
+  shownSnapshotIds: number[];
 }
 
 /**
@@ -170,7 +181,7 @@ export function buildStateView(input: {
   /** Which engine projects the queue. Defaults to solo, so older callers are unchanged. */
   version?: SoloVersionSpec;
   /** Past draws for the tape; the state route supplies them, other callers may omit. */
-  tape?: (ViewEntry & { slot: number; shownAt: number })[];
+  tape?: (ViewEntry & { slot: number; shownAt: number; peakAtMs: number | null; rendezvous: boolean; shownSnapshotIds: number[] })[];
 }): StateView {
   const { feed, dials, entries, screen, nowMs } = input;
   const version = input.version ?? (SOLO_VERSIONS.solo as SoloVersionSpec);
@@ -265,6 +276,9 @@ export function buildStateView(input: {
     lastPull: { admitted: input.admitted },
     entries,
     zone: input.zone,
-    tape: (input.tape ?? []).map((f) => ({ ...view(f), slot: f.slot, shownAt: f.shownAt })),
+    tape: (input.tape ?? []).map((f) => ({
+      ...view(f), slot: f.slot, shownAt: f.shownAt,
+      peakAtMs: f.peakAtMs, rendezvous: f.rendezvous, shownSnapshotIds: f.shownSnapshotIds,
+    })),
   };
 }

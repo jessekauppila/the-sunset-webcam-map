@@ -433,6 +433,16 @@ export interface TapeFrame extends StoredEntry {
   slot: number;
   /** ms since epoch. */
   shownAt: number;
+  /**
+   * When this dwell's peak landed, ms (rendezvous spec §3.3): the tick this
+   * screen pinned for the other one, or the one it fitted itself to. Null
+   * off the rendezvous dial and for rows written before its migration.
+   */
+  peakAtMs: number | null;
+  /** True only when this dwell's landing was fitted to the other screen's peak. */
+  rendezvous: boolean;
+  /** Every frame the dwell played; the drawn frame alone when the row predates the stamp. */
+  shownSnapshotIds: number[];
 }
 
 /**
@@ -466,7 +476,7 @@ export async function logDraw(
 export async function listRecentDraws(feed: Feed, n: number): Promise<TapeFrame[]> {
   try {
     const rows = (await sql`
-      select d.slot, d.shown_at,
+      select d.slot, d.shown_at, d.peak_at, d.rendezvous, d.shown_snapshot_ids,
              e.snapshot_id, e.webcam_id, e.bin, e.quality, e.detection, e.is_new, e.tally,
              e.entered_at, e.first_shown_at, e.last_shown_at, e.last_shown_slot,
              s.firebase_url, s.captured_at::text as captured_at, w.title, w.city, w.region, w.country, w.lat, w.lng, w.urls->>'provider' as provider
@@ -477,28 +487,32 @@ export async function listRecentDraws(feed: Feed, n: number): Promise<TapeFrame[
       where d.feed = ${feed}
       order by d.slot desc
       limit ${n}
-    `) as unknown as (EntryRow & { slot: string | number; shown_at: string })[];
-    return rows.reverse().map((r) => ({ ...toEntry(feed, r), slot: num(r.slot), shownAt: Date.parse(r.shown_at) }));
+    `) as unknown as (EntryRow & {
+      slot: string | number; shown_at: string;
+      peak_at: string | null; rendezvous: boolean | null; shown_snapshot_ids: (string | number)[] | null;
+    })[];
+    return rows.reverse().map((r) => ({
+      ...toEntry(feed, r),
+      slot: num(r.slot),
+      shownAt: Date.parse(r.shown_at),
+      peakAtMs: r.peak_at == null ? null : Date.parse(r.peak_at),
+      rendezvous: r.rendezvous === true,
+      shownSnapshotIds: r.shown_snapshot_ids?.length ? r.shown_snapshot_ids.map(num) : [num(r.snapshot_id)],
+    }));
   } catch (error) {
     console.warn('[solo/store] draw log read failed:', error);
     return [];
   }
 }
 
-/** A logged draw with its stamp, for the replay (spec §3). Unstamped rows read as "unknown". */
+/**
+ * A logged draw with its stamp, for the replay (spec §3). Unstamped rows
+ * read as "unknown". `shownSnapshotIds`, `peakAtMs`, and `rendezvous` come
+ * from `TapeFrame`.
+ */
 export interface DrawRecord extends TapeFrame {
   version: SoloVersionName | null;
   deployId: number | null;
-  /** Every frame the dwell played; the drawn frame alone when the row predates the stamp. */
-  shownSnapshotIds: number[];
-  /**
-   * When this dwell's peak landed, ms (rendezvous spec §3.3): the tick this
-   * screen pinned for the other one, or the one it fitted itself to. Null
-   * off the rendezvous dial and for rows written before its migration.
-   */
-  peakAtMs: number | null;
-  /** True only when this dwell's landing was fitted to the other screen's peak. */
-  rendezvous: boolean;
 }
 
 /** A bin row as the replay needs it: the entry plus when it left the bin, if it has. */
