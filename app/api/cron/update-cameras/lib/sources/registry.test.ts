@@ -8,6 +8,7 @@ vi.mock('@/app/lib/runtimeFlags', () => ({
 }));
 
 import { fetchEnabledSources, SOURCES } from './registry';
+import { SOURCE_MAX_CAMERAS_PER_TICK } from './capPerTick';
 import type { Source, SourceListOptions } from './types';
 
 const opts: SourceListOptions = { now: new Date('2026-09-15T02:50:00Z'), within: () => true };
@@ -41,8 +42,30 @@ describe('fetchEnabledSources', () => {
       sources: [fakeSource('a', list)],
       isEnabled: async (flag) => flag === 'source_a',
     });
-    expect(list).toHaveBeenCalledWith(opts);
+    expect(list).toHaveBeenCalledWith({ ...opts, maxCameras: SOURCE_MAX_CAMERAS_PER_TICK });
     expect(ticks[0]).toMatchObject({ name: 'a', enabled: true, skipped: { stale: 2 } });
+  });
+
+  it('caps every source by default, so a new adapter is bounded without remembering to be', async () => {
+    const list = vi.fn(async () => ({
+      cameras: [], attempted: 1, failed: 0, failedByStatus: {}, skipped: {}, elapsedMs: 1,
+    }));
+    await fetchEnabledSources(opts, {
+      sources: [fakeSource('a', list)],
+      isEnabled: async () => true,
+    });
+    expect(list.mock.calls[0][0].maxCameras).toBe(SOURCE_MAX_CAMERAS_PER_TICK);
+  });
+
+  it('lets an explicit cap in the tick options win over the default', async () => {
+    const list = vi.fn(async () => ({
+      cameras: [], attempted: 1, failed: 0, failedByStatus: {}, skipped: {}, elapsedMs: 1,
+    }));
+    await fetchEnabledSources({ ...opts, maxCameras: 7 }, {
+      sources: [fakeSource('a', list)],
+      isEnabled: async () => true,
+    });
+    expect(list.mock.calls[0][0].maxCameras).toBe(7);
   });
 
   it('turns a throwing source into a failed tick instead of failing the cron', async () => {

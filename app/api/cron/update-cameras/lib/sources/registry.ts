@@ -1,4 +1,5 @@
 import { isFlagEnabled } from '@/app/lib/runtimeFlags';
+import { SOURCE_MAX_CAMERAS_PER_TICK } from './capPerTick';
 import { faaSource } from './faa';
 import { digitrafficSource } from './digitraffic';
 import { emptyListResult, type Source, type SourceListOptions, type SourceListResult } from './types';
@@ -28,6 +29,11 @@ export async function fetchEnabledSources(
 ): Promise<SourceTick[]> {
   const sources = deps.sources ?? SOURCES;
   const isEnabled = deps.isEnabled ?? isFlagEnabled;
+  // The per-source ceiling is set here rather than left to each adapter, so a
+  // new adapter is capped by default instead of by remembering to be. An
+  // adapter is still the one that APPLIES it, because only the adapter knows
+  // which of its work is per-camera. See capPerTick.ts.
+  const capped: SourceListOptions = { maxCameras: SOURCE_MAX_CAMERAS_PER_TICK, ...opts };
   const out: SourceTick[] = [];
   for (const source of sources) {
     const enabled = await isEnabled(source.flag);
@@ -36,7 +42,7 @@ export async function fetchEnabledSources(
       continue;
     }
     try {
-      out.push({ name: source.name, enabled: true, ...(await source.listCameras(opts)) });
+      out.push({ name: source.name, enabled: true, ...(await source.listCameras(capped)) });
     } catch (error) {
       out.push({
         name: source.name,
