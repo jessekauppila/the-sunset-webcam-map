@@ -8,6 +8,7 @@ import { SHARED_NAMESPACE } from '@/app/lib/settings/sharedSchema';
 import { withCaption } from '@/app/lib/solo/captionSchema';
 import { SOLO_VERSIONS, type SoloVersionSpec } from '@/app/lib/solo/versions';
 import { capFor, runOf } from '@/app/lib/solo2/run';
+import type { Feed } from '@/app/lib/solo/types';
 import type { Solo2Dials } from '@/app/lib/solo2/types';
 import { Header } from './Header';
 import { Rail, type RailTab } from './Rail';
@@ -89,6 +90,20 @@ export function StudioClient() {
       ? runOf(s.server.current.entry, s.server.entries, (studioDials as Solo2Dials).cameraRun !== false, capFor(s.server.current.entry, studioDials as Solo2Dials)).length
       : 0)))
     : 1;
+  // The dwell readout's landing lines (rendezvous spec §3): where each
+  // screen's current dwell peaks. solo has no rendezvous, so this stays
+  // undefined off solo2 and DwellBudget prints no landing lines at all.
+  const landings: Record<Feed, { atMs: number; rendezvous: boolean } | null> | undefined =
+    solo?.name === 'solo2'
+      ? {
+        sunrise: sunrise.server?.current?.peakAtMs != null
+          ? { atMs: sunrise.server.current.peakAtMs, rendezvous: sunrise.server.current.rendezvous }
+          : null,
+        sunset: sunset.server?.current?.peakAtMs != null
+          ? { atMs: sunset.server.current.peakAtMs, rendezvous: sunset.server.current.rendezvous }
+          : null,
+      }
+      : undefined;
 
   return (
     <div style={{
@@ -134,7 +149,7 @@ export function StudioClient() {
             background: '#10141d', borderRight: '1px solid #1d2432', padding: 10,
             display: 'flex', flexDirection: 'column', overflowY: 'auto',
           }}>
-            <Rail api={api} surface={surface} tab={tab} onTab={setTab} runFrames={runFrames}>
+            <Rail api={api} surface={surface} tab={tab} onTab={setTab} runFrames={runFrames} landings={landings}>
               <DeployHistory api={api} saving={saving} onSavingChange={setSaving} />
             </Rail>
           </aside>

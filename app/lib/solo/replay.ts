@@ -190,6 +190,16 @@ export interface ReplayOptions<D extends SoloDials> {
   priorDraws: DrawLike[];
   fromMs: number;
   toMs: number;
+  /**
+   * The landing this screen's current dwell already pinned (the live row's
+   * `peakAtMs`), when the studio is projecting both screens from their LIVE
+   * state rather than from a clean window start. `replayPair` seeds this
+   * screen's pin from it, so the other screen can fit to it immediately,
+   * before either screen has drawn anything in the window. Ignored when it
+   * is not a future tick, and by `replay()` (single feed), which has no
+   * partner to fit it.
+   */
+  pinnedAtMs?: number | null;
 }
 
 /**
@@ -390,6 +400,15 @@ export function replayPair<D extends SoloDials>(o: PairOptions<D>): PairResult {
    */
   const pins: Record<Feed, { atMs: number; matched: boolean; lastFailure: 'too soon' | 'nothing to add' | null } | null> =
     { sunrise: null, sunset: null };
+  // A screen can enter the pair already holding a pin from its live dwell
+  // (`ReplayOptions.pinnedAtMs`), so the other screen has something to fit to
+  // before either one has drawn in this window. Only a tick still ahead of
+  // this screen's own start is worth seeding; one already past is nothing to
+  // meet (the same test `theirs.atMs > s.atMs` applies during the loop).
+  for (const f of ['sunrise', 'sunset'] as const) {
+    const p = o[f].pinnedAtMs;
+    if (p != null && p > o[f].fromMs) pins[f] = { atMs: p, matched: false, lastFailure: null };
+  }
   const counts: RendezvousCounts = {
     made: 0, missed: 0,
     missReasons: { 'no partner': 0, 'too soon': 0, 'nothing to add': 0 },

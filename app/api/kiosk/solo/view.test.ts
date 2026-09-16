@@ -110,13 +110,17 @@ describe('buildStateView', () => {
   it('passes the draw log through as tape, oldest first, and defaults to empty', () => {
     const entries = [stored(1, 'sunset', 0.9)];
     const tape = [
-      { ...stored(5, 'sunset', 0.7), slot: 1, shownAt: 20_000 },
-      { ...stored(6, 'sunset', 0.1), slot: 2, shownAt: 40_000 },
+      { ...stored(5, 'sunset', 0.7), slot: 1, shownAt: 20_000, peakAtMs: 25_000, rendezvous: true, shownSnapshotIds: [5, 9] },
+      { ...stored(6, 'sunset', 0.1), slot: 2, shownAt: 40_000, peakAtMs: null, rendezvous: false, shownSnapshotIds: [6] },
     ];
     const v = buildStateView({ feed: 'sunset', dials: D, entries, screen: null, nowMs: 0, admitted: { sunset: 0, nonSunset: 0 }, zone: ZONE, tape });
     expect(v.tape.map((f) => f.snapshotId)).toEqual([5, 6]);
     // A tape frame is a full EntryView, so a click opens the detail card; one that left the bins has no live stage.
-    expect(v.tape[0]).toMatchObject({ slot: 1, shownAt: 20_000, eligible: true, stage: { kind: 'inLine', position: null } });
+    expect(v.tape[0]).toMatchObject({
+      slot: 1, shownAt: 20_000, eligible: true, stage: { kind: 'inLine', position: null },
+      peakAtMs: 25_000, rendezvous: true, shownSnapshotIds: [5, 9],
+    });
+    expect(v.tape[1]).toMatchObject({ peakAtMs: null, rendezvous: false, shownSnapshotIds: [6] });
     expect(v.tape[1].eligible).toBe(false);
     const bare = buildStateView({ feed: 'sunset', dials: D, entries, screen: null, nowMs: 0, admitted: { sunset: 0, nonSunset: 0 }, zone: ZONE });
     expect(bare.tape).toEqual([]);

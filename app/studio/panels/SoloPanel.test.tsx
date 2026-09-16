@@ -44,6 +44,39 @@ it('clicking a row opens FrameModal, and its close control hides it', () => {
   expect(screen.queryByTestId('frame-line')).toBeNull();
 });
 
+it('one tape carries both screens, above the two columns', () => {
+  render(<SoloPanel version={SOLO_VERSIONS.solo} liveDials={D} nowMs={5_000} sunrise={stateOf('sunrise')} sunset={stateOf('sunset')} />);
+  const tape = screen.getByTestId('pair-tape');
+  expect(screen.getByText(/sunrise above, sunset below/)).toBeInTheDocument();
+  // Both screens are on the one strip, and it precedes the columns.
+  expect(screen.getByTestId('tape-current-sunrise')).toBeInTheDocument();
+  expect(screen.getByTestId('tape-current-sunset')).toBeInTheDocument();
+  const heading = screen.getByText(/Sunrise · left screen/);
+  expect(tape.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+});
+
+it('the tape button folds the tape away and back', () => {
+  render(<SoloPanel version={SOLO_VERSIONS.solo} liveDials={D} nowMs={5_000} sunrise={stateOf('sunrise')} sunset={stateOf('sunset')} />);
+  fireEvent.click(screen.getByRole('button', { name: /tape/ }));
+  expect(screen.queryByTestId('pair-tape')).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: /tape/ }));
+  expect(screen.getByTestId('pair-tape')).toBeInTheDocument();
+});
+
+it('clicking a block on the tape opens the pop-up at THAT frame, not at the head of the list', () => {
+  render(<SoloPanel version={SOLO_VERSIONS.solo} liveDials={D} nowMs={5_000} sunrise={stateOf('sunrise')} sunset={stateOf('sunset')} />);
+  expect(screen.queryByTestId('frame-line')).toBeNull();
+  // A PROJECTED block, not the one on glass: the on-glass frame is already the
+  // head of the tape's list, so clicking it cannot tell a real lookup apart
+  // from a handler that always opened at list[0].
+  const block = screen.getByTestId('tape-next-sunrise-0');
+  const id = Number((block.querySelector('img')?.getAttribute('src') ?? '').replace('u', ''));
+  expect(id).toBeGreaterThan(0);
+  expect(id).not.toBe(1); // 1 is on glass, and first in the list
+  fireEvent.click(block);
+  expect(screen.getByTestId('frame-line')).toHaveTextContent(new RegExp(`^frame ${id} ·`));
+});
+
 it('an errored feed shows its error text and no column', () => {
   const sunrise: SoloFeedState = { server: undefined, projected: undefined, error: 'boom' };
   render(<SoloPanel version={SOLO_VERSIONS.solo} liveDials={D} nowMs={5_000} sunrise={sunrise} sunset={stateOf('sunset')} />);
