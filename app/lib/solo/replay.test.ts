@@ -268,7 +268,10 @@ describe('replayPair (rendezvous spec §5)', () => {
       sunset: opts('sunset', sunsetNight, T0, T0 + beat(1)),
     });
     expect(pair.rendezvous).toEqual({
-      made: 1, missed: 0, dropped: 2, grown: 0,
+      made: 1, missed: 0,
+      missReasons: { 'no partner': 0, 'too soon': 0, 'nothing to add': 0 },
+      eligible: { sunrise: 1, sunset: 1 },
+      dropped: 2, grown: 0,
       landings: [{ atMs: T0 + beat(5), sunriseSlot: 0, sunsetSlot: 0 }],
     });
     expect(pair.sunset.frames).toHaveLength(1);
@@ -315,7 +318,10 @@ describe('replayPair (rendezvous spec §5)', () => {
     // block that is ending plays them: +2 ids, +8 s, and the clock moves to
     // T0 + 24 s. There avail = (32 − 24)/4 − 1 = 1 = the climb, and it fits.
     expect(pair.rendezvous).toEqual({
-      made: 1, missed: 0, dropped: 0, grown: 2,
+      made: 1, missed: 0,
+      missReasons: { 'no partner': 0, 'too soon': 0, 'nothing to add': 0 },
+      eligible: { sunrise: 1, sunset: 1 },
+      dropped: 0, grown: 2,
       landings: [{ atMs: T0 + beat(8), sunriseSlot: 1, sunsetSlot: 0 }],
     });
     expect(pair.sunrise.frames).toHaveLength(2);
@@ -339,9 +345,103 @@ describe('replayPair (rendezvous spec §5)', () => {
     const a = () => opts('sunrise', sunriseNight, T0 + 1_300, T0 + beat(12), off);
     const b = () => opts('sunset', sunsetNight, T0 + beat(1) + 1_300, T0 + beat(12), off);
     const pair = replayPair({ sunrise: a(), sunset: b() });
-    expect(pair.rendezvous).toEqual({ made: 0, missed: 0, dropped: 0, grown: 0, landings: [] });
+    expect(pair.rendezvous).toEqual({
+      made: 0, missed: 0,
+      missReasons: { 'no partner': 0, 'too soon': 0, 'nothing to add': 0 },
+      eligible: { sunrise: 0, sunset: 0 },
+      dropped: 0, grown: 0, landings: [],
+    });
     expect(pair.sunrise).toEqual(replay(a()));
     expect(pair.sunset).toEqual(replay(b()));
     expect(pair.sunrise.frames.every((f) => f.peakAtMs === null && !f.rendezvous)).toBe(true);
+  });
+
+  describe('miss reasons', () => {
+    it('a pin the other screen never had a sunset to try counts a no-partner miss', () => {
+      // sunset, t0 = T0: camera 50 is [climb | peak], and pins its landing.
+      const sunsetFirst = [shot(101, 50, 100, 0.4), shot(102, 50, 200, 0.9)];
+      // sunset's second camera has no sunset frames, so its second draw
+      // settles the first pin without ever pinning again.
+      const sunsetSecond = [shot(103, 60, 100, null)];
+      // sunrise has nothing but a non-sunset frame the whole window: it is
+      // never eligible, so it never even tries to meet the pin.
+      const sunriseNight = [shot(201, 70, 100, null)];
+      const pair = replayPair({
+        sunrise: opts('sunrise', sunriseNight, T0, T0 + beat(10)),
+        // Bounded so sunset draws exactly twice: pin, then the plain draw
+        // that settles it. A wider window cycles back to camera 50 and pins
+        // again, which is a real (if repetitive) third eligible draw, not a
+        // miss — not what this test is isolating.
+        sunset: opts('sunset', [...sunsetFirst, ...sunsetSecond], T0, T0 + beat(6)),
+      });
+      expect(pair.rendezvous).toEqual({
+        made: 0, missed: 1,
+        missReasons: { 'no partner': 1, 'too soon': 0, 'nothing to add': 0 },
+        eligible: { sunrise: 0, sunset: 1 },
+        dropped: 0, grown: 0, landings: [],
+      });
+    });
+
+    it('a landing too tight for even the change beat counts a too-soon miss', () => {
+      const tight = { ...D2, changeBeats: 2 };
+      // sunset, t0 = T0: a lone peak with no climb pins the moment its own
+      // change ends — landing = T0 + 2 change beats = T0 + 8 s.
+      const sunsetNight = [shot(111, 80, 100, 0.9)];
+      // sunrise, t0 = T0 + 4 s: one beat short of the landing, but the
+      // change alone needs two — avail = 1 − 2 = −1, too soon whatever the climb is.
+      const sunriseNight = [shot(211, 90, 100, 0.9)];
+      const pair = replayPair({
+        sunrise: opts('sunrise', sunriseNight, T0 + beat(1), T0 + beat(1), tight),
+        sunset: opts('sunset', sunsetNight, T0, T0 + beat(6), tight),
+      });
+      expect(pair.rendezvous).toEqual({
+        made: 0, missed: 1,
+        missReasons: { 'no partner': 0, 'too soon': 1, 'nothing to add': 0 },
+        eligible: { sunrise: 1, sunset: 2 },
+        dropped: 0, grown: 0, landings: [],
+      });
+    });
+
+    it('a climb too short to reach, with nothing left of the ending run to add, counts a nothing-to-add miss', () => {
+      // sunrise draw 0, t0 = T0: only camera 91 (three grey frames) is in the
+      // bin, so nothing pins yet.
+      const grey = [shot(121, 91, 100, null), shot(122, 91, 200, null), shot(123, 91, 300, null)];
+      const later = T0 + beat(2);
+      // Unlike the grow case, camera 91 gets only ONE more frame while its
+      // block is ending — one short of the two the grow would need.
+      const arrivals = [shot(124, 91, 400, null, later)];
+      const sunriseNight = [
+        shot(131, 92, 100, 0.4, later), shot(132, 92, 200, 0.95, later),
+        shot(133, 92, 300, 0.5, later), shot(134, 92, 400, 0.45, later),
+      ];
+      // sunset, t0 = T0 + 4 s: camera 93 climbs six frames to its peak and
+      // pins far ahead, exactly as in the grow test.
+      const sunsetNight = [
+        shot(141, 93, 100, 0.3), shot(142, 93, 200, 0.35), shot(143, 93, 300, 0.4),
+        shot(144, 93, 400, 0.45), shot(145, 93, 500, 0.5), shot(146, 93, 600, 0.55), shot(147, 93, 700, 0.9),
+      ];
+      const pair = replayPair({
+        sunrise: opts('sunrise', [...grey, ...arrivals, ...sunriseNight], T0, T0 + beat(10)),
+        sunset: opts('sunset', sunsetNight, T0 + beat(1), T0 + beat(10)),
+      });
+      expect(pair.rendezvous).toEqual({
+        made: 0, missed: 1,
+        missReasons: { 'no partner': 0, 'too soon': 0, 'nothing to add': 1 },
+        eligible: { sunrise: 1, sunset: 2 },
+        dropped: 0, grown: 0, landings: [],
+      });
+    });
+
+    it('missReasons always sums to missed, in every scenario above', () => {
+      const cases = [
+        { sunrise: opts('sunrise', [shot(301, 100, 100, null)], T0, T0 + beat(10)),
+          sunset: opts('sunset', [shot(302, 101, 100, 0.4), shot(303, 101, 200, 0.9), shot(304, 110, 100, null)], T0, T0 + beat(10)) },
+      ];
+      for (const c of cases) {
+        const r = replayPair(c).rendezvous;
+        expect(Object.values(r.missReasons).reduce((a, b) => a + b, 0)).toBe(r.missed);
+        expect(r.eligible.sunrise + r.eligible.sunset).toBeGreaterThanOrEqual(r.made);
+      }
+    });
   });
 });
