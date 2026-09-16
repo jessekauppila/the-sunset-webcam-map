@@ -34,7 +34,9 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.useFakeTimers();
   vi.setSystemTime(new Date(NOW));
-  getLiveSettingsCached.mockResolvedValue({ namespaces: { shared: { panelPreset: 'ktc-l' }, solo2: { valleys: 0 } }, revision: 1 });
+  // activeVersion is explicit because the registry default is v1, and only the
+  // live version's engine draws: without it every advance below is skipped.
+  getLiveSettingsCached.mockResolvedValue({ namespaces: { shared: { activeVersion: 'solo2', panelPreset: 'ktc-l' }, solo2: { valleys: 0 } }, revision: 1 });
   listActiveEntries.mockResolvedValue([entry(1, 100), entry(2, 200), entry(3, 300), entry(9, 250, 8, 0.8)]);
   getScreenState.mockResolvedValue(null);
   commitAdvance.mockResolvedValue(true);
@@ -102,5 +104,46 @@ describe('GET /api/mirror/state', () => {
     expect(body.entries.length).toBeLessThan(80);
     expect(body).not.toHaveProperty('bins');
     expect(body).not.toHaveProperty('tape');
+  });
+  it('answers a store failure with a cacheable 503 rather than a bare 500', async () => {
+    listActiveEntries.mockRejectedValue(new Error('neon down'));
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const res = await get('?feed=sunset');
+    expect(res.status).toBe(503);
+    expect(res.headers.get('cache-control')).toBe('public, s-maxage=1, stale-while-revalidate=4');
+    expect(spy).toHaveBeenCalled();
+    spy.mockRestore();
+  });
+  it('does not draw when the live version is not solo2, even past the end', async () => {
+    getLiveSettingsCached.mockResolvedValue({ namespaces: { shared: { activeVersion: 'solo', panelPreset: 'ktc-l' } }, revision: 1 });
+    getScreenState.mockResolvedValue(row(12, NOW - 30_000, 20_000));
+    const body = await (await get('?feed=sunset')).json();
+    expect(commitAdvance).not.toHaveBeenCalled();
+    expect(body.slot).toBe(12);
+  });
+  it('rejects any parameter but feed, so the cache key space stays two URLs', async () => {
+    expect((await get('?feed=sunset&r=1')).status).toBe(400);
+    expect((await get('?feed=sunset&version=solo')).status).toBe(400);
+    expect(commitAdvance).not.toHaveBeenCalled();
+  });
+  it('with the rendezvous dial on, reads the other screen and commits the fit', async () => {
+    getLiveSettingsCached.mockResolvedValue({ namespaces: { shared: { activeVersion: 'solo2', panelPreset: 'ktc-l' }, solo2: { rendezvous: true } }, revision: 1 });
+    // Camera 7 climbs to its peak on the newest frame, so there is a climb to
+    // thin: the fit can land the peak two beats out rather than report that it
+    // has nothing to give.
+    listActiveEntries.mockResolvedValue([entry(1, 100, 7, 0.5), entry(2, 200, 7, 0.7), entry(3, 300, 7, 0.95), entry(9, 250, 8, 0.4)]);
+    getScreenState.mockImplementation(async (feed: string) => feed === 'sunrise'
+      ? { feed: 'sunrise', currentSnapshotId: 9, shownSince: NOW, slot: 3, sunsetStreak: 0, dwellMs: 40_000, shownSnapshotIds: [9], peakAtMs: NOW + 8_000, rendezvous: false }
+      : null);
+    await get('?feed=sunset');
+    expect(getScreenState).toHaveBeenCalledWith('sunrise');
+    expect(commitAdvance).toHaveBeenCalledTimes(1);
+    const args = commitAdvance.mock.calls[0];
+    expect(args[5]).toBe('solo2');
+    // The fit landed the other screen's peak: the dial reached drawSlot and the
+    // engine, which a plain draw (null, false, and no other-screen read at all)
+    // would not show.
+    expect(args[8]).toBe(NOW + 8_000);
+    expect(args[9]).toBe(true);
   });
 });

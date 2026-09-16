@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { schemaDefaults } from '@/app/lib/settings/schema';
 import { SOLO2_SETTINGS_SCHEMA, dialsFrom2 } from '@/app/lib/solo2/settingsSchema';
 import { withCaption } from '@/app/lib/solo/captionSchema';
@@ -60,12 +60,24 @@ describe('buildMirrorView', () => {
     expect(ids(v.entries)[0]).toBe(3);
     expect(ids(v.entries)).not.toContain(1);
   });
+  it('projects one draw, not the whole queue: the mirror reads only next[0]', () => {
+    const spy = vi.spyOn(SOLO_VERSIONS.solo2, 'project');
+    const screen = { feed: 'sunset' as const, currentSnapshotId: 3, shownSince: NOW, slot: 1, sunsetStreak: 1, dwellMs: 20_000, shownSnapshotIds: [3] };
+    buildMirrorView({ ...base, screen });
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(spy.mock.calls[0][3]).toBe(1); // n
+    spy.mockRestore();
+  });
   it('with no row: slot 0, no current, and the next run to preload', () => {
     const v = buildMirrorView({ ...base, screen: null });
     expect(v.slot).toBe(0);
     expect(v.current).toBeNull();
     expect(v.next.length).toBeGreaterThan(0);
     expect(ids(v.entries)).toEqual(ids(v.next));
+    // The pages branch keys its black-until-ready on `dials`, so a feed with
+    // an empty pool must still carry the dials and the preset.
+    expect(v.dials.beatS).toBe(D.beatS);
+    expect(v.panelPreset).toBe('dell-l');
   });
   it('keeps the slot when the frame on glass has aged out of the pool', () => {
     const screen = { feed: 'sunset' as const, currentSnapshotId: 77, shownSince: NOW, slot: 41, sunsetStreak: 1, dwellMs: 20_000, shownSnapshotIds: [77] };
