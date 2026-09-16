@@ -39,13 +39,13 @@ export const SOLO2_SETTINGS_SCHEMA: SettingsSchema = [
   },
   {
     key: 'runFramesSunset', kind: 'number', min: 1, max: 20, step: 1, default: 8,
-    label: 'most frames, sunset', section: 'glass',
-    description: 'The longest a sunset timelapse may run, in frames; each frame is one beat, so 8 frames at a 4 s beat is 32 s plus the change.',
+    label: 'most frames, sunset bin', section: 'glass',
+    description: 'Both screens. The longest a sunset timelapse may run, in frames; each frame is one beat, so 8 frames at a 4 s beat is 32 s plus the change.',
   },
   {
     key: 'runFramesOther', kind: 'number', min: 1, max: 20, step: 1, default: 3,
-    label: 'most frames, non-sunset', section: 'glass',
-    description: 'The same cap for non-sunsets, deliberately lower. A non-sunset run shorter than the still rests on its last frame like any other, so this dial buys pictures inside the still before it buys time.',
+    label: 'most frames, non-sunset bin', section: 'glass',
+    description: 'Both screens. The same cap for non-sunsets, deliberately lower. A non-sunset run shorter than the still rests on its last frame like any other, so this dial buys pictures inside the still before it buys time.',
   },
   {
     key: 'runShape', kind: 'enum', options: ['rank', 'flat'], default: 'rank',
