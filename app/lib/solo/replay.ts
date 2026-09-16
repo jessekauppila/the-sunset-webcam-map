@@ -326,11 +326,23 @@ export interface Landing {
   sunsetSlot: number;
 }
 
+export type MissReason =
+  /** While the pin was reachable, the other screen never drew an eligible sunset (nothing to plan with). */
+  | 'no partner'
+  /** The other screen drew an eligible sunset, but the pin was already too soon for it. */
+  | 'too soon'
+  /** The other screen's climb was too short and the run ending there had nothing left to grow by. */
+  | 'nothing to add';
+
 export interface RendezvousCounts {
   /** Fits: draws that thinned their climb to land on the other screen's pinned peak. */
   made: number;
   /** Pins that passed unmet: the pinning screen drew again with nothing having fitted to it. */
   missed: number;
+  /** `missed` split by why (sums to `missed`). */
+  missReasons: Record<MissReason, number>;
+  /** Draws that cleared the gate, per screen, so `made / eligible` reads as a rate. */
+  eligible: Record<Feed, number>;
   /** Frames the fits dropped from their climbs. */
   dropped: number;
   /** Frames the grows added to dwells that were ending. */
@@ -370,9 +382,20 @@ const otherFeed = (f: Feed): Feed => (f === 'sunrise' ? 'sunset' : 'sunrise');
  */
 export function replayPair<D extends SoloDials>(o: PairOptions<D>): PairResult {
   const screens: Record<Feed, Screen<D>> = { sunrise: openScreen(o.sunrise), sunset: openScreen(o.sunset) };
-  /** The landing each screen has published, and whether the other one met it. */
-  const pins: Record<Feed, { atMs: number; matched: boolean } | null> = { sunrise: null, sunset: null };
-  const counts: RendezvousCounts = { made: 0, missed: 0, dropped: 0, grown: 0, landings: [] };
+  /**
+   * The landing each screen has published, whether the other one met it, and
+   * (when the other screen tried and could not) why: set on THIS pin by the
+   * OTHER screen's `nofit`, since that decision is always about the pin it
+   * was trying to meet (`theirs.peakAtMs` was this pin's `atMs`).
+   */
+  const pins: Record<Feed, { atMs: number; matched: boolean; lastFailure: 'too soon' | 'nothing to add' | null } | null> =
+    { sunrise: null, sunset: null };
+  const counts: RendezvousCounts = {
+    made: 0, missed: 0,
+    missReasons: { 'no partner': 0, 'too soon': 0, 'nothing to add': 0 },
+    eligible: { sunrise: 0, sunset: 0 },
+    dropped: 0, grown: 0, landings: [],
+  };
 
   const decideFor = (side: Feed): Decide<D> => (s, pool, pick) => {
     const { version, dials } = s.o;
@@ -399,11 +422,18 @@ export function replayPair<D extends SoloDials>(o: PairOptions<D>): PairResult {
       { peakAtMs: theirs && theirs.atMs > s.atMs ? theirs.atMs : null },
       dials,
     );
+    // `pin`, `fit` and `nofit` are exactly the draws that cleared the gate
+    // (rendezvous on, peak role, a peak, a rank above the floor); `plain` and
+    // `grow` are not.
+    if (dec.kind === 'pin' || dec.kind === 'fit' || dec.kind === 'nofit') counts.eligible[side] += 1;
     /** This screen is drawing: a pin of its own that nothing met has passed, and the new one replaces it. */
     const settle = (next: number | null) => {
       const mine = pins[side];
-      if (mine && !mine.matched) counts.missed += 1;
-      pins[side] = next == null ? null : { atMs: next, matched: false };
+      if (mine && !mine.matched) {
+        counts.missed += 1;
+        counts.missReasons[mine.lastFailure ?? 'no partner'] += 1;
+      }
+      pins[side] = next == null ? null : { atMs: next, matched: false, lastFailure: null };
     };
     if (dec.kind === 'grow') {
       // A grow that adds nothing would leave the clock where it is and the
@@ -431,6 +461,9 @@ export function replayPair<D extends SoloDials>(o: PairOptions<D>): PairResult {
         sunsetSlot: side === 'sunset' ? s.slot : theirSlot,
       });
     }
+    // A `nofit` is always about `theirs` — the pin this draw was trying to
+    // meet — so the reason belongs on that pin, not on this screen's own.
+    if (dec.kind === 'nofit' && theirs) theirs.lastFailure = dec.why;
     settle(dec.kind === 'pin' ? dec.peakAtMs : null);
     return {
       kind: 'draw',

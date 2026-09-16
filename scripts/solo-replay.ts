@@ -228,6 +228,10 @@ async function main(): Promise<void> {
     const r = pair.rendezvous;
     console.log('');
     console.log(`rendezvous: made ${r.made} · missed ${r.missed} · frames dropped ${r.dropped} · grown ${r.grown}`);
+    console.log(`  missed: no partner ${r.missReasons['no partner']} · too soon ${r.missReasons['too soon']} · nothing to add ${r.missReasons['nothing to add']}`);
+    const smallerEligible = Math.min(r.eligible.sunrise, r.eligible.sunset);
+    const madePerEligible = smallerEligible > 0 ? `${(100 * r.made / smallerEligible).toFixed(1)}%` : '– (no eligible draws)';
+    console.log(`  eligible: sunrise ${r.eligible.sunrise} · sunset ${r.eligible.sunset} · made per eligible ${madePerEligible}`);
     for (const l of r.landings) console.log(`  ${clock(l.atMs)}  sunrise slot ${l.sunriseSlot} · sunset slot ${l.sunsetSlot}`);
     if (r.landings.length === 0) console.log('  (no landings in this window)');
   }
