@@ -375,15 +375,19 @@ export function Tape({ past, current, currentSince, currentEndsAt, next, nextSeq
     const played = (seq?.earlier.length ?? 0) + 1;
     const total = projectedPx(nextDials, played);
     const mainWidth = Math.max(MIN_BLOCK_PX, total - (seq?.earlier.length ?? 0) * stepPx);
+    // The frame the dwell actually ends on: `seq.last` when the run windows
+    // around a peak that isn't the camera's newest (rendezvous spec §3.6),
+    // else `e` itself — the only case for an ungrouped or unwindowed draw.
+    const last = seq?.last ?? e;
     // The peak of the group: the highest-quality frame among the run's earlier
     // frames and the chosen one, ringed the same way the on-glass frame is. A
     // lone projected frame has no group to peak within — with no earlier
     // frames it would always "win" against itself, ringing every ordinary
     // single-frame draw.
     const peakId = seq && seq.earlier.length > 0
-      ? [...seq.earlier, e].reduce((a, b) => ((b.quality ?? -1) > (a.quality ?? -1) ? b : a)).snapshotId
+      ? [...seq.earlier, last].reduce((a, b) => ((b.quality ?? -1) > (a.quality ?? -1) ? b : a)).snapshotId
       : null;
-    const title = `draw ${i + 1} · ${e.title}${place(e) ? ` · ${place(e)}` : ''}`
+    const title = `draw ${i + 1} · ${last.title}${place(last) ? ` · ${place(last)}` : ''}`
       + (seq && seq.earlier.length > 0 ? ` · after ${seq.earlier.length} earlier frame${seq.earlier.length === 1 ? '' : 's'} of this camera, ${secs(seq.stepS)} each` : '');
     const cut = seq?.skipped ?? [];
     if (seq && (seq.earlier.length > 0 || cut.length > 0)) {
@@ -403,16 +407,16 @@ export function Tape({ past, current, currentSince, currentEndsAt, next, nextSeq
               ring={f.snapshotId === peakId} rating={f.bin === 'sunset' ? f.quality : null} ratingId={f.snapshotId}
               title={`run · ${f.title} · ${secs(seq.stepS)}`} onClick={() => onSelect(f)} />
           ))}
-          <Thumb testId={`tape-next-${i}`} src={e.imageUrl} width={mainWidth} height={thumbH} color={COLOR[e.bin]} dashed
-            ring={e.snapshotId === peakId} rating={e.bin === 'sunset' ? e.quality : null} ratingId={e.snapshotId}
-            repeat={repeatOf(e.snapshotId)} title={title} onClick={() => onSelect(e)} />
+          <Thumb testId={`tape-next-${i}`} src={last.imageUrl} width={mainWidth} height={thumbH} color={COLOR[e.bin]} dashed
+            ring={last.snapshotId === peakId} rating={last.bin === 'sunset' ? last.quality : null} ratingId={last.snapshotId}
+            repeat={repeatOf(last.snapshotId)} title={title} onClick={() => onSelect(last)} />
         </div>,
       );
     } else {
       blocks.push(
-        <Thumb key={`next-${i}`} testId={`tape-next-${i}`} src={e.imageUrl} width={total} height={thumbH} color={COLOR[e.bin]} dashed
-          ring={e.snapshotId === peakId} rating={e.bin === 'sunset' ? e.quality : null} ratingId={e.snapshotId}
-          repeat={repeatOf(e.snapshotId)} title={title} onClick={() => onSelect(e)} />,
+        <Thumb key={`next-${i}`} testId={`tape-next-${i}`} src={last.imageUrl} width={total} height={thumbH} color={COLOR[e.bin]} dashed
+          ring={last.snapshotId === peakId} rating={last.bin === 'sunset' ? last.quality : null} ratingId={last.snapshotId}
+          repeat={repeatOf(last.snapshotId)} title={title} onClick={() => onSelect(last)} />,
       );
     }
   });

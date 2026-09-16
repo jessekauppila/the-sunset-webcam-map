@@ -56,7 +56,7 @@ export function arrival(
  * and the place hold still while only the clock steps.
  */
 export function Solo2Frame({ entry, run, previous, stage, plan, dials, width, height, feed, dwellKey }: {
-  /** The drawn frame: the run's last. */
+  /** The drawn frame: the newest — see `run`, whose last frame may not be this one. */
   entry: EntryView;
   /**
    * What identifies this dwell, so a new one rebuilds rather than fades. The
@@ -66,7 +66,11 @@ export function Solo2Frame({ entry, run, previous, stage, plan, dials, width, he
    * away and reveal the oldest picture. Callers pass the dwell's start.
    */
   dwellKey?: string | number;
-  /** What the dwell plays, oldest first, `entry` last (run.ts `runOf`). */
+  /**
+   * What the dwell plays, oldest first: the run as the draw pinned it, the
+   * climb, the peak, then what the cap left; the drawn frame (`entry`, the
+   * newest) plays only when the window reaches it (run.ts `runOf`).
+   */
   run: RunFrame[];
   previous: ViewEntry | null;
   stage: Stage;

@@ -191,4 +191,80 @@ describe('useSoloGlass', () => {
     await advance(STATE_REFRESH_MS);
     expect(calls.filter((c) => c.url.includes('/advance'))).toHaveLength(2);
   });
+  // The rendezvous (2026-09-15): a grown or a guarded answer keeps the same
+  // slot but is not "nothing eligible" — the published end moved, or is still
+  // ahead. Both must re-arm on that end rather than falling into the 60 s
+  // back-off meant for a draw that found nothing to show.
+  it('a grown answer re-arms on its later end, not the 60 s back-off', async () => {
+    const grownEndsAt = NOW + DWELL_MS + 8_000;
+    fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
+      calls.push({ url, body: init?.body ? JSON.parse(String(init.body)) : undefined });
+      if (url.includes('/advance')) {
+        const base = state(1, [2], 0);
+        return {
+          ok: true,
+          json: async () => ({
+            advanced: false, grown: true, decision: 'grow',
+            ...base, current: { ...base.current, endsAtMs: grownEndsAt },
+          }),
+        };
+      }
+      return { ok: true, json: async () => state(1, [2], 0) };
+    });
+    renderHook(() => useSoloGlass({ feed: 'sunrise', dials: D, drive: true, dozing: false }));
+    await flush();
+    await advance(DWELL_MS + 100); // fires at the original end, comes back grown
+    expect(calls.filter((c) => c.url.includes('/advance'))).toHaveLength(1);
+    // If the 60 s back-off wrongly applied, nothing would fire again this
+    // soon; the fix re-arms on the grown end, 8 s past the original boundary.
+    await advance(8_000 + 100);
+    expect(calls.filter((c) => c.url.includes('/advance'))).toHaveLength(2);
+  });
+  it('a guarded refusal with a future end re-arms on that end, not the 60 s back-off', async () => {
+    const guardedEndsAt = NOW + DWELL_MS + 5_000;
+    let advanceCalls = 0;
+    fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
+      calls.push({ url, body: init?.body ? JSON.parse(String(init.body)) : undefined });
+      if (url.includes('/advance')) {
+        advanceCalls += 1;
+        if (advanceCalls === 1) {
+          const base = state(1, [2], 0);
+          // advanced:false, grown:false, unchanged slot — the request landed
+          // while the dwell (already extended by something else) had not
+          // ended, so the state comes back with a future end intact.
+          return {
+            ok: true,
+            json: async () => ({
+              advanced: false, grown: false, decision: null,
+              ...base, current: { ...base.current, endsAtMs: guardedEndsAt },
+            }),
+          };
+        }
+        return { ok: true, json: async () => ({ advanced: true, ...state(2, [3], 1) }) };
+      }
+      return { ok: true, json: async () => state(1, [2], 0) };
+    });
+    renderHook(() => useSoloGlass({ feed: 'sunrise', dials: D, drive: true, dozing: false }));
+    await flush();
+    await advance(DWELL_MS + 100); // fires at the original end, gets guarded with a future end
+    expect(calls.filter((c) => c.url.includes('/advance'))).toHaveLength(1);
+    await advance(5_000 + 100); // well under the 60 s back-off
+    expect(calls.filter((c) => c.url.includes('/advance'))).toHaveLength(2);
+  });
+  it('a nothing-eligible answer (no current, same slot) backs off 60 s as today', async () => {
+    fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
+      calls.push({ url, body: init?.body ? JSON.parse(String(init.body)) : undefined });
+      return url.includes('/advance')
+        ? { ok: true, json: async () => ({ advanced: false, grown: false, decision: null, ...state(null, [], 0) }) }
+        : { ok: true, json: async () => state(1, [2], 0) };
+    });
+    renderHook(() => useSoloGlass({ feed: 'sunrise', dials: D, drive: true, dozing: false }));
+    await flush();
+    await advance(DWELL_MS + 100);
+    expect(calls.filter((c) => c.url.includes('/advance'))).toHaveLength(1);
+    await advance(STATE_REFRESH_MS - 1_000);
+    expect(calls.filter((c) => c.url.includes('/advance'))).toHaveLength(1);
+    await advance(2_000);
+    expect(calls.filter((c) => c.url.includes('/advance'))).toHaveLength(2);
+  });
 });

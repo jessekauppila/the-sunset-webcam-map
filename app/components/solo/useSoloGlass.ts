@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import type { EntryView, StateView, ViewEntry } from '@/app/api/kiosk/solo/view';
+import type { AdvanceDecision, EntryView, StateView, ViewEntry } from '@/app/api/kiosk/solo/view';
 import type { Feed } from '@/app/lib/solo/types';
 import type { SoloVersionName } from '@/app/lib/solo/versions';
 import { useBuildReload } from '@/app/components/useBuildReload';
@@ -17,14 +17,15 @@ export interface SoloGlass {
   /** When this dwell ends, ms since epoch, as the server computed it (spec §5.1). Null before the first state arrives. */
   endsAtMs: number | null;
   /**
-   * The frames this dwell plays, in play order, the drawn frame last, as the
-   * DRAW pinned them. Empty before the first state arrives.
+   * The frames this dwell plays, in play order: the run as the draw pinned
+   * it — the climb, the peak, then what the cap left; the drawn frame (the
+   * newest) plays only when the window reaches it. Empty before the first
+   * state arrives.
    *
    * A renderer must play this list rather than re-deriving a run from
    * `entries`. That pool is refetched every minute and changes every minute,
-   * and a run's window is anchored at its newest frame, so a re-derivation
-   * mid-dwell prepends older frames and shifts every index under a clock that
-   * has already started.
+   * and a run's window is anchored at its peak, so a re-derivation mid-dwell
+   * can shift every index under a clock that has already started.
    */
   shownSnapshotIds: number[];
   next: EntryView | null;
@@ -133,12 +134,19 @@ export function useSoloGlass({ feed, drive, dozing, version = 'solo' }: {
             body: JSON.stringify({ feed, slot, version }),
           });
           if (!res.ok) throw new Error(`advance ${res.status}`);
-          const v = (await res.json()) as StateView & { advanced: boolean };
-          // The server accepted the slot but the screen did not move (nothing
-          // eligible to draw). The pool only changes when the cron admits, so
-          // asking again before the next state refresh is asking the same
-          // question.
-          if (v.schedule.slot === screenSlot) notBeforeMs.current = Date.now() + STATE_REFRESH_MS;
+          const v = (await res.json()) as StateView & { advanced: boolean; grown: boolean; decision: AdvanceDecision };
+          // The server accepted the slot but the screen did not move. That
+          // covers three answers (rendezvous spec §3): nothing eligible to
+          // draw (the pool only changes when the cron admits, so asking again
+          // before the next state refresh is asking the same question — back
+          // off); grown (the published end moved later, same dwell); and
+          // guarded (the dwell had not ended, unchanged, its end still ahead).
+          // The latter two carry a future end of their own, so the timer
+          // re-arms on it above rather than backing off for a minute.
+          const endsAt = v.current?.endsAtMs ?? null;
+          if (v.schedule.slot === screenSlot && !v.grown && (endsAt == null || endsAt <= Date.now())) {
+            notBeforeMs.current = Date.now() + STATE_REFRESH_MS;
+          }
           setView(v);
           setError(null);
           if (v.next[0]) void preload(v.next[0].imageUrl);

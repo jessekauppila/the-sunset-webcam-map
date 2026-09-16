@@ -144,7 +144,7 @@ it('hover text names the frame and its time; clicking any thumb, past included, 
 
 it('a projected dwell with a camera run shows the earlier frames as narrow sub-blocks before the chosen one, inside one dwell', () => {
   const earlier = [entry(7), entry(8)];
-  render(<Tape past={[]} current={entry(3)} next={[entry(4)]} nextSequences={[{ earlier, stepS: 1.5 }]}
+  render(<Tape past={[]} current={entry(3)} next={[entry(4)]} nextSequences={[{ earlier, last: entry(4), stepS: 1.5 }]}
     pastDials={D} nextDials={D} onSelect={vi.fn()} />);
   const group = screen.getByTestId('tape-next-0-group');
   const ids = [...group.querySelectorAll('[data-testid^="tape-next-0"]')].map((n) => n.getAttribute('data-testid'));
@@ -158,7 +158,7 @@ it('a projected run\'s block is the beat plan\'s total, not the nominal still', 
   // beat 4 s, still 3 beats, change 1 beat, 8 frames played: total = change 1 +
   // frames 8 + rest max(0, 3 − 8) = 0 → 9 beats × 4 s = 36 s × 4 px/s = 144 px.
   const earlier = [entry(21), entry(22), entry(23), entry(24), entry(25), entry(26), entry(27)];
-  render(<Tape past={[]} current={entry(3)} next={[entry(4)]} nextSequences={[{ earlier, stepS: 4 }]}
+  render(<Tape past={[]} current={entry(3)} next={[entry(4)]} nextSequences={[{ earlier, last: entry(4), stepS: 4 }]}
     pastDials={D} nextDials={{ dwellS: 12, fadeS: 4, beatS: 4, dwellBeats: 3, changeBeats: 1 }} onSelect={vi.fn()} />);
   expect(screen.getByTestId('tape-next-0-pre-21')).toHaveStyle({ width: '16px' }); // 4 s × 4 px
   expect(screen.getByTestId('tape-next-0')).toHaveStyle({ width: '32px' }); // 144 − 7 × 16
@@ -176,7 +176,7 @@ it('with no past and nothing on glass it renders a blank, the seam, and the proj
 it('a projected dwell shows the frames the cap cut as dim stubs before the run, taking no time of the dwell', () => {
   const earlier = [entry(7), entry(8)];
   const skipped = [entry(5), entry(6)];
-  render(<Tape past={[]} current={entry(3)} next={[entry(4)]} nextSequences={[{ earlier, skipped, stepS: 5 }]}
+  render(<Tape past={[]} current={entry(3)} next={[entry(4)]} nextSequences={[{ earlier, last: entry(4), skipped, stepS: 5 }]}
     pastDials={D} nextDials={D} onSelect={vi.fn()} />);
   const group = screen.getByTestId('tape-next-0-group');
   const ids = [...group.querySelectorAll('[data-testid^="tape-next-0"]')].map((n) => n.getAttribute('data-testid'));
@@ -190,7 +190,7 @@ it('a projected dwell shows the frames the cap cut as dim stubs before the run, 
 it('a lone projected frame does not ring itself as the group\'s peak', () => {
   // No earlier frames to be a peak among — only the cap cut a frame off the front.
   const skipped = [entry(5)];
-  render(<Tape past={[]} current={entry(3)} next={[entry(4)]} nextSequences={[{ earlier: [], skipped, stepS: 5 }]}
+  render(<Tape past={[]} current={entry(3)} next={[entry(4)]} nextSequences={[{ earlier: [], last: entry(4), skipped, stepS: 5 }]}
     pastDials={D} nextDials={D} onSelect={vi.fn()} />);
   expect(screen.getByTestId('tape-next-0').style.boxShadow).not.toContain('#f5a344');
 });
@@ -201,7 +201,7 @@ it('a run\'s earlier frames open like any other block', () => {
   // sliver of sky identifies nothing (reported 2026-09-08).
   const onSelect = vi.fn();
   const earlier = [entry(7), entry(8)];
-  render(<Tape past={[]} current={entry(3)} next={[entry(4)]} nextSequences={[{ earlier, stepS: 1.5 }]}
+  render(<Tape past={[]} current={entry(3)} next={[entry(4)]} nextSequences={[{ earlier, last: entry(4), stepS: 1.5 }]}
     pastDials={D} nextDials={D} onSelect={onSelect} />);
   const pre = screen.getByTestId('tape-next-0-pre-7');
   expect(pre).not.toBeDisabled();
@@ -281,13 +281,34 @@ it('draws the beat grid across the strip when the dials carry a beat', () => {
 });
 
 it('draws a rating bar under a sunset frame and rings the run\'s peak', () => {
-  const seq = { earlier: [{ ...entry(4), snapshotId: 41, quality: 0.4 }, { ...entry(4), snapshotId: 42, quality: 0.9 }], skipped: [], stepS: 4 };
+  const seq = {
+    earlier: [{ ...entry(4), snapshotId: 41, quality: 0.4 }, { ...entry(4), snapshotId: 42, quality: 0.9 }],
+    last: { ...entry(4), quality: 0.6 }, skipped: [], stepS: 4,
+  };
   render(<Tape past={[]} current={null} next={[{ ...entry(4), quality: 0.6 }]} nextSequences={[seq]}
     pastDials={{ dwellS: 12, fadeS: 4 }} nextDials={{ dwellS: 12, fadeS: 4 }} onSelect={() => {}} />);
   expect(screen.getByTestId('tape-rating-42').style.width).toBe('90%');
   expect(screen.getByTestId('tape-rating-41').style.width).toBe('40%');
   expect(screen.getByTestId('tape-next-0-pre-42').style.boxShadow).toContain('#f5a344');
   expect(screen.getByTestId('tape-next-0-pre-41').style.boxShadow).not.toContain('#f5a344');
+});
+
+it('a peaked, cap-cut run\'s main block shows the window\'s last frame, not the camera\'s newest', () => {
+  // A camera of 6 frames, peak at index 1, cap 3: played = [0, 1, 2] (§3.6);
+  // the newest (index 5, the row's own `next` entry) sits outside the window.
+  const frame = (i: number, quality: number) => ({ ...entry(200 + i), quality, imageUrl: `u${i}` });
+  const seq = { earlier: [frame(0, 0.5), frame(1, 0.95)], last: frame(2, 0.6), skipped: [], stepS: 4 };
+  const onSelect = vi.fn();
+  render(<Tape past={[]} current={null} next={[frame(5, 0.4)]} nextSequences={[seq]}
+    pastDials={{ dwellS: 12, fadeS: 4 }} nextDials={{ dwellS: 12, fadeS: 4 }} onSelect={onSelect} />);
+  // The main block's picture is frame 2's, not frame 5's (the camera's newest).
+  expect(screen.getByTestId('tape-next-0').querySelector('img')).toHaveAttribute('src', 'u2');
+  // The peak (frame 1, quality 0.95) rings; the main block (frame 2, quality 0.6) does not.
+  expect(screen.getByTestId('tape-next-0-pre-201').style.boxShadow).toContain('#f5a344');
+  expect(screen.getByTestId('tape-next-0').style.boxShadow).not.toContain('#f5a344');
+  // Clicking the main block reports frame 2 (the run's last), not frame 5.
+  fireEvent.click(screen.getByTestId('tape-next-0'));
+  expect(onSelect).toHaveBeenCalledWith(expect.objectContaining({ snapshotId: 202 }));
 });
 
 describe('zoom', () => {

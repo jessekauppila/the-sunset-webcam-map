@@ -19,10 +19,16 @@ export { PX_PER_S };
 /** A frame's share shorter than this many pixels would hide its thumbnail. */
 export const MIN_FRAME_PX = 14;
 
-/** What one dwell plays, as the glass would show it (camera-run spec §5.2). */
+/** What one dwell plays, as the glass would show it (camera-run spec §5.2, amended by the rendezvous spec §3.6). */
 export interface Run {
-  /** The camera's earlier frames, oldest first; the row's own entry plays last. */
+  /** Every played frame before `last`, oldest first: `earlier.length + 1 === played.length` always. */
   earlier: EntryView[];
+  /**
+   * The frame the dwell ends on. `earlier` then `last` is the run as the
+   * dwell plays it; the row's own entry is the camera's newest frame and
+   * plays only when the window reaches it.
+   */
+  last: EntryView;
   /**
    * The camera's frames older still, which the most-frames cap leaves out
    * (run.ts `runOf`): oldest first. Drawn dim, so the operator can see what
@@ -78,11 +84,17 @@ export function EntryRow({
   rowS?: number;
   onClick: (entry: EntryView) => void;
 }) {
-  const scores = scoreLine(e);
   const placeText = [[e.city, e.country].filter(Boolean).join(', '), clock(e)].filter(Boolean).join(' · ');
   const skipped = run?.skipped ?? [];
   const grouped = !!run && (run.earlier.length > 0 || skipped.length > 0);
   const k = grouped ? run.earlier.length + 1 : 1;
+  // The frame the dwell actually ends on. Ungrouped, or when there is no
+  // run, that is the row's own entry; grouped, it is `run.last` — which,
+  // since a camera-run window is built around its peak, may be a different
+  // photo than the row's entry (the camera's newest, played only when the
+  // window reaches it).
+  const shown = grouped && run ? run.last : e;
+  const scores = scoreLine(shown);
   const title =
     `${e.title} · ${placeText}.${e.credit ? ` Credit: ${e.credit}.` : ''} Frame ${e.snapshotId}, ${feed} feed` +
     (place === 'queue' ? ', in the queue. ' : '. ') +
@@ -96,7 +108,7 @@ export function EntryRow({
   const stepPx = grouped ? Math.max(MIN_FRAME_PX, run.stepS * PX_PER_S) : undefined;
 
   const main = (
-    <button type="button" onClick={() => onClick(e)} title={title} style={{
+    <button type="button" onClick={() => onClick(shown)} title={title} style={{
       display: 'grid', gridTemplateColumns: '46px 1fr', gap: 5, alignItems: 'center', width: '100%',
       textAlign: 'left', borderRadius: 5, padding: 3, marginBottom: grouped ? 0 : 4,
       border: grouped ? `1px solid ${LIGHT}` : `1.5px solid ${COLOR[e.bin]}`,
@@ -105,7 +117,7 @@ export function EntryRow({
       opacity: e.stage.kind === 'underFloor' ? 0.45 : 1, boxShadow: grouped ? undefined : ring,
     }}>
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={e.imageUrl} alt="" style={{ width: 46, aspectRatio: '16/9', objectFit: 'cover', borderRadius: 3, display: 'block' }} />
+      <img src={shown.imageUrl} alt="" style={{ width: 46, aspectRatio: '16/9', objectFit: 'cover', borderRadius: 3, display: 'block' }} />
       <div style={{ minWidth: 0 }}>
         <span style={{ color: '#c3cad6' }}>{reason}</span>
         <div style={{ color: '#6b7280' }}>{scores}</div>
@@ -116,7 +128,7 @@ export function EntryRow({
           {role === 'peak' && <Tag bg="#f5a344" fg="#1a1000" title="Beat 0 of the bar: the best remaining frame">PEAK</Tag>}
           {role === 'valley' && <Tag bg="#3a4356" fg="#e5e7eb" title="A valley: the lowest eligible frame, unshown first">VALLEY</Tag>}
         </div>
-        <div style={{ color: '#c3cad6', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{e.title}</div>
+        <div style={{ color: '#c3cad6', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{shown.title}</div>
         <div style={{ color: '#6b7280', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{placeText}</div>
       </div>
     </button>

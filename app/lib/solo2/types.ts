@@ -73,4 +73,9 @@ export interface Solo2Dials extends SoloDials {
   // bins
   valleys: number;
   screens: Screens;
+  // rendezvous
+  /** Both screens land on their best frame on the same tick, when the sunset is good enough (rendezvous spec §3). */
+  rendezvous: boolean;
+  /** A draw is eligible when its camera's sunset rank clears this: 1 = only the best sunset present, 0 = every sunset. */
+  rendezvousRank: number;
 }
