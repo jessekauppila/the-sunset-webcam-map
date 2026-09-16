@@ -124,6 +124,19 @@ export function SoloPanel({ version, liveDials, nowMs: fixedNowMs, sunrise, suns
   const select = (entry: EntryView, feed: Feed, list: EntryView[]) =>
     setSelected({ list, index: Math.max(0, list.findIndex((x) => x.snapshotId === entry.snapshotId)), feed });
 
+  // Item 10: liveDials/studioDials were object literals built fresh in the
+  // JSX every render, so PairTape's own useMemo (keyed on these records)
+  // recomputed every second regardless. Memoize the records themselves,
+  // keyed on the dial objects that actually decide their contents.
+  const liveTapeDials = useMemo(
+    () => ({ sunrise: tapeDials(liveDials, 'sunrise'), sunset: tapeDials(liveDials, 'sunset') }),
+    [liveDials],
+  );
+  const studioTapeDials = useMemo(
+    () => (studioDials ? { sunrise: tapeDials(studioDials, 'sunrise'), sunset: tapeDials(studioDials, 'sunset') } : null),
+    [studioDials],
+  );
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12, minWidth: 0 }}>
       {projection && serverSunrise && serverSunset && studioDials && (
@@ -140,8 +153,7 @@ export function SoloPanel({ version, liveDials, nowMs: fixedNowMs, sunrise, suns
           </h3>
           {tapeOpen && (
             <PairTape sunrise={serverSunrise} sunset={serverSunset} projection={projection}
-              liveDials={{ sunrise: tapeDials(liveDials, 'sunrise'), sunset: tapeDials(liveDials, 'sunset') }}
-              studioDials={{ sunrise: tapeDials(studioDials, 'sunrise'), sunset: tapeDials(studioDials, 'sunset') }}
+              liveDials={liveTapeDials} studioDials={studioTapeDials!}
               nowMs={nowMs} onSelect={select} zoom={tapeZoom} onZoom={setTapeZoom} />
           )}
         </div>

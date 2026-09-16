@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { projectPair } from './projectPair';
+import { projectPair, ghostFor } from './projectPair';
 import { SOLO_VERSIONS } from '@/app/lib/solo/versions';
 import { dialsFrom, SOLO_SETTINGS_SCHEMA } from '@/app/lib/solo/settingsSchema';
 import { dialsFrom2, SOLO2_SETTINGS_SCHEMA } from '@/app/lib/solo2/settingsSchema';
@@ -7,6 +7,7 @@ import { schemaDefaults } from '@/app/lib/settings/schema';
 import type { StateView, ViewEntry, EntryView } from '@/app/api/kiosk/solo/view';
 import type { Feed, SoloDials } from '@/app/lib/solo/types';
 import type { Solo2Dials } from '@/app/lib/solo2/types';
+import type { StripFrame, ReplayEntry } from '@/app/lib/solo/replay';
 
 /**
  * projectPair (one-tape spec §4.1): both screens projected from a StateView's
@@ -160,5 +161,45 @@ describe('projectPair', () => {
     expect(out.landings).toEqual([]);
     expect(out.ghosts.sunrise.every((g) => g === null)).toBe(true);
     expect(out.ghosts.sunset.every((g) => g === null)).toBe(true);
+  });
+});
+
+/** A ViewEntry, shaped as the replay's own bin rows (item 3's `groups` argument). */
+const toReplay = (e: ViewEntry): ReplayEntry => ({ ...e, removedAt: null, firstShownAt: null });
+
+/** A minimal StripFrame; only the fields `ghostFor` reads need real values. */
+function stripFrame(overrides: Partial<StripFrame> = {}): StripFrame {
+  return {
+    slot: 0, shownAt: T0, snapshotId: 1, webcamId: 7, bin: 'sunset', quality: 0.5, detection: 0.8,
+    title: '', imageUrl: '', capturedAt: T0, shownSnapshotIds: [1], repeat: false, dwellMs: beat(1),
+    peakAtMs: null, rendezvous: false, dropped: 0, grown: 0,
+    ...overrides,
+  };
+}
+
+describe('ghostFor (final-fix item 3)', () => {
+  // The with-run and without-run are matched by slot, but a fit can leave
+  // the two runs drawing different cameras at the same slot index (the
+  // with-run does not stamp its dropped frames shown). A ghost must never
+  // describe another camera's landing.
+  it('is null when the unfitted frame at this slot names a different camera than the fitted one', () => {
+    const groups = new Map([
+      [7, [toReplay(frame(1, 7, 100, 0.9))]],
+      [9, [toReplay(frame(5, 9, 100, 0.9))]],
+    ]);
+    const fitted = stripFrame({ webcamId: 7, shownSnapshotIds: [1] });
+    const unfitted = stripFrame({ webcamId: 9, shownSnapshotIds: [5] }); // same slot, a different camera
+    expect(ghostFor(fitted, unfitted, groups, 1, beat(1))).toBeNull();
+  });
+
+  it('is null with no unfitted frame at this slot at all', () => {
+    const groups = new Map([[7, [toReplay(frame(1, 7, 100, 0.9))]]]);
+    expect(ghostFor(stripFrame({ webcamId: 7 }), undefined, groups, 1, beat(1))).toBeNull();
+  });
+
+  it('lands on the unfitted peak when the two runs agree on the camera', () => {
+    const groups = new Map([[7, [toReplay(frame(1, 7, 100, 0.3)), toReplay(frame(2, 7, 200, 0.9))]]]);
+    const unfitted = stripFrame({ webcamId: 7, shownAt: T0, shownSnapshotIds: [1, 2] }); // peak (id 2) at index 1
+    expect(ghostFor(stripFrame({ webcamId: 7 }), unfitted, groups, 1, beat(1))).toBe(T0 + beat(2)); // (change 1 + index 1) beats
   });
 });

@@ -1,7 +1,8 @@
 import type { EntryView, StateView, ViewEntry } from '@/app/api/kiosk/solo/view';
 import type { StripFrame } from '@/app/lib/solo/replay';
 import { cameraGroups, peakOf } from '@/app/lib/solo2/run';
-import { HELD_AFTER, MAX_DWELLS, type TapeDials } from './tapeParts';
+import { fitPlan } from '@/app/lib/solo2/plan';
+import { HELD_AFTER, type TapeDials } from './tapeParts';
 
 /**
  * The pure half of `PairTape` (one-tape spec §4.2): turn one feed's server
@@ -32,10 +33,14 @@ export interface Block {
   rendezvous: boolean;
   /** Where this block's peak would have landed without the rendezvous; null when there is nothing to compare. */
   ghostMs: number | null;
-  /** A measured past block that stayed on glass past `HELD_AFTER` dwells — nothing else was eligible. */
+  /** A measured past block that stayed on glass past `HELD_AFTER` its own run's expected duration — nothing else was eligible. */
   held: boolean;
   /** This block's own frame was drawn earlier on this strip. */
   repeat: boolean;
+  /** The best-rated sunset frame among this block's camera series — the sub-block the ring highlights. Null with no camera, or no sunset frame in the group. */
+  peakId: number | null;
+  /** This block's `endMs` came from a real boundary (the next draw, or the current frame taking over) rather than the one-nominal-dwell fallback. Only past blocks vary this; the past row's title wording depends on it. */
+  measured: boolean;
 }
 
 const FALLBACK: EntryView = {
@@ -80,6 +85,12 @@ function fromStrip(f: StripFrame): EntryView {
     capturedAt: f.capturedAt ?? f.shownAt, timezone: null, sunAltitudeDeg: null, credit: null,
     eligible: true, rank: 0, stage: { kind: 'inLine', position: null },
   };
+}
+
+/** The series' peak snapshot id (item 2), or null with nothing to peak on — no camera, or no sunset frame in the group. */
+function peakIdOf(groups: Map<number, ViewEntry[]>, webcamId: number | null | undefined): number | null {
+  if (webcamId == null) return null;
+  return peakOf(groups.get(webcamId) ?? [])?.snapshotId ?? null;
 }
 
 /**
@@ -152,16 +163,29 @@ export function layoutStrip(input: {
     // block still has a real endMs to give the axis.
     const boundaryMs = i + 1 < tape.length ? tape[i + 1].shownAt : current?.shownSince ?? null;
     const measured = boundaryMs != null;
-    const dwells = measured ? Math.max(0, (boundaryMs! - f.shownAt) / 1000 / dwellS) : 1;
-    const held = measured && dwells > HELD_AFTER;
-    const cappedDwells = measured ? Math.min(dwells, MAX_DWELLS) : 1;
-    const endMs = f.shownAt + cappedDwells * dwellS * 1000;
+    // Item 4: nothing pushes a block off a time axis, so a held block's
+    // endMs is its real measured end, whatever the ratio to the nominal
+    // dwell — no MAX_DWELLS cap.
+    const onGlassS = measured ? Math.max(0, (boundaryMs! - f.shownAt) / 1000) : dwellS;
+    const endMs = f.shownAt + onGlassS * 1000;
     const frames = framesOf(resolve, f.shownSnapshotIds, f);
+    // Item 7: a run's own beats can run longer than one nominal dwell
+    // (fitPlan: changeBeats + n + restBeats), so "held" compares the
+    // measured time against what THIS run should have taken, not the flat
+    // still — else any multi-frame solo2 run reads as a false held.
+    const expectedS = liveDials.beatS
+      ? fitPlan({
+        beatS: liveDials.beatS, dwellBeats: liveDials.dwellBeats ?? 0, changeBeats: liveDials.changeBeats ?? 0,
+        leadS: 0, transition: liveDials.transition,
+      }, frames.length).dwellS
+      : dwellS;
+    const held = measured && onGlassS > HELD_AFTER * expectedS;
     const entry = frames[frames.length - 1];
     const repeat = repeatOf(entry.snapshotId);
     blocks.push({
       kind: 'past', startMs: f.shownAt, endMs, entry, frames, cut: [], dropped: [], grown: 0,
       peakAtMs: f.peakAtMs, rendezvous: f.rendezvous, ghostMs: null, held, repeat,
+      peakId: peakIdOf(groups, entry.webcamId), measured,
     });
   });
 
@@ -174,6 +198,7 @@ export function layoutStrip(input: {
     blocks.push({
       kind: 'current', startMs, endMs, entry, frames, cut: [], dropped: [], grown: 0,
       peakAtMs: current.peakAtMs, rendezvous: current.rendezvous, ghostMs: null, held: false, repeat,
+      peakId: peakIdOf(groups, entry.webcamId), measured: true,
     });
   } else {
     // Nothing on glass: a blank still wide enough to read, anchored at now
@@ -181,6 +206,7 @@ export function layoutStrip(input: {
     blocks.push({
       kind: 'current', startMs: nowMs, endMs: nowMs + dwellS * 1000, entry: null, frames: [],
       cut: [], dropped: [], grown: 0, peakAtMs: null, rendezvous: false, ghostMs: null, held: false, repeat: false,
+      peakId: null, measured: false,
     });
   }
 
@@ -191,7 +217,7 @@ export function layoutStrip(input: {
       blocks.push({
         kind: 'next', startMs: f.shownAt, endMs: f.shownAt + (f.dwellMs ?? studioDwellS * 1000), entry: null, frames: [],
         cut: [], dropped: [], grown: f.grown, peakAtMs: f.peakAtMs, rendezvous: f.rendezvous, ghostMs: ghosts[i] ?? null,
-        held: false, repeat: false,
+        held: false, repeat: false, peakId: null, measured: true,
       });
       return;
     }
@@ -203,7 +229,7 @@ export function layoutStrip(input: {
     blocks.push({
       kind: 'next', startMs: f.shownAt, endMs: f.shownAt + (f.dwellMs ?? studioDwellS * 1000), entry, frames,
       cut, dropped, grown: f.grown, peakAtMs: f.peakAtMs, rendezvous: f.rendezvous, ghostMs: ghosts[i] ?? null,
-      held: false, repeat,
+      held: false, repeat, peakId: peakIdOf(groups, entry.webcamId), measured: true,
     });
   });
 

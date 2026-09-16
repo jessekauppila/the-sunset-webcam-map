@@ -5,9 +5,10 @@ import type { EntryView, StateView } from '@/app/api/kiosk/solo/view';
 import type { Feed } from '@/app/lib/solo/types';
 import type { PairProjection } from './projectPair';
 import { layoutStrip, type Block } from './pairLayout';
+import { changeBeatsOf } from '@/app/lib/solo2/plan';
 import {
   clock, COLOR, CUT_STUB_PX, MIN_BLOCK_PX, mono, Playhead, place, PLAYHEAD_ANIM,
-  seamBetween, SeamMark, TAPE_ZOOMS, type TapeDials, THUMB_H, Thumb,
+  seamBetween, SeamMark, secs, TAPE_ZOOMS, type TapeDials, THUMB_H, Thumb,
 } from './tapeParts';
 import { PX_PER_S, SCALE_NOTE } from './timeScale';
 
@@ -92,13 +93,23 @@ export function PairTape({ sunrise, sunset, projection, liveDials, studioDials, 
   const rowTop = { sunrise: 0, ruler: rowH, sunset: rowH + RULER_H } as const;
   const totalH = rowH + RULER_H + rowH;
 
-  const nowMinute = Math.floor(nowMs / 60_000);
+  // Keyed on the content (item 5), not the clock: the operator scrolls to
+  // read a projected rendezvous, and re-centering on nowMs every minute
+  // yanked that back. Only a real change in what the strips carry — a new
+  // past draw, or the on-glass frame changing — should move the viewport.
   useEffect(() => {
     const el = stripRef.current;
     if (!el) return;
     el.scrollLeft = Math.max(0, x(nowMs) - el.clientWidth * (2 / 3));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nowMinute, zoom]);
+  }, [sunrise.tape.length, sunset.tape.length, sunrise.current?.entry.snapshotId, sunset.current?.entry.snapshotId, zoom]);
+
+  // Item 6: PairProjection.counts was computed and discarded. `landings` is
+  // already the same list `counts.landings` carries; reading it off `counts`
+  // here is what keeps `missed` (and any other count the projection makes)
+  // reachable the same way.
+  const rendezvousSummary = `next 10 min: ${projection.counts.landings.length} rendezvous`
+    + (projection.counts.missed > 0 ? ` · ${projection.counts.missed} pins unmet` : '');
 
   const zoomIndex = (TAPE_ZOOMS as readonly number[]).indexOf(zoom);
   const zoomOut = zoomIndex > 0 ? TAPE_ZOOMS[zoomIndex - 1] : null;
@@ -139,12 +150,17 @@ export function PairTape({ sunrise, sunset, projection, liveDials, studioDials, 
       const left = x(b.startMs);
       const w = Math.max(MIN_BLOCK_PX, x(b.endMs) - left);
       if (!b.entry) return null;
+      // Item 8: the old tape's wording, restored — a real duration when the
+      // block is measured, else an explicit "unknown" rather than a
+      // fabricated one for a last past block with nothing after it.
+      const onGlass = b.measured ? `on glass ${secs(Math.round((b.endMs - b.startMs) / 1000))}` : 'on glass unknown, nothing followed it';
       return (
         <div key={`past-${feed}-${f.snapshotId}-${f.slot}`} style={{ position: 'absolute', left, top: 0, width: w, height: thumbH }}>
           <Thumb testId={`tape-past-${f.snapshotId}-${f.slot}`} src={b.entry.imageUrl} width={w} height={thumbH} color={COLOR[b.entry.bin]}
             repeat={b.repeat} rating={b.entry.bin === 'sunset' ? b.entry.quality : null} ratingId={b.entry.snapshotId}
             onClick={() => onSelect(b.entry!, feed, listOf(feed))}
-            title={`${b.entry.title}${place(b.entry) ? ` · ${place(b.entry)}` : ''} · draw at ${clock(f.shownAt)}` + (b.held ? ' · held: nothing else was eligible' : '')}>
+            title={`${b.entry.title}${place(b.entry) ? ` · ${place(b.entry)}` : ''} · draw at ${clock(f.shownAt)} · ${onGlass}`
+              + (b.held ? ' · held: nothing else was eligible' : '')}>
             {b.held && <span data-testid="tape-held" style={{ position: 'absolute', right: 2, bottom: 0, fontFamily: mono, fontSize: 8, color: ORANGE }}>held</span>}
           </Thumb>
         </div>
@@ -208,10 +224,21 @@ export function PairTape({ sunrise, sunset, projection, liveDials, studioDials, 
       if (kept.length <= 1) {
         subW = [w];
       } else if (dials.beatS) {
-        const stepPx = Math.max(SUB_MIN_PX, dials.beatS * px);
-        const earlier = new Array(kept.length - 1).fill(stepPx);
-        const usedByEarlier = earlier.reduce((a: number, c: number) => a + c, 0);
-        subW = [...earlier, Math.max(MIN_BLOCK_PX, w - usedByEarlier)];
+        // fitPlan/stageAt (item 1): frame 0 stays up through the change beat
+        // AND its own beat (stageAt's index is floor((t − arrivalS)/stepS),
+        // and arrivalS = changeBeats × beatS), so frame 0 is changePx +
+        // one beat wide, not one beat. Frames 1…n−2 get one beat each,
+        // starting at t0 + (change + j) × beatS — the same convention the
+        // rendezvous landing (rendezvous.ts) and the ghost (projectPair.ts)
+        // already use. Getting this wrong shifted every sub-block after
+        // frame 0 one change-beat early, so the tie/ghost markers landed on
+        // the peak sub-block's right edge instead of inside it.
+        const beatPx = Math.max(SUB_MIN_PX, dials.beatS * px);
+        const changePx = changeBeatsOf({ changeBeats: dials.changeBeats ?? 0, transition: dials.transition }) * (dials.beatS ?? 0) * px;
+        const firstW = changePx + beatPx;
+        const middle = new Array(Math.max(0, kept.length - 2)).fill(beatPx);
+        const usedByEarlier = firstW + middle.reduce((a: number, c: number) => a + c, 0);
+        subW = [firstW, ...middle, Math.max(MIN_BLOCK_PX, w - usedByEarlier)];
       } else {
         subW = new Array(kept.length).fill(w / kept.length);
       }
@@ -252,6 +279,7 @@ export function PairTape({ sunrise, sunset, projection, liveDials, studioDials, 
           <Thumb key={testId} testId={testId} src={fr.imageUrl} width={subW[j]} height={thumbH} color={COLOR[entry.bin]} dashed
             rating={fr.bin === 'sunset' ? fr.quality : null} ratingId={fr.snapshotId}
             repeat={isLast ? b.repeat : false}
+            ring={kept.length > 1 && fr.snapshotId === b.peakId}
             title={`${isLast ? `draw ${i + 1} · ` : 'run · '}${fr.title}${place(fr) ? ` · ${place(fr)}` : ''}`}
             onClick={() => onSelect(fr, feed, listOf(feed))}>
             {grownEdge && <OrangeEdge testId={`${testId}-edge`} />}
@@ -370,6 +398,7 @@ export function PairTape({ sunrise, sunset, projection, liveDials, studioDials, 
         {onZoom && zoomButton('−', zoomOut, 'tape-zoom-out')}
         <span data-testid="tape-scale-label">{px} px/s</span>
         {onZoom && zoomButton('+', zoomIn, 'tape-zoom-in')}
+        <span data-testid="tape-rendezvous-summary" style={{ marginLeft: 'auto', fontSize: 10 }}>{rendezvousSummary}</span>
       </span>
       <div style={{ position: 'relative', width, height: totalH, flex: 'none' }}>
         <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: totalH }}>{beatGrid()}</div>

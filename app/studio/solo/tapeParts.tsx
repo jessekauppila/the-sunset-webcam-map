@@ -20,10 +20,8 @@ export const PLAYHEAD_ANIM = 'tape-playhead';
 export const MIN_BLOCK_PX = 14;
 /** A frame the cap cut takes no time on glass, so its stub has a fixed width that stands for none. */
 export const CUT_STUB_PX = 8;
-/** A past frame that stayed on glass longer than this many dwells was held (nothing else eligible). */
+/** A past frame that stayed on glass longer than this many times its expected duration was held (nothing else eligible). */
 export const HELD_AFTER = 1.5;
-/** …and its block is capped here so one long hold does not push everything off screen. */
-export const MAX_DWELLS = 3;
 
 /**
  * The zoom steps, as multiples of the studio's shared scale. 1 is the queue's

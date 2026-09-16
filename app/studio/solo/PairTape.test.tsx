@@ -179,6 +179,98 @@ describe('ghost', () => {
   });
 });
 
+describe('sub-block geometry matches the true arrival convention (final-fix item 1)', () => {
+  // fitPlan/stageAt: frame 0 spans changeBeats+1 beats; frames 1…n−2 span one
+  // beat each, starting at t0 + (changeBeats + j) × beatS — the same
+  // convention rendezvous.ts's `landing` and projectPair.ts's ghost already
+  // use. With change 1 beat, beat 4 s, and a 4-frame run: frame index 1 (kept
+  // id 2) occupies [t0 + 8 s, t0 + 12 s); frame index 2 (kept id 3) occupies
+  // [t0 + 12 s, t0 + 16 s). The buggy chain gave frame 0 only one beat
+  // (dropping the change beat), so every later sub-block sat one change beat
+  // (4 s = 16 px here) too far left — these picked points, a couple of
+  // seconds inside each box, land outside the OLD boxes and inside the
+  // fixed ones.
+  const CHANGE: TapeDials = { dwellS: 20, fadeS: 0, beatS: 4, changeBeats: 1 };
+  const runSeries = () => [1, 2, 3, 4].map((id) => base(id, { webcamId: 500, capturedAt: T0 + id * 1000 }));
+
+  it('a rendezvous tie lands inside the peak sub-block, not on its right edge', () => {
+    const sunrise = view({ entries: runSeries() });
+    const proj = projection({
+      sunrise: [strip(4, T0, { webcamId: 500, shownSnapshotIds: [1, 2, 3, 4], dwellMs: 20_000 })],
+      landings: [{ atMs: T0 + 10_000, sunriseSlot: 0, sunsetSlot: 0 }], // 2 s inside frame index 1's box
+    });
+    renderTape({ sunrise, projection: proj, studioDials: dials({ sunrise: CHANGE, sunset: CHANGE }) });
+    const frame1 = screen.getByTestId('tape-next-sunrise-0-pre-2'); // kept index 1, snapshot id 2
+    const box = frame1.parentElement!;
+    const boxLeft = parseFloat(box.style.left);
+    const boxWidth = parseFloat(frame1.style.width);
+    const tieLeft = parseFloat(screen.getAllByTestId('tape-tie')[0].style.left);
+    expect(tieLeft).toBeGreaterThanOrEqual(boxLeft);
+    expect(tieLeft).toBeLessThan(boxLeft + boxWidth);
+  });
+
+  it('the ghost marker lands inside the frame its ghostMs names', () => {
+    const sunrise = view({ entries: runSeries() });
+    const proj = projection({
+      sunrise: [strip(4, T0, {
+        webcamId: 500, shownSnapshotIds: [1, 2, 3, 4], dwellMs: 20_000,
+        peakAtMs: T0 + 10_000, rendezvous: true,
+      })],
+      ghosts: { sunrise: [T0 + 14_000], sunset: [] }, // 2 s inside frame index 2's box
+    });
+    renderTape({ sunrise, projection: proj, studioDials: dials({ sunrise: CHANGE, sunset: CHANGE }) });
+    const frame2 = screen.getByTestId('tape-next-sunrise-0-pre-3'); // kept index 2, snapshot id 3
+    const box = frame2.parentElement!;
+    const boxLeft = parseFloat(box.style.left);
+    const boxWidth = parseFloat(frame2.style.width);
+    const ghostLeft = parseFloat(screen.getByTestId('tape-ghost').style.left);
+    expect(ghostLeft).toBeGreaterThanOrEqual(boxLeft);
+    expect(ghostLeft).toBeLessThan(boxLeft + boxWidth);
+  });
+});
+
+describe('peak ring (item 2)', () => {
+  it('rings the peak sub-block among a played run, and only that one', () => {
+    const series = [1, 2, 3, 4].map((id) => base(id, { webcamId: 500, capturedAt: T0 + id * 1000, quality: id === 2 ? 0.95 : 0.3 }));
+    const sunrise = view({ entries: series });
+    const proj = projection({ sunrise: [strip(4, T0, { webcamId: 500, shownSnapshotIds: [1, 2, 4], dwellMs: 12_000 })] });
+    renderTape({ sunrise, projection: proj });
+    const peak = screen.getByTestId('tape-next-sunrise-0-pre-2'); // id 2, the highest quality of the series
+    const notPeakFirst = screen.getByTestId('tape-next-sunrise-0-pre-1');
+    const notPeakLast = screen.getByTestId('tape-next-sunrise-0');
+    expect(peak.style.boxShadow).not.toBe('');
+    expect(notPeakFirst.style.boxShadow).toBe('');
+    expect(notPeakLast.style.boxShadow).toBe('');
+  });
+
+  it('does not ring a block with only one played frame — nothing to be the peak among', () => {
+    const sunrise = view({ entries: [base(1)] });
+    const proj = projection({ sunrise: [strip(1, T0, { dwellMs: 20_000 })] });
+    renderTape({ sunrise, projection: proj });
+    expect(screen.getByTestId('tape-next-sunrise-0').style.boxShadow).toBe('');
+  });
+});
+
+describe('rendezvous summary (item 6)', () => {
+  it("prints the projection's own counts: N rendezvous, and missed pins when there are any", () => {
+    const proj = projection({
+      landings: [{ atMs: T0, sunriseSlot: 0, sunsetSlot: 0 }, { atMs: T0 + 10_000, sunriseSlot: 1, sunsetSlot: 1 }],
+      counts: {
+        made: 2, missed: 1, missReasons: { 'no partner': 0, 'too soon': 1, 'nothing to add': 0 },
+        eligible: { sunrise: 2, sunset: 2 }, dropped: 0, grown: 0,
+        landings: [{ atMs: T0, sunriseSlot: 0, sunsetSlot: 0 }, { atMs: T0 + 10_000, sunriseSlot: 1, sunsetSlot: 1 }],
+      },
+    });
+    renderTape({ projection: proj });
+    expect(screen.getByText('next 10 min: 2 rendezvous · 1 pins unmet')).toBeInTheDocument();
+  });
+
+  it('omits the missed-pins clause when nothing was missed', () => {
+    renderTape({ projection: projection() });
+    expect(screen.getByText('next 10 min: 0 rendezvous')).toBeInTheDocument();
+  });
+});
+
 describe('beat grid', () => {
   it('draws adjacent tape-beat lines beatS × px apart', () => {
     renderTape({ liveDials: dials({ sunrise: D2, sunset: D2 }), studioDials: dials({ sunrise: D2, sunset: D2 }) });
