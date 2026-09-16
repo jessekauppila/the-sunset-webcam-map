@@ -5,7 +5,7 @@ import type { EntryView, StateView } from '@/app/api/kiosk/solo/view';
 import type { Feed, SoloDials } from '@/app/lib/solo/types';
 import type { SoloVersionSpec } from '@/app/lib/solo/versions';
 import { FeedColumn } from '../solo/FeedColumn';
-import { useTapeZoom } from '../solo/Tape';
+import { useTapeZoom } from '../solo/tapeParts';
 import { FrameModal } from '../solo/FrameModal';
 
 const mono = 'ui-monospace, SFMono-Regular, Menlo, monospace';

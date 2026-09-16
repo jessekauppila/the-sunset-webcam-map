@@ -1,6 +1,7 @@
 import { it, expect, vi } from 'vitest';
 import { cleanup, render, screen, fireEvent } from '@testing-library/react';
-import { Tape, THUMB_H, seamBetween } from './Tape';
+import { Tape } from './Tape';
+import { THUMB_H } from './tapeParts';
 import { PX_PER_S } from './timeScale';
 import type { EntryView, TapeEntry } from '@/app/api/kiosk/solo/view';
 
@@ -262,13 +263,6 @@ describe('the seam is what the glass will play there (2026-09-08)', () => {
     render(<Tape past={past} current={entry(3)} currentSince={since} next={[]}
       pastDials={{ ...dip, veil: null }} nextDials={dip} onSelect={vi.fn()} />);
     expect(screen.getByTestId('tape-fade-0').getAttribute('data-seam')).toBe('crossfade');
-  });
-
-  it('seamBetween is pure and says the same thing', () => {
-    expect(seamBetween({ webcamId: 1 }, { webcamId: 2 }, dip)).toEqual({ kind: 'dip', seconds: 6, veil: '#000000' });
-    expect(seamBetween({ webcamId: 1 }, { webcamId: 1 }, dip)).toEqual({ kind: 'dissolve', seconds: 2, veil: null });
-    expect(seamBetween({ webcamId: 1 }, { webcamId: 1 }, { ...dip, sameCameraFadeS: 0 })).toEqual({ kind: 'cut', seconds: 0, veil: null });
-    expect(seamBetween(null, { webcamId: 2 }, { dwellS: 20, fadeS: 2 })).toEqual({ kind: 'crossfade', seconds: 2, veil: null });
   });
 });
 

@@ -11,7 +11,8 @@ import type { Solo2Dials } from '@/app/lib/solo2/types';
 import type { Stage } from '@/app/lib/solo/stages';
 import { EntryRow, type Run } from './EntryRow';
 import { reasonLine } from './reason';
-import { Tape, type TapeDials } from './Tape';
+import { Tape } from './Tape';
+import type { TapeDials } from './tapeParts';
 import { arrivalLook } from '@/app/lib/solo2/veil';
 
 const mono = 'ui-monospace, SFMono-Regular, Menlo, monospace';
