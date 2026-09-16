@@ -11,7 +11,7 @@ import {
 import { SOURCE_FRAME, drawFactor, pictureRect } from '@/app/lib/solo/caption';
 import { PANEL_PRESETS, DEFAULT_PANEL_PRESET, type PanelSize } from '@/app/kiosk/panelPreview';
 import type { KnobDescriptor, KnobValue, SettingsSchema, SettingsValues } from '@/app/lib/settings/schema';
-import type { SoloDials } from '@/app/lib/solo/types';
+import type { Feed, SoloDials } from '@/app/lib/solo/types';
 import type { Solo2Dials } from '@/app/lib/solo2/types';
 import type { PlanDials } from '@/app/lib/solo2/plan';
 import { DwellBudget } from './solo/DwellBudget';
@@ -293,13 +293,15 @@ function CaptionLinks({ linked, onToggle }: {
  * version names, no deploy slot, no cross-links — the header above owns
  * those, so this file only ever grows a row when a schema does.
  */
-export function Rail({ api, surface, tab, onTab, runFrames = 1, children }: {
+export function Rail({ api, surface, tab, onTab, runFrames = 1, landings, children }: {
   api: StudioSettingsApi;
   surface: StudioSurface;
   tab: RailTab;
   onTab: (t: RailTab) => void;
   /** solo2: frames in the on-glass camera's run, for the dwell readout. */
   runFrames?: number;
+  /** solo2: where each screen's current dwell peaks (rendezvous spec §3), for the dwell readout's landing lines. */
+  landings?: Record<Feed, { atMs: number; rendezvous: boolean } | null>;
   /** The takes list, rendered under the dials. */
   children?: ReactNode;
 }) {
@@ -354,7 +356,7 @@ export function Rail({ api, surface, tab, onTab, runFrames = 1, children }: {
       <Control knob={k} value={target.values[k.key]} differs={target.diff.has(k.key)}
         onChange={(v) => (target.onChange ? target.onChange(k.key, v) : api.setKnob(target.ns, k.key, v))} />
       {k.key === 'pictureHeight' && soloDials && <PictureReadout dials={soloDials} panel={panel} />}
-      {k.key === 'cameraRun' && planDials && <DwellBudget dials={planDials} frames={runFrames} />}
+      {k.key === 'cameraRun' && planDials && <DwellBudget dials={planDials} frames={runFrames} landings={landings} />}
     </Fragment>
   );
 
