@@ -53,6 +53,13 @@ export interface SourceListOptions {
   now: Date;
   /** The swept band, as the same box test the Windy sweep applies. */
   within: (lat: number, lng: number) => boolean;
+  /**
+   * Cameras this source may contribute to this tick. The band test alone does
+   * not bound a source packed inside one query box -- see capPerTick.ts -- so
+   * an adapter applies this BEFORE any per-camera network work, and reports
+   * what it set aside as `skipped.over_cap`.
+   */
+  maxCameras?: number;
 }
 
 export interface SourceListResult {

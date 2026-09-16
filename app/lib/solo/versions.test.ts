@@ -62,4 +62,13 @@ describe('descriptors', () => {
     expect(v.roleAt(1, 'sunrise', d)).toBe('valley');
     expect(v.project(entries, d, S0, 3, 0, 'sunrise').map((e) => e.snapshotId)).toEqual([1, 3, 2]);
   });
+  it('the rendezvous seam: only solo2 exposes fitNext', () => {
+    expect(SOLO_VERSIONS.solo.fitNext).toBeUndefined();
+    expect(typeof SOLO_VERSIONS.solo2.fitNext).toBe('function');
+  });
+  it('solo2 prices a given run the same way it prices its own, for a lone frame', () => {
+    const v = SOLO_VERSIONS.solo2;
+    const d = { ...v.dialsFrom(schemaDefaults(v.schema)), dwellBoost: 0, dwellTrim: 0 };
+    expect(v.dwellMsFor!(entries, entries[0], d, 1)).toBe(v.dwellMs(entries, entries[0], d));
+  });
 });

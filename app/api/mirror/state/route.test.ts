@@ -6,12 +6,14 @@ const listActiveEntries = vi.fn();
 const getScreenState = vi.fn();
 const commitAdvance = vi.fn();
 const getLiveSettingsCached = vi.fn();
+const growDwell = vi.fn();
 vi.mock('server-only', () => ({}));
 vi.mock('@/app/lib/db', () => ({ sql: vi.fn() }));
 vi.mock('@/app/lib/solo/store', () => ({
   listActiveEntries: (...a: unknown[]) => listActiveEntries(...a),
   getScreenState: (...a: unknown[]) => getScreenState(...a),
   commitAdvance: (...a: unknown[]) => commitAdvance(...a),
+  growDwell: (...a: unknown[]) => growDwell(...a),
 }));
 vi.mock('@/app/lib/settings/liveSettings', () => ({ getLiveSettingsCached: () => getLiveSettingsCached() }));
 
@@ -36,6 +38,7 @@ beforeEach(() => {
   listActiveEntries.mockResolvedValue([entry(1, 100), entry(2, 200), entry(3, 300), entry(9, 250, 8, 0.8)]);
   getScreenState.mockResolvedValue(null);
   commitAdvance.mockResolvedValue(true);
+  growDwell.mockResolvedValue(true);
 });
 afterEach(() => vi.useRealTimers());
 
@@ -68,13 +71,19 @@ describe('GET /api/mirror/state', () => {
   it('draws the next slot when the dwell is over, and answers with the new one', async () => {
     getScreenState.mockResolvedValue(row(12, NOW - 30_000, 20_000));
     const body = await (await get('?feed=sunset')).json();
-    expect(commitAdvance).toHaveBeenCalledWith('sunset', 13, expect.anything(), expect.any(Number), expect.any(Array), 'solo2', expect.any(Number), expect.any(Number));
+    expect(commitAdvance).toHaveBeenCalledWith('sunset', 13, expect.anything(), expect.any(Number), expect.any(Array), 'solo2', expect.any(Number), expect.any(Number), null, false);
     expect(body.slot).toBe(13);
     expect(body.current.shownSince).toBe(NOW); // on the tick
   });
+  it('gets no slack: a dwell ending in 500 ms is left alone, where a kiosk-fired advance would draw', async () => {
+    getScreenState.mockResolvedValue(row(12, NOW - 19_500, 20_000));
+    const body = await (await get('?feed=sunset')).json();
+    expect(commitAdvance).not.toHaveBeenCalled();
+    expect(body.slot).toBe(12);
+  });
   it('draws slot 0 when there is no row', async () => {
     const body = await (await get('?feed=sunset')).json();
-    expect(commitAdvance).toHaveBeenCalledWith('sunset', 0, expect.anything(), expect.any(Number), expect.any(Array), 'solo2', expect.any(Number), expect.any(Number));
+    expect(commitAdvance).toHaveBeenCalledWith('sunset', 0, expect.anything(), expect.any(Number), expect.any(Array), 'solo2', expect.any(Number), expect.any(Number), null, false);
     expect(body.slot).toBe(0);
   });
   it('a reader that loses the race answers with the winner\'s row', async () => {

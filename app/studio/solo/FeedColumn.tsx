@@ -64,7 +64,7 @@ const stageOf = (e: EntryView): StageKind =>
 interface Box { entry: EntryView; run?: Run }
 
 /** The frames a box stands for, in capture order: the cut ones first, then the run as the dwell plays it. */
-const framesOf = (b: Box): EntryView[] => [...(b.run?.skipped ?? []), ...(b.run?.earlier ?? []), b.entry];
+const framesOf = (b: Box): EntryView[] => [...(b.run?.skipped ?? []), ...(b.run?.earlier ?? []), b.run ? b.run.last : b.entry];
 
 const capDial = (bin: 'sunset' | 'non_sunset') => bin === 'sunset' ? 'runFramesSunset' : 'runFramesOther';
 // A ranked sunset's cap is its share of the dial, so the label says both.
@@ -165,7 +165,11 @@ export function FeedColumn({ feed, server, projected, liveDials, nowMs, version,
     // off the camera exactly as `capFor` does. Off the drawn frame it could
     // announce the non-sunset dial beside a sixteen-frame sunset run.
     const capBin = standsFor(e, all, true).bin ?? e.bin;
-    return { earlier: played.slice(0, -1), skipped, capLabel: capLabelOf(capBin, cap, d2), stepS: fitPlan(planDialsFor(e, d2, all, true), played.length).stepS };
+    const last = played[played.length - 1];
+    return {
+      earlier: played.slice(0, -1), last, skipped, capLabel: capLabelOf(capBin, cap, d2),
+      stepS: fitPlan(planDialsFor(e, d2, all, true), played.length).stepS,
+    };
   };
 
   // The queue: each draw with the run it plays.

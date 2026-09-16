@@ -34,6 +34,9 @@ export async function GET(request: NextRequest) {
 
   const nowMs = Date.now();
   const [entries, screenBefore] = await Promise.all([listActiveEntries(feed), getScreenState(feed)]);
+  // No slack (the default): this advance runs on the server's own clock, so a
+  // refresh landing a moment early must not cut a dwell short. Only the
+  // kiosk's POST, whose clock is its own, gets the half-beat (`kioskSlackMs`).
   const { screen } = await advanceIfDue({ feed, version, dials, entries, screenBefore, nowMs });
   const body = buildMirrorView({ feed, dials, entries: entries.map(toViewEntry), screen, nowMs, panelPreset, build: BUILD_ID });
   return NextResponse.json(body, { headers: { 'Cache-Control': MIRROR_CACHE_CONTROL } });

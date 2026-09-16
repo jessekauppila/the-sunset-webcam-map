@@ -1,13 +1,13 @@
 import { NextResponse } from 'next/server';
 import { getLiveSettingsCached } from '@/app/lib/settings/liveSettings';
 import { mergeSettings } from '@/app/lib/settings/schema';
-import { drawSlot } from '@/app/lib/solo/advance';
+import { drawSlot, isDue, kioskSlackMs } from '@/app/lib/solo/advance';
 import { resolveSoloVersion } from '@/app/lib/solo/versions';
 import { countAdmittedSince, getScreenState, getSweptZone, listActiveEntries } from '@/app/lib/solo/store';
 import { isFlagEnabled, SWEEP_FORCE_DAY_RING } from '@/app/lib/runtimeFlags';
 import { sweepGeometry } from '@/app/api/cron/update-cameras/lib/sweepGeometry';
 import { TERMINATOR_DAY_SIDE_OFFSETS_DEG } from '@/app/lib/masterConfig';
-import { buildStateView, parseFeed, toViewEntry } from '../view';
+import { buildStateView, parseFeed, toViewEntry, type AdvanceDecision } from '../view';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -56,7 +56,11 @@ export async function POST(request: Request) {
   if (Math.abs(slot - serverSlot) > SLOT_TOLERANCE) {
     return NextResponse.json({ error: `slot ${slot} is not near ${serverSlot}` }, { status: 400 });
   }
-  const { advanced, screen } = await drawSlot({ feed, version, dials, entries, screenBefore, slot, nowMs });
+  const slackMs = kioskSlackMs(dials);
+  // A dwell that has not ended is not drawn over (rendezvous spec); see kioskSlackMs for why a kiosk-fired request gets half a beat.
+  const { advanced, grown, decision, screen } = isDue(screenBefore, nowMs, slackMs)
+    ? await drawSlot({ feed, version, dials, entries, screenBefore, slot, nowMs })
+    : { advanced: false, grown: false, decision: null as AdvanceDecision, screen: screenBefore };
   const [admitted, sweptZone, forcedDayRing] = await Promise.all([
     countAdmittedSince(feed, nowMs - LAST_PULL_WINDOW_MS),
     getSweptZone(),
@@ -68,6 +72,8 @@ export async function POST(request: Request) {
   const zone = sweptZone ?? { minDeg: geometry.coverageMinDeg, maxDeg: geometry.coverageMaxDeg };
   return NextResponse.json({
     advanced,
+    grown,
+    decision,
     ...buildStateView({ feed, dials, entries: entries.map(toViewEntry), screen, nowMs, admitted, zone, version }),
   });
 }

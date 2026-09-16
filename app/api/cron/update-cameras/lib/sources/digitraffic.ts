@@ -30,6 +30,7 @@
  */
 
 import { SOURCE_DIGITRAFFIC } from '@/app/lib/runtimeFlags';
+import { capCamerasPerTick } from './capPerTick';
 import {
   emptyListResult,
   type Source,
@@ -205,13 +206,18 @@ export const digitrafficSource: Source = {
         };
       }
       const parsed = parseDigitrafficStations(await res.json(), { within: opts.within });
-      const versioned = await withImageVersions(parsed.cameras);
+      // Before the HEAD pass, never after: every in-band preset costs a
+      // request here, and the whole 2,258-preset catalogue sits inside one
+      // query box for hours. Uncapped that is ~142 s of HEADs against a 60 s
+      // route ceiling. See capPerTick.ts.
+      const capped = capCamerasPerTick(parsed.cameras, opts.now, opts.maxCameras);
+      const versioned = await withImageVersions(capped.cameras);
       return {
         cameras: versioned.cameras,
-        attempted: 1 + parsed.cameras.length,
+        attempted: 1 + capped.cameras.length,
         failed: versioned.headFailed,
         failedByStatus: versioned.headFailed ? { head: versioned.headFailed } : {},
-        skipped: parsed.skipped,
+        skipped: capped.dropped ? { ...parsed.skipped, over_cap: capped.dropped } : parsed.skipped,
         elapsedMs: Date.now() - t0,
       };
     } catch (error) {

@@ -25,3 +25,19 @@ describe('solo2 dials on the beat', () => {
     expect(dialsFrom2(mergeSettings(SOLO2_SETTINGS_SCHEMA, { minStepS: 1, dwellS: 47 })).dwellS).toBe(12);
   });
 });
+
+describe('rendezvous dials', () => {
+  const keys = SOLO2_SETTINGS_SCHEMA.map((k) => k.key);
+  it('has rendezvous and rendezvousRank', () => {
+    expect(keys).toEqual(expect.arrayContaining(['rendezvous', 'rendezvousRank']));
+  });
+  it('defaults: off, rank 0.6', () => {
+    const d = dialsFrom2(schemaDefaults(SOLO2_SETTINGS_SCHEMA));
+    expect(d.rendezvous).toBe(false);
+    expect(d.rendezvousRank).toBe(0.6);
+  });
+  it('rendezvousRank is clamped to [0, 1] by mergeSettings', () => {
+    expect(dialsFrom2(mergeSettings(SOLO2_SETTINGS_SCHEMA, { rendezvousRank: 5 })).rendezvousRank).toBe(1);
+    expect(dialsFrom2(mergeSettings(SOLO2_SETTINGS_SCHEMA, { rendezvousRank: -5 })).rendezvousRank).toBe(0);
+  });
+});

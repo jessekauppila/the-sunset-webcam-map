@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  poolAt, isNewAtEntry, seedFromDraws, initialState, replay, actualStrip, summarize, compare,
+  poolAt, isNewAtEntry, seedFromDraws, initialState, replay, replayPair, actualStrip, summarize, compare,
   type ReplayEntry, type DrawLike,
 } from './replay';
 import { SOLO_VERSIONS } from './versions';
@@ -128,6 +128,21 @@ describe('replay', () => {
     expect(first.dwellMs).toBeGreaterThanOrEqual(20_000);
   });
 
+  it('solo2 starts its clock on the nearest tick; solo starts where it is asked', () => {
+    const d2 = { ...dialsFrom2(schemaDefaults(SOLO2_SETTINGS_SCHEMA)), dwellS: 20, offsetS: 10, cameraRun: true, dwellBoost: 0, dwellTrim: 0 };
+    // 1.3 s past a tick: the dwell belongs to the tick the kiosk fired on, and
+    // every landing is measured in whole beats from there (beat spec §2.6).
+    const off = at(SLOT0) + 1_300;
+    const many = [1, 2, 3].map((i) => sun(i, 0.9 - i * 0.01, { webcamId: 7, capturedAt: i }));
+    const beat2 = replay({ feed: FEED, version: SOLO_VERSIONS.solo2, dials: d2, entries: many, priorDraws: [], fromMs: off, toMs: off });
+    expect(beat2.frames[0].shownAt).toBe(at(SLOT0)); // the nearest tick, 1.3 s back
+    expect(beat2.frames[0].shownAt % (d2.beatS * 1000)).toBe(0);
+    expect(beat2.fromMs).toBe(off); // the window asked for is still the window reported
+    // solo has no beat, so its clock starts exactly where the caller put it.
+    const flat = replay({ feed: FEED, version: solo, dials: D, entries, priorDraws: [], fromMs: off, toMs: off });
+    expect(flat.frames[0].shownAt).toBe(off);
+  });
+
   it('parity: seeded from the first five draws, reproduces draws six to twelve', () => {
     const picks = solo.project(entries, D, { lastSnapshotId: null, sunsetStreak: 0 }, 12, SLOT0, FEED);
     const prior = drawsOf(picks.slice(0, 5), SLOT0);
@@ -215,5 +230,218 @@ describe('actualStrip, summarize, compare', () => {
     // The glass missed slot 11: every later draw sits one slot early. Slot-for-slot says 1; the order says 3 of 4 survive.
     const shifted = { ...actual, frames: [actual.frames[0], { ...actual.frames[2], slot: 11 }, { ...actual.frames[3], slot: 12 }] };
     expect(compare(actual, shifted)).toEqual({ slots: 3, same: 1, inOrder: 3 });
+  });
+});
+
+describe('replayPair (rendezvous spec §5)', () => {
+  // The defaults the beat runs on: beat 4 s, dwell floor 3 beats, one change
+  // beat, sunset cap 8, rank shaping. The spread is off, so every draw's
+  // budget is the floor and a lone frame is 4 beats (1 change + 1 + 2 rest).
+  const D2 = { ...dialsFrom2(schemaDefaults(SOLO2_SETTINGS_SCHEMA)), rendezvous: true, dwellBoost: 0, dwellTrim: 0 };
+  const beat = (n: number) => n * 4_000;
+  /** One frame of a camera's night. A null quality is a non-sunset. */
+  const shot = (id: number, cam: number, capturedAt: number, quality: number | null, enteredAt = T0 - 60_000): ReplayEntry => ({
+    snapshotId: id, webcamId: cam, bin: quality == null ? 'non_sunset' : 'sunset', quality, detection: 0.8,
+    isNew: false, tally: 0, enteredAt, lastShownAt: null, removedAt: null, capturedAt, title: `cam${cam}`,
+  });
+  const opts = (feed: Feed, entries: ReplayEntry[], fromMs: number, toMs: number, dials = D2) =>
+    ({ feed, version: SOLO_VERSIONS.solo2, dials, entries, priorDraws: [] as DrawLike[], fromMs, toMs });
+
+  it('the sunset screen pins and the sunrise screen fits to its landing', () => {
+    // sunset, t0 = T0 (a tick): camera 7 is [s1 s2 s3 s4 | s5 peak | s6]. A
+    // lone sunset ranks 1, so the cap is 8 and the whole night plays: the
+    // peak is frames[4] and lands at T0 + (1 change + 4) beats = T0 + 20 s.
+    const sunsetNight = [
+      shot(1, 7, 100, 0.3), shot(2, 7, 200, 0.4), shot(3, 7, 300, 0.5),
+      shot(4, 7, 400, 0.6), shot(5, 7, 500, 0.9), shot(6, 7, 600, 0.5),
+    ];
+    // sunrise, t0 = T0 + 4 s: camera 17 is [r1..r5 | r6 peak | r7].
+    // avail = (20 − 4)/4 − 1 change = 3 beats of climb, and the climb is 5
+    // long, so 3 ≤ 5 fits: thinClimb(5, 3) keeps r1, r3, r5 and drops r2, r4.
+    // The peak is frames[3] and lands at T0 + 4 + (1 + 3)×4 = T0 + 20 s.
+    const sunriseNight = [
+      shot(11, 17, 100, 0.2), shot(12, 17, 200, 0.3), shot(13, 17, 300, 0.4), shot(14, 17, 400, 0.5),
+      shot(15, 17, 500, 0.6), shot(16, 17, 600, 0.95), shot(17, 17, 700, 0.7),
+    ];
+    const pair = replayPair({
+      sunrise: opts('sunrise', sunriseNight, T0 + beat(1), T0 + beat(1)),
+      sunset: opts('sunset', sunsetNight, T0, T0 + beat(1)),
+    });
+    expect(pair.rendezvous).toEqual({
+      made: 1, missed: 0,
+      missReasons: { 'no partner': 0, 'too soon': 0, 'nothing to add': 0 },
+      eligible: { sunrise: 1, sunset: 1 },
+      dropped: 2, grown: 0,
+      landings: [{ atMs: T0 + beat(5), sunriseSlot: 0, sunsetSlot: 0 }],
+    });
+    expect(pair.sunset.frames).toHaveLength(1);
+    expect(pair.sunset.frames[0]).toMatchObject({
+      snapshotId: 6, shownSnapshotIds: [1, 2, 3, 4, 5, 6], peakAtMs: T0 + beat(5), rendezvous: false,
+      dropped: 0, grown: 0, dwellMs: beat(7), // 1 change + 6 frames + 0 rest
+    });
+    expect(pair.sunrise.frames).toHaveLength(1);
+    expect(pair.sunrise.frames[0]).toMatchObject({
+      snapshotId: 17, shownSnapshotIds: [11, 13, 15, 16, 17], peakAtMs: T0 + beat(5), rendezvous: true,
+      dropped: 2, grown: 0, shownAt: T0 + beat(1), dwellMs: beat(6), // 1 change + 5 frames + 0 rest
+    });
+    // The landing is one instant, and both screens name it.
+    expect(pair.sunrise.frames[0].peakAtMs).toBe(pair.sunset.frames[0].peakAtMs);
+  });
+
+  it('a climb too short to reach grows the dwell that is ending, and the next draw fits', () => {
+    // sunrise draw 0, t0 = T0: only camera 9 is in the bin (three grey
+    // frames), so the run is the non-sunset cap of 3 and the block is
+    // 1 + 3 + 0 = 4 beats = 16 s. No peak, so nothing pins.
+    const grey = [shot(21, 9, 100, null), shot(22, 9, 200, null), shot(23, 9, 300, null)];
+    // Two more frames of camera 9, and camera 19's night, arrive during it.
+    const later = T0 + beat(2);
+    const arrivals = [shot(24, 9, 400, null, later), shot(25, 9, 500, null, later)];
+    const sunriseNight = [
+      shot(31, 19, 100, 0.4, later), shot(32, 19, 200, 0.95, later),
+      shot(33, 19, 300, 0.5, later), shot(34, 19, 400, 0.45, later),
+    ];
+    // sunset draw 0, t0 = T0 + 4 s: camera 8 is six climb frames then its
+    // peak, so the whole run is 7 frames and the peak is last: it pins
+    // T0 + 4 + (1 + 6)×4 = T0 + 32 s, and its block runs 8 beats.
+    const sunsetNight = [
+      shot(41, 8, 100, 0.3), shot(42, 8, 200, 0.35), shot(43, 8, 300, 0.4),
+      shot(44, 8, 400, 0.45), shot(45, 8, 500, 0.5), shot(46, 8, 600, 0.55), shot(47, 8, 700, 0.9),
+    ];
+    const pair = replayPair({
+      sunrise: opts('sunrise', [...grey, ...arrivals, ...sunriseNight], T0, T0 + beat(6)),
+      sunset: opts('sunset', sunsetNight, T0 + beat(1), T0 + beat(6)),
+    });
+    // At T0 + 16 s the sunrise screen wants camera 19, whose peak is one
+    // frame in, but the landing is 3 beats of climb away: avail
+    // (32 − 16)/4 − 1 = 3 against a climb of 1, so it needs 2 more beats
+    // before it starts. Camera 9's night has exactly two frames left, so the
+    // block that is ending plays them: +2 ids, +8 s, and the clock moves to
+    // T0 + 24 s. There avail = (32 − 24)/4 − 1 = 1 = the climb, and it fits.
+    expect(pair.rendezvous).toEqual({
+      made: 1, missed: 0,
+      missReasons: { 'no partner': 0, 'too soon': 0, 'nothing to add': 0 },
+      eligible: { sunrise: 1, sunset: 1 },
+      dropped: 0, grown: 2,
+      landings: [{ atMs: T0 + beat(8), sunriseSlot: 1, sunsetSlot: 0 }],
+    });
+    expect(pair.sunrise.frames).toHaveLength(2);
+    expect(pair.sunrise.frames[0]).toMatchObject({
+      slot: 0, snapshotId: 23, shownSnapshotIds: [21, 22, 23, 24, 25],
+      dwellMs: beat(4) + beat(2), grown: 2, rendezvous: false, peakAtMs: null,
+    });
+    expect(pair.sunrise.frames[1]).toMatchObject({
+      slot: 1, shownAt: T0 + beat(6), snapshotId: 34, shownSnapshotIds: [31, 32, 33, 34],
+      peakAtMs: T0 + beat(8), rendezvous: true, dropped: 0, grown: 0,
+    });
+    expect(pair.sunset.frames[0]).toMatchObject({ snapshotId: 47, peakAtMs: T0 + beat(8), rendezvous: false });
+  });
+
+  it('off the dial: no counts, and each strip is exactly its own single-feed replay', () => {
+    const off = { ...D2, rendezvous: false };
+    const sunriseNight = [shot(51, 27, 100, 0.4), shot(52, 27, 200, 0.95), shot(53, 27, 300, 0.5)];
+    const sunsetNight = [shot(61, 28, 100, 0.3), shot(62, 28, 200, 0.9)];
+    // Off-tick starts on purpose: both paths snap to the same grid, so the
+    // equality holds for a window that begins wherever the caller says.
+    const a = () => opts('sunrise', sunriseNight, T0 + 1_300, T0 + beat(12), off);
+    const b = () => opts('sunset', sunsetNight, T0 + beat(1) + 1_300, T0 + beat(12), off);
+    const pair = replayPair({ sunrise: a(), sunset: b() });
+    expect(pair.rendezvous).toEqual({
+      made: 0, missed: 0,
+      missReasons: { 'no partner': 0, 'too soon': 0, 'nothing to add': 0 },
+      eligible: { sunrise: 0, sunset: 0 },
+      dropped: 0, grown: 0, landings: [],
+    });
+    expect(pair.sunrise).toEqual(replay(a()));
+    expect(pair.sunset).toEqual(replay(b()));
+    expect(pair.sunrise.frames.every((f) => f.peakAtMs === null && !f.rendezvous)).toBe(true);
+  });
+
+  describe('miss reasons', () => {
+    it('a pin the other screen never had a sunset to try counts a no-partner miss', () => {
+      // sunset, t0 = T0: camera 50 is [climb | peak], and pins its landing.
+      const sunsetFirst = [shot(101, 50, 100, 0.4), shot(102, 50, 200, 0.9)];
+      // sunset's second camera has no sunset frames, so its second draw
+      // settles the first pin without ever pinning again.
+      const sunsetSecond = [shot(103, 60, 100, null)];
+      // sunrise has nothing but a non-sunset frame the whole window: it is
+      // never eligible, so it never even tries to meet the pin.
+      const sunriseNight = [shot(201, 70, 100, null)];
+      const pair = replayPair({
+        sunrise: opts('sunrise', sunriseNight, T0, T0 + beat(10)),
+        // Bounded so sunset draws exactly twice: pin, then the plain draw
+        // that settles it. A wider window cycles back to camera 50 and pins
+        // again, which is a real (if repetitive) third eligible draw, not a
+        // miss — not what this test is isolating.
+        sunset: opts('sunset', [...sunsetFirst, ...sunsetSecond], T0, T0 + beat(6)),
+      });
+      expect(pair.rendezvous).toEqual({
+        made: 0, missed: 1,
+        missReasons: { 'no partner': 1, 'too soon': 0, 'nothing to add': 0 },
+        eligible: { sunrise: 0, sunset: 1 },
+        dropped: 0, grown: 0, landings: [],
+      });
+    });
+
+    it('a landing too tight for even the change beat counts a too-soon miss', () => {
+      const tight = { ...D2, changeBeats: 2 };
+      // sunset, t0 = T0: a lone peak with no climb pins the moment its own
+      // change ends — landing = T0 + 2 change beats = T0 + 8 s.
+      const sunsetNight = [shot(111, 80, 100, 0.9)];
+      // sunrise, t0 = T0 + 4 s: one beat short of the landing, but the
+      // change alone needs two — avail = 1 − 2 = −1, too soon whatever the climb is.
+      const sunriseNight = [shot(211, 90, 100, 0.9)];
+      const pair = replayPair({
+        sunrise: opts('sunrise', sunriseNight, T0 + beat(1), T0 + beat(1), tight),
+        sunset: opts('sunset', sunsetNight, T0, T0 + beat(6), tight),
+      });
+      expect(pair.rendezvous).toEqual({
+        made: 0, missed: 1,
+        missReasons: { 'no partner': 0, 'too soon': 1, 'nothing to add': 0 },
+        eligible: { sunrise: 1, sunset: 2 },
+        dropped: 0, grown: 0, landings: [],
+      });
+    });
+
+    it('a climb too short to reach, with nothing left of the ending run to add, counts a nothing-to-add miss', () => {
+      // sunrise draw 0, t0 = T0: only camera 91 (three grey frames) is in the
+      // bin, so nothing pins yet.
+      const grey = [shot(121, 91, 100, null), shot(122, 91, 200, null), shot(123, 91, 300, null)];
+      const later = T0 + beat(2);
+      // Unlike the grow case, camera 91 gets only ONE more frame while its
+      // block is ending — one short of the two the grow would need.
+      const arrivals = [shot(124, 91, 400, null, later)];
+      const sunriseNight = [
+        shot(131, 92, 100, 0.4, later), shot(132, 92, 200, 0.95, later),
+        shot(133, 92, 300, 0.5, later), shot(134, 92, 400, 0.45, later),
+      ];
+      // sunset, t0 = T0 + 4 s: camera 93 climbs six frames to its peak and
+      // pins far ahead, exactly as in the grow test.
+      const sunsetNight = [
+        shot(141, 93, 100, 0.3), shot(142, 93, 200, 0.35), shot(143, 93, 300, 0.4),
+        shot(144, 93, 400, 0.45), shot(145, 93, 500, 0.5), shot(146, 93, 600, 0.55), shot(147, 93, 700, 0.9),
+      ];
+      const pair = replayPair({
+        sunrise: opts('sunrise', [...grey, ...arrivals, ...sunriseNight], T0, T0 + beat(10)),
+        sunset: opts('sunset', sunsetNight, T0 + beat(1), T0 + beat(10)),
+      });
+      expect(pair.rendezvous).toEqual({
+        made: 0, missed: 1,
+        missReasons: { 'no partner': 0, 'too soon': 0, 'nothing to add': 1 },
+        eligible: { sunrise: 1, sunset: 2 },
+        dropped: 0, grown: 0, landings: [],
+      });
+    });
+
+    it('missReasons always sums to missed, in every scenario above', () => {
+      const cases = [
+        { sunrise: opts('sunrise', [shot(301, 100, 100, null)], T0, T0 + beat(10)),
+          sunset: opts('sunset', [shot(302, 101, 100, 0.4), shot(303, 101, 200, 0.9), shot(304, 110, 100, null)], T0, T0 + beat(10)) },
+      ];
+      for (const c of cases) {
+        const r = replayPair(c).rendezvous;
+        expect(Object.values(r.missReasons).reduce((a, b) => a + b, 0)).toBe(r.missed);
+        expect(r.eligible.sunrise + r.eligible.sunset).toBeGreaterThanOrEqual(r.made);
+      }
+    });
   });
 });
