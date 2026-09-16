@@ -444,4 +444,36 @@ describe('replayPair (rendezvous spec §5)', () => {
       }
     });
   });
+
+  describe('pinnedAtMs: a screen can start the pair already pinned', () => {
+    // sunset has nothing eligible of its own in the window (empty pool, one
+    // blank step), but carries pinnedAtMs = T0 + beat(3) — the landing its
+    // live dwell already pinned before this replay began. sunrise's first
+    // draw, at T0, fits it: avail = beat(3)/beat(1) − 1 change = 2, and
+    // camera 400's climb is exactly 2 frames deep, so it fits without
+    // dropping anything.
+    const sunriseNight = [shot(501, 400, 100, 0.3), shot(502, 400, 200, 0.4), shot(503, 400, 300, 0.9)];
+
+    it('a future pin seeds the pair, and the other screen fits its first draw to it', () => {
+      const pair = replayPair({
+        sunrise: opts('sunrise', sunriseNight, T0, T0),
+        sunset: { ...opts('sunset', [], T0, T0), pinnedAtMs: T0 + beat(3) },
+      });
+      expect(pair.rendezvous.made).toBe(1);
+      expect(pair.rendezvous.landings).toEqual([{ atMs: T0 + beat(3), sunriseSlot: 0, sunsetSlot: 0 }]);
+      expect(pair.sunrise.frames).toHaveLength(1);
+      expect(pair.sunrise.frames[0]).toMatchObject({
+        snapshotId: 503, shownSnapshotIds: [501, 502, 503], peakAtMs: T0 + beat(3), rendezvous: true, dropped: 0,
+      });
+    });
+
+    it('a pin already in the past is not seeded, and the screen pins its own landing instead', () => {
+      const pair = replayPair({
+        sunrise: opts('sunrise', sunriseNight, T0, T0),
+        sunset: { ...opts('sunset', [], T0, T0), pinnedAtMs: T0 - beat(1) },
+      });
+      expect(pair.rendezvous.made).toBe(0);
+      expect(pair.sunrise.frames[0]).toMatchObject({ rendezvous: false, peakAtMs: expect.any(Number) });
+    });
+  });
 });
