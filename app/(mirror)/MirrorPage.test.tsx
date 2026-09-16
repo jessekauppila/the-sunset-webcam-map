@@ -3,7 +3,8 @@ import { render, screen, act } from '@testing-library/react';
 import { schemaDefaults } from '@/app/lib/settings/schema';
 import { SOLO2_SETTINGS_SCHEMA, dialsFrom2 } from '@/app/lib/solo2/settingsSchema';
 import { withCaption } from '@/app/lib/solo/captionSchema';
-import { MirrorPage } from './MirrorPage';
+import { MirrorPage, panelFor } from './MirrorPage';
+import { PANEL_PRESETS, DEFAULT_PANEL_PRESET } from '@/app/kiosk/panelPreview';
 
 const D = dialsFrom2(withCaption(schemaDefaults(SOLO2_SETTINGS_SCHEMA)));
 const entry = (id: number) => ({
@@ -35,6 +36,30 @@ beforeEach(() => {
 afterEach(() => {
   vi.useRealTimers();
   vi.unstubAllGlobals();
+});
+
+describe('panelFor', () => {
+  it('resolves a known preset', () => {
+    expect(panelFor('ktc-l')).toEqual(PANEL_PRESETS['ktc-l']);
+  });
+
+  it('falls back for null, empty, and unknown names', () => {
+    for (const bad of [null, '', 'panel-from-the-future']) {
+      expect(panelFor(bad)).toEqual(PANEL_PRESETS[DEFAULT_PANEL_PRESET]);
+    }
+  });
+
+  it('falls back for inherited Object keys rather than returning a function', () => {
+    // A bare index would hand back Object.prototype.constructor here, which is
+    // truthy — so `?? default` would not fire and panel.width would be
+    // undefined, scaling the stage to NaN and drawing nothing silently.
+    for (const inherited of ['constructor', 'toString', 'valueOf', '__proto__']) {
+      const panel = panelFor(inherited);
+      expect(panel).toEqual(PANEL_PRESETS[DEFAULT_PANEL_PRESET]);
+      expect(Number.isFinite(panel.width)).toBe(true);
+      expect(Number.isFinite(panel.height)).toBe(true);
+    }
+  });
 });
 
 describe('MirrorPage', () => {

@@ -16,7 +16,15 @@ import type { Feed } from '@/app/lib/solo/types';
  * undefined and scale the composition to nothing.
  */
 export function panelFor(preset: string | null): PanelSize {
-  return PANEL_PRESETS[preset ?? ''] ?? PANEL_PRESETS[DEFAULT_PANEL_PRESET];
+  // `Object.hasOwn`, not a bare index: PANEL_PRESETS is an object literal, so
+  // it inherits Object.prototype, and a preset named `constructor` or
+  // `toString` would index to a FUNCTION. That is truthy, so `??` would not
+  // fall back, and the panel's width would come out undefined — a stage
+  // scaled to NaN, drawing nothing, with no error anywhere. Same idiom as
+  // resolveSoloVersion.
+  return preset != null && Object.hasOwn(PANEL_PRESETS, preset)
+    ? PANEL_PRESETS[preset]
+    : PANEL_PRESETS[DEFAULT_PANEL_PRESET];
 }
 
 /** The black a mirror holds until its first projection lands. */
