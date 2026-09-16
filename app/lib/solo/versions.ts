@@ -2,10 +2,12 @@ import type { SettingsSchema, SettingsValues } from '@/app/lib/settings/schema';
 import { next, project } from './engine';
 import { SOLO_NAMESPACE, SOLO_SETTINGS_SCHEMA, dialsFrom } from './settingsSchema';
 import type { BinEntry, Feed, ScreenState, SoloDials } from './types';
-import { dwellMs2, next2, project2, roleAt, shown2 } from '@/app/lib/solo2/engine';
+import { dwellMs2, dwellMsFor, next2, project2, roleAt, shown2 } from '@/app/lib/solo2/engine';
 import { SOLO2_NAMESPACE, SOLO2_SETTINGS_SCHEMA, dialsFrom2 } from '@/app/lib/solo2/settingsSchema';
 import type { Role, Solo2Dials } from '@/app/lib/solo2/types';
 import { nearestTick } from '@/app/lib/solo2/plan';
+import { fitNext, type Decision, type MySide, type TheirSide } from '@/app/lib/solo2/rendezvous';
+import type { RunEntry } from '@/app/lib/solo2/run';
 
 /**
  * The solo kiosk's versions, side by side (solo2 spec §5.1). Both read the
@@ -45,6 +47,10 @@ export interface SoloVersionSpec<D extends SoloDials = SoloDials> {
    * tick the kiosk fired on belongs to that tick.
    */
   startMs(nowMs: number, d: D): number;
+  /** The rendezvous seam (spec §3.9): the next draw's decision over my side and the other screen's pinned peak. solo has none. */
+  fitNext?<T extends RunEntry>(mine: MySide<T>, theirs: TheirSide, d: D): Decision<T>;
+  /** How long a draw of `pick` occupies the glass when it plays exactly `frames` frames, ms. Only versions with a camera run need it. */
+  dwellMsFor?(entries: BinEntry[], pick: BinEntry, d: D, frames: number): number;
 }
 
 export type SoloVersionName = 'solo' | 'solo2';
@@ -74,6 +80,8 @@ const solo2: SoloVersionSpec<Solo2Dials> = {
   shown: shown2,
   dwellMs: dwellMs2,
   startMs: (nowMs, d) => nearestTick(nowMs, d.beatS),
+  fitNext,
+  dwellMsFor: dwellMsFor,
 };
 
 export const SOLO_VERSIONS = { solo, solo2 } as const;

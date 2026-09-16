@@ -28,6 +28,7 @@
  */
 
 import { SOURCE_FAA } from '@/app/lib/runtimeFlags';
+import { capCamerasPerTick } from './capPerTick';
 import {
   emptyListResult,
   type Source,
@@ -174,12 +175,17 @@ export const faaSource: Source = {
         };
       }
       const parsed = parseFaaSites(await res.json(), { now: opts.now, within: opts.within });
+      // FAA does no per-camera request here -- its URL carries the capture
+      // time, so listing is one call however many sites are in band. The cap
+      // still applies, because the tick's real cost is downstream: every
+      // camera returned is a frame downloaded, scored and stored.
+      const capped = capCamerasPerTick(parsed.cameras, opts.now, opts.maxCameras);
       return {
-        cameras: parsed.cameras,
+        cameras: capped.cameras,
         attempted: 1,
         failed: 0,
         failedByStatus: {},
-        skipped: parsed.skipped,
+        skipped: capped.dropped ? { ...parsed.skipped, over_cap: capped.dropped } : parsed.skipped,
         elapsedMs: Date.now() - t0,
       };
     } catch (error) {

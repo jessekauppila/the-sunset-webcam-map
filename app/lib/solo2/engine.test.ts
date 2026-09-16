@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { schemaDefaults } from '@/app/lib/settings/schema';
 import { project } from '@/app/lib/solo/engine';
 import type { BinEntry, ScreenState } from '@/app/lib/solo/types';
-import { beatOf, next2, project2, roleAt, shown2, dwellMs2 } from './engine';
+import { beatOf, next2, project2, roleAt, shown2, dwellMs2, dwellMsFor } from './engine';
 import { fitPlan } from './plan';
 import { SOLO2_SETTINGS_SCHEMA, dialsFrom2 } from './settingsSchema';
 /**
@@ -192,5 +192,23 @@ describe('dwellMs2: whole beats over the frames actually played', () => {
       const played = shown2(twelve, twelve[11], d).length;
       expect(dwellMs2(twelve, twelve[11], d)).toBe(fitPlan(d, played).dwellS * 1000);
     }
+  });
+});
+
+describe('dwellMsFor: prices a given frame count directly', () => {
+  const D2 = { ...dialsFrom2(schemaDefaults(SOLO2_SETTINGS_SCHEMA)), cameraRun: true, dwellBoost: 0, dwellTrim: 0 };
+  const BEAT = 4_000;
+  const frame = (id: number, cam: number, at: number, bin: 'sunset' | 'non_sunset' = 'sunset') => ({
+    snapshotId: id, webcamId: cam, bin, quality: bin === 'sunset' ? 0.9 : null, detection: 0.9,
+    isNew: false, tally: 0, enteredAt: at, capturedAt: at,
+  });
+
+  it('prices a supplied frame count the same as the run that actually plays that many', () => {
+    const one = [frame(1, 7, 1000)];
+    expect(dwellMsFor(one, one[0], D2, 5)).toBe(6 * BEAT);
+  });
+  it('agrees with dwellMs2 when handed shown2\'s own length', () => {
+    const twelve = Array.from({ length: 12 }, (_, i) => frame(i + 1, 7, (i + 1) * 1000));
+    expect(dwellMs2(twelve, twelve[11], D2)).toBe(dwellMsFor(twelve, twelve[11], D2, shown2(twelve, twelve[11], D2).length));
   });
 });

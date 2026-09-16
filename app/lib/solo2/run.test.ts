@@ -40,13 +40,41 @@ describe('poolEntries / runOf', () => {
     expect(poolEntries(entries, true).map((e) => [e.snapshotId, e.quality])).toEqual([[3, 0.9], [4, 0.5]]);
     expect(poolEntries(entries, false)).toBe(entries);
   });
-  it('the run is the camera oldest to newest with the entry last; nothing newer than the entry', () => {
+  it('with the dial on, the run windows around the camera\'s peak, oldest to newest, regardless of which frame was drawn', () => {
+    // Camera 7's peak is frame 2 (quality 0.9); uncapped, the whole series
+    // plays around it — the same window whichever of its frames was drawn.
     expect(runOf(entries[2], entries, true).map((e) => e.snapshotId)).toEqual([1, 2, 3]);
-    expect(runOf(entries[1], entries, true).map((e) => e.snapshotId)).toEqual([1, 2]);
+    expect(runOf(entries[1], entries, true).map((e) => e.snapshotId)).toEqual([1, 2, 3]);
     expect(runOf(entries[3], entries, true).map((e) => e.snapshotId)).toEqual([4]);
   });
   it('with the dial off the run is the entry alone', () => {
     expect(runOf(entries[2], entries, false)).toEqual([entries[2]]);
+  });
+  it('a camera with a peak windows around it, climb first, and the peak always plays', () => {
+    const night = [f(1, 7, 100, { bin: 'non_sunset', quality: null }), f(2, 7, 200, { quality: 0.4 }), f(3, 7, 300, { quality: 0.9 }), f(4, 7, 400, { quality: 0.5 }), f(5, 7, 500, { bin: 'non_sunset', quality: null })];
+    expect(runOf(night[4], night, true, 3).map((e) => e.snapshotId)).toEqual([1, 2, 3]);  // newest 2 of the climb, the peak; nothing left for after
+    expect(runOf(night[4], night, true, 4).map((e) => e.snapshotId)).toEqual([1, 2, 3, 4]);
+    expect(runOf(night[4], night, true, 1).map((e) => e.snapshotId)).toEqual([3]);
+    expect(runOf(night[4], night, true).map((e) => e.snapshotId)).toEqual([1, 2, 3, 4, 5]);
+  });
+  it('a camera with no sunset frame keeps the newest-cap window', () => {
+    const grey = [f(1, 7, 100, { bin: 'non_sunset', quality: null }), f(2, 7, 200, { bin: 'non_sunset', quality: null }), f(3, 7, 300, { bin: 'non_sunset', quality: null })];
+    expect(runOf(grey[2], grey, true, 2).map((e) => e.snapshotId)).toEqual([2, 3]);
+  });
+  it('a duplicated snapshot id is deduped before windowing, not double-counted against the cap', () => {
+    // Two rows for snapshot 2 — the peak — tying on capturedAt/bin/quality (as
+    // any real duplicate must) but differing in tally/isNew, the way a
+    // caller's own pool and its projected queue can each hand back the same
+    // frame. Undeduped, the duplicate would sort right after the peak and
+    // fill the one remaining window slot, bumping frame 3 out entirely and
+    // producing [1, 2, 2] instead of [1, 2, 3].
+    const x = f(1, 7, 100, { quality: 0.3 });
+    const pA = f(2, 7, 200, { quality: 0.9, tally: 0, isNew: false });
+    const pB = f(2, 7, 200, { quality: 0.9, tally: 5, isNew: true });
+    const y = f(3, 7, 300, { quality: 0.5 });
+    const run = runOf(pA, [x, pA, pB, y], true, 3);
+    expect(run.map((e) => e.snapshotId)).toEqual([1, 2, 3]); // each id once, capture order
+    expect(run[1]).toMatchObject({ snapshotId: 2, tally: 5, isNew: true }); // the later-supplied row wins
   });
 });
 
@@ -58,24 +86,29 @@ describe('the per-bin frame cap (dwell-budget spec §4)', () => {
   const twelve = Array.from({ length: 12 }, (_, i) => cam(i + 1, (i + 1) * 1000));
   const chosen = twelve[11];
 
-  it('plays the NEWEST n, and still oldest to newest, so the sun goes down', () => {
+  it('windows around the peak, still oldest to newest, so the sun goes down', () => {
+    // Every frame ties on quality (0.9), so peakOf breaks the tie to the
+    // earliest capture: frame 1. Climb-first, that means there is no climb
+    // (nothing captured before the peak) — cap 8 plays the peak and the next
+    // 7, not the newest 8. The chosen frame (12) is not among them: the
+    // window is about the peak, not about which frame was drawn.
     const run = runOf(chosen, twelve, true, 8);
     expect(run).toHaveLength(8);
-    // Frames 5..12: the window sits against the chosen frame, and the order
-    // inside it is unchanged. Taking the oldest 8 would play 1..8 and then cut
-    // to 12, skipping the middle of the descent.
-    expect(run.map((e) => e.snapshotId)).toEqual([5, 6, 7, 8, 9, 10, 11, 12]);
-    expect(run[run.length - 1].snapshotId).toBe(chosen.snapshotId);
+    expect(run.map((e) => e.snapshotId)).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
+    expect(run[0].snapshotId).toBe(1); // the peak plays first: no climb ahead of it
   });
 
-  it('a cap of 1 is the chosen frame alone; an uncapped run is every earlier frame', () => {
-    expect(runOf(chosen, twelve, true, 1).map((e) => e.snapshotId)).toEqual([12]);
-    expect(runOf(chosen, twelve, true, 0).map((e) => e.snapshotId)).toEqual([12]);
+  it('a cap of 1 is the peak alone; an uncapped run is the whole series', () => {
+    expect(runOf(chosen, twelve, true, 1).map((e) => e.snapshotId)).toEqual([1]);
+    expect(runOf(chosen, twelve, true, 0).map((e) => e.snapshotId)).toEqual([1]);
     expect(runOf(chosen, twelve, true)).toHaveLength(12);
   });
 
   it('a cap larger than the camera has is not padded', () => {
-    expect(runOf(twelve[2], twelve, true, 8).map((e) => e.snapshotId)).toEqual([1, 2, 3]);
+    // The series is the whole camera (12 frames) regardless of which entry
+    // was drawn — a cap of 15 cannot pad past what exists.
+    expect(runOf(twelve[2], twelve, true, 15).map((e) => e.snapshotId))
+      .toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
   });
 
   it('capFor gives sunsets the longer run', () => {

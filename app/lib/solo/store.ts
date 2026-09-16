@@ -267,24 +267,36 @@ export interface ScreenRow {
    */
   dwellMs?: number | null;
   /**
-   * The frames this dwell plays, in play order, the drawn frame last: the
-   * same array the draw log stamps, kept on the screen row so the glass reads
-   * fact rather than re-deriving a run from a pool that has since changed.
+   * The frames this dwell plays, in play order: the run as the draw pinned
+   * it — the climb, the peak, then what the cap left; the drawn frame (the
+   * newest) plays only when the window reaches it. The same array the draw
+   * log stamps, kept on the screen row so the glass reads fact rather than
+   * re-deriving a run from a pool that has since changed.
    *
    * Optional alongside `dwellMs` for the same reason: a row from before the
    * migration has neither, and every reader falls back to the old recompute.
    */
   shownSnapshotIds?: number[] | null;
+  /**
+   * When this dwell's peak lands, ms since epoch (rendezvous spec §3.3): set
+   * when this draw fitted to the other screen's peak, or pinned one of its
+   * own for the other screen to fit to. Null off the rendezvous dial and for
+   * rows written before the rendezvous migration.
+   */
+  peakAtMs?: number | null;
+  /** True only when this dwell's landing was fitted to the other screen's peak (rendezvous spec §3). */
+  rendezvous?: boolean;
 }
 
 export async function getScreenState(feed: Feed): Promise<ScreenRow | null> {
   const rows = (await sql`
-    select feed, current_snapshot_id, shown_since, slot, sunset_streak, dwell_ms, shown_snapshot_ids
+    select feed, current_snapshot_id, shown_since, slot, sunset_streak, dwell_ms, shown_snapshot_ids, peak_at, rendezvous
     from kiosk_screen_state where feed = ${feed}
   `) as unknown as {
     feed: Feed; current_snapshot_id: string | number | null; shown_since: string | null;
     slot: string | number | null; sunset_streak: string | number;
     dwell_ms: string | number | null; shown_snapshot_ids: (string | number)[] | null;
+    peak_at: string | null; rendezvous: boolean;
   }[];
   const r = rows[0];
   if (!r) return null;
@@ -296,6 +308,8 @@ export async function getScreenState(feed: Feed): Promise<ScreenRow | null> {
     sunsetStreak: num(r.sunset_streak),
     dwellMs: r.dwell_ms == null ? null : num(r.dwell_ms),
     shownSnapshotIds: r.shown_snapshot_ids == null ? null : r.shown_snapshot_ids.map(num),
+    peakAtMs: ms(r.peak_at),
+    rendezvous: r.rendezvous,
   };
 }
 
@@ -324,12 +338,15 @@ export async function commitAdvance(
   version: SoloVersionName = 'solo',
   dwellMs: number | null = null,
   startMs: number | null = null,
+  peakAtMs: number | null = null,
+  rendezvous = false,
 ): Promise<boolean> {
   const shownIds = shown.map((e) => e.snapshotId);
+  const peakAtIso = peakAtMs == null ? null : new Date(peakAtMs).toISOString();
   const rows = (await sql`
-    insert into kiosk_screen_state (feed, current_snapshot_id, shown_since, slot, sunset_streak, dwell_ms, shown_snapshot_ids, updated_at)
+    insert into kiosk_screen_state (feed, current_snapshot_id, shown_since, slot, sunset_streak, dwell_ms, shown_snapshot_ids, peak_at, rendezvous, updated_at)
     values (${feed}, ${entry.snapshotId}, coalesce(${startMs == null ? null : new Date(startMs).toISOString()}::timestamptz, now()), ${slot}, ${sunsetStreak},
-            ${dwellMs == null ? null : Math.round(dwellMs)}, ${shownIds}::bigint[], now())
+            ${dwellMs == null ? null : Math.round(dwellMs)}, ${shownIds}::bigint[], ${peakAtIso}::timestamptz, ${rendezvous}, now())
     on conflict (feed) do update
       set current_snapshot_id = excluded.current_snapshot_id,
           shown_since = excluded.shown_since,
@@ -337,11 +354,24 @@ export async function commitAdvance(
           sunset_streak = excluded.sunset_streak,
           dwell_ms = excluded.dwell_ms,
           shown_snapshot_ids = excluded.shown_snapshot_ids,
+          peak_at = excluded.peak_at,
+          rendezvous = excluded.rendezvous,
           updated_at = now()
       where kiosk_screen_state.slot is distinct from excluded.slot
     returning feed
   `) as unknown as { feed: Feed }[];
   if (rows.length === 0) return false;
+  await stampShown(feed, shownIds, slot);
+  await logDraw(feed, slot, entry, version, shown, startMs, peakAtMs, rendezvous);
+  return true;
+}
+
+/**
+ * Mark `ids` on glass for `slot` (spec §6.1.1): the same bin-entry stamp
+ * `commitAdvance` and `growDwell` both need, factored out so the two writes
+ * cannot drift apart from each other.
+ */
+async function stampShown(feed: Feed, ids: number[], slot: number): Promise<void> {
   await sql`
     update kiosk_bin_entries
     set tally = tally + 1,
@@ -352,9 +382,44 @@ export async function commitAdvance(
         -- in this one operation (spec §6.1.1). Two counters that agree is the
         -- failure that would not announce itself.
         last_shown_slot = ${slot}
-    where feed = ${feed} and snapshot_id = any(${shownIds}::bigint[])
+    where feed = ${feed} and snapshot_id = any(${ids}::bigint[])
   `;
-  await logDraw(feed, slot, entry, version, shown, startMs);
+}
+
+/**
+ * The keep-going answer (rendezvous spec §3.8): the current dwell plays
+ * `add` more frames of its own camera and ends later. The slot does not
+ * change — growing is not a draw, so unlike `commitAdvance` there is no new
+ * shown-at instant to pin; the bin-entry stamp uses `now()`, same as
+ * `commitAdvance`'s. Returns whether the screen row changed (false when it
+ * was raced out from under us, in which case nothing else runs).
+ */
+export async function growDwell(
+  feed: Feed,
+  slot: number,
+  add: BinEntry[],
+  dwellMs: number,
+): Promise<boolean> {
+  const addIds = add.map((e) => e.snapshotId);
+  const rows = (await sql`
+    update kiosk_screen_state
+    set shown_snapshot_ids = coalesce(shown_snapshot_ids, '{}'::bigint[]) || ${addIds}::bigint[],
+        dwell_ms = ${Math.round(dwellMs)},
+        updated_at = now()
+    where feed = ${feed} and slot = ${slot}
+    returning feed
+  `) as unknown as { feed: Feed }[];
+  if (rows.length === 0) return false;
+  await stampShown(feed, addIds, slot);
+  try {
+    await sql`
+      update kiosk_draws
+      set shown_snapshot_ids = coalesce(shown_snapshot_ids, '{}'::bigint[]) || ${addIds}::bigint[]
+      where feed = ${feed} and slot = ${slot}
+    `;
+  } catch (error) {
+    console.warn('[solo/store] draw log grow failed:', error);
+  }
   return true;
 }
 
@@ -381,12 +446,15 @@ export interface TapeFrame extends StoredEntry {
 export async function logDraw(
   feed: Feed, slot: number, entry: BinEntry, version: SoloVersionName, shown: BinEntry[],
   shownAtMs: number | null = null,
+  peakAtMs: number | null = null,
+  rendezvous = false,
 ): Promise<void> {
   try {
     await sql`
-      insert into kiosk_draws (feed, slot, snapshot_id, shown_at, version, deploy_id, bin, quality, detection, shown_snapshot_ids)
+      insert into kiosk_draws (feed, slot, snapshot_id, shown_at, version, deploy_id, bin, quality, detection, shown_snapshot_ids, peak_at, rendezvous)
       select ${feed}, ${slot}, ${entry.snapshotId}, coalesce(${shownAtMs == null ? null : new Date(shownAtMs).toISOString()}::timestamptz, now()), ${version}, (select max(id) from kiosk_deploys),
-             ${entry.bin}, ${entry.quality}, ${entry.detection}, ${shown.map((e) => e.snapshotId)}::bigint[]
+             ${entry.bin}, ${entry.quality}, ${entry.detection}, ${shown.map((e) => e.snapshotId)}::bigint[],
+             ${peakAtMs == null ? null : new Date(peakAtMs).toISOString()}::timestamptz, ${rendezvous}
       on conflict (feed, slot) do nothing
     `;
   } catch (error) {
@@ -423,6 +491,14 @@ export interface DrawRecord extends TapeFrame {
   deployId: number | null;
   /** Every frame the dwell played; the drawn frame alone when the row predates the stamp. */
   shownSnapshotIds: number[];
+  /**
+   * When this dwell's peak landed, ms (rendezvous spec §3.3): the tick this
+   * screen pinned for the other one, or the one it fitted itself to. Null
+   * off the rendezvous dial and for rows written before its migration.
+   */
+  peakAtMs: number | null;
+  /** True only when this dwell's landing was fitted to the other screen's peak. */
+  rendezvous: boolean;
 }
 
 /** A bin row as the replay needs it: the entry plus when it left the bin, if it has. */
@@ -434,6 +510,7 @@ export interface ReplayEntry extends StoredEntry {
 type DrawRow = EntryRow & {
   slot: string | number; shown_at: string; version: string | null; deploy_id: string | number | null;
   shown_snapshot_ids: (string | number)[] | null;
+  peak_at: string | null; rendezvous: boolean | null;
 };
 
 /**
@@ -445,7 +522,7 @@ type DrawRow = EntryRow & {
 export async function listDrawsBetween(feed: Feed, fromMs: number, toMs: number): Promise<DrawRecord[]> {
   try {
     const rows = (await sql`
-      select d.slot, d.shown_at, d.snapshot_id, d.version, d.deploy_id, d.shown_snapshot_ids,
+      select d.slot, d.shown_at, d.snapshot_id, d.version, d.deploy_id, d.shown_snapshot_ids, d.peak_at, d.rendezvous,
              coalesce(e.webcam_id, s.webcam_id) as webcam_id,
              coalesce(d.bin, e.bin) as bin, coalesce(d.quality, e.quality) as quality, coalesce(d.detection, e.detection) as detection,
              coalesce(e.is_new, false) as is_new, coalesce(e.tally, 0) as tally,
@@ -466,6 +543,10 @@ export async function listDrawsBetween(feed: Feed, fromMs: number, toMs: number)
       version: r.version === 'solo' || r.version === 'solo2' ? r.version : null,
       deployId: r.deploy_id == null ? null : num(r.deploy_id),
       shownSnapshotIds: r.shown_snapshot_ids?.length ? r.shown_snapshot_ids.map(num) : [num(r.snapshot_id)],
+      peakAtMs: ms(r.peak_at),
+      // The column is NOT NULL DEFAULT false, so only a row read through a
+      // stub or an older shape can arrive null: it never rendezvoused.
+      rendezvous: r.rendezvous ?? false,
     }));
   } catch (error) {
     console.warn('[solo/store] draw window read failed:', error);

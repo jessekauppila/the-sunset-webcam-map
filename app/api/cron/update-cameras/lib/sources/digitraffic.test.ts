@@ -139,6 +139,35 @@ describe('digitrafficSource.listCameras', () => {
     expect(r).toMatchObject({ attempted: 9, failed: 0, skipped: { station_not_gathering: 1, preset_not_in_collection: 2 } });
   });
 
+  it('caps the in-band presets BEFORE the HEAD pass, so listing cost is bounded', async () => {
+    const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+      if (init?.method === 'HEAD') return { ok: true, status: 200, headers: new Headers({ etag: '"v"' }) };
+      return { ok: true, status: 200, json: async () => fixture };
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const r = await digitrafficSource.listCameras({ now: new Date(), within: everywhere, maxCameras: 3 });
+    // One stations GET plus at most `maxCameras` HEADs -- not one per in-band
+    // preset. This is the bound that keeps a dense source inside the tick.
+    expect(fetchMock).toHaveBeenCalledTimes(1 + 3);
+    expect(r.cameras).toHaveLength(3);
+    expect(r.attempted).toBe(4);
+    expect(r.skipped).toMatchObject({ over_cap: 5 });
+  });
+
+  it('walks a different window of a capped source on the next tick', async () => {
+    const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+      if (init?.method === 'HEAD') return { ok: true, status: 200, headers: new Headers({ etag: '"v"' }) };
+      return { ok: true, status: 200, json: async () => fixture };
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const t0 = new Date('2026-09-16T00:00:00Z');
+    const a = await digitrafficSource.listCameras({ now: t0, within: everywhere, maxCameras: 3 });
+    const b = await digitrafficSource.listCameras({
+      now: new Date(t0.getTime() + 10 * 60 * 1000), within: everywhere, maxCameras: 3,
+    });
+    expect(a.cameras.map((c) => c.externalId)).not.toEqual(b.cameras.map((c) => c.externalId));
+  });
+
   it('counts a non-OK station list by status instead of throwing, and HEADs nothing', async () => {
     const fetchMock = vi.fn(async () => ({ ok: false, status: 406, json: async () => ({}) }));
     vi.stubGlobal('fetch', fetchMock);

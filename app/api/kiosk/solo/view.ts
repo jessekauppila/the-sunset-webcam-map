@@ -72,6 +72,18 @@ export interface TapeEntry extends EntryView {
   shownAt: number;
 }
 
+/**
+ * What the advance did with a draw (rendezvous spec §3): pinned a landing of
+ * its own, fitted to the other screen's, kept the ending run going, or found
+ * no fit and drew plainly. Null for a version with no rendezvous.
+ *
+ * Named apart from rendezvous.ts's `Decision`, which is the engine's fuller
+ * answer (frames, dropped, the landing): this is only the word the response
+ * carries for the studio and the logs.
+ */
+export type AdvanceDecision =
+  'plain' | 'pin' | 'fit' | 'grow' | 'nofit · too soon' | 'nofit · nothing to add' | null;
+
 export interface StateView {
   feed: Feed;
   dials: SoloDials;
@@ -95,12 +107,22 @@ export interface StateView {
      */
     endsAtMs: number | null;
     /**
-     * The frames this dwell plays, in play order, the drawn frame last, as
-     * the draw pinned them. A solo2 run; `[entry]` for solo. The glass renders
-     * exactly this list, so what steps on glass and what the published end was
-     * sized for are one decision rather than two derivations that can differ.
+     * The frames this dwell plays, in play order: the run as the draw pinned
+     * it — the climb, the peak, then what the cap left; the drawn frame (the
+     * newest) plays only when the window reaches it. A solo2 run; `[entry]`
+     * for solo. The glass renders exactly this list, so what steps on glass
+     * and what the published end was sized for are one decision rather than
+     * two derivations that can differ.
      */
     shownSnapshotIds: number[];
+    /**
+     * When this dwell's peak lands, ms since epoch (rendezvous spec §3.3), as
+     * the draw pinned it. Null off the rendezvous dial, for solo, and for a
+     * draw that found nothing to meet and nothing worth pinning.
+     */
+    peakAtMs: number | null;
+    /** True only when this landing was FITTED to the other screen's, rather than pinned for it to meet. */
+    rendezvous: boolean;
   } | null;
   next: EntryView[];
   /** Parallel to `next`: what each draw is inside its bar. All peaks for solo. */
@@ -224,6 +246,8 @@ export function buildStateView(input: {
         slot: screen?.slot ?? null,
         endsAtMs,
         shownSnapshotIds: currentRunIds,
+        peakAtMs: screen?.peakAtMs ?? null,
+        rendezvous: screen?.rendezvous ?? false,
       }
       : null,
     next: next.map((e) => view(byId.get(e.snapshotId)!)),
