@@ -81,6 +81,23 @@ describe('PiecePage', () => {
     expect(screen.getAllByTestId('top').map((i) => i.getAttribute('src'))).toEqual(['u11', 'u22']);
   });
 
+  it('keeps the live half up when the other feed is answering 503', async () => {
+    // The projection answers 503 with a cache header when the store is down,
+    // so one feed can be failing while the other is perfectly healthy.
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => (
+      url.includes('sunrise')
+        ? { ok: true, json: async () => viewFor('sunrise', 11) }
+        : { ok: false, status: 503, json: async () => ({ error: 'mirror unavailable' }) }
+    )));
+
+    render(<PiecePage />);
+    await flush();
+
+    expect(screen.getByTestId('piece')).toBeInTheDocument();
+    expect(screen.getAllByTestId('top').map((i) => i.getAttribute('src'))).toEqual(['u11']);
+    expect(screen.getByTestId('piece-panel-sunset')).toBeInTheDocument();
+  });
+
   it('keeps the pair geometry from the feed that did answer, so the live half is not resized', async () => {
     vi.stubGlobal('fetch', vi.fn(async (url: string) => {
       if (!url.includes('sunrise')) return new Promise(() => { /* sunset never answers */ });

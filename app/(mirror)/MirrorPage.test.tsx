@@ -74,6 +74,24 @@ describe('MirrorPage', () => {
     }
   });
 
+  it('stays black and keeps asking while the projection is answering 503', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
+      calls.push({ url, method: init?.method ?? 'GET' });
+      return { ok: false, status: 503, json: async () => ({ error: 'mirror unavailable' }) };
+    }));
+
+    render(<MirrorPage feed="sunset" />);
+    await flush();
+    expect(screen.getByTestId('mirror-dark')).toBeInTheDocument();
+
+    // It must not give up: the 503 is cacheable and short-lived, so the page
+    // has to be there on its own when the store comes back.
+    const before = calls.length;
+    await act(async () => { await vi.advanceTimersByTimeAsync(70_000); });
+    expect(calls.length).toBeGreaterThan(before);
+    expect(calls.every((c) => c.method === 'GET')).toBe(true);
+  });
+
   it('falls back to the default preset when the live one is a name this build does not know', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => ({ ...view, panelPreset: 'panel-from-the-future' }) })));
     render(<MirrorPage feed="sunset" />);
