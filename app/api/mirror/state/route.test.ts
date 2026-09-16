@@ -124,6 +124,8 @@ describe('GET /api/mirror/state', () => {
   it('rejects any parameter but feed, so the cache key space stays two URLs', async () => {
     expect((await get('?feed=sunset&r=1')).status).toBe(400);
     expect((await get('?feed=sunset&version=solo')).status).toBe(400);
+    // A repeated feed reads as sunset but is a fresh key on every value.
+    expect((await get('?feed=sunset&feed=sunrise')).status).toBe(400);
     expect(commitAdvance).not.toHaveBeenCalled();
   });
   it('with the rendezvous dial on, reads the other screen and commits the fit', async () => {

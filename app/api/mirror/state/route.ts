@@ -30,6 +30,13 @@ export async function GET(request: NextRequest) {
   for (const key of request.nextUrl.searchParams.keys()) {
     if (key !== 'feed') return NextResponse.json({ error: 'only feed is accepted' }, { status: 400 });
   }
+  // A REPEATED `feed` is the same hole by another door: `get` reads the first
+  // value, so `?feed=sunset&feed=x1`, `&feed=x2`, … all answer for sunset while
+  // each is a fresh key and a fresh origin call. The key space is two URLs only
+  // if `feed` appears exactly once.
+  if (request.nextUrl.searchParams.getAll('feed').length !== 1) {
+    return NextResponse.json({ error: 'only feed is accepted' }, { status: 400 });
+  }
 
   try {
     const version = SOLO_VERSIONS.solo2 as SoloVersionSpec;
