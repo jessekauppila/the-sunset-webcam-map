@@ -63,11 +63,18 @@ it('the tape button folds the tape away and back', () => {
   expect(screen.getByTestId('pair-tape')).toBeInTheDocument();
 });
 
-it('clicking a block on the tape opens the pop-up at that frame', () => {
+it('clicking a block on the tape opens the pop-up at THAT frame, not at the head of the list', () => {
   render(<SoloPanel version={SOLO_VERSIONS.solo} liveDials={D} nowMs={5_000} sunrise={stateOf('sunrise')} sunset={stateOf('sunset')} />);
   expect(screen.queryByTestId('frame-line')).toBeNull();
-  fireEvent.click(screen.getByTestId('tape-current-sunrise'));
-  expect(screen.getByTestId('frame-line')).toHaveTextContent(/^frame 1 ·/);
+  // A PROJECTED block, not the one on glass: the on-glass frame is already the
+  // head of the tape's list, so clicking it cannot tell a real lookup apart
+  // from a handler that always opened at list[0].
+  const block = screen.getByTestId('tape-next-sunrise-0');
+  const id = Number((block.querySelector('img')?.getAttribute('src') ?? '').replace('u', ''));
+  expect(id).toBeGreaterThan(0);
+  expect(id).not.toBe(1); // 1 is on glass, and first in the list
+  fireEvent.click(block);
+  expect(screen.getByTestId('frame-line')).toHaveTextContent(new RegExp(`^frame ${id} ·`));
 });
 
 it('an errored feed shows its error text and no column', () => {
