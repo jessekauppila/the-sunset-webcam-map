@@ -3,7 +3,7 @@ import { renderHook, act } from '@testing-library/react';
 import { schemaDefaults } from '@/app/lib/settings/schema';
 import { SOLO2_SETTINGS_SCHEMA, dialsFrom2 } from '@/app/lib/solo2/settingsSchema';
 import { withCaption } from '@/app/lib/solo/captionSchema';
-import { FOLLOW_GRACE_MS, FOLLOW_PATIENCE_MS, RETRY_MS, STATE_REFRESH_MS, useGlassFollower } from './useGlassFollower';
+import { FOLLOW_GRACE_MS, RETRY_MS, STATE_REFRESH_MS, useGlassFollower } from './useGlassFollower';
 
 const D = dialsFrom2(withCaption(schemaDefaults(SOLO2_SETTINGS_SCHEMA)));
 const entry = (id: number, webcamId = 7) => ({
@@ -82,41 +82,60 @@ describe('useGlassFollower', () => {
     await flush();
     await advance(DWELL + FOLLOW_GRACE_MS + 5); // t ≈ 20.7 s: the boundary fetch finds slot 0 still
     expect(fetches()).toBe(2);
-    await advance(RETRY_MS * 3 + 5); // t ≈ 23.7 s: three retries
-    // act() only flushes a fire's re-arm when the advance() call returns
-    // (docs/solutions .../feedback_act_flushes_effects_at_boundaries.md), so
-    // one advance() call surfaces at most one of the retries armed inside
-    // it; the other two are still pending and fire at the start of whatever
-    // advance() call reaches them next (see below). Measured, not 3 by formula.
-    expect(fetches()).toBe(3);
-    await advance(FOLLOW_PATIENCE_MS); // t ≈ 33.7 s: retries stopped at 30.7 s
+    // act() only flushes a fire's re-arm when its own advance() call
+    // returns (app/components/solo/useSoloGlass.test.tsx:169-175 hits the
+    // same thing), so each retry needs its own advance() to land within it.
+    for (let i = 0; i < 3; i += 1) await advance(RETRY_MS); // t ≈ 21.7, 22.7, 23.7 s: three retries
+    expect(fetches()).toBe(5);
+    // The patience window is 10 s from the 20.7 s boundary miss: seven more
+    // retries land at 24.7 .. 30.7 s, then the tenth's re-arm check finds
+    // the window exceeded and declines to schedule an eleventh.
+    for (let i = 0; i < 7; i += 1) await advance(RETRY_MS);
     const afterPatience = fetches();
-    await advance(RETRY_MS * 5); // t ≈ 38.7 s, before the minute refresh
+    expect(afterPatience).toBe(12); // boundary miss + 10 retries, genuinely parked at 30.7 s
+    await advance(RETRY_MS * 5); // t ≈ 35.7 s, well past the window and before the minute refresh
     expect(fetches()).toBe(afterPatience); // parked
+  });
+  it('an empty glass does not strand a stale patience clock for the next dwell', async () => {
+    // Enter retry mode immediately: the served end is already long past.
+    served = { ...view(0), current: { ...view(0).current!, endsAtMs: NOW - 10_000 } };
+    renderHook(() => useGlassFollower('sunrise'));
+    await flush(); // t ≈ 5 ms: the mount fetch finds it already past due; waitingSinceMs is set here
+    served = view(0, { current: false }); // the next read finds nothing on glass
+    await advance(RETRY_MS); // t ≈ 1.0 s: the pending retry fires and finds nothing
+    // More than ten seconds pass with nothing on glass; only the minute
+    // refresh is scheduled. Change what it will find before it fires: the
+    // same slot, already past due again.
+    served = { ...view(0), current: { ...view(0).current!, endsAtMs: NOW } };
+    await advance(STATE_REFRESH_MS - RETRY_MS + 5); // t ≈ 60.0 s: the minute refresh finds the miss
+    const afterMiss = fetches();
+    // A stale waitingSinceMs (left over from the very first miss, above)
+    // would read as ten seconds overdue already and park on this miss with
+    // zero retries; a cleared one gets a fresh patience window and retries.
+    for (let i = 0; i < 3; i += 1) await advance(RETRY_MS);
+    expect(fetches()).toBeGreaterThanOrEqual(afterMiss + 2);
   });
   it('resumes boundary timing when a refresh brings a future end', async () => {
     const { result } = renderHook(() => useGlassFollower('sunrise'));
     await flush();
-    const toParked = DWELL + FOLLOW_GRACE_MS + FOLLOW_PATIENCE_MS + RETRY_MS;
-    await advance(toParked); // t ≈ 31.7 s: parked
+    await advance(DWELL + FOLLOW_GRACE_MS + 5); // t ≈ 20.7 s: the boundary fetch finds slot 0 still
+    // Stepped advances all the way to the patience cutoff, so `parked` is
+    // captured once the hook has genuinely stopped retrying, not mid-chain
+    // (see the retry test above for why a single lumped advance would lie).
+    for (let i = 0; i < 10; i += 1) await advance(RETRY_MS); // t ≈ 21.7 .. 30.7 s: ten retries, then parked
     const parked = fetches();
+    expect(parked).toBe(12); // boundary miss + 10 retries
     // The glass moved on while we were parked. The minute refresh at 60 s
     // learns of slot 1, on glass since 70 s, ending at 90 s.
     served = { ...view(1), current: { ...view(1).current!, shownSince: NOW + 70_000, endsAtMs: NOW + 90_000 } };
-    // Two fetches land in this window, not one: the retry armed just before
-    // `parked` was read is still pending (act() only flushes a fire's re-arm
-    // when its own advance() call returns, so `parked` was captured before
-    // that pending retry fired), and it comes due here alongside the minute
-    // refresh itself. Both are real fetches; `parked` only undercounts how
-    // far the retry chain had actually progressed at the moment it was read.
-    await advance(STATE_REFRESH_MS - toParked + 10); // t ≈ 60.01 s
-    expect(fetches()).toBe(parked + 2);
+    await advance(STATE_REFRESH_MS - (DWELL + FOLLOW_GRACE_MS + 5 + RETRY_MS * 10) + 10); // t ≈ 60.01 s
+    expect(fetches()).toBe(parked + 1);
     expect(result.current.slot).toBe(1);
     served = view(2);
     await advance(30_000); // t ≈ 90.01 s: the end, but not yet the grace
-    expect(fetches()).toBe(parked + 2);
+    expect(fetches()).toBe(parked + 1);
     await advance(FOLLOW_GRACE_MS + 10); // t ≈ 90.72 s
-    expect(fetches()).toBe(parked + 3);
+    expect(fetches()).toBe(parked + 2);
     expect(result.current.slot).toBe(2);
   });
   it('a longer end with the same slot is a continuation: re-arms the wait, never the retry loop', async () => {
@@ -150,13 +169,12 @@ describe('useGlassFollower', () => {
   it('never sends anything but a GET, and never to the kiosk endpoints', async () => {
     renderHook(() => useGlassFollower('sunrise'));
     await flush();
-    await advance(DWELL + FOLLOW_GRACE_MS + FOLLOW_PATIENCE_MS + STATE_REFRESH_MS);
-    // One advance() call surfaces at most one re-armed fire beyond the ones
-    // already pending when it started (see the retry test above), so this
-    // single long call undercounts how many of the window's boundary/retry/
-    // refresh fires actually land; >2 (mount, boundary, at least one more)
-    // is what it reliably measures, not the full count a real clock would produce.
-    expect(calls.length).toBeGreaterThan(2);
+    await advance(DWELL + FOLLOW_GRACE_MS + 5); // t ≈ 20.7 s: the boundary fetch finds slot 0 still
+    // Stepped advances so the window genuinely contains the retries (see
+    // the retry test above for why one lumped advance would not).
+    for (let i = 0; i < 10; i += 1) await advance(RETRY_MS); // t ≈ 21.7 .. 30.7 s: ten retries, then parked
+    await advance(STATE_REFRESH_MS - (DWELL + FOLLOW_GRACE_MS + 5 + RETRY_MS * 10) + 10); // t ≈ 60.01 s: the minute refresh
+    expect(calls.length).toBeGreaterThan(3);
     expect(calls.every((c) => c.method === 'GET')).toBe(true);
     expect(calls.every((c) => c.url.startsWith('/api/mirror/state?feed=sunrise'))).toBe(true);
   });

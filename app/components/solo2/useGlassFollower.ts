@@ -77,8 +77,14 @@ export function useGlassFollower(feed: Feed): GlassFollower {
       lastSlot.current = slot;
       waitingSinceMs.current = null;
     }
-    // Nothing on glass: the minute refresh is what recovers.
-    if (endsAtMs == null) return;
+    // Nothing on glass: the minute refresh is what recovers. Clear the
+    // patience clock too — otherwise a stale waitingSinceMs from a prior
+    // dwell survives the empty gap and parks the next dwell's first miss
+    // immediately, with zero retries.
+    if (endsAtMs == null) {
+      waitingSinceMs.current = null;
+      return;
+    }
     const now = Date.now();
     const due = endsAtMs + FOLLOW_GRACE_MS;
     let wait: number;
