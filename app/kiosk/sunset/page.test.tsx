@@ -14,6 +14,12 @@ vi.mock('@/app/components/mosaic/v1', () => ({
   ),
 }));
 
+vi.mock('@/app/components/solo2', () => ({
+  Solo2Kiosk: (props: Record<string, unknown>) => (
+    <div data-testid="solo2" data-feed={String(props.feed)} />
+  ),
+}));
+
 vi.mock('@/app/store/useLoadTerminatorWebcams', () => ({
   useLoadTerminatorWebcams: vi.fn(),
 }));
@@ -109,5 +115,15 @@ describe('SunsetKioskPage', () => {
     useKioskRuntimeMock.mockReturnValue({ dozing: true });
     render(<SunsetKioskPage />);
     expect(useLoadTerminatorWebcams).toHaveBeenCalledWith({ paused: true });
+  });
+
+  it('with activeVersion solo2 renders the follower for this feed, doze overlay and all', () => {
+    useKioskRuntimeMock.mockReturnValue({
+      dozing: true,
+      liveSettings: { namespaces: { shared: { activeVersion: 'solo2' } }, revision: 1 },
+    } as never);
+    render(<SunsetKioskPage />);
+    expect(screen.getByTestId('solo2').getAttribute('data-feed')).toBe('sunset');
+    expect(screen.queryByTestId('geo-mosaic')).toBeNull();
   });
 });

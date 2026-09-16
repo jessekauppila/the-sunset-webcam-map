@@ -1,6 +1,7 @@
 //suite of tools to manage firebase image database
 
 import { getFirebaseBucket } from './firebase';
+import { reencodeForStorage, type ReencodeResult } from './frameReencode';
 import type { WindyWebcam } from './types';
 
 /**
@@ -38,14 +39,20 @@ export async function uploadToFirebase(
   imageBuffer: Buffer,
   webcamId: number,
   timestamp: Date
-): Promise<{ url: string; path: string }> {
+): Promise<{ url: string; path: string; reencode: ReencodeResult }> {
   const bucket = getFirebaseBucket();
   const fileName = `${timestamp.getTime()}.jpg`;
   const path = `snapshots/${webcamId}/${fileName}`;
 
   const file = bucket.file(path);
 
-  await file.save(imageBuffer, {
+  // Frames are stored as their source sent them, and sources disagree by more
+  // than an order of magnitude about what a JPEG costs. Compress here, on the
+  // one path every stored frame goes through, rather than per source. Never
+  // enlarges and never drops a frame -- see frameReencode.ts.
+  const reencode = await reencodeForStorage(imageBuffer);
+
+  await file.save(reencode.bytes, {
     metadata: {
       contentType: 'image/jpeg',
       metadata: {
@@ -64,6 +71,7 @@ export async function uploadToFirebase(
   return {
     url: publicUrl,
     path,
+    reencode,
   };
 }
 

@@ -61,6 +61,31 @@ describe('MapMosaicModeToggle', () => {
     expect(push).not.toHaveBeenCalled();
   });
 
+  it('offers Mirror, the public view of both gallery screens', () => {
+    render(<MapMosaicModeToggle mode="globe" onModeChange={vi.fn()} />);
+    expect(screen.getByRole('button', { name: /^mirror$/i })).toBeInTheDocument();
+  });
+
+  it('navigates to /mirror rather than switching the view mode', async () => {
+    // A route target like Studio, not a ViewMode: `gallery` is already taken
+    // as a ViewMode string and the piece is a page of its own.
+    const onModeChange = vi.fn();
+    render(<MapMosaicModeToggle mode="globe" onModeChange={onModeChange} />);
+
+    await userEvent.click(screen.getByRole('button', { name: /^mirror$/i }));
+
+    expect(push).toHaveBeenCalledWith('/mirror');
+    expect(onModeChange).not.toHaveBeenCalled();
+  });
+
+  it('marks Mirror as selected when rendered with it current', () => {
+    render(<MapMosaicModeToggle mode="mirror" />);
+    expect(screen.getByRole('button', { name: /^mirror$/i })).toHaveAttribute(
+      'aria-pressed',
+      'true'
+    );
+  });
+
   it('still switches the view mode for real modes', async () => {
     const onModeChange = vi.fn();
     render(<MapMosaicModeToggle mode="globe" onModeChange={onModeChange} />);

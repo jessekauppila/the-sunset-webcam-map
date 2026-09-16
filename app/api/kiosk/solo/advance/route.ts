@@ -1,10 +1,9 @@
 import { NextResponse } from 'next/server';
 import { getLiveSettingsCached } from '@/app/lib/settings/liveSettings';
 import { mergeSettings } from '@/app/lib/settings/schema';
-import { afterShowing } from '@/app/lib/solo/engine';
+import { drawSlot, isDue, kioskSlackMs } from '@/app/lib/solo/advance';
 import { resolveSoloVersion } from '@/app/lib/solo/versions';
-import { commitAdvance, countAdmittedSince, getScreenState, getSweptZone, growDwell, listActiveEntries } from '@/app/lib/solo/store';
-import type { Solo2Dials } from '@/app/lib/solo2/types';
+import { countAdmittedSince, getScreenState, getSweptZone, listActiveEntries } from '@/app/lib/solo/store';
 import { isFlagEnabled, SWEEP_FORCE_DAY_RING } from '@/app/lib/runtimeFlags';
 import { sweepGeometry } from '@/app/api/cron/update-cameras/lib/sweepGeometry';
 import { TERMINATOR_DAY_SIDE_OFFSETS_DEG } from '@/app/lib/masterConfig';
@@ -57,132 +56,11 @@ export async function POST(request: Request) {
   if (Math.abs(slot - serverSlot) > SLOT_TOLERANCE) {
     return NextResponse.json({ error: `slot ${slot} is not near ${serverSlot}` }, { status: 400 });
   }
-  const beatMs = 'beatS' in dials ? (dials as Solo2Dials).beatS * 1000 : 0;
-  /**
-   * A dwell that has not ended is not drawn over (rendezvous spec, global
-   * constraint): the kiosk fires at the end, so only a racing second tab or a
-   * stale tab arrives early, and drawing then would cut a grown dwell short —
-   * the very dwell this screen lengthened to meet the other one.
-   *
-   * The slack is half a beat, and never less than a second: the request
-   * belonging to the ending tick may land just before it, and the kiosk's
-   * clock is not the server's. solo has no beat at all, so without the floor
-   * a tab running a few milliseconds fast would have EVERY advance refused
-   * and the row would stay parked rather than merely be early.
-   */
-  const ending = screenBefore?.shownSince != null && screenBefore.dwellMs != null
-    ? screenBefore.shownSince + screenBefore.dwellMs
-    : null;
-  const slackMs = Math.max(beatMs / 2, 1_000);
-  const notYet = ending != null && nowMs < ending - slackMs;
-  let advanced = false;
-  /** True only on the keep-going answer: the ending dwell was lengthened and no new frame was drawn. */
-  let grown = false;
-  /** What the rendezvous decided, for the studio and the logs; null for a version that has no rendezvous. */
-  let decision: AdvanceDecision = null;
-  let screen = screenBefore;
-  if (notYet) {
-    // Nothing to decide: fall through to the state view with advanced=false,
-    // and the kiosk comes back at the end this response publishes.
-  } else if (screenBefore?.slot !== slot) {
-    const state = {
-      lastSnapshotId: screenBefore?.currentSnapshotId ?? null,
-      sunsetStreak: screenBefore?.sunsetStreak ?? 0,
-    };
-    const pick = version.next(entries, dials, state, slot, feed);
-    if (pick) {
-      const after = afterShowing(pick, state);
-      // On the beat the dwell begins on the tick the kiosk fired on, not when
-      // this request happened to land (beat spec §2.6); solo starts now.
-      const startMs = version.startMs(nowMs, dials);
-      let shown = version.shown(entries, pick, dials);
-      let peakAtMs: number | null = null;
-      let rendezvous = false;
-      if (version.fitNext && version.dwellMsFor) {
-        // The other screen's pinned landing, and only while it is still ahead
-        // of the tick this draw starts on — not of the request instant, which
-        // is a few hundred ms either side of it. A landing already past, or on
-        // the very tick we start, is nothing this draw can meet.
-        // With the dial off there is nothing to fit to, so skip the other
-        // screen's row entirely; fitNext still runs, with null to fit against,
-        // so `decision` reports 'plain' as it always has off the dial.
-        const theirs = (dials as Solo2Dials).rendezvous
-          ? await getScreenState(feed === 'sunrise' ? 'sunset' : 'sunrise')
-          : null;
-        const otherPeak = theirs?.peakAtMs != null && theirs.peakAtMs > startMs ? theirs.peakAtMs : null;
-        // The run ending on THIS screen, so a fit needing more room than the
-        // climb has can ask that run to play on instead of holding anything.
-        // Found by the last frame PLAYED, not the frame drawn: a grown run
-        // ends on a frame the draw never named.
-        const lastShownId = screenBefore?.shownSnapshotIds?.at(-1) ?? screenBefore?.currentSnapshotId ?? null;
-        const endingEntry = lastShownId != null ? entries.find((e) => e.snapshotId === lastShownId) : undefined;
-        const dec = version.fitNext(
-          {
-            t0Ms: startMs,
-            pick,
-            entries,
-            role: version.roleAt(slot, feed, dials),
-            ending: endingEntry ? { webcamId: endingEntry.webcamId, lastShownId: endingEntry.snapshotId } : null,
-          },
-          { peakAtMs: otherPeak },
-          dials,
-        );
-        if (dec.kind === 'grow' && screenBefore?.slot != null && screenBefore.shownSince != null && screenBefore.dwellMs != null) {
-          // Keep going rather than draw: the ending run plays more of its own
-          // camera, one beat each, and the slot does not move. The frame this
-          // draw would have shown is drawn at the new, later end instead.
-          decision = 'grow';
-          const newDwellMs = screenBefore.dwellMs + dec.add.length * beatMs;
-          grown = await growDwell(feed, screenBefore.slot, dec.add, newDwellMs);
-          if (grown) {
-            for (const f of dec.add) {
-              const stored = entries.find((e) => e.snapshotId === f.snapshotId)!;
-              stored.tally += 1;
-              stored.isNew = false;
-              stored.lastShownAt = nowMs;
-            }
-            screen = {
-              ...screenBefore,
-              dwellMs: newDwellMs,
-              shownSnapshotIds: [...(screenBefore.shownSnapshotIds ?? []), ...dec.add.map((e) => e.snapshotId)],
-            };
-          }
-          // A refused grow (the row moved under us) falls through as
-          // advanced:false, grown:false, and the kiosk retries at the end the
-          // row now holds.
-        } else if (dec.kind !== 'grow') {
-          shown = dec.frames;
-          peakAtMs = dec.peakAtMs;
-          rendezvous = dec.kind === 'fit';
-          decision = dec.kind === 'nofit' ? `nofit · ${dec.why}` : dec.kind;
-        }
-      }
-      if (decision !== 'grow') {
-        // Decided ONCE, here, against the pool this draw actually saw and the
-        // frames the fit left it, and stored alongside the start instant.
-        // Every surface reads it back rather than working it out again from a
-        // pool that has since moved.
-        const dwellMs = version.dwellMsFor
-          ? version.dwellMsFor(entries, pick, dials, shown.length)
-          : version.dwellMs(entries, pick, dials);
-        advanced = await commitAdvance(
-          feed, slot, pick, after.sunsetStreak, shown, version.name, dwellMs, startMs, peakAtMs, rendezvous,
-        );
-        if (advanced) {
-          for (const f of shown) {
-            const stored = entries.find((e) => e.snapshotId === f.snapshotId)!;
-            stored.tally += 1;
-            stored.isNew = false;
-            stored.lastShownAt = startMs;
-          }
-          screen = {
-            feed, currentSnapshotId: pick.snapshotId, shownSince: startMs, slot, sunsetStreak: after.sunsetStreak,
-            dwellMs, shownSnapshotIds: shown.map((e) => e.snapshotId), peakAtMs, rendezvous,
-          };
-        }
-      }
-    }
-  }
+  const slackMs = kioskSlackMs(dials);
+  // A dwell that has not ended is not drawn over (rendezvous spec); see kioskSlackMs for why a kiosk-fired request gets half a beat.
+  const { advanced, grown, decision, screen } = isDue(screenBefore, nowMs, slackMs)
+    ? await drawSlot({ feed, version, dials, entries, screenBefore, slot, nowMs })
+    : { advanced: false, grown: false, decision: null as AdvanceDecision, screen: screenBefore };
   const [admitted, sweptZone, forcedDayRing] = await Promise.all([
     countAdmittedSince(feed, nowMs - LAST_PULL_WINDOW_MS),
     getSweptZone(),
