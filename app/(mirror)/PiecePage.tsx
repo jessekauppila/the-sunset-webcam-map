@@ -5,7 +5,6 @@ import { Solo2Screen } from '@/app/components/solo2/Solo2Screen';
 import { useGlassFollower, type GlassFollower } from '@/app/components/solo2/useGlassFollower';
 import type { PanelSize } from '@/app/kiosk/panelPreview';
 import type { Feed } from '@/app/lib/solo/types';
-import type { Solo2Dials } from '@/app/lib/solo2/types';
 import { MirrorDark, panelFor } from './MirrorPage';
 import { fitPiece } from './pieceLayout';
 
@@ -30,10 +29,9 @@ function useViewport(): { width: number; height: number } {
  * That shared factor is what keeps the two pictures the same size as each
  * other, which is the whole claim the page is making.
  */
-function PiecePanel({ feed, glass, dials, panel, scale }: {
+function PiecePanel({ feed, glass, panel, scale }: {
   feed: Feed;
   glass: GlassFollower;
-  dials: Solo2Dials;
   panel: PanelSize;
   scale: number;
 }) {
@@ -52,7 +50,15 @@ function PiecePanel({ feed, glass, dials, panel, scale }: {
           background: '#000',
         }}
       >
-        <Solo2Screen glass={glass} dials={dials} width={panel.width} height={panel.height} feed={feed} debug={false} />
+        {/*
+          Black until this feed's own projection lands, and black again if it
+          stops answering. The panel keeps its place in the pair either way,
+          which is what the glass does: a screen whose feed is down is a dark
+          screen beside a live one, not a dark room.
+        */}
+        {glass.dials ? (
+          <Solo2Screen glass={glass} dials={glass.dials} width={panel.width} height={panel.height} feed={feed} debug={false} />
+        ) : null}
       </div>
     </div>
   );
@@ -80,12 +86,14 @@ export function PiecePage() {
   const sunset = useGlassFollower('sunset');
   const viewport = useViewport();
 
-  // Both, not either: a lone panel appearing first would show the piece
-  // lopsided and then jump, and the dials arrive with the projection whether
-  // or not that feed has anything drawable, so waiting costs nothing beyond
-  // the slower of two requests.
-  if (!sunrise.dials || !sunset.dials) return <MirrorDark />;
-  // One preset for both, because one live profile sets it for both panels.
+  // Either, not both. Waiting for both would hold the whole page black
+  // whenever ONE feed's projection is failing, which is a worse lie than a
+  // dark half: the gallery in that state has one screen lit and one dark.
+  // Both requests go out together, so in the ordinary case the second lands
+  // within milliseconds of the first and nothing is seen to arrive late.
+  if (!sunrise.dials && !sunset.dials) return <MirrorDark />;
+  // One preset for both, because one live profile sets it for both panels;
+  // whichever feed has answered can therefore speak for the pair's geometry.
   const panel = panelFor(sunrise.panelPreset ?? sunset.panelPreset);
   const layout = fitPiece(panel, viewport.width, viewport.height);
   if (layout.scale <= 0) return <MirrorDark />;
@@ -95,8 +103,8 @@ export function PiecePage() {
       data-testid="piece"
       style={{ display: 'flex', gap: layout.gap, width: layout.width, height: layout.height }}
     >
-      <PiecePanel feed="sunrise" glass={sunrise} dials={sunrise.dials} panel={panel} scale={layout.scale} />
-      <PiecePanel feed="sunset" glass={sunset} dials={sunset.dials} panel={panel} scale={layout.scale} />
+      <PiecePanel feed="sunrise" glass={sunrise} panel={panel} scale={layout.scale} />
+      <PiecePanel feed="sunset" glass={sunset} panel={panel} scale={layout.scale} />
     </div>
   );
 }

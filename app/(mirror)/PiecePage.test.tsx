@@ -47,7 +47,18 @@ afterEach(() => {
 });
 
 describe('PiecePage', () => {
-  it('is black until BOTH projections have landed, so the pair never appears lopsided', async () => {
+  it('is black before either projection has landed', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => new Promise(() => { /* never settles */ })));
+    render(<PiecePage />);
+    await flush();
+    expect(screen.getByTestId('mirror-dark')).toBeInTheDocument();
+    expect(screen.queryByTestId('piece')).toBeNull();
+  });
+
+  it('shows the live half rather than blacking out the piece when ONE feed never answers', async () => {
+    // The gallery in this state has one screen lit and one dark. Holding the
+    // whole page black would be a worse lie than a dark half — and it would
+    // hide a working screen behind a broken one indefinitely.
     let resolveSunset: (() => void) | null = null;
     vi.stubGlobal('fetch', vi.fn(async (url: string) => {
       const feed = url.includes('sunrise') ? 'sunrise' : 'sunset';
@@ -57,12 +68,31 @@ describe('PiecePage', () => {
 
     render(<PiecePage />);
     await flush();
-    // Sunrise has landed; sunset has not.
-    expect(screen.getByTestId('mirror-dark')).toBeInTheDocument();
-    expect(screen.queryByTestId('piece')).toBeNull();
 
-    await act(async () => { resolveSunset?.(); await vi.advanceTimersByTimeAsync(5); });
+    // Sunrise has landed; sunset has not. The piece is up, both panels hold
+    // their place in the pair, and only the waiting one is empty.
     expect(screen.getByTestId('piece')).toBeInTheDocument();
+    expect(screen.getByTestId('piece-panel-sunrise')).toBeInTheDocument();
+    expect(screen.getByTestId('piece-panel-sunset')).toBeInTheDocument();
+    expect(screen.getAllByTestId('top').map((i) => i.getAttribute('src'))).toEqual(['u11']);
+
+    // And it fills in on its own when the slow feed finally answers.
+    await act(async () => { resolveSunset?.(); await vi.advanceTimersByTimeAsync(5); });
+    expect(screen.getAllByTestId('top').map((i) => i.getAttribute('src'))).toEqual(['u11', 'u22']);
+  });
+
+  it('keeps the pair geometry from the feed that did answer, so the live half is not resized', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      if (!url.includes('sunrise')) return new Promise(() => { /* sunset never answers */ });
+      return { ok: true, json: async () => viewFor('sunrise', 11) };
+    }));
+
+    render(<PiecePage />);
+    await flush();
+    const left = screen.getByTestId('piece-panel-sunrise');
+    const right = screen.getByTestId('piece-panel-sunset');
+    expect(px(left, 'width')).toBeCloseTo(px(right, 'width'), 6);
+    expect(screen.getByTestId('piece-stage-sunrise').style.width).toBe('1920px');
   });
 
   it('draws sunrise left and sunset right, each showing its own feed', async () => {
