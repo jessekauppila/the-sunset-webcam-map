@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server';
 import { getLiveSettingsCached } from '@/app/lib/settings/liveSettings';
 import { mergeSettings } from '@/app/lib/settings/schema';
-import { afterShowing } from '@/app/lib/solo/engine';
+import { drawSlot } from '@/app/lib/solo/advance';
 import { resolveSoloVersion } from '@/app/lib/solo/versions';
-import { commitAdvance, countAdmittedSince, getScreenState, getSweptZone, listActiveEntries } from '@/app/lib/solo/store';
+import { countAdmittedSince, getScreenState, getSweptZone, listActiveEntries } from '@/app/lib/solo/store';
 import { isFlagEnabled, SWEEP_FORCE_DAY_RING } from '@/app/lib/runtimeFlags';
 import { sweepGeometry } from '@/app/api/cron/update-cameras/lib/sweepGeometry';
 import { TERMINATOR_DAY_SIDE_OFFSETS_DEG } from '@/app/lib/masterConfig';
@@ -56,39 +56,7 @@ export async function POST(request: Request) {
   if (Math.abs(slot - serverSlot) > SLOT_TOLERANCE) {
     return NextResponse.json({ error: `slot ${slot} is not near ${serverSlot}` }, { status: 400 });
   }
-  let advanced = false;
-  let screen = screenBefore;
-  if (screenBefore?.slot !== slot) {
-    const state = {
-      lastSnapshotId: screenBefore?.currentSnapshotId ?? null,
-      sunsetStreak: screenBefore?.sunsetStreak ?? 0,
-    };
-    const pick = version.next(entries, dials, state, slot, feed);
-    if (pick) {
-      const after = afterShowing(pick, state);
-      const shown = version.shown(entries, pick, dials);
-      // Decided ONCE, here, against the pool this draw actually saw, and
-      // stored alongside the start instant. Every surface reads it back
-      // rather than working it out again from a pool that has since moved.
-      const dwellMs = version.dwellMs(entries, pick, dials);
-      // On the beat the dwell begins on the tick the kiosk fired on, not when
-      // this request happened to land (beat spec §2.6); solo starts now.
-      const startMs = version.startMs(nowMs, dials);
-      advanced = await commitAdvance(feed, slot, pick, after.sunsetStreak, shown, version.name, dwellMs, startMs);
-      if (advanced) {
-        for (const f of shown) {
-          const stored = entries.find((e) => e.snapshotId === f.snapshotId)!;
-          stored.tally += 1;
-          stored.isNew = false;
-          stored.lastShownAt = startMs;
-        }
-        screen = {
-          feed, currentSnapshotId: pick.snapshotId, shownSince: startMs, slot, sunsetStreak: after.sunsetStreak,
-          dwellMs, shownSnapshotIds: shown.map((e) => e.snapshotId),
-        };
-      }
-    }
-  }
+  const { advanced, screen } = await drawSlot({ feed, version, dials, entries, screenBefore, slot, nowMs });
   const [admitted, sweptZone, forcedDayRing] = await Promise.all([
     countAdmittedSince(feed, nowMs - LAST_PULL_WINDOW_MS),
     getSweptZone(),
