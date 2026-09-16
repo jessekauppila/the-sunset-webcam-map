@@ -53,9 +53,14 @@ export function buildMirrorView(input: {
   // The state view already ranks, stages and projects the queue with this
   // engine; the mirror is a trim of it, not a second derivation. Admitted
   // counts and the zone are pass-through fields it does not carry.
+  //
+  // `depth: 1` because the mirror reads only `next[0]`: the studio's default
+  // projects a draw per eligible frame, each a sequential walk over the pool,
+  // which on a big pool costs seconds per request for a queue this response
+  // throws away. The first draw is the same at any depth.
   const state = buildStateView({
     feed: input.feed, dials: input.dials, entries: input.entries, screen: input.screen, nowMs: input.nowMs,
-    admitted: { sunset: 0, nonSunset: 0 }, zone: { minDeg: 0, maxDeg: 0 }, version,
+    admitted: { sunset: 0, nonSunset: 0 }, zone: { minDeg: 0, maxDeg: 0 }, version, depth: 1,
   });
   const all = new Map<number, EntryView>();
   for (const e of [...(state.current ? [state.current.entry] : []), ...state.next, ...state.bins.sunset, ...state.bins.nonSunset]) {

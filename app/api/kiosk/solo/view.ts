@@ -171,6 +171,13 @@ export function buildStateView(input: {
   version?: SoloVersionSpec;
   /** Past draws for the tape; the state route supplies them, other callers may omit. */
   tape?: (ViewEntry & { slot: number; shownAt: number })[];
+  /**
+   * How many draws to project past the queue. Defaults to every eligible
+   * frame plus the queue, which is what the studio's stages need; a caller
+   * that reads only `next[0]` (the mirror) passes 1 and skips an O(n²) walk
+   * it would throw away. The first draws are identical at any depth.
+   */
+  depth?: number;
 }): StateView {
   const { feed, dials, entries, screen, nowMs } = input;
   const version = input.version ?? (SOLO_VERSIONS.solo as SoloVersionSpec);
@@ -207,7 +214,7 @@ export function buildStateView(input: {
   // nothing on glass, now. The projection's timestamps are then real, which
   // a slot counter can no longer supply on its own (spec §5).
   const projectionStartMs = endsAtMs ?? nowMs;
-  const draws = version.project(entries, dials, state, eligibleCount + NEXT_COUNT, firstSlot, feed, projectionStartMs);
+  const draws = version.project(entries, dials, state, input.depth ?? eligibleCount + NEXT_COUNT, firstSlot, feed, projectionStartMs);
   const next = draws.slice(0, NEXT_COUNT);
   const stages = assignStages({ entries, dials, state, firstSlot, draws, queueDepth: NEXT_COUNT });
   // The frames a draw plays share its stage (camera-run spec §3.4): a
