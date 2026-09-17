@@ -1,4 +1,4 @@
-import { cameraGroups, capFor, compareCapture, peakOf, qualityRank, roomOf, runOf, windowAround, type RunEntry } from './run';
+import { cameraGroups, capFor, compareCapture, peakOf, roomOf, runOf, windowAround, type RunEntry } from './run';
 import type { Role, Solo2Dials } from './types';
 
 export { peakOf, thinClimb, windowAround } from './run';
@@ -54,8 +54,10 @@ export function fitNext<T extends RunEntry>(mine: MySide<T>, theirs: TheirSide, 
   const cap = capFor(mine.pick, d, mine.entries, d.cameraRun);
   const peak = peakOf(series);
   const plain = (): Decision<T> => ({ kind: 'plain', frames: runOf(mine.pick, mine.entries, d.cameraRun, cap), dropped: [], peakAtMs: null });
-  const eligible = d.rendezvous && mine.role === 'peak' && peak !== null && d.cameraRun
-    && qualityRank(mine.pick, mine.entries, d.cameraRun) >= d.rendezvousRank;
+  // Rank gates nothing (scheduler spec §3): a draw participates when it has a
+  // peak to land, whatever that peak is worth. The gate was the whole cadence
+  // problem — 18 meetings over six hours at 0.6, 133 with it gone.
+  const eligible = d.rendezvous && mine.role === 'peak' && peak !== null && d.cameraRun;
   if (!eligible || peak === null) return plain();
 
   const beatMs = d.beatS * 1000;

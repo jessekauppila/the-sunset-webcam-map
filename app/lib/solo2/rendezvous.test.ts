@@ -73,7 +73,6 @@ describe('fitNext', () => {
   it('not eligible → plain, with the default window and no peak pinned', () => {
     for (const m of [
       mine({ role: 'valley' }),
-      mine({ pick: pool[13], entries: pool }),                    // camera 8 ranks 0 < 0.6
       mine({ pick: f(30, 9, 500, null), entries: [...pool, f(30, 9, 500, null)] }), // no peak
     ]) {
       const dec = fitNext(m, { peakAtMs: null }, D);
@@ -81,6 +80,13 @@ describe('fitNext', () => {
       expect(dec.peakAtMs).toBeNull();
     }
     expect(fitNext(mine(), { peakAtMs: null }, { ...D, rendezvous: false }).kind).toBe('plain');
+  });
+
+  it('a weak sunset is still eligible: rank gates nothing (scheduler spec §3)', () => {
+    // Camera 8 is the weakest sunset present — qualityRank 0 — and used to be
+    // excluded by rendezvousRank 0.6. Participation no longer looks at rank.
+    const dec = fitNext(mine({ pick: pool[13] }), { peakAtMs: null }, D);
+    expect(dec.kind).toBe('pin');
   });
 
   it('eligible with nothing to meet → pin at the full climb', () => {
