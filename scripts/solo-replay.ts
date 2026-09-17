@@ -162,6 +162,7 @@ async function main(): Promise<void> {
     + (d.deployedAt ? `(deployed ${clock(Date.parse(d.deployedAt))} PT)` : `(take, saved ${clock(Date.parse(d.createdAt))} PT)`);
 
   /** One screen's block: the two strips side by side, then the summaries. */
+  let pairCounts: { perCamera: Record<number, { draws: number; meetings: number }> } | null = null;
   const report = (p: (typeof prepared)[number], re: Strip) => {
     const summaries = { actual: summarize(p.actual), replay: summarize(re) };
     const agreement = compare(p.actual, re);
@@ -200,22 +201,29 @@ async function main(): Promise<void> {
     }
     else console.log(`${'same frame'.padEnd(18)} (different screens; their counters are independent)`);
     console.log('');
-    console.log('draws per camera (actual | replay)');
+    console.log('draws per camera (actual | replay | met)');
     const cams = new Map<number, { title: string; a: number; r: number }>();
     for (const c of summaries.actual.perCamera) cams.set(c.webcamId, { title: c.title, a: c.draws, r: 0 });
     for (const c of summaries.replay.perCamera) cams.set(c.webcamId, { ...(cams.get(c.webcamId) ?? { title: c.title, a: 0 }), r: c.draws });
-    for (const [id, c] of [...cams].sort((x, y) => y[1].a + y[1].r - (x[1].a + x[1].r)))
-      console.log(`  ${String(c.a).padStart(3)} | ${String(c.r).padStart(3)}  ${short(c.title.replace(/ › .*?: /, ' '), 60)} (${id})`);
+    for (const [id, c] of [...cams].sort((x, y) => y[1].a + y[1].r - (x[1].a + x[1].r))) {
+      // Variety (scheduler spec §7): a camera whose meetings run well above its
+      // share of draws is the choice window reaching too deep.
+      const met = pairCounts?.perCamera[id]?.meetings;
+      const metCol = met == null ? '    ' : String(met).padStart(4);
+      console.log(`  ${String(c.a).padStart(3)} | ${String(c.r).padStart(3)} |${metCol}  ${short(c.title.replace(/ › .*?: /, ' '), 56)} (${id})`);
+    }
     return { summaries, agreement };
   };
 
   // By name, never by position: which screen is which is the whole point of
   // the pair, and it must not depend on the order `feeds` happened to be in.
+  // (declared above `report`'s calls, filled once the pair exists)
   const byFeed = (feed: Feed) => prepared.find((p) => p.feed === feed);
   const both = { sunrise: byFeed('sunrise'), sunset: byFeed('sunset') };
   const pair = both.sunrise && both.sunset
     ? replayPair({ sunrise: both.sunrise.options, sunset: both.sunset.options })
     : null;
+  pairCounts = pair ? pair.rendezvous : null;
   let single: ({ re: Strip } & ReturnType<typeof report>) | null = null;
   for (const [i, p] of prepared.entries()) {
     if (i > 0) console.log('\n————\n');
@@ -225,13 +233,35 @@ async function main(): Promise<void> {
   }
 
   if (pair) {
+    // Reported against the two dials rather than as a bare count (scheduler
+    // spec §7): a count cannot tell a good meeting from an ordinary one.
     const r = pair.rendezvous;
+    const med = (xs: number[]) => {
+      if (xs.length === 0) return null;
+      const v = [...xs].sort((a, b) => a - b);
+      return v.length % 2 ? v[(v.length - 1) / 2] : (v[v.length / 2 - 1] + v[v.length / 2]) / 2;
+    };
+    const hours = (args.to - args.from) / 3_600_000;
+    const announced = r.made + r.missed;
+    const pct = (n: number, d: number) => (d > 0 ? `${(100 * n / d).toFixed(1)}%` : '–');
+    const every = r.made > 0 && hours > 0 ? `${(60 * hours / r.made).toFixed(1)} min` : '–';
+    const gapLine = (feed: Feed) => {
+      const g = r.gaps[feed];
+      return g.length === 0 ? 'one meeting, no gap to measure' : `median ${med(g)} runs, worst ${Math.max(...g)}`;
+    };
+    const rankMed = med(r.pairRanks);
+    const goodDial = (both.sunset?.options.dials as { rendezvousGood?: number } | undefined)?.rendezvousGood ?? null;
+
     console.log('');
-    console.log(`rendezvous: made ${r.made} · missed ${r.missed} · frames dropped ${r.dropped} · grown ${r.grown}`);
-    console.log(`  missed: no partner ${r.missReasons['no partner']} · too soon ${r.missReasons['too soon']} · nothing to add ${r.missReasons['nothing to add']}`);
+    console.log('rendezvous');
+    console.log(`  cadence     ${r.made} meetings · one every ${every}`);
+    console.log(`              sunrise gaps ${gapLine('sunrise')}`);
+    console.log(`              sunset  gaps ${gapLine('sunset')}`);
+    console.log(`  magnitude   pair rank median ${rankMed == null ? '–' : rankMed.toFixed(2)} · ${r.good} good${goodDial == null ? '' : ` (≥ ${goodDial})`}`);
+    console.log(`  conversion  ${pct(r.made, announced)} of ${announced} landings met · no partner ${r.missReasons['no partner']} · too soon ${r.missReasons['too soon']} · nothing to add ${r.missReasons['nothing to add']}`);
+    console.log(`  tax         ${r.dropped} frames dropped · ${r.grown} grown`);
     const smallerEligible = Math.min(r.eligible.sunrise, r.eligible.sunset);
-    const madePerEligible = smallerEligible > 0 ? `${(100 * r.made / smallerEligible).toFixed(1)}%` : '– (no eligible draws)';
-    console.log(`  eligible: sunrise ${r.eligible.sunrise} · sunset ${r.eligible.sunset} · made per eligible ${madePerEligible}`);
+    console.log(`  eligible    sunrise ${r.eligible.sunrise} · sunset ${r.eligible.sunset} · made per eligible ${pct(r.made, smallerEligible)}`);
     for (const l of r.landings) console.log(`  ${clock(l.atMs)}  sunrise slot ${l.sunriseSlot} · sunset slot ${l.sunsetSlot}`);
     if (r.landings.length === 0) console.log('  (no landings in this window)');
   }
