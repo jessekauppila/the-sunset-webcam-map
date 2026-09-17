@@ -267,7 +267,7 @@ function stampShown(frames: BinEntry[], atMs: number, slot: number): void {
 
 /** What a draw does, once anything above the plain path has had its say. */
 type StepDecision =
-  | { kind: 'draw'; shown: BinEntry[]; lengthMs: number; peakAtMs: number | null; rendezvous: boolean; dropped: number }
+  | { kind: 'draw'; pick: BinEntry; shown: BinEntry[]; lengthMs: number; peakAtMs: number | null; rendezvous: boolean; dropped: number }
   /** Do not draw: the dwell that is ending plays `add` more frames of its own camera, one beat each. */
   | { kind: 'grow'; add: BinEntry[]; addedMs: number };
 
@@ -295,7 +295,7 @@ function stepOnce<D extends SoloDials>(s: Screen<D>, decide?: Decide<D>): void {
     return;
   }
   const decision: StepDecision = decide?.(s, pool, pick) ?? {
-    kind: 'draw',
+    kind: 'draw', pick,
     shown: version.shown(pool, pick, dials),
     lengthMs: version.dwellMs(pool, pick, dials),
     peakAtMs: null, rendezvous: false, dropped: 0,
@@ -313,13 +313,16 @@ function stepOnce<D extends SoloDials>(s: Screen<D>, decide?: Decide<D>): void {
     return;
   }
   stampShown(decision.shown, s.atMs, s.slot);
-  const chosen = s.working.find((e) => e.snapshotId === pick.snapshotId)!;
+  // The camera that actually played, which the rendezvous may have chosen from
+  // deeper in the queue than `pick` (scheduler spec §3).
+  const drawn = decision.pick;
+  const chosen = s.working.find((e) => e.snapshotId === drawn.snapshotId)!;
   s.frames.push(frameOf(
-    chosen, s.slot, s.atMs, decision.shown.map((f) => f.snapshotId), s.seen.has(pick.snapshotId), decision.lengthMs,
+    chosen, s.slot, s.atMs, decision.shown.map((f) => f.snapshotId), s.seen.has(drawn.snapshotId), decision.lengthMs,
     { peakAtMs: decision.peakAtMs, rendezvous: decision.rendezvous, dropped: decision.dropped },
   ));
-  s.seen.add(pick.snapshotId);
-  s.state = afterShowing(pick, s.state);
+  s.seen.add(drawn.snapshotId);
+  s.state = afterShowing(drawn, s.state);
   s.atMs += decision.lengthMs;
   s.slot += 1;
 }
@@ -419,7 +422,7 @@ export function replayPair<D extends SoloDials>(o: PairOptions<D>): PairResult {
   const decideFor = (side: Feed): Decide<D> => (s, pool, pick) => {
     const { version, dials } = s.o;
     const plain: StepDecision = {
-      kind: 'draw',
+      kind: 'draw', pick,
       shown: version.shown(pool, pick, dials),
       lengthMs: version.dwellMs(pool, pick, dials),
       peakAtMs: null, rendezvous: false, dropped: 0,
@@ -437,7 +440,7 @@ export function replayPair<D extends SoloDials>(o: PairOptions<D>): PairResult {
     // tick this draw starts on: one already past is nothing to meet.
     const theirs = pins[otherFeed(side)];
     const dec = version.fitNext<ReplayEntry>(
-      { t0Ms: s.atMs, pick: pick as ReplayEntry, entries: pool, role: version.roleAt(s.slot, s.o.feed, dials), ending },
+      { t0Ms: s.atMs, queue: [pick as ReplayEntry], entries: pool, role: version.roleAt(s.slot, s.o.feed, dials), ending },
       { peakAtMs: theirs && theirs.atMs > s.atMs ? theirs.atMs : null },
       dials,
     );
@@ -486,8 +489,9 @@ export function replayPair<D extends SoloDials>(o: PairOptions<D>): PairResult {
     settle(dec.kind === 'pin' ? dec.peakAtMs : null);
     return {
       kind: 'draw',
+      pick: dec.pick,
       shown: dec.frames,
-      lengthMs: version.dwellMsFor(pool, pick, dials, dec.frames.length),
+      lengthMs: version.dwellMsFor(pool, dec.pick, dials, dec.frames.length),
       peakAtMs: dec.peakAtMs,
       rendezvous: dec.kind === 'fit',
       dropped: dec.dropped.length,

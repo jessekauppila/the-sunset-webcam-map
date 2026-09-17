@@ -152,7 +152,7 @@ describe('drawSlot with the rendezvous seam', () => {
     const fitted = [entry(1, 0.9), entry(2, 0.8)];
     const fitting = {
       ...solo2,
-      fitNext: () => ({ kind: 'fit' as const, frames: fitted, peakAtMs: NOW + 8_000 }),
+      fitNext: () => ({ kind: 'fit' as const, pick: fitted[0], frames: fitted, dropped: [], peakAtMs: NOW + 8_000 }),
       dwellMsFor: () => 12_000,
     } as unknown as SoloVersionSpec;
     const dials = { ...D2, rendezvous: true };
@@ -167,7 +167,7 @@ describe('drawSlot with the rendezvous seam', () => {
     expect(getScreenState).toHaveBeenCalledWith('sunrise'); // the other screen's row, because the dial is on
   });
   it('with the dial off it never reads the other screen and commits a plain draw', async () => {
-    const plain = { ...solo2, fitNext: () => ({ kind: 'plain' as const, frames: [entry(1, 0.9)], peakAtMs: null }), dwellMsFor: () => 8_000 } as unknown as SoloVersionSpec;
+    const plain = { ...solo2, fitNext: () => ({ kind: 'plain' as const, pick: entry(1, 0.9), frames: [entry(1, 0.9)], dropped: [], peakAtMs: null }), dwellMsFor: () => 8_000 } as unknown as SoloVersionSpec;
     const r = await drawSlot({ feed: 'sunset', version: plain, dials: { ...D2, rendezvous: false }, entries: [entry(1, 0.9)], screenBefore: null, slot: 0, nowMs: NOW });
     expect(r.decision).toBe('plain');
     expect(getScreenState).not.toHaveBeenCalled();

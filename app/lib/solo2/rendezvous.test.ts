@@ -68,12 +68,12 @@ describe('windowAround', () => {
 describe('fitNext', () => {
   const pool = [...night, f(20, 8, 1000, 0.3), f(21, 8, 1100, 0.35)]; // camera 8 is the weaker sunset
   const mine = (over: Partial<MySide<RunEntry>> = {}): MySide<RunEntry> =>
-    ({ t0Ms: T0, pick: night[12], entries: pool, role: 'peak', ending: null, ...over });
+    ({ t0Ms: T0, queue: [night[12]], entries: pool, role: 'peak', ending: null, ...over });
 
   it('not eligible → plain, with the default window and no peak pinned', () => {
     for (const m of [
       mine({ role: 'valley' }),
-      mine({ pick: f(30, 9, 500, null), entries: [...pool, f(30, 9, 500, null)] }), // no peak
+      mine({ queue: [f(30, 9, 500, null)], entries: [...pool, f(30, 9, 500, null)] }), // no peak
     ]) {
       const dec = fitNext(m, { peakAtMs: null }, D);
       expect(dec.kind).toBe('plain');
@@ -85,8 +85,18 @@ describe('fitNext', () => {
   it('a weak sunset is still eligible: rank gates nothing (scheduler spec §3)', () => {
     // Camera 8 is the weakest sunset present — qualityRank 0 — and used to be
     // excluded by rendezvousRank 0.6. Participation no longer looks at rank.
-    const dec = fitNext(mine({ pick: pool[13] }), { peakAtMs: null }, D);
+    const dec = fitNext(mine({ queue: [pool[13]] }), { peakAtMs: null }, D);
     expect(dec.kind).toBe('pin');
+  });
+
+  it('every drawing decision names the camera it chose', () => {
+    // The advance commits this to the screen row and stamps these frames shown,
+    // so a decision that drew something other than the queue's head has to say
+    // so rather than let the caller assume it knows.
+    const dec = fitNext(mine(), { peakAtMs: null }, D);
+    expect(dec.kind).toBe('pin');
+    if (dec.kind === 'grow') return;
+    expect(dec.pick.webcamId).toBe(7);
   });
 
   it('eligible with nothing to meet → pin at the full climb', () => {
