@@ -21,4 +21,9 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npx vitest run
+      # app/lib/db.ts constructs the Neon client at import, so collecting page
+      # data needs DATABASE_URL to be present. No query runs at build time, so
+      # a syntactically valid dummy is enough — never put real credentials here.
       - run: npm run build
+        env:
+          DATABASE_URL: postgres://ci:ci@localhost:5432/ci
