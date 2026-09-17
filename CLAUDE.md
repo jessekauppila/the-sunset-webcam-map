@@ -23,6 +23,12 @@ the checkout is what made a worktree read as a second repo; don't recreate it.
 (The firmware repo still uses that nested layout. Don't carry either
 convention across.)
 
+Claude Code also has this built in as skills (`superpowers:using-git-worktrees`,
+`compound-engineering:ce-worktree`) — reach for one of those instead of
+hand-rolling `git worktree` commands directly if you want the skill's
+guardrails. They don't know this repo's setup (`node_modules` symlink, env
+file copies, cmux workspace), so `scripts/wt.sh` stays the default here.
+
 Inside a worktree, `next dev` picks a free port on its own, `node_modules` is a
 symlink to the main checkout's, and `.env.local` / `.vercel/` are copied at
 creation. Caveats (adding a dependency, stacked branches):
