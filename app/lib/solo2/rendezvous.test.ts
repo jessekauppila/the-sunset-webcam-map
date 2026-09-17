@@ -152,3 +152,78 @@ describe('fitNext', () => {
     expect(dec.frames).toHaveLength(8); // 6 + peak + 1
   });
 });
+
+describe('fitNext: the choice window (scheduler spec §3)', () => {
+  const grey = f(50, 11, 500, null);
+  // Camera 8 has a climb of ONE frame; camera 7's is nine, capped to seven.
+  // A long climb thins to reach any near landing, so the head only fails to
+  // reach when the landing is far out and its own climb is short.
+  const pool = [...night, f(20, 8, 1000, 0.3), f(21, 8, 1100, 0.35), grey];
+  const cam8 = pool[14];
+  const cam7 = night[12];
+  const mine = (over: Partial<MySide<RunEntry>> = {}): MySide<RunEntry> =>
+    ({ t0Ms: T0, queue: [cam8], entries: pool, role: 'peak', ending: null, ...over });
+  /** avail 3: camera 8's one-frame climb cannot reach it; camera 7's seven can. */
+  const FAR = T0 + beat(1 + 3);
+  /** avail 1: both reach, so the choice is made on rank alone. */
+  const NEAR = T0 + beat(1 + 1);
+
+  it('picks deeper in the queue when the head cannot reach the landing', () => {
+    const dec = fitNext(mine({ queue: [cam8, cam7] }), { peakAtMs: FAR }, { ...D, rendezvousWindow: 2 });
+    expect(dec.kind).toBe('fit');
+    if (dec.kind !== 'fit') return;
+    expect(dec.pick.webcamId).toBe(7);
+    expect(dec.peakAtMs).toBe(FAR);
+  });
+
+  it('a window of 1 never chooses: the head reaches or the meeting is missed', () => {
+    const dec = fitNext(mine({ queue: [cam8, cam7] }), { peakAtMs: FAR }, { ...D, rendezvousWindow: 1 });
+    expect(dec.kind).toBe('nofit');
+    if (dec.kind !== 'nofit') return;
+    expect(dec.why).toBe('nothing to add');
+    expect(dec.pick.webcamId).toBe(8);
+  });
+
+  it('among cameras that reach, the best-ranked wins', () => {
+    // Both reach a near landing. Camera 7 is the stronger sunset and sits
+    // BEHIND camera 8 in the queue, so rank pulls it forward.
+    const dec = fitNext(mine({ queue: [cam8, cam7] }), { peakAtMs: NEAR }, { ...D, rendezvousWindow: 2 });
+    expect(dec.kind).toBe('fit');
+    if (dec.kind !== 'fit') return;
+    expect(dec.pick.webcamId).toBe(7);
+  });
+
+  it('the window bounds the choice: a better camera beyond it is not considered', () => {
+    const dec = fitNext(mine({ queue: [cam8, cam7] }), { peakAtMs: NEAR }, { ...D, rendezvousWindow: 1 });
+    expect(dec.kind).toBe('fit');
+    if (dec.kind !== 'fit') return;
+    expect(dec.pick.webcamId).toBe(8); // camera 7 is 2nd; the window stops at 1
+  });
+
+  it('a camera with no peak is never a candidate', () => {
+    const dec = fitNext(mine({ queue: [cam8, grey, cam7] }), { peakAtMs: FAR }, { ...D, rendezvousWindow: 3 });
+    expect(dec.kind).toBe('fit');
+    if (dec.kind !== 'fit') return;
+    expect(dec.pick.webcamId).toBe(7);
+  });
+
+  it('nothing in the window reaches → grow by the least any of them needs', () => {
+    // avail 12. Camera 7 is short by five, camera 8 by eleven; the grow is
+    // five, the smaller delay, which leaves the later choice widest.
+    const ending = Array.from({ length: 12 }, (_, i) => f(60 + i, 12, 100 + i * 100, null));
+    const dec = fitNext(
+      mine({ queue: [cam7, cam8], entries: [...pool, ...ending], ending: { webcamId: 12, lastShownId: 60 } }),
+      { peakAtMs: T0 + beat(1 + 12) }, { ...D, rendezvousWindow: 2 },
+    );
+    expect(dec.kind).toBe('grow');
+    if (dec.kind !== 'grow') return;
+    expect(dec.add).toHaveLength(5);
+  });
+
+  it('the announcing screen never chooses: it draws the head (scheduler spec §4)', () => {
+    const dec = fitNext(mine({ queue: [cam8, cam7] }), { peakAtMs: null }, { ...D, rendezvousWindow: 4 });
+    expect(dec.kind).toBe('pin');
+    if (dec.kind === 'grow') return;
+    expect(dec.pick.webcamId).toBe(8);
+  });
+});

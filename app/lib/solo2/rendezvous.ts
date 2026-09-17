@@ -1,4 +1,4 @@
-import { cameraGroups, capFor, compareCapture, peakOf, roomOf, runOf, windowAround, type RunEntry } from './run';
+import { cameraGroups, capFor, compareCapture, peakOf, qualityRank, roomOf, runOf, windowAround, type RunEntry } from './run';
 import type { Role, Solo2Dials } from './types';
 
 export { peakOf, thinClimb, windowAround } from './run';
@@ -88,13 +88,46 @@ export function fitNext<T extends RunEntry>(mine: MySide<T>, theirs: TheirSide, 
     const w = windowAround(series, peak, cap);
     return { kind: 'nofit', pick, why: 'too soon', frames: w.frames, dropped: w.dropped, peakAtMs: null };
   }
-  if (avail <= climbMax) {
-    const w = windowAround(series, peak, cap, avail);
-    return { kind: 'fit', pick, frames: w.frames, dropped: w.dropped, peakAtMs: T };
+  // The choice window (scheduler spec §3.1): the head of the queue, and only
+  // cameras with a peak of their own to land. The queue is already ordered
+  // "never shown, then longest since shown", so choosing from its front bounds
+  // how far the rotation can bend — a camera that just played is at the back
+  // and cannot return however convenient its climb is.
+  const groups = cameraGroups(mine.entries);
+  const depth = Math.max(1, Math.floor(d.rendezvousWindow));
+  const candidates = mine.queue.slice(0, depth).flatMap((c, index) => {
+    const cSeries = groups.get(c.webcamId) ?? [c];
+    const cPeak = peakOf(cSeries);
+    if (cPeak === null) return [];
+    const cCap = capFor(c, d, mine.entries, d.cameraRun);
+    const cClimb = Math.min(
+      cSeries.slice().sort(compareCapture).findIndex((e) => e.snapshotId === cPeak.snapshotId),
+      roomOf(cCap),
+    );
+    return [{ c, index, cSeries, cPeak, cCap, cClimb, rank: qualityRank(c, mine.entries, d.cameraRun) }];
+  });
+
+  // Highest rank, then fewest frames dropped, then earlier in the queue. Every
+  // camera here can make the meeting, so preferring the best-ranked costs no
+  // cadence at all — which is what keeps magnitude and cadence on separate
+  // dials (spec §3.2).
+  const reaching = candidates
+    .filter((x) => avail <= x.cClimb)
+    .map((x) => ({ ...x, w: windowAround(x.cSeries, x.cPeak, x.cCap, avail) }))
+    .sort((a, b) => b.rank - a.rank || a.w.dropped.length - b.w.dropped.length || a.index - b.index);
+  if (reaching.length > 0) {
+    const best = reaching[0];
+    return { kind: 'fit', pick: best.c, frames: best.w.frames, dropped: best.w.dropped, peakAtMs: T };
   }
-  // The climb is too short: grow the run that is ending, from its own night.
-  const need = avail - climbMax;
-  if (mine.ending) {
+
+  // Nobody reaches. Growing does not draw — it extends the run already ending,
+  // and the choice is remade at the later tick against a queue that has not
+  // moved — so grow by the LEAST any candidate needs, which is the most
+  // conservative delay and leaves that later choice widest.
+  const need = candidates.length > 0
+    ? Math.min(...candidates.map((x) => avail - x.cClimb))
+    : avail - climbMax;
+  if (need > 0 && mine.ending) {
     const theirSeries = (cameraGroups(mine.entries).get(mine.ending.webcamId) ?? []).slice().sort(compareCapture);
     const last = theirSeries.findIndex((e) => e.snapshotId === mine.ending!.lastShownId);
     const add = last >= 0 ? theirSeries.slice(last + 1, last + 1 + need) : [];

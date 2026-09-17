@@ -439,8 +439,11 @@ export function replayPair<D extends SoloDials>(o: PairOptions<D>): PairResult {
     // The other screen's landing, and only while it is still ahead of the
     // tick this draw starts on: one already past is nothing to meet.
     const theirs = pins[otherFeed(side)];
+    // The queue the rendezvous may choose from, exactly as the server builds it.
+    const depth = Math.max(1, Math.floor((dials as unknown as { rendezvousWindow?: number }).rendezvousWindow ?? 1));
+    const q = version.queue ? version.queue<ReplayEntry>(pool, dials, s.state, s.slot, s.o.feed, depth) : [];
     const dec = version.fitNext<ReplayEntry>(
-      { t0Ms: s.atMs, queue: [pick as ReplayEntry], entries: pool, role: version.roleAt(s.slot, s.o.feed, dials), ending },
+      { t0Ms: s.atMs, queue: q.length > 0 ? q : [pick as ReplayEntry], entries: pool, role: version.roleAt(s.slot, s.o.feed, dials), ending },
       { peakAtMs: theirs && theirs.atMs > s.atMs ? theirs.atMs : null },
       dials,
     );
