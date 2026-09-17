@@ -72,9 +72,10 @@ available, exactly as today. `F.peak_at = T`, `rendezvous = true`.
 Growing is asked only when no camera in the window can fit by thinning alone.
 Growing does not draw — it extends the run already ending, and the choice is
 remade at the later tick against a queue that has not moved — so it is the
-fallback, not a candidate's property. Take the window's best-ranked camera whose
-climb is shortest of those needing growth, and grow by what that camera needs; if
-the ending camera has no frames left, tier 2.
+fallback, not a candidate's property. Grow by the least any candidate in the
+window needs (`avail − climbMax`, smallest across the window), which is the most
+conservative delay and leaves the later choice widest; if the ending camera has
+no frames left, tier 2.
 
 **Tier 2 — no landing outstanding, or none of the window can reach it.** Draw
 the queue's head, as the rules have always chosen it, and announce: plan with
