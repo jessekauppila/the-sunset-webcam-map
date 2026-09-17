@@ -3,7 +3,7 @@ import { render, screen, act } from '@testing-library/react';
 import { schemaDefaults } from '@/app/lib/settings/schema';
 import { SOLO2_SETTINGS_SCHEMA, dialsFrom2 } from '@/app/lib/solo2/settingsSchema';
 import { withCaption } from '@/app/lib/solo/captionSchema';
-import { PANEL_GAP_FRACTION, PIECE_MARGIN_FRACTION } from './pieceLayout';
+import { PANEL_GAP_FRACTION, PIECE_MARGIN_FRACTION, panelCrop } from './pieceLayout';
 import { PiecePage } from './PiecePage';
 
 const D = dialsFrom2(withCaption(schemaDefaults(SOLO2_SETTINGS_SCHEMA)));
@@ -130,6 +130,27 @@ describe('PiecePage', () => {
       const stage = screen.getByTestId(`piece-stage-${feed}`);
       expect(stage.style.width).toBe('1920px');
       expect(stage.style.height).toBe('1080px');
+    }
+  });
+
+  it('shows the picture, not the black beside it: each panel is a window onto its crop', async () => {
+    // What Jesse saw before this: two pictures with a corridor between them,
+    // which was each panel's own inner margin twice over, not the seam.
+    render(<PiecePage />);
+    await flush();
+    const crop = panelCrop(D, { width: 1920, height: 1080 });
+    expect(crop.width).toBeLessThan(1920); // the dials under test do inset the picture
+
+    for (const feed of ['sunrise', 'sunset']) {
+      const box = screen.getByTestId(`piece-panel-${feed}`);
+      const stage = screen.getByTestId(`piece-stage-${feed}`);
+      // The stage is still the whole panel — the composition is untouched.
+      expect(stage.style.width).toBe('1920px');
+      // The window over it is the content's width, at the pair's scale.
+      const scale = px(box, 'height') / 1080;
+      expect(px(box, 'width')).toBeCloseTo(crop.width * scale, 4);
+      // ...and the panel is slid so the content's left edge sits at the window's.
+      expect(stage.style.transform).toContain(`translateX(${-crop.left}px)`);
     }
   });
 

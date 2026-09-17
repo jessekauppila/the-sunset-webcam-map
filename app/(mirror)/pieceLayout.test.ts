@@ -1,8 +1,82 @@
 import { describe, it, expect } from 'vitest';
-import { PANEL_GAP_FRACTION, PIECE_MARGIN_FRACTION, fitPiece } from './pieceLayout';
+import { PANEL_GAP_FRACTION, PIECE_MARGIN_FRACTION, fitPiece, panelCrop } from './pieceLayout';
+import { pictureRect } from '@/app/lib/solo/caption';
 
 const DELL_L = { width: 1920, height: 1080 };
 const KTC_L = { width: 2560, height: 1440 };
+
+/** The live gallery dials on 2026-09-16, the composition the piece must mirror. */
+const LIVE = {
+  captionLayout: 'inset' as const,
+  captionAlign: 'picture' as const,
+  captionGap: 14,
+  pictureHeight: 72,
+  pictureShift: -5,
+};
+
+describe('panelCrop', () => {
+  it('drops the black either side of the picture: the crop IS the picture at the live dials', () => {
+    const picture = pictureRect(LIVE, DELL_L.width, DELL_L.height);
+    const crop = panelCrop(LIVE, DELL_L);
+
+    expect(crop.left).toBe(picture.left);
+    expect(crop.width).toBe(picture.width);
+    // 72% of the panel's height, and the picture keeps the panel's aspect,
+    // so 14% of the panel's width was black down each side.
+    expect(crop.width / DELL_L.width).toBeCloseTo(0.72, 2);
+  });
+
+  it('follows the caption out when captionAlign spreads it across the panel', () => {
+    const picture = pictureRect(LIVE, DELL_L.width, DELL_L.height);
+    const wide = panelCrop({ ...LIVE, captionAlign: 'panel' }, DELL_L);
+
+    // The words run nearly the panel's width at this dial; cropping to the
+    // picture would slice their ends off.
+    expect(wide.left).toBeLessThan(picture.left);
+    expect(wide.left + wide.width).toBeGreaterThan(picture.left + picture.width);
+    expect(wide.left).toBeGreaterThanOrEqual(0);
+    expect(wide.left + wide.width).toBeLessThanOrEqual(DELL_L.width);
+  });
+
+  it('shows the whole panel when the caption is centred in it', () => {
+    const crop = panelCrop({ ...LIVE, captionAlign: 'center' }, DELL_L);
+    expect(crop).toEqual({ left: 0, width: DELL_L.width });
+  });
+
+  it('shows the whole panel under an overlay caption, where the picture already fills it', () => {
+    const crop = panelCrop({ ...LIVE, captionLayout: 'overlay' }, DELL_L);
+    expect(crop).toEqual({ left: 0, width: DELL_L.width });
+  });
+
+  it('stays inside the panel at every picture height, and never crops to nothing', () => {
+    for (const preset of [DELL_L, KTC_L]) {
+      for (let pictureHeight = 20; pictureHeight <= 100; pictureHeight += 5) {
+        const crop = panelCrop({ ...LIVE, pictureHeight }, preset);
+        expect(crop.left).toBeGreaterThanOrEqual(0);
+        expect(crop.width).toBeGreaterThan(0);
+        expect(crop.left + crop.width).toBeLessThanOrEqual(preset.width);
+      }
+    }
+  });
+
+  it('leaves the seam as the ONLY space between the two pictures', () => {
+    // Jesse, 2026-09-16, on the piece before this crop: the pictures had a
+    // corridor between them. It was never the seam — it was each panel's own
+    // inner margin, twice. This is that complaint as an assertion.
+    const crop = panelCrop(LIVE, DELL_L);
+    const layout = fitPiece({ width: crop.width, height: DELL_L.height }, 1440, 900);
+    const picture = pictureRect(LIVE, DELL_L.width, DELL_L.height);
+
+    // Left picture's right edge to right picture's left edge, in page px.
+    const insetPerSide = (picture.left - crop.left) * layout.scale;
+    const between = insetPerSide * 2 + layout.gap;
+
+    expect(insetPerSide).toBe(0);
+    expect(between).toBeCloseTo(layout.gap, 6);
+    // And the seam stays slight: a hair over 1% of the window, not a corridor.
+    expect(between / 1440).toBeLessThan(0.02);
+  });
+});
 
 describe('fitPiece', () => {
   it('fits the pair and its seam inside the window, margins clear on every side', () => {

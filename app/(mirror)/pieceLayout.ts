@@ -1,4 +1,6 @@
+import { captionBox, pictureRect } from '@/app/lib/solo/caption';
 import type { PanelSize } from '@/app/kiosk/panelPreview';
+import type { SoloDials } from '@/app/lib/solo/types';
 
 /**
  * Fitting BOTH panels into one browser window (mirror spec §3, extended).
@@ -10,7 +12,8 @@ import type { PanelSize } from '@/app/kiosk/panelPreview';
  */
 
 /**
- * The seam between the two pictures, as a fraction of one panel's width.
+ * The seam between the two pictures, as a fraction of one panel's VISIBLE
+ * width — the cropped width from `panelCrop`, not the panel's full width.
  *
  * Deliberately NOT the wall. The gallery's real gap is about 37 mm between
  * the two active areas — 19 mm of wall at 25" arm centres plus a 9 mm bezel
@@ -22,6 +25,61 @@ import type { PanelSize } from '@/app/kiosk/panelPreview';
  * become a third shape competing with the pictures.
  */
 export const PANEL_GAP_FRACTION = 0.015;
+
+/**
+ * The part of a panel the piece actually shows, horizontally.
+ *
+ * A solo2 panel is mostly not picture. At the live dials the picture is 72%
+ * of the panel's height and keeps the panel's aspect, so it is also 72% of
+ * its width, centred — leaving 14% of the panel as black down each side. On
+ * the wall that black is invisible: it is an unlit part of a screen in a
+ * dark room, and the eye reads the lit rectangle as the edge of the work.
+ * Side by side in a browser the two inner margins meet and stop being two
+ * screens' edges; they add into one bright-free corridor between the
+ * pictures, wide enough to become the thing you look at.
+ *
+ * So the piece crops it. Each panel is drawn at its true pixels and shown
+ * through a window the width of its CONTENT, which is why the gap Jesse sees
+ * on a laptop is the seam above and nothing else.
+ *
+ * The mirrors and the wall part company here, on purpose (Jesse, 2026-09-16:
+ * "It's ok if they are different. They are different mediums."). `/sunrise`
+ * and `/sunset` still show a whole panel, because one screen alone has no
+ * facing margin to add up, and the leftover black there reads as ordinary
+ * letterboxing against a black page.
+ *
+ * Content is the union of the picture and the caption, NOT the picture
+ * alone. `captionAlign` is a dial: at `picture` (live today) the words are
+ * already inside the picture's width, but at `panel` or `center` they run
+ * most of the panel, and a crop to the picture would slice the ends off
+ * them. Reading the caption's own box means the dial can move without
+ * quietly cutting words in half here.
+ */
+export interface PanelCrop {
+  /** Left edge of the visible window, in panel pixels from the panel's left. */
+  left: number;
+  /** Width of the visible window, in panel pixels. */
+  width: number;
+}
+
+export function panelCrop(
+  dials: Pick<SoloDials, 'captionLayout' | 'captionAlign' | 'captionGap' | 'pictureHeight' | 'pictureShift'>,
+  panel: PanelSize,
+): PanelCrop {
+  const picture = pictureRect(dials, panel.width, panel.height);
+  const caption = captionBox(dials, picture, panel.width);
+  const captionWidth = caption.width ?? caption.maxWidth ?? 0;
+  const left = Math.max(0, Math.min(picture.left, caption.left));
+  const right = Math.min(
+    panel.width,
+    Math.max(picture.left + picture.width, caption.left + captionWidth),
+  );
+  // A panel whose content somehow measures to nothing falls back to the whole
+  // panel rather than to a zero-width window: showing too much black is a
+  // blemish, showing none of the picture is a blank page.
+  if (!(right > left)) return { left: 0, width: panel.width };
+  return { left, width: right - left };
+}
 
 /**
  * Breathing room around the pair, as a fraction of the SHORTER viewport edge.
@@ -47,6 +105,11 @@ export interface PieceLayout {
  * The scale that fits two panels and their seam inside `viewport`, with
  * `PIECE_MARGIN_FRACTION` of the shorter edge left clear on every side.
  *
+ * `visible` is what each panel SHOWS — `panelCrop`'s width by the panel's
+ * full height — not the panel itself. Fitting the uncropped panel would
+ * scale the piece to include black the page then hides, so the pictures
+ * would land smaller than the window allows.
+ *
  * Capped at 1:1, as `fitScale` is: the frames are archived JPEGs at the
  * panel's own resolution, so drawing them larger than the panel only
  * enlarges their artefacts.
@@ -56,10 +119,10 @@ export interface PieceLayout {
  * the window for one frame; the caller holds the dark box until the numbers
  * are real, which it is doing anyway while the first projection is in flight.
  */
-export function fitPiece(panel: PanelSize, viewportWidth: number, viewportHeight: number): PieceLayout {
-  const gap = panel.width * PANEL_GAP_FRACTION;
-  const contentWidth = panel.width * 2 + gap;
-  const contentHeight = panel.height;
+export function fitPiece(visible: PanelSize, viewportWidth: number, viewportHeight: number): PieceLayout {
+  const gap = visible.width * PANEL_GAP_FRACTION;
+  const contentWidth = visible.width * 2 + gap;
+  const contentHeight = visible.height;
   const margin = Math.min(viewportWidth, viewportHeight) * PIECE_MARGIN_FRACTION;
   const availableWidth = viewportWidth - margin * 2;
   const availableHeight = viewportHeight - margin * 2;
