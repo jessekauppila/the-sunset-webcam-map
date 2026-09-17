@@ -13,7 +13,7 @@ const night = [
   f(11, 7, 1100, 0.7), f(12, 7, 1200, 0.5), f(13, 7, 1300, null),
 ];
 const ids = (xs: RunEntry[]) => xs.map((x) => x.snapshotId);
-const D = { beatS: 4, changeBeats: 1, transition: 'dip' as const, cameraRun: true, rendezvous: true, rendezvousRank: 0.6, runFramesSunset: 8, runFramesOther: 3, runShape: 'flat' as const };
+const D = { beatS: 4, changeBeats: 1, transition: 'dip' as const, cameraRun: true, rendezvous: true, rendezvousWindow: 1, runFramesSunset: 8, runFramesOther: 3, runShape: 'flat' as const };
 const T0 = Date.UTC(2026, 8, 15, 2, 0, 0);
 const beat = (n: number) => n * 4_000;
 

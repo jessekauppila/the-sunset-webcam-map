@@ -15,7 +15,7 @@ export { peakOf, thinClimb, windowAround } from './run';
 
 export type RendezvousDials = Pick<Solo2Dials,
   'beatS' | 'changeBeats' | 'transition' | 'cameraRun' | 'runFramesSunset' | 'runFramesOther' | 'runShape'
-  | 'rendezvous' | 'rendezvousRank'>;
+  | 'rendezvous' | 'rendezvousWindow'>;
 
 export interface MySide<T extends RunEntry> {
   /** The tick this draw would start on: the previous dwell's end. */
