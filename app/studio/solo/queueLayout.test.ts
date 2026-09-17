@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { schemaDefaults } from '@/app/lib/settings/schema';
 import { SOLO2_SETTINGS_SCHEMA, dialsFrom2 } from '@/app/lib/solo2/settingsSchema';
 import type { RunEntry } from '@/app/lib/solo2/run';
-import { layoutQueueLane, crossings } from './queueLane';
+import { layoutQueueLane, crossings } from './queueLayout';
 
 const D = { ...dialsFrom2(schemaDefaults(SOLO2_SETTINGS_SCHEMA)), cameraRun: true, rendezvous: true };
 const T0 = Date.UTC(2026, 8, 16, 2, 0, 0);

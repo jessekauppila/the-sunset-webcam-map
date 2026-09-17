@@ -21,6 +21,14 @@ export interface PairProjection {
   counts: RendezvousCounts;
   /** Per strip, per block: where the block's peak would land with the rendezvous off (null when the block has no peak). */
   ghosts: Record<Feed, (number | null)[]>;
+  /**
+   * Each screen's QUEUE at its next draw, in the rules' own order (scheduler
+   * spec §6.1). Not the same list as the projected strip: the strip is
+   * successive draws, each against a pool the one before it changed, while
+   * this is the single ranked order one draw chose from — which is what the
+   * choice window is a slice of. Empty for a version with no queue seam.
+   */
+  queues: Record<Feed, ReplayEntry[]>;
 }
 
 const toReplayEntry = (e: ViewEntry): ReplayEntry => ({
@@ -60,8 +68,30 @@ function options(feed: Feed, v: StateView, dials: SoloDials, version: SoloVersio
   };
 }
 
+/**
+ * One screen's queue at the draw that follows its current dwell: the same
+ * ordering the engine would use, over the pool as the studio has it. Six deep,
+ * which is the widest the choice window goes plus room to see what it passed
+ * over.
+ */
+const QUEUE_DEPTH = 6;
+function queueOf(feed: Feed, v: StateView, dials: SoloDials, version: SoloVersionSpec): ReplayEntry[] {
+  if (!version.queue) return [];
+  const cur = v.current;
+  const state = {
+    lastSnapshotId: cur?.entry.snapshotId ?? null,
+    sunsetStreak: 0,
+  };
+  const slot = (v.schedule.slot ?? 0) + 1;
+  return version.queue<ReplayEntry>(v.entries.map(toReplayEntry), dials, state, slot, feed, QUEUE_DEPTH);
+}
+
 export function projectPair(input: { sunrise: StateView; sunset: StateView; dials: SoloDials; version: SoloVersionSpec; nowMs: number; horizonMs: number }): PairProjection {
   const { dials, version, nowMs, horizonMs } = input;
+  const queues: Record<Feed, ReplayEntry[]> = {
+    sunrise: queueOf('sunrise', input.sunrise, dials, version),
+    sunset: queueOf('sunset', input.sunset, dials, version),
+  };
   const withR = replayPair({
     sunrise: options('sunrise', input.sunrise, dials, version, nowMs, horizonMs, true),
     sunset: options('sunset', input.sunset, dials, version, nowMs, horizonMs, true),
@@ -80,6 +110,7 @@ export function projectPair(input: { sunrise: StateView; sunset: StateView; dial
         sunrise: withR.sunrise.frames.map(() => null),
         sunset: withR.sunset.frames.map(() => null),
       },
+      queues,
     };
   }
 
@@ -100,5 +131,6 @@ export function projectPair(input: { sunrise: StateView; sunset: StateView; dial
     sunrise: withR.sunrise.frames, sunset: withR.sunset.frames,
     landings: withR.rendezvous.landings, counts: withR.rendezvous,
     ghosts: { sunrise: ghostsOf('sunrise', input.sunrise), sunset: ghostsOf('sunset', input.sunset) },
+    queues,
   };
 }
