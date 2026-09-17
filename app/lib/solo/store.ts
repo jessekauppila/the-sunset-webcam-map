@@ -446,6 +446,34 @@ export interface TapeFrame extends StoredEntry {
 }
 
 /**
+ * How many of this feed's draws have passed since its last meeting, or
+ * Infinity when it has never met (scheduler spec §5). The rendezvous flag on
+ * `kiosk_draws` already records every meeting, so the cadence ceiling needs no
+ * column of its own.
+ *
+ * Called ONLY when `rendezvousRest > 0`, so the default costs no query. Best-
+ * effort like the rest of the draw log: a failure must not stop the glass, and
+ * Infinity is the safe answer — it means "rested long enough", which leaves the
+ * rendezvous behaving as though the ceiling were off.
+ */
+export async function runsSinceRendezvous(feed: Feed, slot: number): Promise<number> {
+  try {
+    const rows = await sql`
+      select slot from kiosk_draws
+      where feed = ${feed} and rendezvous = true
+      order by slot desc
+      limit 1
+    `;
+    if (rows.length === 0) return Number.POSITIVE_INFINITY;
+    // slot is BIGINT and arrives as a string through the Neon driver.
+    return slot - Number(rows[0].slot);
+  } catch (error) {
+    console.warn('[solo/store] runsSinceRendezvous failed:', error);
+    return Number.POSITIVE_INFINITY;
+  }
+}
+
+/**
  * Record a draw for the tape, stamped with what drew it (replay spec §2):
  * the version, the newest deploy (the live profile only changes on Deploy,
  * so that is the profile in force), the entry as the engine saw it, and

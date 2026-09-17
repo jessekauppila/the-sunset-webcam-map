@@ -74,8 +74,12 @@ export interface Solo2Dials extends SoloDials {
   valleys: number;
   screens: Screens;
   // rendezvous
-  /** Both screens land on their best frame on the same tick, when the sunset is good enough (rendezvous spec §3). */
+  /** Both screens land on their best frame on the same tick (rendezvous spec §3). */
   rendezvous: boolean;
-  /** A draw is eligible when its camera's sunset rank clears this: 1 = only the best sunset present, 0 = every sunset. */
-  rendezvousRank: number;
+  /** How many cameras deep into the queue the rendezvous may choose. 1 = never chooses (scheduler spec §3.1). */
+  rendezvousWindow: number;
+  /** A meeting counts as good at or above this pair rank. A label for the studio and the replay; it gates nothing. */
+  rendezvousGood: number;
+  /** After a meeting, how many of this screen's runs pass before it announces again. 0 is off. */
+  rendezvousRest: number;
 }

@@ -92,8 +92,8 @@ describe('one axis', () => {
   });
 });
 
-describe('a tie spans the rows', () => {
-  it('draws exactly three tape-tie elements, one per row, all at the same x, and the ruler one carries the clock', () => {
+describe('a meeting is a box around both frames', () => {
+  it('draws one box spanning both strips, carrying the clock', () => {
     const L = T0 + 40_000;
     const landing: Landing = { atMs: L, sunriseSlot: 0, sunsetSlot: 0 };
     const sunrise = view({ entries: [base(1)] });
@@ -102,27 +102,33 @@ describe('a tie spans the rows', () => {
       sunrise: [strip(1, L, { dwellMs: 20_000 })], sunset: [strip(2, L, { dwellMs: 20_000 })], landings: [landing],
     });
     renderTape({ sunrise, sunset, projection: proj });
-    const ties = screen.getAllByTestId('tape-tie');
-    expect(ties).toHaveLength(3);
-    const lefts = new Set(ties.map((t) => t.style.left));
-    expect(lefts.size).toBe(1);
-    const withClock = ties.find((t) => t.textContent && t.textContent.length > 0);
-    expect(withClock).toBeDefined();
+    const boxes = screen.getAllByTestId('tape-meeting');
+    expect(boxes).toHaveLength(1);
+    expect(boxes[0].getAttribute('data-met')).toBe('true');
+    // It spans from the sunrise strip through the ruler to the sunset strip,
+    // so it is far taller than one row.
+    expect(parseFloat(boxes[0].style.height)).toBeGreaterThan(24); // taller than the ruler alone
+    expect(boxes[0].textContent).toBeTruthy();
   });
 });
 
-describe('a past tie', () => {
-  it('draws one line where a rendezvous past row matches the other feed\'s peakAtMs; an unmatched one draws none', () => {
+describe('a past meeting', () => {
+  it('boxes a landing both strips name; two landings that never met draw as missed', () => {
     const P = T0 + 20_000;
     const sunrise = view({ tape: [tapeEntry(1, 10, T0, { rendezvous: true, peakAtMs: P })], entries: [base(1)] });
     const sunset = view({ tape: [tapeEntry(2, 10, T0, { peakAtMs: P })], entries: [base(2)] });
     renderTape({ sunrise, sunset });
-    expect(screen.getAllByTestId('tape-tie')).toHaveLength(1);
+    const met = screen.getAllByTestId('tape-meeting');
+    expect(met).toHaveLength(1);
+    expect(met[0].getAttribute('data-met')).toBe('true');
     cleanup();
     const sunriseUnmatched = view({ tape: [tapeEntry(1, 10, T0, { rendezvous: true, peakAtMs: P })], entries: [base(1)] });
     const sunsetNoMatch = view({ tape: [tapeEntry(2, 10, T0, { peakAtMs: P + 99_000 })], entries: [base(2)] });
     renderTape({ sunrise: sunriseUnmatched, sunset: sunsetNoMatch });
-    expect(screen.queryAllByTestId('tape-tie')).toHaveLength(0);
+    // Neither landing found a partner, so each draws its own missed box.
+    const missed = screen.queryAllByTestId('tape-meeting');
+    expect(missed).toHaveLength(2);
+    expect(missed.every((b) => b.getAttribute('data-met') === 'false')).toBe(true);
   });
 });
 
@@ -193,7 +199,7 @@ describe('sub-block geometry matches the true arrival convention (final-fix item
   const CHANGE: TapeDials = { dwellS: 20, fadeS: 0, beatS: 4, changeBeats: 1 };
   const runSeries = () => [1, 2, 3, 4].map((id) => base(id, { webcamId: 500, capturedAt: T0 + id * 1000 }));
 
-  it('a rendezvous tie lands inside the peak sub-block, not on its right edge', () => {
+  it('a meeting box sits on the peak sub-block, not past its right edge', () => {
     const sunrise = view({ entries: runSeries() });
     const proj = projection({
       sunrise: [strip(4, T0, { webcamId: 500, shownSnapshotIds: [1, 2, 3, 4], dwellMs: 20_000 })],
@@ -204,7 +210,9 @@ describe('sub-block geometry matches the true arrival convention (final-fix item
     const box = frame1.parentElement!;
     const boxLeft = parseFloat(box.style.left);
     const boxWidth = parseFloat(frame1.style.width);
-    const tieLeft = parseFloat(screen.getAllByTestId('tape-tie')[0].style.left);
+    // The box is inset by its own 4px border allowance; the landing it marks
+    // is that much to the right of the box's left edge.
+    const tieLeft = parseFloat(screen.getAllByTestId('tape-meeting')[0].style.left) + 4;
     expect(tieLeft).toBeGreaterThanOrEqual(boxLeft);
     expect(tieLeft).toBeLessThan(boxLeft + boxWidth);
   });
@@ -292,7 +300,8 @@ describe('solo', () => {
     renderTape({ sunrise, sunset, projection: proj });
     expect(screen.getByTestId('tape-past-1-10')).toBeInTheDocument();
     expect(screen.getByTestId('tape-past-2-10')).toBeInTheDocument();
-    expect(screen.queryAllByTestId('tape-tie')).toHaveLength(0);
+    // Nothing announced a landing, so there is no box of either kind.
+    expect(screen.queryAllByTestId('tape-meeting')).toHaveLength(0);
     expect(screen.queryAllByTestId('tape-ghost')).toHaveLength(0);
   });
 });

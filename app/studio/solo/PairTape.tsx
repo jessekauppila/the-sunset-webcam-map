@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, type ReactNode } from 'react';
 import type { EntryView, StateView } from '@/app/api/kiosk/solo/view';
 import type { Feed } from '@/app/lib/solo/types';
+import type { Solo2Dials } from '@/app/lib/solo2/types';
 import type { PairProjection } from './projectPair';
 import { layoutStrip, type Block } from './pairLayout';
 import { changeBeatsOf } from '@/app/lib/solo2/plan';
@@ -11,6 +12,8 @@ import {
   seamBetween, SeamMark, secs, TAPE_ZOOMS, type TapeDials, THUMB_H, Thumb,
 } from './tapeParts';
 import { PX_PER_S, SCALE_NOTE } from './timeScale';
+import { layoutQueueLane } from './queueLayout';
+import { QueueLane } from './QueueLane';
 
 export { layoutStrip, type Block } from './pairLayout';
 
@@ -35,6 +38,29 @@ const GHOST = '#4b5568';
 /** `dropped`/`grown` frames get this instead of `Thumb`'s fixed red repeat edge, which is a different fact. */
 function OrangeEdge({ testId }: { testId: string }) {
   return <span data-testid={testId} aria-hidden style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: ORANGE, pointerEvents: 'none' }} />;
+}
+
+/**
+ * A landing, drawn as a box around the two frames that share it (scheduler
+ * spec §6) rather than as a rule between them: the pair is the thing, so the
+ * mark encloses both pictures. A landing nobody met draws the same box dashed
+ * and grey, so a miss is as legible as a hit.
+ */
+function MeetingBox({ left, width, top, height, label, met }: {
+  left: number; width: number; top: number; height: number; label: string; met: boolean;
+}) {
+  return (
+    <div data-testid="tape-meeting" data-met={String(met)} aria-hidden title={label} style={{
+      position: 'absolute', left: left - 4, width: width + 8, top: top - 4, height: height + 8,
+      border: `2px ${met ? 'solid' : 'dashed'} ${met ? ORANGE : GHOST}`, borderRadius: 6,
+      zIndex: 3, pointerEvents: 'none',
+    }}>
+      <span style={{
+        position: 'absolute', left: '50%', transform: 'translateX(-50%)', top: -13, whiteSpace: 'nowrap',
+        fontFamily: mono, fontSize: 9, color: met ? ORANGE : GHOST,
+      }}>{label}</span>
+    </div>
+  );
 }
 
 function movedLabel(peakAtMs: number, ghostMs: number): string {
@@ -352,36 +378,73 @@ export function PairTape({ sunrise, sunset, projection, liveDials, studioDials, 
 
   function ties(): ReactNode[] {
     const out: ReactNode[] = [];
-    projection.landings.forEach((l, li) => {
-      (['sunrise', 'ruler', 'sunset'] as const).forEach((row) => {
-        const top = row === 'sunrise' ? rowTop.sunrise : row === 'ruler' ? rowTop.ruler : rowTop.sunset;
-        const h = row === 'ruler' ? RULER_H : rowH;
-        out.push(
-          <span key={`tie-${li}-${row}`} data-testid="tape-tie" title={`rendezvous · ${clock(l.atMs)}`} style={{
-            position: 'absolute', left: x(l.atMs) - 1, top, width: 2, height: h, background: ORANGE, zIndex: 3, pointerEvents: 'none',
-          }}>
-            {row === 'ruler' && <span style={{ position: 'absolute', left: 3, top: 2, fontFamily: mono, fontSize: 8, color: ORANGE, whiteSpace: 'nowrap' }}>{clock(l.atMs)}</span>}
-          </span>,
-        );
-      });
-    });
-    const seenPast = new Set<number>();
-    const check = (mine: Block[], theirs: Block[]) => {
-      for (const b of mine) {
-        if (b.kind !== 'past' || !b.rendezvous || b.peakAtMs == null || seenPast.has(b.peakAtMs)) continue;
-        if (theirs.some((o) => (o.kind === 'past' || o.kind === 'current') && o.peakAtMs === b.peakAtMs)) {
-          seenPast.add(b.peakAtMs);
-          out.push(
-            <span key={`past-tie-${b.peakAtMs}`} data-testid="tape-tie" title={`fitted earlier · ${clock(b.peakAtMs)}`} style={{
-              position: 'absolute', left: x(b.peakAtMs) - 1, top: 0, width: 2, height: totalH, background: ORANGE, zIndex: 3, pointerEvents: 'none',
-            }} />,
-          );
-        }
-      }
-    };
-    check(blocksOf.sunrise, blocksOf.sunset);
-    check(blocksOf.sunset, blocksOf.sunrise);
+    // One frame wide, measured off the same x() the strips use, so the box
+    // sits on the landing frame rather than near it.
+    const frameW = beatS > 0 ? Math.max(6, x(nowMs + beatS * 1000) - x(nowMs)) : MIN_BLOCK_PX;
+    const top = rowTop.sunrise;
+    const height = rowTop.sunset + rowH - rowTop.sunrise;
+    const met = new Set<number>(projection.landings.map((l) => l.atMs));
+    // A landing both strips name is a meeting too, even with no projected
+    // landing for it: that is how a rendezvous already on the glass reads back
+    // off the draw log.
+    const theirPeaks = (bs: Block[]) => new Set(bs.map((b) => b.peakAtMs).filter((v): v is number => v != null));
+    const sunsetPeaks = theirPeaks(blocksOf.sunset);
+    for (const b of blocksOf.sunrise) {
+      if (b.peakAtMs != null && sunsetPeaks.has(b.peakAtMs)) met.add(b.peakAtMs);
+    }
+    for (const atMs of met) {
+      out.push(
+        <MeetingBox key={`tie-${atMs}`} left={x(atMs)} width={frameW} top={top} height={height}
+          label={clock(atMs)} met />,
+      );
+    }
+    // A block that announced a landing nobody met. Derived rather than
+    // published: `landings` holds the meetings, and every other peak_at on
+    // either strip is a landing that passed.
+    const unmet = new Set<number>();
+    for (const b of [...blocksOf.sunrise, ...blocksOf.sunset]) {
+      if (b.peakAtMs != null && !met.has(b.peakAtMs)) unmet.add(b.peakAtMs);
+    }
+    for (const atMs of unmet) {
+      out.push(
+        <MeetingBox key={`unmet-${atMs}`} left={x(atMs)} width={frameW} top={top} height={height}
+          label={`${clock(atMs)} · no partner`} met={false} />,
+      );
+    }
     return out;
+  }
+
+  /**
+   * One screen's queue lane (scheduler spec §6). The queue is in the rules'
+   * own order, not in time order; the lines join each camera to where it
+   * reached the glass, so a line that crosses is a camera the rendezvous
+   * pulled out of turn. The landing it is read against is the OTHER screen's,
+   * which is the one this draw would be fitting to.
+   */
+  function laneFor(feed: Feed): ReactNode {
+    const queue = projection.queues?.[feed] ?? [];
+    const d2 = studioDials[feed] as unknown as Solo2Dials;
+    if (queue.length === 0 || !d2?.rendezvous) return null;
+    const theirs = views[feed === 'sunrise' ? 'sunset' : 'sunrise'].current?.peakAtMs ?? null;
+    const t0Ms = views[feed].current?.endsAtMs ?? nowMs;
+    // Where each camera's first block sits, so a line has somewhere to land.
+    const blockX = new Map<number, number>();
+    for (const b of blocksOf[feed]) {
+      const cam = b.entry?.webcamId;
+      if (cam != null && !blockX.has(cam)) blockX.set(cam, x(b.startMs));
+    }
+    const lane = layoutQueueLane({
+      queue: queue as unknown as EntryView[],
+      entries: views[feed].entries as unknown as EntryView[],
+      dials: d2,
+      outstandingMs: theirs != null && theirs > t0Ms ? theirs : null,
+      t0Ms,
+      chosenId: projection[feed][0]?.snapshotId ?? null,
+      blockX,
+      framePx: 18,
+      gapPx: 6,
+    });
+    return <QueueLane feed={feed} lane={lane} onSelect={onSelect} />;
   }
 
   const noDraws = (feed: Feed) => views[feed].tape.length === 0 && (
@@ -400,6 +463,10 @@ export function PairTape({ sunrise, sunset, projection, liveDials, studioDials, 
         {onZoom && zoomButton('+', zoomIn, 'tape-zoom-in')}
         <span data-testid="tape-rendezvous-summary" style={{ marginLeft: 'auto', fontSize: 10 }}>{rendezvousSummary}</span>
       </span>
+      <div style={{ display: 'flex', flexDirection: 'column', flex: 'none' }}>
+        {/* The queues sit OUTSIDE the two strips so the meeting box runs
+            unbroken between them (scheduler spec §6). */}
+        {laneFor('sunrise')}
       <div style={{ position: 'relative', width, height: totalH, flex: 'none' }}>
         <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: totalH }}>{beatGrid()}</div>
         <div style={{ position: 'absolute', top: rowTop.sunrise, left: 0, right: 0, height: rowH }}>
@@ -418,6 +485,8 @@ export function PairTape({ sunrise, sunset, projection, liveDials, studioDials, 
           {nextRow('sunset')}
         </div>
         {ties()}
+      </div>
+        {laneFor('sunset')}
       </div>
     </div>
   );

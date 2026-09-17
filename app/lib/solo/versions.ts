@@ -2,7 +2,7 @@ import type { SettingsSchema, SettingsValues } from '@/app/lib/settings/schema';
 import { next, project } from './engine';
 import { SOLO_NAMESPACE, SOLO_SETTINGS_SCHEMA, dialsFrom } from './settingsSchema';
 import type { BinEntry, Feed, ScreenState, SoloDials } from './types';
-import { dwellMs2, dwellMsFor, next2, project2, roleAt, shown2 } from '@/app/lib/solo2/engine';
+import { dwellMs2, dwellMsFor, next2, project2, queue2, roleAt, shown2 } from '@/app/lib/solo2/engine';
 import { SOLO2_NAMESPACE, SOLO2_SETTINGS_SCHEMA, dialsFrom2 } from '@/app/lib/solo2/settingsSchema';
 import type { Role, Solo2Dials } from '@/app/lib/solo2/types';
 import { nearestTick } from '@/app/lib/solo2/plan';
@@ -22,6 +22,12 @@ export interface SoloVersionSpec<D extends SoloDials = SoloDials> {
   dialsFrom(values: SettingsValues): D;
   /** The next frame for a draw at `slot`. */
   next(entries: BinEntry[], d: D, state: ScreenState, slot: number, feed: Feed): BinEntry | null;
+  /**
+   * The first `n` draws at `slot`, in the rules' order — `[0]` is what `next`
+   * returns. Only versions whose rendezvous may choose from the queue's head
+   * have one (scheduler spec §3.1); solo does not.
+   */
+  queue?<T extends RunEntry>(entries: T[], d: D, state: ScreenState, slot: number, feed: Feed, n: number): T[];
   /** `n` draws forward, the first at `firstSlot`, going on glass at `startMs`. */
   project(entries: BinEntry[], d: D, state: ScreenState, n: number, firstSlot: number, feed: Feed, startMs?: number): BinEntry[];
   /** What a draw at `slot` is inside the bar; solo is all peaks. */
@@ -75,6 +81,7 @@ const solo2: SoloVersionSpec<Solo2Dials> = {
   schema: SOLO2_SETTINGS_SCHEMA,
   dialsFrom: dialsFrom2,
   next: next2,
+  queue: queue2,
   project: project2,
   roleAt,
   shown: shown2,

@@ -1,4 +1,5 @@
 import { afterShowing } from './engine';
+import { qualityRank, type RunEntry } from '@/app/lib/solo2/run';
 
 import type { BinEntry, BinKind, Feed, ScreenState, SoloDials } from './types';
 import type { SoloVersionSpec } from './versions';
@@ -267,7 +268,7 @@ function stampShown(frames: BinEntry[], atMs: number, slot: number): void {
 
 /** What a draw does, once anything above the plain path has had its say. */
 type StepDecision =
-  | { kind: 'draw'; shown: BinEntry[]; lengthMs: number; peakAtMs: number | null; rendezvous: boolean; dropped: number }
+  | { kind: 'draw'; pick: BinEntry; shown: BinEntry[]; lengthMs: number; peakAtMs: number | null; rendezvous: boolean; dropped: number }
   /** Do not draw: the dwell that is ending plays `add` more frames of its own camera, one beat each. */
   | { kind: 'grow'; add: BinEntry[]; addedMs: number };
 
@@ -295,7 +296,7 @@ function stepOnce<D extends SoloDials>(s: Screen<D>, decide?: Decide<D>): void {
     return;
   }
   const decision: StepDecision = decide?.(s, pool, pick) ?? {
-    kind: 'draw',
+    kind: 'draw', pick,
     shown: version.shown(pool, pick, dials),
     lengthMs: version.dwellMs(pool, pick, dials),
     peakAtMs: null, rendezvous: false, dropped: 0,
@@ -313,13 +314,16 @@ function stepOnce<D extends SoloDials>(s: Screen<D>, decide?: Decide<D>): void {
     return;
   }
   stampShown(decision.shown, s.atMs, s.slot);
-  const chosen = s.working.find((e) => e.snapshotId === pick.snapshotId)!;
+  // The camera that actually played, which the rendezvous may have chosen from
+  // deeper in the queue than `pick` (scheduler spec §3).
+  const drawn = decision.pick;
+  const chosen = s.working.find((e) => e.snapshotId === drawn.snapshotId)!;
   s.frames.push(frameOf(
-    chosen, s.slot, s.atMs, decision.shown.map((f) => f.snapshotId), s.seen.has(pick.snapshotId), decision.lengthMs,
+    chosen, s.slot, s.atMs, decision.shown.map((f) => f.snapshotId), s.seen.has(drawn.snapshotId), decision.lengthMs,
     { peakAtMs: decision.peakAtMs, rendezvous: decision.rendezvous, dropped: decision.dropped },
   ));
-  s.seen.add(pick.snapshotId);
-  s.state = afterShowing(pick, s.state);
+  s.seen.add(drawn.snapshotId);
+  s.state = afterShowing(drawn, s.state);
   s.atMs += decision.lengthMs;
   s.slot += 1;
 }
@@ -358,6 +362,25 @@ export interface RendezvousCounts {
   /** Frames the grows added to dwells that were ending. */
   grown: number;
   landings: Landing[];
+  /**
+   * MAGNITUDE (scheduler spec §7): the pair rank of each meeting — the lower
+   * of the two cameras' ranks among the sunsets present, so a meeting is only
+   * as good as its weaker half. One entry per meeting, in order.
+   */
+  pairRanks: number[];
+  /** Meetings whose pair rank cleared `rendezvousGood`. */
+  good: number;
+  /**
+   * CADENCE: the runs between consecutive meetings, per screen. One entry per
+   * meeting after the first, so a single meeting reports no gap at all —
+   * there is nothing to measure between.
+   */
+  gaps: Record<Feed, number[]>;
+  /**
+   * VARIETY: draws and meetings per camera. A camera whose share of meetings
+   * runs well above its share of draws is the choice window reaching too deep.
+   */
+  perCamera: Record<number, { draws: number; meetings: number }>;
 }
 
 export interface PairResult {
@@ -398,7 +421,7 @@ export function replayPair<D extends SoloDials>(o: PairOptions<D>): PairResult {
    * OTHER screen's `nofit`, since that decision is always about the pin it
    * was trying to meet (`theirs.peakAtMs` was this pin's `atMs`).
    */
-  const pins: Record<Feed, { atMs: number; matched: boolean; lastFailure: 'too soon' | 'nothing to add' | null } | null> =
+  const pins: Record<Feed, { atMs: number; matched: boolean; lastFailure: 'too soon' | 'nothing to add' | null; rank: number } | null> =
     { sunrise: null, sunset: null };
   // A screen can enter the pair already holding a pin from its live dwell
   // (`ReplayOptions.pinnedAtMs`), so the other screen has something to fit to
@@ -407,19 +430,40 @@ export function replayPair<D extends SoloDials>(o: PairOptions<D>): PairResult {
   // meet (the same test `theirs.atMs > s.atMs` applies during the loop).
   for (const f of ['sunrise', 'sunset'] as const) {
     const p = o[f].pinnedAtMs;
-    if (p != null && p > o[f].fromMs) pins[f] = { atMs: p, matched: false, lastFailure: null };
+    // A seeded pin predates this window, so its camera's rank is not knowable
+    // here; 0 makes such a meeting count as ordinary rather than good.
+    if (p != null && p > o[f].fromMs) pins[f] = { atMs: p, matched: false, lastFailure: null, rank: 0 };
   }
   const counts: RendezvousCounts = {
     made: 0, missed: 0,
     missReasons: { 'no partner': 0, 'too soon': 0, 'nothing to add': 0 },
     eligible: { sunrise: 0, sunset: 0 },
     dropped: 0, grown: 0, landings: [],
+    pairRanks: [], good: 0, gaps: { sunrise: [], sunset: [] }, perCamera: {},
+  };
+  const goodAt = (dials: SoloDials) =>
+    (dials as unknown as { rendezvousGood?: number }).rendezvousGood ?? 1;
+  const rankOf = (e: BinEntry, pool: ReplayEntry[], dials: SoloDials) =>
+    qualityRank(e as RunEntry, pool as RunEntry[], (dials as unknown as { cameraRun?: boolean }).cameraRun ?? true);
+
+  /**
+   * Every draw counts toward its camera, whichever path decided it — so the
+   * variety table covers plain draws, pins and fits alike. A `grow` is not a
+   * draw and is not counted.
+   */
+  const tally = (sd: StepDecision): StepDecision => {
+    if (sd.kind === 'draw') {
+      const c = (counts.perCamera[sd.pick.webcamId] ??= { draws: 0, meetings: 0 });
+      c.draws += 1;
+      if (sd.rendezvous) c.meetings += 1;
+    }
+    return sd;
   };
 
-  const decideFor = (side: Feed): Decide<D> => (s, pool, pick) => {
+  const decide = (side: Feed): Decide<D> => (s, pool, pick) => {
     const { version, dials } = s.o;
     const plain: StepDecision = {
-      kind: 'draw',
+      kind: 'draw', pick,
       shown: version.shown(pool, pick, dials),
       lengthMs: version.dwellMs(pool, pick, dials),
       peakAtMs: null, rendezvous: false, dropped: 0,
@@ -436,15 +480,28 @@ export function replayPair<D extends SoloDials>(o: PairOptions<D>): PairResult {
     // The other screen's landing, and only while it is still ahead of the
     // tick this draw starts on: one already past is nothing to meet.
     const theirs = pins[otherFeed(side)];
+    // The cadence ceiling (scheduler spec §5), from the meetings already counted
+    // rather than from the draw log the server reads: same rule, same units.
+    const restRuns = Math.max(0, Math.floor((dials as unknown as { rendezvousRest?: number }).rendezvousRest ?? 0));
+    const lastLanding = counts.landings.at(-1);
+    const sinceMeeting = lastLanding == null
+      ? Number.POSITIVE_INFINITY
+      : s.slot - (side === 'sunrise' ? lastLanding.sunriseSlot : lastLanding.sunsetSlot);
+    const resting = restRuns > 0 && sinceMeeting < restRuns;
+    // The queue the rendezvous may choose from, exactly as the server builds it.
+    const depth = Math.max(1, Math.floor((dials as unknown as { rendezvousWindow?: number }).rendezvousWindow ?? 1));
+    const q = version.queue ? version.queue<ReplayEntry>(pool, dials, s.state, s.slot, s.o.feed, depth) : [];
     const dec = version.fitNext<ReplayEntry>(
-      { t0Ms: s.atMs, pick: pick as ReplayEntry, entries: pool, role: version.roleAt(s.slot, s.o.feed, dials), ending },
-      { peakAtMs: theirs && theirs.atMs > s.atMs ? theirs.atMs : null },
+      { t0Ms: s.atMs, queue: q.length > 0 ? q : [pick as ReplayEntry], entries: pool, role: version.roleAt(s.slot, s.o.feed, dials), ending },
+      { peakAtMs: theirs && theirs.atMs > s.atMs ? theirs.atMs : null, resting },
       dials,
     );
     // `pin`, `fit` and `nofit` are exactly the draws that cleared the gate
     // (rendezvous on, peak role, a peak, a rank above the floor); `plain` and
     // `grow` are not.
     if (dec.kind === 'pin' || dec.kind === 'fit' || dec.kind === 'nofit') counts.eligible[side] += 1;
+    /** The rank of the camera this draw is about, carried on any pin it makes. */
+    const pinRank = dec.kind === 'grow' ? 0 : rankOf(dec.pick, pool, dials);
     /** This screen is drawing: a pin of its own that nothing met has passed, and the new one replaces it. */
     const settle = (next: number | null) => {
       const mine = pins[side];
@@ -452,7 +509,7 @@ export function replayPair<D extends SoloDials>(o: PairOptions<D>): PairResult {
         counts.missed += 1;
         counts.missReasons[mine.lastFailure ?? 'no partner'] += 1;
       }
-      pins[side] = next == null ? null : { atMs: next, matched: false, lastFailure: null };
+      pins[side] = next == null ? null : { atMs: next, matched: false, lastFailure: null, rank: pinRank };
     };
     if (dec.kind === 'grow') {
       // A grow that adds nothing would leave the clock where it is and the
@@ -469,8 +526,23 @@ export function replayPair<D extends SoloDials>(o: PairOptions<D>): PairResult {
     if (dec.kind === 'fit') {
       counts.made += 1;
       counts.dropped += dec.dropped.length;
+      // A meeting is only as good as its weaker half.
+      const pair = Math.min(rankOf(dec.pick, pool, dials), theirs?.rank ?? 0);
+      counts.pairRanks.push(pair);
+      if (pair >= goodAt(dials)) counts.good += 1;
       if (theirs) theirs.matched = true;
       const other = screens[otherFeed(side)];
+      // A meeting has two cameras. The fitting screen's own draw is tallied by
+      // the wrapper below, so credit the announcing screen's camera here —
+      // otherwise a camera that is always the announcing half would look as
+      // though it never met, and the variety table would miss half the story.
+      const theirCam = other.frames.at(-1)?.webcamId;
+      if (theirCam != null) (counts.perCamera[theirCam] ??= { draws: 0, meetings: 0 }).meetings += 1;
+      const prev = counts.landings.at(-1);
+      if (prev) {
+        counts.gaps.sunrise.push((side === 'sunrise' ? s.slot : other.frames.at(-1)?.slot ?? other.slot) - prev.sunriseSlot);
+        counts.gaps.sunset.push((side === 'sunset' ? s.slot : other.frames.at(-1)?.slot ?? other.slot) - prev.sunsetSlot);
+      }
       // The fitting screen lands on the draw it is about to make; the other
       // one lands inside the block already on its glass.
       const theirSlot = other.frames.at(-1)?.slot ?? other.slot;
@@ -486,8 +558,9 @@ export function replayPair<D extends SoloDials>(o: PairOptions<D>): PairResult {
     settle(dec.kind === 'pin' ? dec.peakAtMs : null);
     return {
       kind: 'draw',
+      pick: dec.pick,
       shown: dec.frames,
-      lengthMs: version.dwellMsFor(pool, pick, dials, dec.frames.length),
+      lengthMs: version.dwellMsFor(pool, dec.pick, dials, dec.frames.length),
       peakAtMs: dec.peakAtMs,
       rendezvous: dec.kind === 'fit',
       dropped: dec.dropped.length,
@@ -504,7 +577,7 @@ export function replayPair<D extends SoloDials>(o: PairOptions<D>): PairResult {
     // whole number of beats away (spec §3.5). Idempotent after the first
     // step: every dwell and every blank is whole beats.
     s.atMs = s.o.version.startMs(s.atMs, s.o.dials);
-    stepOnce(s, decideFor(side));
+    stepOnce(s, (sc, pool, pick) => tally(decide(side)(sc, pool, pick)));
   }
   return { sunrise: stripOf(screens.sunrise), sunset: stripOf(screens.sunset), rendezvous: counts };
 }

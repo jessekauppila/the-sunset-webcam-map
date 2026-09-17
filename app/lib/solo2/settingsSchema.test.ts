@@ -28,16 +28,21 @@ describe('solo2 dials on the beat', () => {
 
 describe('rendezvous dials', () => {
   const keys = SOLO2_SETTINGS_SCHEMA.map((k) => k.key);
-  it('has rendezvous and rendezvousRank', () => {
-    expect(keys).toEqual(expect.arrayContaining(['rendezvous', 'rendezvousRank']));
+  it('has the rendezvous dials, and rank is gone', () => {
+    expect(keys).toEqual(expect.arrayContaining(['rendezvous', 'rendezvousWindow', 'rendezvousGood', 'rendezvousRest']));
+    // Removed rather than repurposed: it used to decide whether a meeting
+    // could happen at all, and nothing gates on rank now (scheduler spec §5).
+    expect(keys).not.toContain('rendezvousRank');
   });
-  it('defaults: off, rank 0.6', () => {
+  it('defaults: off, window 4, good 0.75, no rest', () => {
     const d = dialsFrom2(schemaDefaults(SOLO2_SETTINGS_SCHEMA));
     expect(d.rendezvous).toBe(false);
-    expect(d.rendezvousRank).toBe(0.6);
+    expect(d.rendezvousWindow).toBe(4);
+    expect(d.rendezvousGood).toBe(0.75);
+    expect(d.rendezvousRest).toBe(0);
   });
-  it('rendezvousRank is clamped to [0, 1] by mergeSettings', () => {
-    expect(dialsFrom2(mergeSettings(SOLO2_SETTINGS_SCHEMA, { rendezvousRank: 5 })).rendezvousRank).toBe(1);
-    expect(dialsFrom2(mergeSettings(SOLO2_SETTINGS_SCHEMA, { rendezvousRank: -5 })).rendezvousRank).toBe(0);
+  it('the window is clamped to [1, 8] by mergeSettings', () => {
+    expect(dialsFrom2(mergeSettings(SOLO2_SETTINGS_SCHEMA, { rendezvousWindow: 99 })).rendezvousWindow).toBe(8);
+    expect(dialsFrom2(mergeSettings(SOLO2_SETTINGS_SCHEMA, { rendezvousWindow: 0 })).rendezvousWindow).toBe(1);
   });
 });

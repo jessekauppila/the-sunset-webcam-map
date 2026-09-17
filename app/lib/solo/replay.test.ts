@@ -267,7 +267,7 @@ describe('replayPair (rendezvous spec §5)', () => {
       sunrise: opts('sunrise', sunriseNight, T0 + beat(1), T0 + beat(1)),
       sunset: opts('sunset', sunsetNight, T0, T0 + beat(1)),
     });
-    expect(pair.rendezvous).toEqual({
+    expect(pair.rendezvous).toMatchObject({
       made: 1, missed: 0,
       missReasons: { 'no partner': 0, 'too soon': 0, 'nothing to add': 0 },
       eligible: { sunrise: 1, sunset: 1 },
@@ -317,7 +317,7 @@ describe('replayPair (rendezvous spec §5)', () => {
     // before it starts. Camera 9's night has exactly two frames left, so the
     // block that is ending plays them: +2 ids, +8 s, and the clock moves to
     // T0 + 24 s. There avail = (32 − 24)/4 − 1 = 1 = the climb, and it fits.
-    expect(pair.rendezvous).toEqual({
+    expect(pair.rendezvous).toMatchObject({
       made: 1, missed: 0,
       missReasons: { 'no partner': 0, 'too soon': 0, 'nothing to add': 0 },
       eligible: { sunrise: 1, sunset: 1 },
@@ -345,7 +345,7 @@ describe('replayPair (rendezvous spec §5)', () => {
     const a = () => opts('sunrise', sunriseNight, T0 + 1_300, T0 + beat(12), off);
     const b = () => opts('sunset', sunsetNight, T0 + beat(1) + 1_300, T0 + beat(12), off);
     const pair = replayPair({ sunrise: a(), sunset: b() });
-    expect(pair.rendezvous).toEqual({
+    expect(pair.rendezvous).toMatchObject({
       made: 0, missed: 0,
       missReasons: { 'no partner': 0, 'too soon': 0, 'nothing to add': 0 },
       eligible: { sunrise: 0, sunset: 0 },
@@ -374,7 +374,7 @@ describe('replayPair (rendezvous spec §5)', () => {
         // miss — not what this test is isolating.
         sunset: opts('sunset', [...sunsetFirst, ...sunsetSecond], T0, T0 + beat(6)),
       });
-      expect(pair.rendezvous).toEqual({
+      expect(pair.rendezvous).toMatchObject({
         made: 0, missed: 1,
         missReasons: { 'no partner': 1, 'too soon': 0, 'nothing to add': 0 },
         eligible: { sunrise: 0, sunset: 1 },
@@ -394,7 +394,7 @@ describe('replayPair (rendezvous spec §5)', () => {
         sunrise: opts('sunrise', sunriseNight, T0 + beat(1), T0 + beat(1), tight),
         sunset: opts('sunset', sunsetNight, T0, T0 + beat(6), tight),
       });
-      expect(pair.rendezvous).toEqual({
+      expect(pair.rendezvous).toMatchObject({
         made: 0, missed: 1,
         missReasons: { 'no partner': 0, 'too soon': 1, 'nothing to add': 0 },
         eligible: { sunrise: 1, sunset: 2 },
@@ -424,7 +424,7 @@ describe('replayPair (rendezvous spec §5)', () => {
         sunrise: opts('sunrise', [...grey, ...arrivals, ...sunriseNight], T0, T0 + beat(10)),
         sunset: opts('sunset', sunsetNight, T0 + beat(1), T0 + beat(10)),
       });
-      expect(pair.rendezvous).toEqual({
+      expect(pair.rendezvous).toMatchObject({
         made: 0, missed: 1,
         missReasons: { 'no partner': 0, 'too soon': 0, 'nothing to add': 1 },
         eligible: { sunrise: 1, sunset: 2 },
@@ -475,5 +475,57 @@ describe('replayPair (rendezvous spec §5)', () => {
       expect(pair.rendezvous.made).toBe(0);
       expect(pair.sunrise.frames[0]).toMatchObject({ rendezvous: false, peakAtMs: expect.any(Number) });
     });
+  });
+});
+
+describe('replayPair: cadence, magnitude and variety (scheduler spec §7)', () => {
+  const D2 = { ...dialsFrom2(schemaDefaults(SOLO2_SETTINGS_SCHEMA)), rendezvous: true, dwellBoost: 0, dwellTrim: 0 };
+  const beat = (n: number) => n * 4_000;
+  const shot = (id: number, cam: number, capturedAt: number, quality: number | null, enteredAt = T0 - 60_000): ReplayEntry => ({
+    snapshotId: id, webcamId: cam, bin: quality == null ? 'non_sunset' : 'sunset', quality, detection: 0.8,
+    isNew: false, tally: 0, enteredAt, lastShownAt: null, removedAt: null, capturedAt, title: `cam${cam}`,
+  });
+  const opts = (feed: Feed, entries: ReplayEntry[], fromMs: number, toMs: number, dials = D2) =>
+    ({ feed, version: SOLO_VERSIONS.solo2, dials, entries, priorDraws: [] as DrawLike[], fromMs, toMs });
+
+  it('reports a pair rank per meeting, and counts the draws and meetings per camera', () => {
+    const sunsetNight = [
+      shot(1, 7, 100, 0.3), shot(2, 7, 200, 0.4), shot(3, 7, 300, 0.5),
+      shot(4, 7, 400, 0.6), shot(5, 7, 500, 0.9), shot(6, 7, 600, 0.5),
+    ];
+    const sunriseNight = [
+      shot(11, 17, 100, 0.2), shot(12, 17, 200, 0.3), shot(13, 17, 300, 0.4), shot(14, 17, 400, 0.5),
+      shot(15, 17, 500, 0.6), shot(16, 17, 600, 0.95), shot(17, 17, 700, 0.7),
+    ];
+    const pair = replayPair({
+      sunrise: opts('sunrise', sunriseNight, T0 + beat(1), T0 + beat(1)),
+      sunset: opts('sunset', sunsetNight, T0, T0 + beat(1)),
+    });
+    const r = pair.rendezvous;
+    expect(r.made).toBe(1);
+    // One rank per meeting, each a real rank.
+    expect(r.pairRanks).toHaveLength(r.made);
+    for (const x of r.pairRanks) { expect(x).toBeGreaterThanOrEqual(0); expect(x).toBeLessThanOrEqual(1); }
+    // A lone sunset on each screen ranks 1, so this meeting is a good one.
+    expect(r.good).toBe(1);
+    // A gap needs two meetings to measure; one meeting has none.
+    expect(r.gaps.sunrise).toEqual([]);
+    expect(r.gaps.sunset).toEqual([]);
+    // Every draw is counted, and a meeting counts on both cameras.
+    expect(r.perCamera[7]).toEqual({ draws: 1, meetings: 1 });
+    expect(r.perCamera[17]).toEqual({ draws: 1, meetings: 1 });
+    const meetings = Object.values(r.perCamera).reduce((n, c) => n + c.meetings, 0);
+    expect(meetings).toBe(r.made * 2);
+  });
+
+  it('a draw that never meets still counts toward its camera, with no meeting', () => {
+    const grey = [shot(21, 9, 100, null), shot(22, 9, 200, null), shot(23, 9, 300, null)];
+    const pair = replayPair({
+      sunrise: opts('sunrise', grey, T0, T0),
+      sunset: opts('sunset', [], T0, T0),
+    });
+    expect(pair.rendezvous.perCamera[9]).toEqual({ draws: 1, meetings: 0 });
+    expect(pair.rendezvous.made).toBe(0);
+    expect(pair.rendezvous.pairRanks).toEqual([]);
   });
 });

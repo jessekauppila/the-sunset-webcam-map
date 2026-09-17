@@ -139,12 +139,22 @@ export const SOLO2_SETTINGS_SCHEMA: SettingsSchema = [
   {
     key: 'rendezvous', kind: 'boolean', default: false,
     label: 'rendezvous', section: 'rendezvous',
-    description: 'Both screens land on their best-rated frame on the same tick. A screen that draws a good sunset pins the tick its peak will land on; the other screen, drawing its own good sunset, fits to it by dropping frames from its climb or by letting the run that is ending play on. Nothing holds and the rate never changes. Off: the screens drift.',
+    description: 'Both screens land on their best frame on the same tick. A screen drawing a sunset with a peak announces the tick its peak will land on; the other screen fits to it by dropping frames from its climb or by letting the run that is ending play on. Nothing holds and the rate never changes. Off: the screens drift.',
   },
   {
-    key: 'rendezvousRank', kind: 'number', min: 0, max: 1, step: 0.05, default: 0.6,
-    label: 'rendezvous rank', section: 'rendezvous',
-    description: 'How good a sunset must be to get a rendezvous, as its rank among the sunsets present: 1 is only the best on offer, 0 is every sunset. 0.6 is the top forty percent.',
+    key: 'rendezvousWindow', kind: 'number', min: 1, max: 8, step: 1, default: 4,
+    label: 'choice window', section: 'rendezvous',
+    description: 'How many cameras deep into the queue the rendezvous may choose when it has a landing to meet. 1 means it never chooses, so the rotation is strict and the screens meet only when the camera next in line happens to be able to. Higher means more meetings and more repetition, because the cameras with the longest climbs are the easiest to land on a given tick.',
+  },
+  {
+    key: 'rendezvousGood', kind: 'number', min: 0, max: 1, step: 0.05, default: 0.75,
+    label: 'a good meeting', section: 'rendezvous',
+    description: 'A meeting counts as good at or above this pair rank — the lower of the two cameras\' ranks among the sunsets present. A label for the studio and the replay: it does not decide whether meetings happen, so it can sit high without starving them.',
+  },
+  {
+    key: 'rendezvousRest', kind: 'number', min: 0, max: 8, step: 1, default: 0,
+    label: 'rest after a meeting', section: 'rendezvous',
+    description: 'How many of this screen\'s runs pass after a meeting before it will announce another landing. A ceiling on how often the screens meet; 0 is off. It never stops a screen meeting a landing the other one has already announced.',
   },
 ] as const;
 
@@ -177,6 +187,8 @@ export function dialsFrom2(values: SettingsValues): Solo2Dials {
     valleys: values.valleys as number,
     screens: values.screens as Screens,
     rendezvous: values.rendezvous as boolean,
-    rendezvousRank: values.rendezvousRank as number,
+    rendezvousWindow: values.rendezvousWindow as number,
+    rendezvousGood: values.rendezvousGood as number,
+    rendezvousRest: values.rendezvousRest as number,
   };
 }

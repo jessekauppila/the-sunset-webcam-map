@@ -1,6 +1,6 @@
 import { afterShowing } from '@/app/lib/solo/engine';
 import type { SoloVersionSpec } from '@/app/lib/solo/versions';
-import { commitAdvance, getScreenState, growDwell, type ScreenRow, type StoredEntry } from '@/app/lib/solo/store';
+import { commitAdvance, getScreenState, growDwell, runsSinceRendezvous, type ScreenRow, type StoredEntry } from '@/app/lib/solo/store';
 import type { Feed, SoloDials } from '@/app/lib/solo/types';
 import type { Solo2Dials } from '@/app/lib/solo2/types';
 import type { AdvanceDecision } from '@/app/api/kiosk/solo/view';
@@ -51,12 +51,23 @@ export async function drawSlot(input: DrawInput): Promise<DrawResult> {
     lastSnapshotId: screenBefore?.currentSnapshotId ?? null,
     sunsetStreak: screenBefore?.sunsetStreak ?? 0,
   };
-  const pick = version.next(entries, dials, state, slot, feed);
+  // The queue, not just its head: the rendezvous may choose from the front of
+  // it (scheduler spec §3.1). Without the seam, or off the rendezvous, this is
+  // one deep and `drawn` stays the engine's own pick.
+  const depth = version.queue ? Math.max(1, Math.floor((dials as Solo2Dials).rendezvousWindow ?? 1)) : 1;
+  const queue = version.queue ? version.queue(entries, dials, state, slot, feed, depth) : [];
+  const pick = queue[0] ?? version.next(entries, dials, state, slot, feed);
   if (!pick) return { advanced: false, grown: false, decision: null, screen: screenBefore };
-  const after = afterShowing(pick, state);
   // On the beat the dwell begins on the tick the kiosk fired on, not when
   // this request happened to land (beat spec §2.6); solo starts now.
   const startMs = version.startMs(nowMs, dials);
+  /**
+   * The camera that actually goes on glass. It is the engine's pick until a
+   * decision says otherwise; the row, the tallies and the streak are all taken
+   * from THIS, never from `pick`, because the rendezvous may have drawn a
+   * different camera from the queue's head.
+   */
+  let drawn = pick;
   let shown = version.shown(entries, pick, dials);
   let peakAtMs: number | null = null;
   let rendezvous = false;
@@ -72,6 +83,10 @@ export async function drawSlot(input: DrawInput): Promise<DrawResult> {
       ? await getScreenState(feed === 'sunrise' ? 'sunset' : 'sunrise')
       : null;
     const otherPeak = theirs?.peakAtMs != null && theirs.peakAtMs > startMs ? theirs.peakAtMs : null;
+    // The cadence ceiling (scheduler spec §5). Short-circuited on the dial, so
+    // at the default of 0 no query is made and the ceiling costs nothing.
+    const rest = Math.max(0, Math.floor((dials as Solo2Dials).rendezvousRest ?? 0));
+    const resting = rest > 0 && (await runsSinceRendezvous(feed, slot)) < rest;
     // The run ending on THIS screen, so a fit needing more room than the
     // climb has can ask that run to play on instead of holding anything.
     // Found by the last frame PLAYED, not the frame drawn: a grown run
@@ -81,12 +96,12 @@ export async function drawSlot(input: DrawInput): Promise<DrawResult> {
     const dec = version.fitNext(
       {
         t0Ms: startMs,
-        pick,
+        queue: queue.length > 0 ? queue : [pick],
         entries,
         role: version.roleAt(slot, feed, dials),
         ending: endingEntry ? { webcamId: endingEntry.webcamId, lastShownId: endingEntry.snapshotId } : null,
       },
-      { peakAtMs: otherPeak },
+      { peakAtMs: otherPeak, resting },
       dials,
     );
     if (dec.kind === 'grow' && screenBefore?.slot != null && screenBefore.shownSince != null && screenBefore.dwellMs != null) {
@@ -113,6 +128,7 @@ export async function drawSlot(input: DrawInput): Promise<DrawResult> {
       // advanced:false, grown:false, and the kiosk retries at the end the
       // row now holds.
     } else if (dec.kind !== 'grow') {
+      drawn = dec.pick;
       shown = dec.frames;
       peakAtMs = dec.peakAtMs;
       rendezvous = dec.kind === 'fit';
@@ -124,11 +140,12 @@ export async function drawSlot(input: DrawInput): Promise<DrawResult> {
     // frames the fit left it, and stored alongside the start instant.
     // Every surface reads it back rather than working it out again from a
     // pool that has since moved.
+    const after = afterShowing(drawn, state);
     const dwellMs = version.dwellMsFor
-      ? version.dwellMsFor(entries, pick, dials, shown.length)
-      : version.dwellMs(entries, pick, dials);
+      ? version.dwellMsFor(entries, drawn, dials, shown.length)
+      : version.dwellMs(entries, drawn, dials);
     advanced = await commitAdvance(
-      feed, slot, pick, after.sunsetStreak, shown, version.name, dwellMs, startMs, peakAtMs, rendezvous,
+      feed, slot, drawn, after.sunsetStreak, shown, version.name, dwellMs, startMs, peakAtMs, rendezvous,
     );
     if (advanced) {
       for (const f of shown) {
@@ -138,7 +155,7 @@ export async function drawSlot(input: DrawInput): Promise<DrawResult> {
         stored.lastShownAt = startMs;
       }
       screen = {
-        feed, currentSnapshotId: pick.snapshotId, shownSince: startMs, slot, sunsetStreak: after.sunsetStreak,
+        feed, currentSnapshotId: drawn.snapshotId, shownSince: startMs, slot, sunsetStreak: after.sunsetStreak,
         dwellMs, shownSnapshotIds: shown.map((e) => e.snapshotId), peakAtMs, rendezvous,
       };
     }

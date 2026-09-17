@@ -216,9 +216,9 @@ describe('POST /api/kiosk/solo/advance', () => {
     });
     /**
      * Camera 7's night: a climb of four, then its peak — which is also its
-     * newest frame, so it is the engine's pick. The only sunset camera
-     * present, so it ranks 1 and clears rendezvousRank 0.6; the cap is then
-     * the full runFramesSunset 8, leaving room for all five frames.
+     * newest frame, so it is the engine's pick. It has a peak, which is all
+     * participation asks for; as the only sunset camera present it ranks 1, so
+     * the cap is the full runFramesSunset 8 and all five frames fit.
      */
     const night = [frame(1, 7, 100, 0.4), frame(2, 7, 200, 0.5), frame(3, 7, 300, 0.6), frame(4, 7, 400, 0.7), frame(5, 7, 500, 0.95)];
     /** Camera 9: the grey run ending on glass below. 90 and 91 have played; 92 and 93 are what a grow adds. */
