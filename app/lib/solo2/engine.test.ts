@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { schemaDefaults } from '@/app/lib/settings/schema';
 import { project } from '@/app/lib/solo/engine';
 import type { BinEntry, ScreenState } from '@/app/lib/solo/types';
-import { beatOf, next2, project2, roleAt, shown2, dwellMs2, dwellMsFor } from './engine';
+import { beatOf, next2, project2, queue2, roleAt, shown2, dwellMs2, dwellMsFor } from './engine';
 import { fitPlan } from './plan';
 import { SOLO2_SETTINGS_SCHEMA, dialsFrom2 } from './settingsSchema';
 /**
@@ -210,5 +210,30 @@ describe('dwellMsFor: prices a given frame count directly', () => {
   it('agrees with dwellMs2 when handed shown2\'s own length', () => {
     const twelve = Array.from({ length: 12 }, (_, i) => frame(i + 1, 7, (i + 1) * 1000));
     expect(dwellMs2(twelve, twelve[11], D2)).toBe(dwellMsFor(twelve, twelve[11], D2, shown2(twelve, twelve[11], D2).length));
+  });
+});
+
+describe('queue2 (scheduler spec §3)', () => {
+  const pool = twentyOne();
+
+  it('its head is what next2 draws, and it is ordered by the same rules', () => {
+    const q = queue2(pool, D, S0, 0, 'sunset', 4);
+    expect(q[0].snapshotId).toBe(next2(pool, D, S0, 0, 'sunset')!.snapshotId);
+    expect(q.length).toBeLessThanOrEqual(4);
+    // Every entry came back from the caller's array, not a copy.
+    for (const e of q) expect(pool).toContain(e);
+  });
+
+  it('asking for more than the pool holds returns the pool, not padding', () => {
+    expect(queue2(pool, D, S0, 0, 'sunset', 99).length).toBeLessThanOrEqual(pool.length);
+  });
+
+  it('a queue of 0 or less is empty, not the head', () => {
+    expect(queue2(pool, D, S0, 0, 'sunset', 0)).toEqual([]);
+  });
+
+  it('deeper entries follow the same order the head came from', () => {
+    // Rule 3 on a pool where nothing has been shown: best first, by quality.
+    expect(labels(queue2(pool, D, S0, 0, 'sunset', 3))).toEqual(['S1', 'S2', 'S3']);
   });
 });

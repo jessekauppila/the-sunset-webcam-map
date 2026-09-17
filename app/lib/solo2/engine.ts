@@ -34,20 +34,40 @@ function compareValley(d: Solo2Dials) {
 }
 
 /**
+ * The first `n` draws for one screen at `slot`, in the rules' order — the
+ * queue, exactly as the studio column draws it. With the camera run on, the
+ * rules see one entry per camera (run.ts `representative`) and each place is
+ * that camera's newest frame.
+ *
+ * It exists so the rendezvous can choose from the queue's head rather than be
+ * handed only the first place (scheduler spec §3.1). Everything else takes
+ * `[0]`, which is what `next2` is.
+ */
+export function queue2<T extends RunEntry>(
+  entries: T[], d: Solo2Dials, state: ScreenState, slot: number, feed: Feed, n: number,
+): T[] {
+  if (n <= 0) return [];
+  // Rules 5, 4, 2 and 1 are solo's, over cameras when the dial says so.
+  const pool = choosePool(poolEntries(entries, d.cameraRun), d, state, slot);
+  if (pool.length === 0) return [];
+  // Rule 3, on the beat.
+  const cmp = roleAt(slot, feed, d) === 'peak' ? comparePeak(d) : compareValley(d);
+  const out: T[] = [];
+  for (const p of [...pool].sort(cmp).slice(0, n)) {
+    const found = entries.find((e) => e.snapshotId === p.snapshotId);
+    if (found) out.push(found);
+  }
+  return out;
+}
+
+/**
  * The next frame for one screen drawing at `slot`, or null when nothing is
- * eligible. With the camera run on, the rules see one entry per camera
- * (run.ts `representative`) and the pick is that camera's newest frame.
+ * eligible: the head of the queue.
  */
 export function next2<T extends RunEntry>(
   entries: T[], d: Solo2Dials, state: ScreenState, slot: number, feed: Feed,
 ): T | null {
-  // Rules 5, 4, 2 and 1 are solo's, over cameras when the dial says so.
-  const pool = choosePool(poolEntries(entries, d.cameraRun), d, state, slot);
-  if (pool.length === 0) return null;
-  // Rule 3, on the beat.
-  const cmp = roleAt(slot, feed, d) === 'peak' ? comparePeak(d) : compareValley(d);
-  const pick = [...pool].sort(cmp)[0];
-  return entries.find((e) => e.snapshotId === pick.snapshotId) ?? null;
+  return queue2(entries, d, state, slot, feed, 1)[0] ?? null;
 }
 
 /**
