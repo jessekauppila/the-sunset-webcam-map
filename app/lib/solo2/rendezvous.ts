@@ -38,6 +38,13 @@ export interface MySide<T extends RunEntry> {
 export interface TheirSide {
   /** The other screen's pinned landing, ms, or null. */
   peakAtMs: number | null;
+  /**
+   * This screen has met recently and is letting runs pass before announcing
+   * another landing (`rendezvousRest`). It still FITS: a landing already
+   * announced was budgeted by the screen that made it, and refusing to meet it
+   * would waste that screen's whole run for nothing.
+   */
+  resting: boolean;
 }
 
 /**
@@ -80,6 +87,7 @@ export function fitNext<T extends RunEntry>(mine: MySide<T>, theirs: TheirSide, 
 
   const T = theirs.peakAtMs;
   if (T == null) {
+    if (theirs.resting) return plain();
     const w = windowAround(series, peak, cap);
     return { kind: 'pin', pick, frames: w.frames, dropped: w.dropped, peakAtMs: landing(w.frames.findIndex((e) => e.snapshotId === peak.snapshotId)) };
   }

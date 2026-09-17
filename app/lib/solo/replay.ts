@@ -439,12 +439,20 @@ export function replayPair<D extends SoloDials>(o: PairOptions<D>): PairResult {
     // The other screen's landing, and only while it is still ahead of the
     // tick this draw starts on: one already past is nothing to meet.
     const theirs = pins[otherFeed(side)];
+    // The cadence ceiling (scheduler spec §5), from the meetings already counted
+    // rather than from the draw log the server reads: same rule, same units.
+    const restRuns = Math.max(0, Math.floor((dials as unknown as { rendezvousRest?: number }).rendezvousRest ?? 0));
+    const lastLanding = counts.landings.at(-1);
+    const sinceMeeting = lastLanding == null
+      ? Number.POSITIVE_INFINITY
+      : s.slot - (side === 'sunrise' ? lastLanding.sunriseSlot : lastLanding.sunsetSlot);
+    const resting = restRuns > 0 && sinceMeeting < restRuns;
     // The queue the rendezvous may choose from, exactly as the server builds it.
     const depth = Math.max(1, Math.floor((dials as unknown as { rendezvousWindow?: number }).rendezvousWindow ?? 1));
     const q = version.queue ? version.queue<ReplayEntry>(pool, dials, s.state, s.slot, s.o.feed, depth) : [];
     const dec = version.fitNext<ReplayEntry>(
       { t0Ms: s.atMs, queue: q.length > 0 ? q : [pick as ReplayEntry], entries: pool, role: version.roleAt(s.slot, s.o.feed, dials), ending },
-      { peakAtMs: theirs && theirs.atMs > s.atMs ? theirs.atMs : null },
+      { peakAtMs: theirs && theirs.atMs > s.atMs ? theirs.atMs : null, resting },
       dials,
     );
     // `pin`, `fit` and `nofit` are exactly the draws that cleared the gate

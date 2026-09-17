@@ -1,6 +1,6 @@
 import { afterShowing } from '@/app/lib/solo/engine';
 import type { SoloVersionSpec } from '@/app/lib/solo/versions';
-import { commitAdvance, getScreenState, growDwell, type ScreenRow, type StoredEntry } from '@/app/lib/solo/store';
+import { commitAdvance, getScreenState, growDwell, runsSinceRendezvous, type ScreenRow, type StoredEntry } from '@/app/lib/solo/store';
 import type { Feed, SoloDials } from '@/app/lib/solo/types';
 import type { Solo2Dials } from '@/app/lib/solo2/types';
 import type { AdvanceDecision } from '@/app/api/kiosk/solo/view';
@@ -83,6 +83,10 @@ export async function drawSlot(input: DrawInput): Promise<DrawResult> {
       ? await getScreenState(feed === 'sunrise' ? 'sunset' : 'sunrise')
       : null;
     const otherPeak = theirs?.peakAtMs != null && theirs.peakAtMs > startMs ? theirs.peakAtMs : null;
+    // The cadence ceiling (scheduler spec §5). Short-circuited on the dial, so
+    // at the default of 0 no query is made and the ceiling costs nothing.
+    const rest = Math.max(0, Math.floor((dials as Solo2Dials).rendezvousRest ?? 0));
+    const resting = rest > 0 && (await runsSinceRendezvous(feed, slot)) < rest;
     // The run ending on THIS screen, so a fit needing more room than the
     // climb has can ask that run to play on instead of holding anything.
     // Found by the last frame PLAYED, not the frame drawn: a grown run
@@ -97,7 +101,7 @@ export async function drawSlot(input: DrawInput): Promise<DrawResult> {
         role: version.roleAt(slot, feed, dials),
         ending: endingEntry ? { webcamId: endingEntry.webcamId, lastShownId: endingEntry.snapshotId } : null,
       },
-      { peakAtMs: otherPeak },
+      { peakAtMs: otherPeak, resting },
       dials,
     );
     if (dec.kind === 'grow' && screenBefore?.slot != null && screenBefore.shownSince != null && screenBefore.dwellMs != null) {
