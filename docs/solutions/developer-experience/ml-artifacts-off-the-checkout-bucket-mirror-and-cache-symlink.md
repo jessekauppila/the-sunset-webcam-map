@@ -15,7 +15,7 @@ symptoms:
   - "best.pt checkpoints existed only on one Mac with no backup"
 root_cause: missing_tooling
 resolution_type: tooling_addition
-tags: [gcs, gcloud-rsync, ml-artifacts, worktrees, symlink, gitignore, backup, dvc]
+tags: [gcs, gcloud-rsync, ml-artifacts, worktrees, symlink, gitignore, backup, restore-test]
 ---
 
 # Keeping ML artifacts off the checkout: bucket mirror plus cache symlink
@@ -106,6 +106,33 @@ Verified on 2026-09-17:
 
 ### Gotchas hit along the way
 
+**The worst one: a pull silently skips every large file.** The push had
+worked and been verified, but pulling a run into a fresh worktree returned
+nothing for `best.pt`:
+
+```
+ERROR: Source hash j/IYeg== does not match destination hash AAAAAA== for object .../best.pt_.gstmp
+```
+
+`AAAAAA==` is the checksum of zero bytes. gcloud 585 splits large downloads
+into parallel slices, and on this Mac the temporary `.gstmp` file stays empty,
+so the hash check fails and the file is discarded. The bucket copy is fine: a
+plain `gcloud storage cp` fetches the full 44,780,484 bytes with a matching
+MD5. Only rsync downloads above the slicing threshold break, and a 28 MB
+figment `.rrd` failed the same way. Turn slicing off for every gcloud call the
+scripts make:
+
+```
+export CLOUDSDK_STORAGE_SLICED_OBJECT_DOWNLOAD_THRESHOLD=0
+```
+
+`scripts/ml-artifacts.sh` and figment's `scripts/runs-sync` both set it. **A
+backup you have never restored is not verified.** The push checks
+(file counts, sizes) all passed while restoring was broken. The real proof was
+the round trip: pull into a fresh worktree, re-export the ONNX, and score 32
+frames against the deployed `model.onnx`, with a max abs diff of 0.0.
+Piping the first pull through `| tail` hid its non-zero exit, too.
+
 **A gitignore `dir/` pattern does not match a symlink.** After the move, git
 showed `?? ml/artifacts/image_cache`. Drop the slash: `ml/artifacts/image_cache`.
 It's the same kind of surprise as
@@ -155,5 +182,6 @@ minutes. The two-flag push cleared both repos:
   Figment mirrors `runs/` the same way.
 - [git-worktrees-for-js-and-python-repos](git-worktrees-for-js-and-python-repos.md) covers
   the same symlink-a-shared-dir pattern, for `node_modules`.
-- Still open: ONNX ignored by default (step 3), and the ML Python venv reachable
-  from a worktree before the CLAUDE.md exception can go (step 4).
+- Step 3 (ONNX ignored by default, the shipping one `git add -f`) and step 4
+  (worktrees link the main checkout's `.venv`; the CLAUDE.md exception retired)
+  followed in their own PRs.
