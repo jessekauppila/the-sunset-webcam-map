@@ -59,6 +59,10 @@ ml/artifacts/image_cache
 ml/artifacts/**/*.pt
 ml/artifacts/**/*.pth
 ml/artifacts/**/*.ckpt
+# Exported ONNX is ignored by default (#248): the bucket keeps every model.
+# A model that ships is committed with git add -f, in the PR that adds its
+# .vercelignore ! line; files already tracked stay tracked.
+ml/artifacts/models/**/model.onnx
 ml/.venv/
 /.venv/
 /.venv*/
