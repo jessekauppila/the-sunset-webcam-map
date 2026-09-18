@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getSweptZone } from '@/app/lib/solo/store';
-import { isFlagEnabled, SWEEP_FORCE_DAY_RING } from '@/app/lib/runtimeFlags';
+import { isFlagEnabled } from '@/app/lib/runtimeFlags';
+import { SWEEP_FORCE_DAY_RING } from '@/app/lib/runtimeFlagKeys';
 import { sweepGeometry } from '@/app/api/cron/update-cameras/lib/sweepGeometry';
 import { TERMINATOR_DAY_SIDE_OFFSETS_DEG } from '@/app/lib/masterConfig';
 

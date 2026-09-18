@@ -1,9 +1,6 @@
 // @vitest-environment node
 import { describe, it, expect, vi, afterEach } from 'vitest';
 
-// The adapter names its flag from runtimeFlags, which opens the Neon client
-// at import time; nothing here touches a database.
-vi.mock('@/app/lib/runtimeFlags', () => ({ SOURCE_FAA: 'source_faa' }));
 import fixture from './__fixtures__/faa-redistributable.json';
 import {
   FAA_REDISTRIBUTABLE_URL,

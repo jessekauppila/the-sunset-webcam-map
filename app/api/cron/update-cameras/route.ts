@@ -35,11 +35,11 @@ import {
   TERMINATOR_SWEEP_FAILED_HOLD_RATIO,
   SEARCH_RADIUS_DEG,
 } from '@/app/lib/masterConfig';
+import { isFlagEnabled } from '@/app/lib/runtimeFlags';
 import {
-  isFlagEnabled,
   SWEEP_FORCE_DAY_RING,
   DISAGREEMENT_INTAKE,
-} from '@/app/lib/runtimeFlags';
+} from '@/app/lib/runtimeFlagKeys';
 import { classifyCustomCamerasForTick } from './lib/customClassification';
 import { verifyCronAuth } from './lib/auth';
 import { dedupeCoords, fetchCoordsCounted } from './lib/windyApi';
