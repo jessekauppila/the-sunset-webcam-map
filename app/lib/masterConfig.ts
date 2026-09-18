@@ -377,12 +377,15 @@ export const DIGEST_LOOKBACK_DAYS = 14;
 // and the live settings cache shares that Redis. At the glass alone this adds
 // ~1.7k commands a day rather than ~17k.
 export const MIRROR_COUNT_SAMPLE_RATE = 0.1;
-// One follower's calls in an hour: a fetch at each dwell boundary (~12 s, so
-// ~5 a minute) plus the minute refresh. An order-of-magnitude divisor for a
-// tripwire, not a census; retries and a longer dwell both move it.
-export const MIRROR_CALLS_PER_VIEWER_HOUR = 360;
+// One follower's calls in an hour: a fetch at each dwell boundary plus the
+// minute refresh. The dwell is the whole camera run, not one frame, so it
+// varies widely -- measured 2026-09-18: 48 s for an 11-frame sunset run,
+// 16 s for a one-frame sunrise -- which puts a viewer at ~135-285 calls an
+// hour (a 12 s guess of 360 undercounted viewers by up to 2.7x). Set at the
+// low end so the viewer estimate errs high: a tripwire should warn early.
+export const MIRROR_CALLS_PER_VIEWER_HOUR = 150;
 // Above this many viewers at a feed's busiest hour, the digest line becomes a
-// warning. The glass alone is ~1 per feed.
+// warning. The glass alone reads ~1-2 per feed.
 export const MIRROR_VIEWER_WARN = 10;
 // How far back the Ops usage chart reaches. 60 days spans two billing cycles
 // so month-rollover deltas are visible and testable.
