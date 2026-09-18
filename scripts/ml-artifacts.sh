@@ -51,7 +51,7 @@ case "$verb" in
       comm -3 \
         <(ls "$LOCAL/$kind" 2>/dev/null | sort) \
         <(gcloud storage ls "$REMOTE/$kind/" 2>/dev/null | sed 's#/$##; s#.*/##' | sort) \
-        | sed "s#^\t#  bucket only: $kind/#; t; s#^#  local only:  $kind/#"
+        | awk -v k="$kind" '/^\t/ {sub(/^\t/, ""); print "  bucket only: " k "/" $0; next} {print "  local only:  " k "/" $0}'
     done
     exit 0
     ;;
