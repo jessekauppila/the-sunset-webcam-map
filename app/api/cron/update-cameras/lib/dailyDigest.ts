@@ -287,7 +287,7 @@ export function formatBinLine(summary: BinDigestSummary | null): string {
  * The mirror tripwire (#238). /api/mirror/state is uncached on purpose, so its
  * cost follows its viewers; this line is how a link that has travelled
  * further than a handful of people shows up. Quiet by design at the glass
- * alone (~1 viewer per feed); a warning pointing at #252 once a feed passes
+ * alone (~1-2 viewers per feed); a warning pointing at #252 once a feed passes
  * MIRROR_VIEWER_WARN at its busiest hour.
  */
 export function formatMirrorLine(traffic: MirrorTraffic | null): string {
