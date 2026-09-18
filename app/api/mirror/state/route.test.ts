@@ -16,6 +16,17 @@ vi.mock('@/app/lib/solo/store', () => ({
   growDwell: (...a: unknown[]) => growDwell(...a),
 }));
 vi.mock('@/app/lib/settings/liveSettings', () => ({ getLiveSettingsCached: () => getLiveSettingsCached() }));
+const countMirrorCall = vi.fn();
+vi.mock('@/app/lib/mirrorTraffic', () => ({ countMirrorCall: (...a: unknown[]) => countMirrorCall(...a) }));
+// after() runs its callback once the response has gone; here it is held so a
+// test can see what was deferred and run it by hand.
+const deferred: (() => unknown)[] = [];
+vi.mock('next/server', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('next/server')>()),
+  after: (fn: () => unknown) => {
+    deferred.push(fn);
+  },
+}));
 
 import { GET } from './route';
 
@@ -32,6 +43,7 @@ const row = (slot: number, shownSince: number, dwellMs: number, currentSnapshotI
 
 beforeEach(() => {
   vi.clearAllMocks();
+  deferred.length = 0;
   vi.useFakeTimers();
   vi.setSystemTime(new Date(NOW));
   // activeVersion is explicit because the registry default is v1, and only the
@@ -49,10 +61,24 @@ describe('GET /api/mirror/state', () => {
     expect((await get('')).status).toBe(400);
     expect((await get('?feed=noon')).status).toBe(400);
   });
-  it('is cacheable at the edge for one second', async () => {
+  it('is never cached, because the glass follows this URL too (#238, #252)', async () => {
     const res = await get('?feed=sunset');
     expect(res.status).toBe(200);
-    expect(res.headers.get('cache-control')).toBe('public, s-maxage=1, stale-while-revalidate=4');
+    expect(res.headers.get('cache-control')).toBe('no-store');
+  });
+  it('counts the call only after it has answered, so a slow count never delays a screen', async () => {
+    await get('?feed=sunset');
+    expect(countMirrorCall).not.toHaveBeenCalled();
+    expect(deferred).toHaveLength(1);
+
+    await deferred[0]();
+
+    expect(countMirrorCall).toHaveBeenCalledWith('sunset');
+  });
+  it('does not count a request it rejected', async () => {
+    await get('?feed=noon');
+    await get('?feed=sunset&x=1');
+    expect(deferred).toHaveLength(0);
   });
   it('carries the live panel preset, the solo2 dials with caption, and the build', async () => {
     const body = await (await get('?feed=sunset')).json();
@@ -105,12 +131,14 @@ describe('GET /api/mirror/state', () => {
     expect(body).not.toHaveProperty('bins');
     expect(body).not.toHaveProperty('tape');
   });
-  it('answers a store failure with a cacheable 503 rather than a bare 500', async () => {
+  it('answers a store failure with a 503 that is not cached either, and still counts it', async () => {
     listActiveEntries.mockRejectedValue(new Error('neon down'));
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
     const res = await get('?feed=sunset');
     expect(res.status).toBe(503);
-    expect(res.headers.get('cache-control')).toBe('public, s-maxage=1, stale-while-revalidate=4');
+    expect(res.headers.get('cache-control')).toBe('no-store');
+    // A follower retrying a failure is still load, which is what the count measures.
+    expect(deferred).toHaveLength(1);
     expect(spy).toHaveBeenCalled();
     spy.mockRestore();
   });

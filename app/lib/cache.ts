@@ -9,6 +9,9 @@ const KIOSK_DOZE_KEY = 'kiosk:doze';
 const KIOSK_LIVE_SETTINGS_KEY = 'kiosk:liveSettings';
 const KIOSK_LIVE_SETTINGS_TTL_SECONDS = 300;
 const KIOSK_LAST_POLL_KEY = 'kiosk:lastPoll';
+// Hourly buckets outlive the digest's 24-hour window by two days, so a missed
+// digest run still finds yesterday's counts.
+const MIRROR_BUCKET_TTL_SECONDS = 3 * 24 * 60 * 60;
 
 let client: Redis | null = null;
 
@@ -155,3 +158,33 @@ export async function getKioskLastPoll(): Promise<string | null> {
   }
 }
 
+
+/**
+ * Count one call into an hourly mirror bucket (the #238 tripwire; the key is
+ * built by app/lib/mirrorTraffic.ts). The expiry is set on the bucket's first
+ * call only, so a counted call costs one command, not two.
+ */
+export async function incrMirrorCallBucket(key: string): Promise<number | null> {
+  const c = getClient();
+  if (!c) return null;
+  try {
+    const n = await c.incr(key);
+    if (n === 1) await c.expire(key, MIRROR_BUCKET_TTL_SECONDS);
+    return n;
+  } catch (error) {
+    console.warn('[cache] incrMirrorCallBucket failed:', error);
+    return null;
+  }
+}
+
+/** Every requested bucket in one MGET; a missing bucket reads as null. */
+export async function getMirrorCallBuckets(keys: string[]): Promise<(number | null)[] | null> {
+  const c = getClient();
+  if (!c) return null;
+  try {
+    return await c.mget<(number | null)[]>(...keys);
+  } catch (error) {
+    console.warn('[cache] getMirrorCallBuckets failed:', error);
+    return null;
+  }
+}

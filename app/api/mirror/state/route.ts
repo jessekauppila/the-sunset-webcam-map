@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { after, NextRequest, NextResponse } from 'next/server';
 import { getLiveSettingsCached } from '@/app/lib/settings/liveSettings';
 import { mergeSettings } from '@/app/lib/settings/schema';
 import { SHARED_NAMESPACE, SHARED_SCHEMA } from '@/app/lib/settings/sharedSchema';
@@ -10,6 +10,7 @@ import type { Solo2Dials } from '@/app/lib/solo2/types';
 import { BUILD_ID } from '@/app/lib/buildStamp';
 import { parseFeed, toViewEntry } from '@/app/api/kiosk/solo/view';
 import { buildMirrorView, MIRROR_CACHE_CONTROL } from '../view';
+import { countMirrorCall } from '@/app/lib/mirrorTraffic';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -37,6 +38,10 @@ export async function GET(request: NextRequest) {
   if (request.nextUrl.searchParams.getAll('feed').length !== 1) {
     return NextResponse.json({ error: 'only feed is accepted' }, { status: 400 });
   }
+  // The digest's tripwire (#238): counted after the response has gone, so a
+  // slow or failing Redis never delays a screen. A 503 is counted too; a
+  // follower retrying a failure is still load.
+  after(() => countMirrorCall(feed));
 
   try {
     const version = SOLO_VERSIONS.solo2 as SoloVersionSpec;
@@ -64,10 +69,11 @@ export async function GET(request: NextRequest) {
     const body = buildMirrorView({ feed, dials, entries: entries.map(toViewEntry), screen, nowMs, panelPreset, build: BUILD_ID });
     return NextResponse.json(body, { headers: { 'Cache-Control': MIRROR_CACHE_CONTROL } });
   } catch (error) {
-    // This route is now the only path that advances solo2, and every follower
-    // retries once a second when it fails, so a failure must coalesce at the
-    // edge exactly as a success does; a bare 500 carries no cache header and
-    // every retry would reach the failing database.
+    // This route is the only path that advances solo2, and every follower
+    // retries once a second for ten seconds when it fails. The 503 is
+    // uncached like the success (#238), so during an outage each follower
+    // reaches the database once a second; at a handful of viewers that is
+    // the accepted price, and the digest shows when it stops being a handful.
     console.error(`[mirror/state] ${feed} failed:`, error);
     return NextResponse.json({ error: 'mirror unavailable' }, { status: 503, headers: { 'Cache-Control': MIRROR_CACHE_CONTROL } });
   }

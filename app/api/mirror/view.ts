@@ -5,12 +5,20 @@ import { SOLO_VERSIONS, type SoloVersionSpec } from '@/app/lib/solo/versions';
 import type { Solo2Dials } from '@/app/lib/solo2/types';
 
 /**
- * One second at the edge (mirror spec §4.1). The beat gives a follower one
- * beat to see a new slot, and one origin call per second per feed per region
- * is the cost ceiling whatever the visitor count. The stale window is what
- * the follower's retry tolerates, not a longer TTL.
+ * Never cached (#238). Mirror spec §4.1 asked for one second at the edge, but
+ * that header never took effect (force-dynamic strips s-maxage), and on
+ * reading the follower closely it should not: the Pi glass follows this same
+ * URL, and sunrise and sunset would be two cache keys going stale
+ * independently. Both screens are late by the same ~0.7 s today, which is
+ * what keeps the rendezvous together; a cache would make one screen change
+ * on the beat while the other lags. Saying no-store outright means removing
+ * force-dynamic can never switch a cache on by accident.
+ *
+ * The cost is that the mirror's load grows with its viewers. The daily digest
+ * counts it (app/lib/mirrorTraffic.ts) and warns when it grows; #252 holds
+ * the designs for bounding it before a permanent installation.
  */
-export const MIRROR_CACHE_CONTROL = 'public, s-maxage=1, stale-while-revalidate=4';
+export const MIRROR_CACHE_CONTROL = 'no-store';
 
 /**
  * What one follower needs for one feed, and nothing the operator's studio

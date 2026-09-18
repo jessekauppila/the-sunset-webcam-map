@@ -222,6 +222,22 @@ the drawn frame alone. No fallback derivation ships.
 
 Headers:
 
+> **Superseded 2026-09-17 (#238): this route is `Cache-Control: no-store`.**
+> The header below never took effect. `force-dynamic` stripped the
+> `s-maxage`, and production served every call as a MISS from the day it
+> shipped. On reading the follower closely it should not be restored as
+> written. The Pi glass follows this same URL, and sunrise and sunset are two
+> cache keys that go stale independently. Today both screens arrive the same
+> ~0.7 s after the beat, which keeps the rendezvous together; a cache would
+> let one change on the beat while the other lags. A cache cannot change how
+> often the server *draws* (one draw per slot, compare-and-set); what it
+> changes is when each screen *learns* of the draw. The arrival dissolve plays
+> in full from whenever the response lands, so late means later, not cut.
+> The mirror's load therefore follows its viewers. The daily digest counts
+> it (`app/lib/mirrorTraffic.ts`) and warns past ten viewers, and #252 holds
+> the designs for bounding it before a permanent installation. The paragraph
+> below is kept as the original intent.
+
 ```
 Cache-Control: public, s-maxage=1, stale-while-revalidate=4
 ```
