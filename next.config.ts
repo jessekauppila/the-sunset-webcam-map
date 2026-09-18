@@ -11,10 +11,21 @@ import type { NextConfig } from 'next';
  */
 const BUILD_ID = process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 12) || 'dev';
 
+/**
+ * Lint + typecheck is ~25 s of a ~100 s Vercel build, and it repeats work the
+ * required CI `test` check already did: CI runs `npm run lint` and a full
+ * `next build` against the merge result (branch protection requires an
+ * up-to-date branch). So Vercel skips both; local and CI builds keep them.
+ * Vercel sets VERCEL=1 in its build container.
+ */
+const ON_VERCEL = !!process.env.VERCEL;
+
 const nextConfig: NextConfig = {
   env: {
     NEXT_PUBLIC_BUILD_ID: BUILD_ID,
   },
+  eslint: { ignoreDuringBuilds: ON_VERCEL },
+  typescript: { ignoreBuildErrors: ON_VERCEL },
   images: {
     remotePatterns: [
       {

@@ -18,7 +18,9 @@ coverage
 # ---------------------------------------------------------------------------
 # Local tooling state
 # ---------------------------------------------------------------------------
-.git
+# NOT .git: git-triggered builds apply this file to the clone before the
+# ignoreCommand runs, and scripts/vercel-ignore-build.sh needs git history.
+# The CLI never uploads .git regardless.
 .vercel
 .claude
 .superpowers
