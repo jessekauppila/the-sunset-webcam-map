@@ -1,6 +1,7 @@
 ---
 title: Merged is a claim about a branch, not about main
 date: 2026-09-07
+last_refreshed: 2026-09-17
 category: docs/solutions/workflow-issues
 module: dev-workflow
 problem_type: workflow_issue
@@ -136,6 +137,15 @@ nothing about that branch merged into current `main`. Type coupling, changed
 signatures, and renamed exports break across branches with no file overlap at
 all.
 
+**For a PR into `main`, GitHub now does this.** Since 2026-09-17 branch
+protection requires the CI `test` check (lint, vitest, build) with the branch
+up to date, so a PR behind `main` shows "Update branch" and CI re-runs on the
+combined code before the merge button works
+(`docs/solutions/developer-experience/ci-is-the-first-build-without-your-env.md`).
+Run the recipe below by hand when the gate does not reach: a stacked PR whose
+base is not `main`, recovering orphaned work (guidance 4), or checking a merge
+locally before pushing.
+
 ```bash
 git fetch origin main --quiet
 git switch -c merge-check/<branch> origin/main
@@ -197,7 +207,8 @@ gives those parameters defaults.
 **The failure is silent by construction.** All six incidents produced zero
 errors, zero warnings, and a green-looking UI. Nothing notifies you when you push
 to a merged branch, nothing flags a stacked PR whose base is already gone,
-nothing signals that two conflict-free branches are type-incompatible. The
+nothing signalled that two conflict-free branches are type-incompatible (for PRs
+into `main`, the required up-to-date CI check now does). The
 failure surfaces later — in `main`, in a failed deploy, or when someone asks
 where the work went.
 
@@ -230,10 +241,10 @@ MERGED but its base was another branch; before removing a worktree, since
 **PR-state check** — before pushing to a branch that already has a PR, unless
 you opened that PR seconds ago. Any elapsed time is enough in this repo.
 
-**Merge-result build** — when anything landed on `main` after your branch was
-cut and your branch touches shared types, exported signatures, or shared helpers.
-File overlap is *not* the trigger; shape 2 had none. Also when merging a stacked
-PR whose base has already merged.
+**Merge-result build** — enforced by branch protection for every PR into
+`main`; by hand only when merging a stacked PR whose base is not `main` (or has
+already merged), or when checking locally before pushing. File overlap is *not*
+the trigger; shape 2 had none.
 
 **Extraction check** — when your branch adds a new file holding code moved out of an
 existing one, and anything landed on `main` in that area since the branch was cut. This
@@ -288,6 +299,9 @@ missing import lived in a launcher script no test file imports.
 - `docs/solutions/workflow-issues/migrations-need-a-ledger.md` — the same move
   applied to migrations: a rule in a spec that kept being missed became a command
   that exits non-zero. The ancestry check wants the same promotion.
+- `docs/solutions/developer-experience/ci-is-the-first-build-without-your-env.md`
+  — the merge-result build got that promotion: CI plus branch protection on
+  `main`.
 - `docs/solutions/developer-experience/git-worktrees-for-js-and-python-repos.md`
   — the worktree layout these incidents happen inside.
 - `CONCEPTS.md`, the **Glass** entry, states the same epistemology one step
