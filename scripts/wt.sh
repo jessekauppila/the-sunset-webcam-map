@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # One sibling worktree per feature. See CLAUDE.md "Branches".
 #
-#   scripts/wt.sh new <branch> [base]   create worktree + node_modules symlink
+#   scripts/wt.sh new <branch> [base]   create worktree + node_modules and ML image-cache symlinks
 #                                       + env/.vercel copies + cmux workspace
 #   scripts/wt.sh rm  <branch>          remove the worktree (branch is kept)
 #   scripts/wt.sh ls                    list worktrees
@@ -37,6 +37,9 @@ case "$cmd" in
     # Shared deps: a new dependency installs into the shared node_modules,
     # which is fine — package.json/lock changes stay on the branch.
     ln -s "$ROOT/node_modules" "$path/node_modules"
+    # One ML image cache per machine, outside every checkout (#248).
+    mkdir -p "$HOME/.cache/sunset-ml/image_cache"
+    ln -s "$HOME/.cache/sunset-ml/image_cache" "$path/ml/artifacts/image_cache"
     for f in .env.local .env.production.local .env.vercel; do
       [ -f "$ROOT/$f" ] && cp "$ROOT/$f" "$path/$f"
     done
