@@ -20,6 +20,10 @@ ROOT=$(git rev-parse --show-toplevel)
 LOCAL="$ROOT/ml/artifacts"
 BUCKET=${ML_ARTIFACTS_BUCKET:-sunset-ml-artifacts}
 REMOTE="gs://$BUCKET/ml/artifacts"
+# Sliced (parallel-range) downloads leave an empty .gstmp and fail the hash
+# check on every large object (gcloud 585, macOS): best.pt never arrives.
+# Whole-object downloads are fine. Found 2026-09-17 testing a worktree pull.
+export CLOUDSDK_STORAGE_SLICED_OBJECT_DOWNLOAD_THRESHOLD=0
 # gcloud matches --exclude as a Python regex on the path relative to the source.
 EXCLUDE='^image_cache/.*|.*\.DS_Store$|.*__pycache__/.*'
 

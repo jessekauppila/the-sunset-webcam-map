@@ -8,7 +8,7 @@ repo (`../sunset-cam-firmware`); wire spec is `docs/device-protocol.md`.
 
 Every feature gets its own **git worktree in a sibling directory** and its own
 cmux workspace. The main checkout (`~/GitHub/the-sunset-webcam-map`) stays on
-`main`: it is where PRs merge, migrations apply, and `ml/artifacts/` lives.
+`main`: it is where PRs merge, migrations apply, and the shared ML `.venv` lives.
 Nobody edits app code there.
 
 ```bash
@@ -66,12 +66,14 @@ about the checkout. What remains:
    display work (mosaic, kiosk) run in separate sessions. Shared helpers
    (`app/lib/modelReadout.ts`, the mosaic's `qualitySignal`) get a heads-up
    message (`ListAgents` + `SendMessage`) to the other lane when they change.
-2. **The ML lane is the one exception that still works in the main checkout.**
-   `ml/artifacts/` is 3 GB of mostly untracked data mixed with tracked files,
-   so it can't be symlinked into a worktree. An ML session branches in the
-   main checkout, and the old rules apply to it alone: ask before switching,
-   return the checkout to `main` when idle, message before touching a tracked
-   file there.
+2. **The ML lane uses worktrees like everyone else.** Only the small tracked
+   files of `ml/artifacts/` travel with git. Checkpoints and untracked runs
+   live in the private `sunset-ml-artifacts` bucket, the image cache lives in
+   `~/.cache/sunset-ml/`, and the Python env is the main checkout's `.venv`.
+   `scripts/wt.sh new` links the cache and `.venv` into every worktree. Run
+   `scripts/ml-artifacts.sh pull experiments/<run>` before warm-starting from a
+   run, and `push experiments/<run>` after training one:
+   `docs/solutions/developer-experience/ml-artifacts-off-the-checkout-bucket-mirror-and-cache-symlink.md`.
 3. **`docs/superpowers/plans/2026-08-29-two-scale-model-STATE.md` is the
    cross-session source of truth** for the model program — read it first,
    update it on the way out.
