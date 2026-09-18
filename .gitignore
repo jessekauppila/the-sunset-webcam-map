@@ -60,7 +60,9 @@ ml/artifacts/**/*.pt
 ml/artifacts/**/*.pth
 ml/artifacts/**/*.ckpt
 ml/.venv/
-/.venv/
+# No trailing slash: worktrees link .venv from the main checkout, and a
+# slash pattern never matches a symlink.
+/.venv
 /.venv*/
 
 # Python bytecode caches
