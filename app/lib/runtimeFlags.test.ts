@@ -7,7 +7,8 @@ vi.mock('@/app/lib/db', () => ({
     sqlMock(strings, ...values),
 }));
 
-import { isFlagEnabled, SWEEP_FORCE_DAY_RING } from './runtimeFlags';
+import { isFlagEnabled } from './runtimeFlags';
+import { SWEEP_FORCE_DAY_RING } from './runtimeFlagKeys';
 
 // Braces, not a concise arrow: mockReset() returns the mock, and Vitest treats
 // a value returned from a hook as a teardown callback.

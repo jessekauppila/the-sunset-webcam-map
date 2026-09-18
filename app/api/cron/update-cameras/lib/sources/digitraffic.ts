@@ -29,7 +29,7 @@
  * "Source: Fintraffic / digitraffic.fi, license CC 4.0 BY".
  */
 
-import { SOURCE_DIGITRAFFIC } from '@/app/lib/runtimeFlags';
+import { SOURCE_DIGITRAFFIC } from '@/app/lib/runtimeFlagKeys';
 import { capCamerasPerTick } from './capPerTick';
 import {
   emptyListResult,

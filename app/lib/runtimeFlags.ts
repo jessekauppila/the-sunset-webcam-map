@@ -2,31 +2,18 @@ import 'server-only';
 import { sql } from '@/app/lib/db';
 
 /**
- * Booleans the cron reads at tick time.
+ * Reading the booleans the cron consults at tick time.
  *
  * The point is reversibility without a redeploy: env vars in this project
  * bake in when the deploy is built, so an env-var kill-switch cannot bring
  * spending down until someone redeploys. A row can be flipped in seconds --
  * see scripts/set-runtime-flag.mjs -- and the next tick honours it.
+ *
+ * The keys themselves are in `app/lib/runtimeFlagKeys.ts`, which imports
+ * nothing. Naming a flag is not a database operation, and a module that only
+ * names one should not inherit `server-only` and a connection string from this
+ * file (issue #245).
  */
-
-/**
- * Sweep the day-side escalation ring every tick, both feeds, regardless of
- * TERMINATOR_CAMERA_FLOOR. Roughly doubles Windy boxes per tick. Off by
- * default; phase 1 of the pool-coverage spec turns it on for a bounded
- * measurement window.
- */
-export const SWEEP_FORCE_DAY_RING = 'sweep_force_day_ring';
-
-/**
- * Persist a Windy frame because the two model heads disagree (the Hard
- * Examples mining arm). Off by default: 32,013 frames were already banked
- * with zero labeled, and hard examples are model-relative, so flip this on
- * only in the week before a labeling sitting. model_disagreement_kind is
- * still computed and written on every persisted row regardless of this flag
- * -- the Hard Examples queue filters on that column, not on intake_reason.
- */
-export const DISAGREEMENT_INTAKE = 'disagreement_intake';
 
 /**
  * Read one flag. Fails CLOSED: any error, missing row, or non-boolean value
@@ -48,13 +35,3 @@ export async function isFlagEnabled(key: string): Promise<boolean> {
     return false;
   }
 }
-
-/**
- * A non-Windy image source (issue #204), one flag per source so a source can be
- * turned on for a day and off in one command. Seeded OFF. The registry in
- * app/api/cron/update-cameras/lib/sources/registry.ts reads these.
- */
-export const SOURCE_FAA = 'source_faa';
-
-/** Finland Digitraffic road weather cameras (issue #221). Seeded OFF. */
-export const SOURCE_DIGITRAFFIC = 'source_digitraffic';

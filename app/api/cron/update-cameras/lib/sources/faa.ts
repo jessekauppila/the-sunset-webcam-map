@@ -27,7 +27,7 @@
  * federal work, public domain.
  */
 
-import { SOURCE_FAA } from '@/app/lib/runtimeFlags';
+import { SOURCE_FAA } from '@/app/lib/runtimeFlagKeys';
 import { capCamerasPerTick } from './capPerTick';
 import {
   emptyListResult,
