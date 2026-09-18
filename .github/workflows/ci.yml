@@ -14,9 +14,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+      # Reads "engines.node" from package.json, the same field Vercel uses, so
+      # CI always tests the Node version production runs.
       - uses: actions/setup-node@v7
         with:
-          node-version: 20
+          node-version-file: package.json
           cache: npm
       - run: npm ci
       - run: npm run lint
