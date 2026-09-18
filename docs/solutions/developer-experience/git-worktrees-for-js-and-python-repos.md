@@ -53,3 +53,4 @@ Without the `node_modules` symlink, each TS worktree needs a full `npm install` 
 ## Related
 - `../integration-issues/stacked-branch-missing-merged-dependency.md` — the import-chain / ancestry check for stacked branches.
 - [[build-ahead-of-validation]] — when stacking branches, validate the foundation before piling on.
+- `ml-artifacts-off-the-checkout-bucket-mirror-and-cache-symlink.md` — the same symlink pattern for the ML image cache, plus a bucket mirror for untracked checkpoints so the ML lane can use worktrees too.

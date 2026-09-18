@@ -64,7 +64,9 @@ ml/artifacts/**/*.ckpt
 # .vercelignore ! line; files already tracked stay tracked.
 ml/artifacts/models/**/model.onnx
 ml/.venv/
-/.venv/
+# No trailing slash: worktrees link .venv from the main checkout, and a
+# slash pattern never matches a symlink.
+/.venv
 /.venv*/
 
 # Python bytecode caches
