@@ -3,9 +3,14 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 const getMock = vi.fn();
 const setMock = vi.fn();
 const delMock = vi.fn();
+const incrMock = vi.fn();
+const expireMock = vi.fn();
+const mgetMock = vi.fn();
 
 vi.mock('@upstash/redis', () => ({
-  Redis: { fromEnv: () => ({ get: getMock, set: setMock, del: delMock }) },
+  Redis: {
+    fromEnv: () => ({ get: getMock, set: setMock, del: delMock, incr: incrMock, expire: expireMock, mget: mgetMock }),
+  },
 }));
 
 beforeEach(() => {
@@ -16,6 +21,9 @@ beforeEach(() => {
   getMock.mockReset();
   setMock.mockReset();
   delMock.mockReset();
+  incrMock.mockReset();
+  expireMock.mockReset();
+  mgetMock.mockReset();
 });
 
 describe('terminator payload cache', () => {
@@ -160,5 +168,50 @@ describe('kiosk live settings cache', () => {
     await expect(getKioskLastPoll()).resolves.toBeNull();
     getMock.mockRejectedValueOnce(new Error('down'));
     await expect(getKioskLastPoll()).resolves.toBeNull();
+  });
+});
+
+describe('mirror call buckets (#238)', () => {
+  const KEY = 'mirror:calls:sunset:2026-09-17T19';
+
+  it('incrMirrorCallBucket increments the hour and gives a new bucket a three-day life', async () => {
+    const { incrMirrorCallBucket } = await import('./cache');
+    incrMock.mockResolvedValue(1);
+
+    await incrMirrorCallBucket(KEY);
+
+    expect(incrMock).toHaveBeenCalledWith(KEY);
+    expect(expireMock).toHaveBeenCalledWith(KEY, 3 * 24 * 60 * 60);
+  });
+
+  it('sets the expiry once, on the first increment, so a counted call costs one command', async () => {
+    const { incrMirrorCallBucket } = await import('./cache');
+    incrMock.mockResolvedValue(2);
+
+    await incrMirrorCallBucket(KEY);
+
+    expect(expireMock).not.toHaveBeenCalled();
+  });
+
+  it('getMirrorCallBuckets reads every bucket in one command', async () => {
+    const { getMirrorCallBuckets } = await import('./cache');
+    mgetMock.mockResolvedValue([3, null]);
+
+    await expect(getMirrorCallBuckets([KEY, 'mirror:calls:sunset:2026-09-17T18'])).resolves.toEqual([3, null]);
+    expect(mgetMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('both answer null instead of throwing when Redis is down or absent', async () => {
+    const { incrMirrorCallBucket, getMirrorCallBuckets } = await import('./cache');
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    incrMock.mockRejectedValueOnce(new Error('down'));
+    mgetMock.mockRejectedValueOnce(new Error('down'));
+
+    await expect(incrMirrorCallBucket(KEY)).resolves.toBeNull();
+    await expect(getMirrorCallBuckets([KEY])).resolves.toBeNull();
+
+    process.env.USE_KV_CACHE = 'false';
+    await expect(getMirrorCallBuckets([KEY])).resolves.toBeNull();
+    warn.mockRestore();
   });
 });

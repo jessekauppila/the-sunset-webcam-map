@@ -5,6 +5,9 @@ const sqlMock = vi.fn();
 vi.mock('@/app/lib/solo/store', () => ({
   getBinDigestSummary: async () => null,
 }));
+vi.mock('@/app/lib/mirrorTraffic', () => ({
+  getMirrorTraffic: async () => null,
+}));
 vi.mock('@/app/lib/db', () => ({
   sql: (strings: TemplateStringsArray, ...values: unknown[]) =>
     sqlMock(strings, ...values),
@@ -14,6 +17,7 @@ import {
   sendDailyUsageDigest,
   formatCalibrationLine,
   formatBinLine,
+  formatMirrorLine,
   formatSweepLine,
   sweptAltitudeSpan,
 } from './dailyDigest';
@@ -445,5 +449,39 @@ describe('formatBinLine', () => {
     expect(html).toContain('220 removed');
     expect(html).toContain('12 sunrise');
     expect(html).toContain('31 sunset');
+  });
+});
+
+describe('formatMirrorLine (#238)', () => {
+  const quiet = { calls: 0, peakHourCalls: 0, peakHourUtc: null, viewersAtPeak: 0 };
+  const glassOnly = { calls: 8_640, peakHourCalls: 380, peakHourUtc: '19:00', viewersAtPeak: 1 };
+
+  it('renders nothing when the counts could not be read', () => {
+    expect(formatMirrorLine(null)).toBe('');
+  });
+
+  it('gives each feed its calls and its busiest hour as an estimate of viewers', () => {
+    const html = formatMirrorLine({ sunset: glassOnly, sunrise: quiet });
+
+    expect(html).toContain('sunset 8,640 calls');
+    expect(html).toContain('busiest 19:00 UTC, ≈1 viewer');
+    expect(html).toContain('sunrise 0 calls');
+    expect(html).not.toContain('#252');
+  });
+
+  it('becomes a warning pointing at #252 once a feed passes the viewer threshold', () => {
+    const busy = { calls: 90_000, peakHourCalls: 7_200, peakHourUtc: '02:00', viewersAtPeak: 20 };
+
+    const html = formatMirrorLine({ sunset: busy, sunrise: glassOnly });
+
+    expect(html).toMatch(/≈20 viewers/);
+    expect(html).toContain('#252');
+    expect(html).toMatch(/sunset/);
+  });
+
+  it('does not warn at exactly the threshold', () => {
+    const atLine = { calls: 40_000, peakHourCalls: 3_600, peakHourUtc: '02:00', viewersAtPeak: 10 };
+
+    expect(formatMirrorLine({ sunset: atLine, sunrise: quiet })).not.toContain('#252');
   });
 });
