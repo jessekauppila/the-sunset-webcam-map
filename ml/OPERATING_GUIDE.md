@@ -1128,28 +1128,38 @@ must match or the state-dict load will fail with
 
 - **Training** (`ml/run_training.py`) writes a PyTorch checkpoint
   `<run_dir>/train/best.pt`. This is the source of truth for the
-  trained weights and stays local (`.pt` files are gitignored —
-  ~43 MB each, large and quick to regenerate from the config + data).
+  trained weights. `.pt` files are gitignored (~43 MB each) and backed
+  up to the private `sunset-ml-artifacts` bucket: run
+  `scripts/ml-artifacts.sh push experiments/<run>` after training, and
+  `pull` to get one back (in a worktree, before warm-starting).
 - **Export** (`ml/export_onnx_versioned.py`) reads that `.pt` and
   emits `ml/artifacts/models/<type>_<arch>/<version_tag>/model.onnx`
   + `model.meta.json`. The ONNX is a build artifact: deterministic,
   ~44 MB, and what production actually runs.
 
-The `.gitignore` is surgical — it excludes `image_cache/` and
-`*.pt`/`*.pth`/`*.ckpt` only, so configs, manifests, eval reports,
-plots, and exported `model.onnx` files all version-control normally.
+The `.gitignore` is surgical — it excludes the image cache (a symlink to
+`~/.cache/sunset-ml/image_cache`), `*.pt`/`*.pth`/`*.ckpt`, and exported
+`model.onnx` files. Configs, manifests, eval reports and plots
+version-control normally. Every exported model lives in the bucket; only
+a model that ships is committed.
 
 ### Bundle the ONNX into the Vercel deploy
 
-`vercel.json`'s `functions.includeFiles` glob picks up any
-`ml/artifacts/models/regression_resnet18/**` file that's part of the
-git source tree. After running `export_onnx_versioned.py`, just
-`git add` the new model directory and commit — no `-f` needed:
+Vercel only ships a model that is in git **and** survives two gates: a
+`!ml/artifacts/models/<type>/<version_tag>` line in `.vercelignore`, and the
+route-keyed `outputFileTracingIncludes` in `next.config.ts`
+(`vercel.json` `includeFiles` is silently ignored). `model.onnx` is
+gitignored, so the shipping one needs `-f`:
 
 ```bash
-git add ml/artifacts/models/regression_resnet18/<version_tag>/
+git add -f ml/artifacts/models/regression_resnet18/<version_tag>/model.onnx
+git add ml/artifacts/models/regression_resnet18/<version_tag>/model.meta.json
 git commit -m "deploy: add <version_tag> regression ONNX to bundle"
 ```
+
+Forgetting `-f` fails CI rather than production: `next.config.test.ts`
+checks that every pinned dir has a `model.onnx`, and CI runs on a fresh
+clone.
 
 Each ResNet-18 model.onnx is ~44 MB. Below GitHub's 100 MB per-file
 limit but meaningful — only commit the artifacts you actually plan to
