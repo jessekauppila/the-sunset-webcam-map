@@ -21,7 +21,7 @@ const ids = (xs: { snapshotId: number }[]) => xs.map((e) => e.snapshotId);
 
 describe('buildMirrorView', () => {
   it('names the cache policy the route sets', () => {
-    expect(MIRROR_CACHE_CONTROL).toBe('public, s-maxage=1, stale-while-revalidate=4');
+    expect(MIRROR_CACHE_CONTROL).toBe('no-store');
   });
   it('resolves the pinned run in play order and carries the next run for preload, nothing wider', () => {
     const screen = { feed: 'sunset' as const, currentSnapshotId: 3, shownSince: NOW - 4_000, slot: 12, sunsetStreak: 1, dwellMs: 20_000, shownSnapshotIds: [1, 3] };

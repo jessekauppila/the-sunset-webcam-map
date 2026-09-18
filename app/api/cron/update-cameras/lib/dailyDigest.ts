@@ -12,11 +12,14 @@ import {
 } from './sweepStats';
 import { coverageSpan } from './sweepGeometry';
 import { getBinDigestSummary, type BinDigestSummary } from '@/app/lib/solo/store';
+import { getMirrorTraffic, type MirrorTraffic } from '@/app/lib/mirrorTraffic';
 import { deriveDailyDeltas } from '@/app/components/Ops/opsMath';
 import type { ProviderUsageRow, CostEventRow } from '@/app/lib/opsTypes';
 import {
   NEON_COST_PER_CU_HOUR,
   DIGEST_LOOKBACK_DAYS,
+  MIRROR_COUNT_SAMPLE_RATE,
+  MIRROR_VIEWER_WARN,
   TERMINATOR_SUN_ALTITUDE_DEG,
 } from '@/app/lib/masterConfig';
 
@@ -280,6 +283,32 @@ export function formatBinLine(summary: BinDigestSummary | null): string {
     `${summary.removedToday} removed; waiting now ${summary.activeNow.sunrise} sunrise / ${summary.activeNow.sunset} sunset.</p>`;
 }
 
+/**
+ * The mirror tripwire (#238). /api/mirror/state is uncached on purpose, so its
+ * cost follows its viewers; this line is how a link that has travelled
+ * further than a handful of people shows up. Quiet by design at the glass
+ * alone (~1 viewer per feed); a warning pointing at #252 once a feed passes
+ * MIRROR_VIEWER_WARN at its busiest hour.
+ */
+export function formatMirrorLine(traffic: MirrorTraffic | null): string {
+  if (!traffic) return '';
+  const feeds = ['sunset', 'sunrise'] as const;
+  const clause = (feed: (typeof feeds)[number]) => {
+    const t = traffic[feed];
+    const base = `${feed} ${t.calls.toLocaleString('en-US')} calls`;
+    if (!t.peakHourUtc) return base;
+    const v = t.viewersAtPeak;
+    return `${base}, busiest ${t.peakHourUtc} UTC, ≈${v} viewer${v === 1 ? '' : 's'}`;
+  };
+  const body = `Mirror (uncached, last 24 h, counted 1 in ${Math.round(1 / MIRROR_COUNT_SAMPLE_RATE)}): ` +
+    feeds.map(clause).join(' · ');
+  const over = feeds.filter((f) => traffic[f].viewersAtPeak > MIRROR_VIEWER_WARN);
+  if (over.length === 0) return `<p style="font:12px sans-serif">${body}</p>`;
+  return `<p style="font:12px sans-serif;color:#b45309"><b>Mirror traffic is up: ${over.join(' and ')} passed ` +
+    `${MIRROR_VIEWER_WARN} viewers at its busiest hour.</b> The mirror is uncached on purpose, so its cost grows ` +
+    `with every viewer. See #252 before it grows further.<br/>${body}</p>`;
+}
+
 export async function sendDailyUsageDigest(
   now: Date,
 ): Promise<{ sent: true } | { skipped: string }> {
@@ -313,6 +342,9 @@ export async function sendDailyUsageDigest(
     const bins = await getBinDigestSummary();
     // Non-Windy sources (issue #204). Same contract: null degrades to silence.
     const sources = await getSourceDigestSummary();
+    // The mirror tripwire (#238). Same contract: an unreadable Redis is null,
+    // and null is silence.
+    const mirror = await getMirrorTraffic(now);
 
     const rows = usage.map((r) => ({ ...r, compute_time_s: Number(r.compute_time_s) }));
     const deltas = deriveDailyDeltas(rows);
@@ -387,6 +419,7 @@ export async function sendDailyUsageDigest(
         ${formatSweepLine(sweep)}
         ${formatBinLine(bins)}
         ${formatSourcesLine(sources)}
+        ${formatMirrorLine(mirror)}
         <p style="font:11px sans-serif;color:#6b7280">
           Same data as the Ops tab. Estimate uses $${NEON_COST_PER_CU_HOUR}/CU-hr;
           the invoice of record is Vercel → Settings → Billing.
