@@ -46,10 +46,14 @@ Still true in every worktree:
   follow-up to a branch that already has a PR, check `gh pr view <n> --json
   state` — MERGED means that branch is closed and the work needs a new one.
   Before saying anything shipped, run `git merge-base --is-ancestor <sha>
-  origin/main`; it is the only check that answers the question. Merging parallel
-  PRs, build the merge RESULT (`git merge --no-commit`, then `npm run build`),
-  never each branch alone — a zero-file-overlap merge broke `main` twice.
+  origin/main`; it is the only check that answers the question.
   `docs/solutions/workflow-issues/merged-is-a-claim-about-a-branch.md`.
+- **GitHub builds the merge result for you.** Branch protection on `main`
+  requires the CI `test` check (lint, vitest, build) and requires a PR to be up
+  to date with `main` first, so a PR that falls behind shows "Update branch"
+  and re-runs CI on the combined code. This replaced building each merge by
+  hand after a zero-file-overlap merge broke `main` twice. Protection settings
+  are classifier-blocked in Claude Code — hand changes to Jesse.
 - **Remove the worktree when the PR merges.** `git worktree list` should read
   like the list of open PRs.
 
