@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import type { EntryView } from '@/app/api/kiosk/solo/view';
+import type { EntryView, ViewEntry } from '@/app/api/kiosk/solo/view';
 import type { SoloGlass } from '@/app/components/solo/useSoloGlass';
 import type { Feed } from '@/app/lib/solo/types';
 import type { Solo2Dials } from '@/app/lib/solo2/types';
@@ -26,7 +26,15 @@ function preload(url: string) {
  */
 interface Dwell {
   entry: EntryView | null;
-  previous: EntryView | null;
+  previous: ViewEntry | null;
+  /**
+   * The frame actually up on glass, which the next change fades out. Not
+   * `entry`: a run windows around its peak, and the drawn frame (the newest)
+   * plays only when the window reaches it. Fading out a frame the window cut
+   * put a picture that was never on glass, and often never loaded, under the
+   * closing veil: the handoff flash of 2026-09-18.
+   */
+  up: ViewEntry | null;
   /** When the dwell began: the server's shown-since when it has one, else the boundary just passed. */
   startMs: number;
 }
@@ -50,10 +58,12 @@ export function Solo2Screen({ glass, dials, width, height, feed, debug = false }
   // now rather than working backwards from an end and a dial, which a budget
   // makes wrong (spec §5.1).
   const startFor = () => glass.shownSince ?? Date.now();
-  const [dwell, setDwell] = useState<Dwell>(() => ({ entry: current, previous: null, startMs: startFor() }));
+  const [state, setDwell] = useState<Dwell>(() => ({ entry: current, previous: null, up: null, startMs: startFor() }));
+  let dwell = state;
   // Derived during render, so the new dwell and its previous frame commit together.
   if ((current?.snapshotId ?? null) !== (dwell.entry?.snapshotId ?? null)) {
-    setDwell({ entry: current, previous: dwell.entry, startMs: startFor() });
+    dwell = { entry: current, previous: dwell.up ?? dwell.entry, up: null, startMs: startFor() };
+    setDwell(dwell);
   }
   const previous = dwell.previous;
 
@@ -86,6 +96,9 @@ export function Solo2Screen({ glass, dials, width, height, feed, debug = false }
       }, pinnedIds.length)
     : fitPlan(current ? planDialsFor(current, dials, glass.entries, dials.cameraRun) : dials, run.length);
   const stage = useStage(plan, dwell.startMs);
+  // What Solo2Frame puts up, remembered for the next change.
+  const up = run.length > 0 ? run[Math.min(stage.index, run.length - 1)] : current;
+  if ((up?.snapshotId ?? null) !== (dwell.up?.snapshotId ?? null)) setDwell({ ...dwell, up });
 
   // Preload the projected next frame and its run, so the arrival is clean.
   const nextEntry = glass.nextEntries[0] ?? null;

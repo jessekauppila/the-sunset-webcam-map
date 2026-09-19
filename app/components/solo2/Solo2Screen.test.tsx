@@ -171,3 +171,15 @@ it('a grown dwell keeps the stack mounted and steps into the added frames', () =
   act(() => { vi.advanceTimersByTime(17_000); });
   expect(screen.getByTestId('top')).toHaveAttribute('src', 'u4'); // the 4th pinned frame, index 3
 });
+
+// The handoff flash (2026-09-18). A run windows around its peak, so the drawn
+// frame — the camera's newest — plays only when the window reaches it. The
+// change used to fade out the drawn frame regardless: a picture that was
+// never on glass, often never loaded, popping in under the closing veil.
+it('a camera change fades out the frame that was on glass, not the drawn frame the window cut', () => {
+  const { rerender } = draw({ ...pinned, shownSnapshotIds: [1, 2] });
+  expect(screen.getByTestId('top')).toHaveAttribute('src', 'u2');
+  rerender(<Solo2Screen glass={{ ...glass, current: entry(9, 250, 8), shownSince: 20_000, endsAtMs: 40_000, boundaryMs: 40_000 }} dials={D} width={100} height={50} feed="sunset" />);
+  expect(screen.getByTestId('prev')).toHaveAttribute('src', 'u2');
+  expect(screen.getByTestId('caption-prev')).toHaveTextContent('t2');
+});
