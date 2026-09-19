@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import type { EntryView } from '@/app/api/kiosk/solo/view';
+import type { EntryView, ViewEntry } from '@/app/api/kiosk/solo/view';
 import type { SoloGlass } from '@/app/components/solo/useSoloGlass';
 import type { Feed } from '@/app/lib/solo/types';
 import type { Solo2Dials } from '@/app/lib/solo2/types';
@@ -26,7 +26,7 @@ function preload(url: string) {
  */
 interface Dwell {
   entry: EntryView | null;
-  previous: EntryView | null;
+  previous: ViewEntry | null;
   /**
    * The frame actually up on glass, which the next change fades out. Not
    * `entry`: a run windows around its peak, and the drawn frame (the newest)
@@ -34,7 +34,7 @@ interface Dwell {
    * put a picture that was never on glass, and often never loaded, under the
    * closing veil: the handoff flash of 2026-09-18.
    */
-  up: EntryView | null;
+  up: ViewEntry | null;
   /** When the dwell began: the server's shown-since when it has one, else the boundary just passed. */
   startMs: number;
 }
