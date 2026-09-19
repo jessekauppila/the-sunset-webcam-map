@@ -37,13 +37,14 @@ export interface MirrorView {
   /** As the state view has it; null when the row has no frame or its frame left the pool. */
   current: StateView['current'];
   /**
-   * The current run resolved to frames (play order, drawn frame last,
-   * frames the pool has since dropped omitted), then the next run. The
+   * The current run resolved to frames (play order, frames the pool has
+   * since dropped omitted), then the next run. The drawn frame is last only
+   * when the run's window around its peak reaches it. The
    * renderer resolves `current.shownSnapshotIds` against this and preloads
    * the rest.
    */
   entries: EntryView[];
-  /** The projected next dwell's frames, play order, drawn frame last. */
+  /** The projected next dwell's frames, play order. */
   next: EntryView[];
   build: string;
 }
